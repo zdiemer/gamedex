@@ -854,6 +854,11 @@ function renderPicker() {
 
   const saved = savedPickers();
   const isDef = pickIsDefault();
+  /* A preset already has a name, and it's a better one than you'd type — so there's
+     nothing to save until you've said something the preset doesn't. That moment has a
+     name already too: pickEdited() empties pickState.preset as soon as you change
+     anything it said, which is exactly when the dropdown starts reading "Custom filter". */
+  const saveable = !pickState.preset;
 
   host.innerHTML = `
     <div class="pick-controls">
@@ -871,11 +876,11 @@ function renderPicker() {
       <span class="pick-count">${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"} in pool</span>
       ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
     </div>
-    ${saved.length || !isDef ? `<div class="pick-saved">
+    ${saved.length || saveable ? `<div class="pick-saved">
       ${saved.map((p, i) => `<button class="view-chip" data-pi="${i}" title="${escapeHtml(p.desc || "")}">
           ${escapeHtml(p.name)}<span class="view-x" data-px="${i}" title="Forget this picker">✕</span>
         </button>`).join("")}
-      ${isDef ? "" : `<button class="view-save" id="pickSave">＋ Save this picker</button>`}
+      ${saveable ? `<button class="view-save" id="pickSave">＋ Save this picker</button>` : ""}
     </div>` : ""}
     <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
     <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
