@@ -239,7 +239,25 @@
     </div>
   </div>
 
+  <!-- Was one 5,500-line app.js. Split by concern, but still plain scripts sharing
+       globals — the same contract the files below rely on. Load ORDER IS LOAD-BEARING:
+       these are in the order they had inside app.js, so the handful of statements that
+       run at parse time still find what they need. chrome.js ends by calling load(),
+       which is why it comes last of this group. -->
+  <script src="core.js"></script>
+  <script src="enrich.js"></script>
+  <script src="hero.js"></script>
+  <script src="panels.js"></script>
+  <script src="data.js"></script>
+  <script src="launch.js"></script>
+  <script src="filters.js"></script>
+  <script src="table.js"></script>
+  <script src="preview.js"></script>
+  <script src="drawer.js"></script>
   <script src="app.js"></script>
+  <script src="stats.js"></script>
+  <script src="pick.js"></script>
+  <script src="chrome.js"></script>
   <script src="attract.js"></script>
   <script src="charts.js"></script>
   <script src="reviews.js"></script>

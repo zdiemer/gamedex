@@ -192,7 +192,7 @@ _FRONT_SOURCES = (
 def _front(e: dict) -> tuple[str, str]:
     """(url, source name) for a real box front when IGDB has no cover for the game.
 
-    Mirrors coverSrc() in app.js, minus the IGDB image id (which the shelf already handles
+    Mirrors coverSrc() in static/enrich.js, minus the IGDB image id (which the shelf already handles
     separately as `cover`). Every one of these URLs was being fetched and stored already —
     the shelf just never knew how to read anything but an IGDB id, so it drew a grey slab.
     """

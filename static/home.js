@@ -164,7 +164,7 @@ function suggestions(n = 6) {
 
 // ---- pieces --------------------------------------------------------------
 
-// The shared listing card (posterCardHtml, app.js), with Home's own hooks on it. Home used
+// The shared listing card (posterCardHtml, table.js), with Home's own hooks on it. Home used
 // to carry its own copy of this markup; there is only one now, so a card cannot look like a
 // different kind of object here than it does in the grid.
 function homeCard(row, sheet, note) {

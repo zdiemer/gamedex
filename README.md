@@ -55,7 +55,14 @@ Key files:
   MobyGames id. Because both key on an id rather than a title, neither can mismatch.
 - `src/match_validator.py`, `src/constants.py`, `src/excel_game.py` — title
   matcher ported near-verbatim from [zdiemer/GamesMaster](https://github.com/zdiemer/GamesMaster).
-- `static/` — `index.html`, `app.js`, `style.css` (no build step).
+- `static/` — `index.html`, `style.css`, and ~30 plain `.js` files (no build step, no
+  bundler, no modules). They are classic scripts that share globals, so the only thing
+  holding them together is the `<script>` order in `index.html` — which is therefore
+  load-bearing. `app.js` is the spine (which tab is showing, the URL, boot); `core.js`
+  through `chrome.js` are the rest of what used to be one 5,500-line `app.js`; the
+  files after them (`home.js`, `shelf.js`, …) are self-contained tabs and features.
+  A new file must be added to BOTH `index.html` and the `SHELL_URLS` list in `sw.js`,
+  or it will work online and be missing offline.
 
 ## IGDB metadata enrichment
 

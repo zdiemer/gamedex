@@ -11,15 +11,21 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.45.0";
+const VERSION = "v1.45.1";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
+// Keep in sync with the <script> tags in index.html — a file loaded there but
+// missing here is simply absent offline. Order does not matter (this is a cache,
+// not a load order); index.html owns that.
 const SHELL_URLS = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest", "./icon.svg",
-  "./app.js", "./attract.js", "./challenges.js", "./charts.js", "./collections.js", "./extras.js",
-  "./groups.js", "./health.js", "./home.js", "./konami.js", "./media.js",
-  "./picross.js", "./predict.js", "./relations.js", "./shelf.js", "./timeline.js",
+  "./app.js", "./attract.js", "./challenges.js", "./charts.js", "./chrome.js",
+  "./collections.js", "./core.js", "./data.js", "./drawer.js", "./enrich.js",
+  "./extras.js", "./filters.js", "./groups.js", "./health.js", "./hero.js",
+  "./home.js", "./konami.js", "./launch.js", "./media.js", "./panels.js",
+  "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./relations.js",
+  "./reviews.js", "./shelf.js", "./stats.js", "./table.js", "./timeline.js",
   "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2",
 ];
 
