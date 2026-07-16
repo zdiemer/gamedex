@@ -6,9 +6,10 @@
 #   2. Wait for rollout
 #   3. Print pod status
 #
-# NOTE: rebuild + side-load the image first with ./build.sh if you changed the
-# app code or Dockerfile (imagePullPolicy is IfNotPresent — k3s won't re-pull a
-# locally-imported tag).
+# NOTE: if you changed anything under src/, static/, or the Dockerfile, bump the
+# tag (Chart.yaml appVersion + values.yaml image.tag move together) and run
+# ./build.sh first — it pushes to ghcr.io/zdiemer/gamedex. imagePullPolicy is
+# IfNotPresent, so reusing a tag will NOT re-pull.
 
 set -euo pipefail
 

@@ -16,8 +16,14 @@ edited on any machine, the change flows through to the site on the next poll.
   page-size selector (25–500), multi-key sorting, and a click-through detail
   drawer with rich IGDB metadata.
 
-Served publicly at **https://games.zachd.duckdns.org** via Traefik + DuckDNS,
-matching the ingress pattern used by the rest of the cluster.
+Served publicly at **https://games.zachd.duckdns.org** via Traefik + DuckDNS, and
+at **https://games.diemer.codes** via the shared Cloudflare tunnel — matching the
+ingress pattern used by the rest of the cluster.
+
+This repo is self-contained: the app *and* its Helm chart live here together, and
+`./build.sh` + `./upgrade.sh` deploy it. It runs on the k3s cluster described in
+[zdiemer/selfhosted](https://github.com/zdiemer/selfhosted), which tracks this repo
+as a submodule at `games/gamedex/` pinned to the deployed commit.
 
 ## How it works
 
@@ -168,14 +174,14 @@ an acceptable trade for zero-OAuth setup.
 ```bash
 kubectl create namespace games                   # once (shared with romm)
 
-cp games/gamedex/values.local.yaml.example games/gamedex/values.local.yaml
-$EDITOR games/gamedex/values.local.yaml          # paste the Dropbox link
+cp values.local.yaml.example values.local.yaml
+$EDITOR values.local.yaml                        # paste the Dropbox link
 
 docker login ghcr.io -u zdiemer                  # PAT with write:packages
-bash games/gamedex/build.sh                      # build + push to ghcr.io/zdiemer/gamedex
+./build.sh                                       # build + push to ghcr.io/zdiemer/gamedex
 # First push only: set the GHCR package to Public
 #   https://github.com/users/zdiemer/packages/container/gamedex/settings
-bash games/gamedex/upgrade.sh                     # helm upgrade --install + rollout
+./upgrade.sh                                     # helm upgrade --install + rollout
 ```
 
 The cluster is multi-node with no in-cluster registry, so the image ships via

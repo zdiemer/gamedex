@@ -1,3 +1,18 @@
+# Secrets — never commit. This repo is public, and values.local.yaml holds the
+# Dropbox link, IGDB client secret, RomM password, NAS token and admin password.
+# (In the selfhosted monorepo this was covered by the root .gitignore's
+# **/values.local.yaml glob, which does not follow the code out here.)
+values.local.yaml
+
+# Local Helm state
+charts/
+Chart.lock
+*.tgz
+
+# Python bytecode
+__pycache__/
+*.pyc
+
 data/.cdx-cache.json
 # stray screenshots/scratch from local test runs — never belongs in the chart
 /*.png
