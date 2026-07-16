@@ -310,7 +310,7 @@ $("#cmdkInput").addEventListener("keydown", (e) => {
 // Wordmark = home: back to the landing page with nothing filtered/sorted.
 $("#brand").addEventListener("click", () => {
   for (const t of TABS) tabState[t] = { ...freshState(), view: tabState[t].view, combine: tabState[t].combine };
-  closePickPop(); applyPreset("backlog"); pickState.minutes = 0;
+  closePickPop(); applyPreset(PICK_DEFAULT_PRESET);
   $("#search").value = "";
   setFacets(false);
   switchTab("home");

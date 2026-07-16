@@ -230,6 +230,9 @@ const PREFS_KEYS = {
   // IGDB ids dismissed on the Recommendations tab. A list of integers, so it stays far
   // inside the 256KB pref cap even after years of saying "not that one".
   dismissed: "gamedex.dismissed",
+  // Named filter trees from the Pick tab — {name, fb, desc}, where fb is the same packed
+  // tree a ?fb= link carries, so there's no second format to keep in step.
+  pickers: "gamedex.pickers",
 };
 
 const prefsLocal = (key) => {
@@ -283,5 +286,9 @@ async function loadPrefs() {
   }
   if (typeof renderViews === "function") renderViews();
   if (activeTab === "challenges" && typeof renderChallenges === "function") renderChallenges();
+  // Landing straight on ?tab=pick renders the tab before this lands, and the saved-picker
+  // bar reads the mirror synchronously — so without this it paints an empty bar and keeps
+  // it until you touch something.
+  if (activeTab === "pick" && typeof renderPicker === "function") renderPicker();
 }
 const log = (m) => console.info("[gamedex] " + m);

@@ -28,7 +28,9 @@ log = logging.getLogger("gamedex.prefs")
 # dismissed: IGDB ids you've told the Recommendations tab you're not interested in. A
 #   recommender with no way to say "no" asks the same question forever, and the answer
 #   belongs to you rather than to the browser you happened to say it in.
-KEYS = {"views", "challenges", "picross", "dismissed"}
+# pickers: named filter trees from the Pick tab. A picker is minutes of ticking boxes,
+#   which is too much work to keep on one browser.
+KEYS = {"views", "challenges", "picross", "dismissed", "pickers"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

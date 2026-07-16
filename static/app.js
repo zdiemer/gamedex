@@ -79,11 +79,11 @@ function syncURL(push) {
   const p = new URLSearchParams();
   if (activeTab !== "home") p.set("tab", activeTab);
   if (activeTab === "pick") {
-    // A preset is a name; anything you've edited since is a tree, and only the tree
-    // is the truth. Send whichever one describes what's on screen.
+    // A preset is a name; anything you've edited since is a tree, and only the tree is
+    // the truth. Send whichever one describes what's on screen. The time budget rides
+    // inside it now rather than in an &mins= of its own — it's a criterion like the rest.
     if (pickState.preset) p.set("sel", pickState.preset);
     else if (pickState.filter && pickState.filter.kids.length) p.set("fb", pickEncode(pickState.filter));
-    if (pickState.minutes) p.set("mins", String(pickState.minutes));
   } else if (activeTab === "groups") {
     if (groupState.kind) p.set("g", groupState.kind);
     if (groupState.open) p.set("gk", groupState.open);
@@ -122,12 +122,13 @@ function applyStateFromURL() {
          "health", "shelf", "picross", "recs"].includes(tab) ? tab : "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "pick") {
-      pickState.minutes = +(p.get("mins") || 0);
       const fb = p.get("fb");
       // An old link names a selector that may no longer exist (the Playtime and
       // "By…" groups are fields now) — fall back rather than 404 the tab.
       if (fb) { pickState.filter = pickDecode(fb); pickState.preset = ""; }
-      else applyPreset(p.get("sel") || pickState.preset || "backlog");
+      else applyPreset(p.get("sel") || pickState.preset || PICK_DEFAULT_PRESET);
+      // After the tree exists, never before: this writes a criterion into it.
+      pickAdoptMinutes(+(p.get("mins") || 0));
     }
     if (tab === "recs") {
       const rs = p.get("rs");

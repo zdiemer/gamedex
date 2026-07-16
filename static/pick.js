@@ -11,7 +11,7 @@
    shape the sidebar filters have always had — so the builder inherits the grid's
    entire vocabulary for free: sheet columns, IGDB (themes, keywords, perspective),
    and the constructed facets (predicted rating, playtime, sales). See pickFields(). */
-const pickState = { filter: null, preset: "backlog", picked: null, minutes: 0 };
+const pickState = { filter: null, preset: "backlog", picked: null };
 let _completedFranchises = null;
 const completedFranchises = () => (_completedFranchises ||=
   new Set(((DATA.sheets.completed || {}).rows || []).flatMap((r) => unifiedFranchiseVals(r))));
@@ -153,6 +153,30 @@ function birthdayTags(r) {
     ? ["Released on my birthday"] : [];
 }
 
+/* "I have 45 minutes." A game qualifies if you could plausibly FINISH it in the time
+   you've got — HLTB's main-story number where we have it, the sheet's estimate
+   otherwise.
+
+   This was a select sitting outside the builder that quietly ANDed itself onto whatever
+   the chips said, which made it the one filter you could not see in the chip row, could
+   not negate, and could not put inside an OR. It's a field like any other now; the
+   select above the builder is a shortcut that writes it (see pickSetBudget).
+
+   Multi-valued, for the reason the date fields are: a 20-minute game is finishable in
+   half an hour AND in an evening, so ticking "2 hours" has to offer it. A bucket ladder
+   would file it under exactly one rung and answer a question nobody asked. */
+const TIME_BUDGETS = [
+  { m: 30, label: "30 minutes" }, { m: 45, label: "45 minutes" }, { m: 60, label: "1 hour" },
+  { m: 120, label: "2 hours" }, { m: 300, label: "5 hours" }, { m: 600, label: "10 hours" },
+];
+// Unknown playtime is not "short" — nothing knows how long it is, so it can't promise to
+// fit in your evening and doesn't claim to. (Which also keeps catalogue rows out: a game
+// you don't own has no HLTB match and no estimate on the sheet.)
+function budgetTags(r) {
+  const t = playtimeOf(r);
+  return t == null ? [] : TIME_BUDGETS.filter((b) => t <= b.m / 60).map((b) => b.label);
+}
+
 /* What Pick is allowed to offer you.
  *
  * The backlog, plus — once the catalogue has been fetched — the 25k games IGDB knows that
@@ -163,14 +187,25 @@ function birthdayTags(r) {
  *
  * The catalogue half is NOT fetched here. pickEligible() runs on every render and every
  * keystroke in the builder; 2.2MB is not something to trigger from a hot path. renderPicker
- * asks for it once, in the background, and this picks it up when it lands. */
+ * asks for it once, in the background, and this picks it up when it lands.
+ *
+ * Not the unplayable, and not the unknowns. "Playable" is tri-state on the sheet — Yes, No,
+ * Unknown — and a picker that lands on a game you can't start (no console for it any more,
+ * region-locked, disc rot) has answered the wrong question. Unknown goes too: it doesn't
+ * mean "probably fine", it means nobody has checked, and being sent to go and check is not
+ * a pick. It's the rule challenges.js already plays by, and the one health.js has been
+ * telling people the picker follows.
+ *
+ * Catalogue rows are exempt because the question doesn't reach them: playability is a fact
+ * about YOUR copy, and the whole point of a catalogue row is that you don't have one. */
 const pickEligible = () => [
-  ...((DATA.sheets.games || {}).rows || []).filter((r) => !r.completed && r.title),
+  ...((DATA.sheets.games || {}).rows || []).filter((r) => !r.completed && r.title && r.playable === "Yes"),
   ...(typeof catFresh === "function" ? catFresh() : []),
 ];
 
-// The pool is the backlog, so a Completed facet would offer one value ("No").
-const PICK_SKIP_FIELDS = new Set(["completed"]);
+// The pool is the backlog, so a Completed facet would offer one value ("No") — and
+// pickEligible has already answered Playable, so that one would offer "Yes".
+const PICK_SKIP_FIELDS = new Set(["completed", "playable"]);
 // The two answers the "In the sheet" field gives. Named once: applyPreset seeds one of
 // them into every preset, and a typo would silently seed a criterion nothing matches —
 // an empty pool with no error, which is the worst way for this to break.
@@ -186,8 +221,9 @@ const PICK_FIELD_GROUP = {
   playingStatus: "Status", priority: "Status", __pk_backlog: "Status",
   __playtime: "Time & ratings", __metacritic: "Time & ratings", __userrating: "Time & ratings",
   __predicted: "Time & ratings", __steamrev: "Time & ratings", __sales: "Time & ratings",
+  __pk_budget: "Time & ratings",
   __igdb_mode: "Play style", __igdb_persp: "Play style", vr: "Play style", dlc: "Play style",
-  playable: "Play style", english: "Play style", __pk_coop: "Play style",
+  english: "Play style", __pk_coop: "Play style",
   __igdb_theme: "The basics", __igdb_kw: "The basics",
   owned: "Ownership & price", format: "Ownership & price", wishlisted: "Ownership & price",
   digitalPlatform: "Ownership & price", subscription: "Ownership & price",
@@ -210,6 +246,7 @@ function pickExtraFields() {
     { key: "__pk_sheet", label: "In the sheet", group: "Status", kind: "fn",
       getVals: (r) => [r._cat ? PICK_NOT_SHEET : PICK_ON_SHEET] },
     { key: "__pk_backlog", label: "Backlog status", kind: "fn", getVals: backlogTags },
+    { key: "__pk_budget", label: "Finishable in", kind: "fn", getVals: budgetTags },
     { key: "__pk_era", label: "Era", kind: "fn", getVals: eraTags },
     { key: "__pk_coop", label: "Co-op (Co-Optimus)", kind: "fn", getVals: coopTags },
     { key: "__pk_added", label: "Added", group: "Ownership & price", kind: "fn", getVals: (r) => recencyTags(r.dateAdded) },
@@ -290,20 +327,47 @@ function compilePick(node, except) {
   return node.not ? (row) => !f(row) : f;
 }
 
-// "I have 45 minutes." A game qualifies if you could plausibly FINISH it in the
-// time you've got — HLTB's main-story number where we have it, the sheet's
-// estimate otherwise. 0 means "don't care". This stacks on top of the builder
-// rather than living inside it: it's a fact about your evening, not about the game.
-function withinTimeBudget(rows) {
-  if (!pickState.minutes) return rows;
-  const hours = pickState.minutes / 60;
-  return rows.filter((r) => { const t = playtimeOf(r); return t != null && t <= hours; });
-}
 function pickPool(except) {
   // Seed here rather than trusting renderPicker to have run: compilePick(null) would
   // fall through to the criterion branch and deref `null.key`.
   if (!pickState.filter) pickState.filter = pickGroup();
-  return withinTimeBudget(pickEligible().filter(compilePick(pickState.filter, except)));
+  return pickEligible().filter(compilePick(pickState.filter, except));
+}
+
+/* ---- the time budget, as seen by the select -----------------------------
+   "I have an hour" is the question people arrive with, so it keeps its own control —
+   but the control is a shortcut into the tree, not a second place where state lives.
+   It reads the criteria back out and writes them in, and everything downstream only
+   ever reads the tree.
+
+   Only un-negated criteria sitting at the top level count. A budget nested inside an OR,
+   or turned into "is not", is past what one select can honestly say — so it says "Any
+   length" and leaves the chips to speak for themselves. */
+const budgetKids = () =>
+  pickState.filter.kids.filter((k) => !isPickGroup(k) && k.key === "__pk_budget" && !k.not);
+// Two rungs ticked ("30 minutes" or "1 hour") mean the looser one — that IS what the
+// union comes to — so the loosest is what the select shows.
+function pickBudgetMinutes() {
+  const ms = budgetKids().flatMap((k) => k.vals || [])
+    .map((v) => (TIME_BUDGETS.find((b) => b.label === v) || {}).m).filter(Boolean);
+  return ms.length ? Math.max(...ms) : 0;
+}
+function pickSetBudget(m) {
+  // Rewritten in place, not appended: the select is one control saying one thing, so
+  // choosing "2 hours" after "30 minutes" has to MOVE the chip rather than stack a
+  // second one next to it and quietly intersect the two.
+  const drop = new Set(budgetKids());
+  const b = TIME_BUDGETS.find((x) => x.m === m);
+  if (!drop.size && !b) return;      // "Any length" over no budget: nothing said, nothing edited
+  pickState.filter.kids = pickState.filter.kids.filter((k) => !drop.has(k));
+  if (b) pickState.filter.kids.push(pickCond("__pk_budget", [b.label]));
+  pickEdited();
+}
+// Links from when the budget was its own control carry it as its own parameter
+// (?mins=45). It's a criterion now, so translate rather than drop it on the floor: the
+// link still means what it meant, and what it meant is now something you can see.
+function pickAdoptMinutes(m) {
+  if (m && TIME_BUDGETS.some((b) => b.m === m) && pickBudgetMinutes() !== m) pickSetBudget(m);
 }
 function pickGame() {
   const pool = pickPool();
@@ -411,6 +475,65 @@ function snapPresetVals(node) {
   const byLower = new Map([...real].map((k) => [k.toLowerCase(), k]));
   node.vals = node.vals.map((v) => real.has(v) ? v : (byLower.get(String(v).toLowerCase()) || v));
 }
+/* ---- reset, and saved pickers -------------------------------------------
+   "Reset" has to mean one specific thing, and the thing is this tab's front door: the
+   default preset, no time budget, no roll. Deliberately NOT an empty tree — that would
+   drop the "On the sheet" chip and hand you 25k games you don't own, which is the one
+   move applyPreset is careful never to make by accident. */
+const PICK_DEFAULT_PRESET = "backlog";
+const pickDefaultTree = () =>
+  pickGroup("and", [pkc("__pk_sheet", PICK_ON_SHEET), ...presetById(PICK_DEFAULT_PRESET).build()]);
+/* The tree with the half-built bits taken out. A criterion with no values filters nothing
+   and dismissPickPop takes it back the moment you walk away, so it isn't a state worth
+   reacting to — without this, clicking "+ Criterion" makes Reset and the whole saved bar
+   appear for a criterion you haven't chosen anything for yet, and then take themselves away
+   again when you don't. It's also what gets saved: nobody wants "choose…" in their picker. */
+const pickPruned = (n) => isPickGroup(n)
+  ? { ...n, kids: n.kids.map(pickPruned).filter((k) => isPickGroup(k) ? k.kids.length : (k.vals || []).length) }
+  : n;
+// Compared as trees, not by preset name: build a criterion up and take it apart again and
+// you're back at the default, whatever the dropdown has since decided to call it. The name
+// is in the test too, so Reset is offered when only the LABEL is off ("Custom filter" over
+// a tree that is the default) — resetting puts that right.
+const pickIsDefault = () =>
+  pickState.preset === PICK_DEFAULT_PRESET &&
+  pickEncode(pickPruned(pickState.filter)) === pickEncode(pickDefaultTree());
+
+/* A saved picker is a name and a tree — the same packed tree the ?fb= link carries, so
+   there's no second serialization to keep in step. Stored through prefsSave: the server
+   when you're signed in, this browser's localStorage when you're not, which is the deal
+   saved views and custom challenges already run on.
+
+   PREFS_KEYS is a const in extras.js, which loads AFTER this file — read it at runtime
+   (inside these functions) and never at parse time. See the note at extras.js's PREFS_KEYS. */
+const savedPickers = () => (typeof prefsLocal === "function" ? prefsLocal("pickers") : []);
+const storePickers = (l) => prefsSave("pickers", l.slice(0, 24));
+
+// The criteria in words: the chip row's tooltip, and the name the save prompt suggests.
+// Nested groups collapse to a parenthesised summary — a tooltip is not the place to
+// re-litigate the tree.
+function describePicker(node = pickState.filter) {
+  const bits = [];
+  for (const k of node.kids || []) {
+    if (isPickGroup(k)) { const d = describePicker(k); if (d) bits.push(`(${d})`); continue; }
+    const f = pickFieldByKey(k.key);
+    if (!f || !(k.vals || []).length) continue;
+    bits.push(`${f.label}${k.not ? " ≠ " : ": "}${k.vals.slice(0, 2).join(", ")}${k.vals.length > 2 ? "…" : ""}`);
+  }
+  return bits.join(" · ");
+}
+
+function applyPicker(p) {
+  closePickPop();
+  pickState.filter = pickDecode(p.fb);
+  // A saved picker is a tree, so it lands as one: the dropdown reads "Custom filter"
+  // rather than naming a preset this may no longer have anything to do with.
+  pickState.preset = "";
+  pickState.picked = null;
+  renderPicker();
+  nav();
+}
+
 function applyPreset(id) {
   const p = presetById(id) || PRESETS[0];
   pickState.preset = p.id;
@@ -514,6 +637,69 @@ function openPickPop(path, mode) {
   pickPop.q = "";
   pickPop.all = false;
 }
+
+/* Closing a popover is not the same as cancelling out of one, and this only ever did the
+   first. Abandon a half-built criterion — click away while it still says "choose…" — and
+   the chip stayed behind: a filter that filters nothing, which you then have to notice
+   and delete by hand. Leaving IS the cancel. No values, no criterion, however it came to
+   have none (the same goes for "Clear" and then walking away).
+
+   Deliberately not a nav(): the empty criterion never meant anything, so putting it in
+   the history to walk back to would be offering an undo of nothing. syncURL(false) keeps
+   the link honest without minting an entry. */
+function dismissPickPop() {
+  const at = pickPop.path;
+  closePickPop();
+  if (at !== null) {
+    const path = pickPath(at);
+    let n = null;
+    try { n = pickNodeAt(path); } catch (_) { /* the tree moved under it */ }
+    if (path.length && n && !isPickGroup(n) && !(n.vals || []).length) {
+      pickNodeAt(path.slice(0, -1)).kids.splice(path[path.length - 1], 1);
+      syncURL(false);
+    }
+  }
+  renderPicker();
+}
+
+/* The popover is a child of its chip, which buys it anchoring and scrolling-with-its-anchor
+   for nothing. What it doesn't buy is a guarantee that 268px hanging off the chip's left
+   edge is on the screen — and on a phone, for any chip on the right half, it isn't.
+
+   The old answer was to stop anchoring below 760px and dock it to the bottom of the screen
+   as a sheet, which put the list of platforms an inch from the bottom bezel while the chip
+   it belonged to sat up by the header — two things that are one thought, rendered as far
+   apart as the viewport allows. So: keep the anchor, and push it back inside the edge it
+   would have crossed, which is what you wanted the sheet to do in the first place.
+
+   Measured after paint rather than computed, because the height depends on how many values
+   the field turned out to have, and the width on the viewport. */
+const PICK_POP_GAP = 6, PICK_POP_EDGE = 10, PICK_POP_MIN_H = 150;
+function positionPickPop() {
+  const pop = $("#pickBuilder .pk-pop");
+  const chip = pop && pop.closest(".pk-chip");
+  if (!chip) return;
+  pop.style.left = "0px";                    // measure from the anchored position…
+  pop.style.maxHeight = "";
+  pop.classList.remove("up");
+  const c = chip.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+
+  // Sideways: slide it back in, right edge first — a popover pushed off the left is
+  // worse than one whose left edge stops at the margin.
+  let left = 0;
+  if (c.left + pop.offsetWidth > vw - PICK_POP_EDGE) left = vw - PICK_POP_EDGE - pop.offsetWidth - c.left;
+  if (c.left + left < PICK_POP_EDGE) left = PICK_POP_EDGE - c.left;
+  pop.style.left = `${Math.round(left)}px`;
+
+  // Vertically: below if it fits, above if above fits better, and capped to the room it
+  // actually has either way — it scrolls inside itself, which beats scrolling off-screen.
+  const below = vh - c.bottom - PICK_POP_GAP - PICK_POP_EDGE;
+  const above = c.top - PICK_POP_GAP - PICK_POP_EDGE;
+  const up = pop.offsetHeight > below && above > below;
+  pop.classList.toggle("up", up);
+  pop.style.maxHeight = `${Math.max(PICK_POP_MIN_H, Math.floor(up ? above : below))}px`;
+}
 // Any edit means the tree is no longer what the preset said it was. Saying so
 // keeps the dropdown honest rather than leaving it pointing at a shape you've
 // since taken apart.
@@ -554,7 +740,7 @@ function pickPopHtml(path) {
     const groups = PICK_GROUP_ORDER
       .map((g) => [g, hits.filter((f) => f.group === g)])
       .filter(([, fs]) => fs.length);
-    return `<div class="pk-pop" data-path="${path.join(".")}">
+    return `<div class="pk-pop" tabindex="-1" data-path="${path.join(".")}">
       ${searchField("pkPopSearch", "Find a field…", pickPop.q, "field-facet")}
       <div class="pk-pop-list" id="pkPopList">${groups.map(([g, fs]) =>
         `<div class="pk-pop-grp">${escapeHtml(g)}</div>` +
@@ -570,7 +756,7 @@ function pickPopHtml(path) {
          <input id="pkBday" type="date" value="${birthday() ? `2000-${birthday()}` : ""}" title="Only the month and day are used">
        </label>` : "";
   const many = (field.buckets || []).length === 0;
-  return `<div class="pk-pop" data-path="${path.join(".")}">
+  return `<div class="pk-pop" tabindex="-1" data-path="${path.join(".")}">
     <div class="pk-pop-head">
       <button class="pk-pop-refield" data-act="refield" data-path="${path.join(".")}">${escapeHtml(field.label)} <span class="chev">▾</span></button>
       <button class="pk-pop-clear" data-act="clear" data-path="${path.join(".")}">Clear</button>
@@ -659,13 +845,15 @@ function renderPicker() {
     ensureCatalogue().then(() => { if (activeTab === "pick") renderPicker(); });
   }
   const pool = pickPool();
-  const TIMES = [[0, "Any length"], [30, "30 minutes"], [45, "45 minutes"], [60, "1 hour"],
-                 [120, "2 hours"], [300, "5 hours"], [600, "10 hours"]];
+  const mins = pickBudgetMinutes();
   const groups = {};
   PRESETS.forEach((s) => { (groups[s.group] = groups[s.group] || []).push(s); });
   const opts = Object.entries(groups).map(([g, ss]) =>
     `<optgroup label="${escapeHtml(g)}">${ss.map((s) =>
       `<option value="${s.id}"${s.id === pickState.preset ? " selected" : ""}>${escapeHtml(s.label)}</option>`).join("")}</optgroup>`).join("");
+
+  const saved = savedPickers();
+  const isDef = pickIsDefault();
 
   host.innerHTML = `
     <div class="pick-controls">
@@ -673,12 +861,22 @@ function renderPicker() {
         ${pickState.preset ? "" : `<option value="" selected>Custom filter</option>`}${opts}
       </select></label>
       <label class="pick-time">I have
-        <select id="pickTime">${TIMES.map(([m, l]) =>
-          `<option value="${m}"${m === pickState.minutes ? " selected" : ""}>${escapeHtml(l)}</option>`).join("")}</select>
+        <select id="pickTime">
+          <option value="0"${mins ? "" : " selected"}>Any length</option>
+          ${TIME_BUDGETS.map((b) =>
+            `<option value="${b.m}"${b.m === mins ? " selected" : ""}>${escapeHtml(b.label)}</option>`).join("")}
+        </select>
       </label>
       <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
       <span class="pick-count">${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"} in pool</span>
+      ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
     </div>
+    ${saved.length || !isDef ? `<div class="pick-saved">
+      ${saved.map((p, i) => `<button class="view-chip" data-pi="${i}" title="${escapeHtml(p.desc || "")}">
+          ${escapeHtml(p.name)}<span class="view-x" data-px="${i}" title="Forget this picker">✕</span>
+        </button>`).join("")}
+      ${isDef ? "" : `<button class="view-save" id="pickSave">＋ Save this picker</button>`}
+    </div>` : ""}
     <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
     <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
       ? pickCard(pickState.picked)
@@ -690,9 +888,16 @@ function renderPicker() {
     if (!e.target.value) return;
     closePickPop(); applyPreset(e.target.value); renderPicker(); nav();
   };
-  $("#pickTime").onchange = (e) => { pickState.minutes = +e.target.value; pickState.picked = null; renderPicker(); nav(); };
+  // Writes a criterion rather than a second kind of state — so it shows up as a chip you
+  // can negate, widen, or drag into an OR, and the dropdown says "Custom filter" because
+  // by then that is exactly what it is.
+  $("#pickTime").onchange = (e) => { closePickPop(); pickSetBudget(+e.target.value); renderPicker(); nav(); };
   $("#pickBtn").onclick = () => { pickGame(); nav(); };
+  const reset = $("#pickReset");
+  if (reset) reset.onclick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); renderPicker(); nav(); };
+  wirePickSaved();
   wirePickBuilder();
+  positionPickPop();
 
   const game = host.querySelector("#pickGameCard");
   if (game) {
@@ -707,9 +912,43 @@ function renderPicker() {
   }
 }
 
+/* The saved-picker chips: apply on click, forget on ✕, name the current tree on save.
+   Modelled on the saved-views bar down to the class names (extras.js), because it's the
+   same idea — a name for a filter you'd otherwise rebuild by hand — and two bars that do
+   the same thing should look like they do. Views skip this tab by design (SPECIAL_TABS),
+   so there's no second bar here to collide with. */
+function wirePickSaved() {
+  document.querySelectorAll("#picker .pick-saved [data-pi]").forEach((el) => {
+    el.onclick = (e) => {
+      if (e.target.dataset.px !== undefined) return;      // the ✕ has its own job
+      const p = savedPickers()[+el.dataset.pi];
+      if (p) applyPicker(p);
+    };
+  });
+  document.querySelectorAll("#picker .pick-saved [data-px]").forEach((el) => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const list = savedPickers();
+      list.splice(+el.dataset.px, 1);
+      storePickers(list);
+      renderPicker();
+    };
+  });
+  const save = $("#pickSave");
+  if (save) save.onclick = () => {
+    const name = window.prompt("Name this picker", describePicker().slice(0, 40) || "My picker");
+    if (!name) return;
+    const list = savedPickers();
+    list.unshift({ name: name.slice(0, 40), fb: pickEncode(pickPruned(pickState.filter)), desc: describePicker() });
+    storePickers(list);
+    renderPicker();
+  };
+}
+
 // Repaint just the popover's option rows. Rebuilding the picker on every keystroke
 // would destroy the input the keystrokes are going into — the same trap the facet
-// sidebar documents at renderFacets.
+// sidebar documents at renderFacets. Focus is the caller's business: what should hold it
+// afterwards depends on what caused the repaint, and only the caller knows that.
 function pickPopRepaint() {
   const list = $("#pkPopList");
   if (!list || !pickPop.path) return;
@@ -722,8 +961,60 @@ function pickPopRepaint() {
     list.innerHTML = pickValueRowsHtml(node, pickFieldByKey(node.key));
   }
   wirePickBuilder();
-  const q = $("#pkPopSearch");
-  if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  positionPickPop();          // "show all" just changed how tall this is
+}
+
+/* ---- the keyboard -------------------------------------------------------
+   The builder was mouse-only. You could Tab onto a chip and open it — they're buttons,
+   that much came free — and then the popover had you: no way to reach a value, and no way
+   out but a click somewhere else.
+
+   Roving focus, recomputed from the DOM each time, rather than a remembered index: every
+   keystroke in the search box rebuilds the list from HTML, so anything held per-element
+   would be thrown away with the element. */
+const pkPopItems = () =>
+  [...document.querySelectorAll("#pickBuilder .pk-pop-field, #pickBuilder .facet-opt input, #pickBuilder .facet-more")];
+
+// renderPicker() rebuilds the whole tab from HTML, so whatever had focus is gone by the
+// time it returns — fine for a mouse, fatal for a keyboard: ticking a value would drop you
+// onto the body and the next arrow key would go nowhere. Re-find the row by its VALUE,
+// since the element that had it no longer exists.
+function pickRefocusValue(v) {
+  const el = document.querySelector(`#pickBuilder .pk-pop input[data-v="${CSS.escape(v)}"]`);
+  if (el) el.focus();
+}
+
+function pickPopKeydown(e) {
+  if (!document.querySelector("#pickBuilder .pk-pop")) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    const at = pickPop.path;
+    dismissPickPop();                    // Escape cancels, exactly as clicking away does
+    // Land back on the chip you came from — or, if cancelling just removed it, on the
+    // button that would make another one.
+    ($(`#pickBuilder .pk-chip-v[data-path="${at}"]`) || $("#pickBuilder .pk-add"))?.focus();
+    return;
+  }
+  const items = pkPopItems();
+  if (!items.length) return;
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const d = e.key === "ArrowDown" ? 1 : -1;
+    // From the search box or the popover itself (i === -1), Down means "into the list"
+    // and Up means "the end of it".
+    items[i < 0 ? (d > 0 ? 0 : items.length - 1) : (i + d + items.length) % items.length].focus();
+    return;
+  }
+  if (e.key === "Enter") {
+    // Enter from the search box takes the obvious thing: the first hit. On a row, it takes
+    // that row — a checkbox does nothing on Enter otherwise, which reads as a dead key.
+    const t = i < 0 ? items[0] : items[i];
+    if (!t) return;
+    e.preventDefault();
+    t.click();
+  }
 }
 
 function wirePickBuilder() {
@@ -742,7 +1033,10 @@ function wirePickBuilder() {
       // choosing — park it in the tree and open the field list on it.
       const g = pickNodeAt(path);
       g.kids.push(pickCond(pickFields()[0].key, []));
-      pickEdited();
+      // No pickEdited() yet, deliberately. Nothing has been chosen: an empty criterion
+      // filters nothing, and dismissPickPop takes it away again if you walk off. Calling
+      // it here would rename a preset you haven't actually edited to "Custom filter" —
+      // and leave it renamed after the criterion you abandoned was gone.
       openPickPop([...path, g.kids.length - 1], "field");
       renderPicker();
       $("#pkPopSearch")?.focus();
@@ -760,9 +1054,16 @@ function wirePickBuilder() {
     }
     if (act === "edit") {
       const p = path.join(".");
-      if (pickPop.path === p && pickPop.mode === "values") closePickPop();
-      else openPickPop(path, "values");
-      renderPicker(); return;
+      if (pickPop.path === p && pickPop.mode === "values") dismissPickPop();
+      else {
+        openPickPop(path, "values");
+        renderPicker();
+        // The popover itself, not its search box: focus has to land inside for Escape and
+        // the arrows to reach it, but focusing a real input here would throw up the
+        // keyboard on a phone every time you glance at a field's values.
+        $("#pickBuilder .pk-pop")?.focus();
+      }
+      return;
     }
     if (act === "refield") { openPickPop(path, "field"); renderPicker(); $("#pkPopSearch")?.focus(); return; }
     if (act === "clear") {
@@ -778,6 +1079,7 @@ function wirePickBuilder() {
     n.op = m.op; n.not = m.not;
     pickEdited(); renderPicker(); nav();
   };
+  host.onkeydown = pickPopKeydown;
 
   const pop = host.querySelector(".pk-pop");
   if (!pop) return;
@@ -789,16 +1091,37 @@ function wirePickBuilder() {
   // popover's own head buttons (change field, Clear) would quietly do nothing. The
   // outside-click listener already exempts anything inside .pk-pop.
   const q = $("#pkPopSearch");
-  if (q) q.oninput = (ev) => { pickPop.q = ev.target.value; pickPop.all = false; pickPopRepaint(); };
+  if (q) q.oninput = (ev) => {
+    pickPop.q = ev.target.value; pickPop.all = false;
+    pickPopRepaint();
+    // The box was just rebuilt from HTML and the caret went with it. Put both back, or
+    // the second keystroke lands somewhere else — or nowhere.
+    const q2 = $("#pkPopSearch");
+    if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); }
+  };
   const more = $("#pkPopMore");
-  if (more) more.onclick = () => { pickPop.all = true; pickPopRepaint(); };
+  if (more) more.onclick = () => {
+    pickPop.all = true;
+    pickPopRepaint();
+    // Land on the first row it just revealed: the button that was under the cursor has
+    // been repainted out of existence, and focus would otherwise fall to the body.
+    pkPopItems()[PICK_POP_CAP]?.focus();
+  };
 
   pop.querySelectorAll(".pk-pop-field").forEach((el) => {
     el.onclick = () => {
+      // Swapping the field on a criterion that HAD values throws them away — that's an
+      // edit, and the preset it came from can no longer claim to describe this. Naming the
+      // field of a brand-new empty one throws away nothing, so it isn't one yet: it's a
+      // criterion mid-build, which dismissPickPop is still free to take back whole.
+      if ((node.vals || []).length) pickEdited();
       node.key = el.dataset.f;
       node.vals = [];                              // values belong to the old field
       pickPop.mode = "values"; pickPop.q = ""; pickPop.all = false;
-      pickEdited(); renderPicker(); nav();
+      // No nav() either: a criterion with no values yet is not a state the Back button
+      // should have to return anyone to. Ticking the first value is what makes it one.
+      renderPicker();
+      $("#pickBuilder .pk-pop")?.focus();
     };
   });
   pop.querySelectorAll("input[type=checkbox]").forEach((el) => {
@@ -811,6 +1134,7 @@ function wirePickBuilder() {
       // Repaint the whole picker (the pool count moved) but keep the popover open,
       // so ticking three platforms is three clicks and not three re-opens.
       renderPicker(); nav();
+      pickRefocusValue(v);
     };
   });
   const bd = $("#pkBday");
@@ -823,12 +1147,22 @@ function wirePickBuilder() {
   };
 }
 
-// Click anywhere else and the popover goes away — the one behaviour every popover
-// needs and this app has never had to implement before.
-document.addEventListener("click", (e) => {
-  if (!pickPop.path || activeTab !== "pick") return;
-  if (e.target.closest(".pk-pop") || e.target.closest("[data-act='edit']") ||
-      e.target.closest("[data-act='add']") || e.target.closest("[data-act='refield']")) return;
-  closePickPop();
-  renderPicker();
+/* Click anywhere else and the popover goes away — the one behaviour every popover needs
+   and this app has never had to implement before.
+
+   "Anywhere else" has to be decided in the CAPTURE phase, before any of the popover's own
+   handlers have run. They repaint from inside the click they're handling — "Show 40 more"
+   rewrites the very list its button sits in — so by the time the event bubbles up here,
+   e.target has been detached and has no ancestors left to match: closest() reports the
+   click as outside, and the popover is thrown away a moment after doing exactly what it
+   was asked. That was the whole of "Show more just closes the selector". Ask while the DOM
+   is still the one that was clicked, and it can't lie. */
+let _pkClickedInside = false;
+const pkInsidePop = (el) =>
+  !!(el && el.closest && (el.closest(".pk-pop") || el.closest("[data-act='edit']") ||
+     el.closest("[data-act='add']") || el.closest("[data-act='refield']")));
+document.addEventListener("click", (e) => { _pkClickedInside = pkInsidePop(e.target); }, true);
+document.addEventListener("click", () => {
+  if (!pickPop.path || activeTab !== "pick" || _pkClickedInside) return;
+  dismissPickPop();
 });
