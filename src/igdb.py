@@ -57,7 +57,12 @@ _FIELDS = (
 _CATALOGUE_LEAN = (
     "fields id,name,slug,game_type,first_release_date,cover.image_id,"
     "total_rating,total_rating_count,rating,rating_count,"
-    "aggregated_rating,aggregated_rating_count,updated_at,checksum;"
+    "aggregated_rating,aggregated_rating_count,updated_at,checksum,"
+    # Which game this one is a version OF. Both fields, because IGDB picks between them
+    # unpredictably — Divinity's Definitive Edition hangs off parent_game and its Divine
+    # Edition off version_parent. Two ids, no nesting, so pass 1 stays flat and cheap; it
+    # is what lets the browser stop offering you the base game of an edition you own.
+    "parent_game,version_parent;"
 )
 _CATALOGUE_RICH = (
     "fields id,checksum,genres.name,themes.name,game_modes.name,"
@@ -464,13 +469,30 @@ class IgdbClient:
         populated on 1.2% of the library, because only games matched AFTER the field was
         added ever got one and nothing ever went back for the rest. IGDB has a player
         score for 61% of this library.
+
+        Chunks are resilient and paced, which they were not, and it mattered the moment
+        this pass had real work to do: bumping CRITIC_VERSION gave it 13,892 games to fetch
+        at boot, it went out at the full 4 req/s alongside six other backfill threads and
+        the live enrichment workers, and IGDB answered 429 EIGHT SECONDS IN. On a bare
+        _post that exception unwound the whole pass, the caller logged a warning and gave
+        up, and the field stayed null until someone redeployed — which would have failed
+        the same way. This is the identical lesson extras_for() records above it; it just
+        hadn't bitten here yet, because at version 1 there was nothing left to fetch and
+        the pass returned before making a single request.
         """
         out = {}
         for i in range(0, len(igdb_ids), 500):
             chunk = [int(x) for x in igdb_ids[i:i + 500]]
             body = ("fields id,aggregated_rating,aggregated_rating_count,rating,rating_count; "
                     f"where id = ({','.join(str(c) for c in chunk)}); limit 500;")
-            for g in self._post("games", body) or []:
+            try:
+                got = self._post_resilient("games", body)
+            except Exception as exc:
+                # One chunk of 500 is not worth the other 13,000. Skip it; the next run
+                # picks it up, because a record with no userRating key is still "needed".
+                log.warning("critic backfill: chunk at %d failed, skipping: %s", i, exc)
+                continue
+            for g in got or []:
                 a, u = g.get("aggregated_rating"), g.get("rating")
                 out[g["id"]] = {
                     "criticRating": round(a / 100, 4) if a is not None else None,
@@ -478,6 +500,7 @@ class IgdbClient:
                     "userRating": round(u / 100, 4) if u is not None else None,
                     "userRatingCount": g.get("rating_count"),
                 }
+            time.sleep(0.35)                      # be a good neighbour to the live workers
         return out
 
     def franchises_for(self, igdb_ids):

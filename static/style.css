@@ -4193,7 +4193,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    Games that are NOT on the sheet, so nothing here can borrow the grid card: no
    drawer to open, no launch button, no ownership badge. Everything is built from
    the vars above so it follows the light theme like the rest. */
-.recs { padding: 4px 0 40px; }
+/* Same shape as every other special tab (.stats, .picker, .groups): own the scroll and
+   keep the content off the bezel. Without the horizontal padding the grid ran edge to edge
+   on a wide monitor. */
+.recs { flex: 1; overflow-y: auto; padding: 26px 20px 60px; }
 .rec-head { max-width: 760px; margin: 0 auto 22px; text-align: center; }
 .rec-head h2 { font: 700 24px/1.2 var(--display); display: flex; gap: 9px; align-items: center; justify-content: center; }
 .rec-sub { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin-top: 10px; }
@@ -4219,6 +4222,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border-radius: 12px; padding: 10px; transition: border-color .15s, transform .15s var(--ease);
 }
 .rec:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+/* Stretched over the whole card so the card IS the link. Everything it must not eat
+   (the dismiss button) sits above it. */
+.rec-link { position: absolute; inset: 0; z-index: 1; border-radius: 12px; }
+.rec-link:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.rec:hover .rec-igdb { color: var(--accent-2); }
 .rec-art { position: relative; flex: 0 0 76px; }
 .rec-art .card-cover {
   width: 76px; height: 101px; border-radius: 7px; object-fit: cover; display: block;
@@ -4256,12 +4264,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .rec-conf.high { background: var(--good-soft); color: var(--good); }
 .rec-conf.fair { background: var(--accent-soft); color: var(--accent-2); }
 .rec-conf.low { background: var(--surface-3); color: var(--dim); }
-.rec-igdb { color: var(--muted); font-size: 11px; text-decoration: none; margin-left: auto; }
-.rec-igdb:hover { color: var(--accent-2); }
+/* A hint, not a control — the card behind it is the link. */
+.rec-igdb { color: var(--dim); font-size: 11px; margin-left: auto; transition: color .12s; }
 /* Dismiss lives in the card's own corner and only on hover — it is a rare, destructive-ish
    action and it should not compete with the title for attention on 60 cards at once. */
 .rec-no {
-  position: absolute; top: 4px; right: 4px;
+  position: absolute; top: 4px; right: 4px; z-index: 2;
   background: none; border: none; color: var(--dim); cursor: pointer;
   font-size: 12px; line-height: 1; padding: 3px 5px; border-radius: 5px;
   opacity: 0; transition: opacity .12s;

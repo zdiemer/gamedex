@@ -52,13 +52,30 @@ _FACET_LIGHT = ("cover", "coverUrl", "genres", "themes", "gameModes", "userRatin
 def _light_relations(rec):
     """Just enough of the graph for the grid: what KIND of entry this is, and
     the id of its parent — the grouped view folds ports into the game they're a
-    port OF, which needs the id, not just the name."""
+    port OF, which needs the id, not just the name.
+
+    `versionParentId` rides along because IGDB splits "this is a version of that" across
+    TWO fields and which one it uses is not predictable: the Definitive Edition of Divinity
+    hangs off `parent_game`, the Divine Edition off `version_parent`. Recommendations reads
+    both to work out that a game you own is an edition of a game it was about to offer you
+    as a discovery — with only one of them it catches half the cases and looks broken for
+    the other half. It was already stored; it was simply never sent.
+
+    The case that proves it needs both: the sheet's "Grand Theft Auto V (PC)" matches IGDB
+    239064 at full confidence — same title, same platform, same year — and 239064 is not
+    the game, it is a BUNDLE of GTA V plus GTA Online. Its only link to plain Grand Theft
+    Auto V (1020) is `version_parent`, it has no parent_game at all, and a bundle is not in
+    the catalogue for the browser to look up from the other side. Without this field the
+    library owns 239064, 1020 looks like a game nobody here has ever played, and the tab
+    recommends him Grand Theft Auto V."""
     rel = (rec or {}).get("relations") or {}
     if not rel:
         return None
     parent = rel.get("parent") or {}
+    vparent = rel.get("versionParent") or {}
     return {
         "type": rel.get("gameTypeLabel"),
+        "versionParentId": vparent.get("id"),
         "parent": parent.get("name"),
         "parentId": parent.get("id"),
     }

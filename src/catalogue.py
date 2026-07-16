@@ -68,6 +68,13 @@ _SCOREABLE_SQL = (
     " AND cover IS NOT NULL AND rating IS NOT NULL"
 )
 
+# Bump when pass 1 starts asking for a field it didn't before. An added column is NULL on
+# all 370k existing rows and the watermark pass only revisits what IGDB touched, so without
+# this the new field would fill in over WEEKS as games happened to be edited. Forces one
+# full sweep — eight minutes — and then the ordinary cadence resumes. Mirrors
+# STORES_VERSION and friends in enrich.py.
+# v2: parent_id / version_parent_id, for "is this an edition of a game I already own?"
+LEAN_VERSION = "2"
 FULL_CRAWL_DAYS = 7
 # Wait for the boot peak (xlsx parse, enrichment backfills) to pass before adding 740
 # requests to it — the same courtesy SHELF.warm(delay=90) pays.
@@ -85,7 +92,7 @@ WATERMARK_MAX = 25_000
 _SCALARS = [
     "id", "name", "norm", "slug", "year", "cover",
     "rating", "ratingCount", "userRating", "userRatingCount",
-    "criticRating", "criticCount", "type",
+    "criticRating", "criticCount", "type", "parentId", "versionParentId",
 ]
 # Then (payload namespace, rich-record key) for every interned vocabulary. Names repeat
 # hard across 34k games — 23 genres cover the lot — so a dictionary plus int arrays is
@@ -115,8 +122,16 @@ class Catalogue:
             " rating REAL, rating_count INTEGER, user_rating REAL, user_rating_count INTEGER,"
             " critic_rating REAL, critic_count INTEGER,"
             " updated_at INTEGER, checksum TEXT,"
+            " parent_id INTEGER, version_parent_id INTEGER,"
             " rich TEXT, rich_checksum TEXT, gen INTEGER)"
         )
+        # CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so a new
+        # column has to be added by hand — the volume is holding a 76MB catalogue that
+        # predates these two. Mirrors the same dance in enrich.py for `manual`.
+        cols = {r[1] for r in self._db.execute("PRAGMA table_info(catalogue)")}
+        for col in ("parent_id", "version_parent_id"):
+            if col not in cols:
+                self._db.execute(f"ALTER TABLE catalogue ADD COLUMN {col} INTEGER")
         # The delete sweep is `WHERE gen != current`, and it runs over 370k rows.
         self._db.execute("CREATE INDEX IF NOT EXISTS cat_gen ON catalogue(gen)")
         # Partial: the scoreable set is 9% of the table and every read path filters to it.
@@ -152,6 +167,9 @@ class Catalogue:
             return 0
 
     def _days_since_full(self):
+        # A new lean field is as good as never having crawled: every row is missing it.
+        if self._kv_get("lean_version") != LEAN_VERSION:
+            return 10 ** 6
         last = self._kv_get("full_crawled")
         if not last:
             return 10 ** 6                       # never crawled: do it now
@@ -185,7 +203,10 @@ class Catalogue:
             pct(c.get("total_rating")), c.get("total_rating_count"),
             pct(c.get("rating")), c.get("rating_count"),
             pct(c.get("aggregated_rating")), c.get("aggregated_rating_count"),
-            c.get("updated_at"), c.get("checksum"), gen,
+            c.get("updated_at"), c.get("checksum"),
+            # Unexpanded, so these arrive as bare ints rather than nested objects.
+            c.get("parent_game"), c.get("version_parent"),
+            gen,
         )
 
     def _upsert_lean(self, rows, gen):
@@ -198,15 +219,17 @@ class Catalogue:
             self._db.executemany(
                 "INSERT INTO catalogue(igdb_id,name,norm_name,slug,game_type,year,cover,"
                 " rating,rating_count,user_rating,user_rating_count,critic_rating,critic_count,"
-                " updated_at,checksum,gen)"
-                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                " updated_at,checksum,parent_id,version_parent_id,gen)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 " ON CONFLICT(igdb_id) DO UPDATE SET"
                 "  name=excluded.name, norm_name=excluded.norm_name, slug=excluded.slug,"
                 "  game_type=excluded.game_type, year=excluded.year, cover=excluded.cover,"
                 "  rating=excluded.rating, rating_count=excluded.rating_count,"
                 "  user_rating=excluded.user_rating, user_rating_count=excluded.user_rating_count,"
                 "  critic_rating=excluded.critic_rating, critic_count=excluded.critic_count,"
-                "  updated_at=excluded.updated_at, checksum=excluded.checksum, gen=excluded.gen",
+                "  updated_at=excluded.updated_at, checksum=excluded.checksum,"
+                "  parent_id=excluded.parent_id, version_parent_id=excluded.version_parent_id,"
+                "  gen=excluded.gen",
                 vals,
             )
             self._db.commit()
@@ -278,6 +301,7 @@ class Catalogue:
             self._kv_set("watermark", high)
 
         self._kv_set("generation", gen)
+        self._kv_set("lean_version", LEAN_VERSION)
         self._kv_set("full_crawled", datetime.now(timezone.utc).date().isoformat())
         self._kv_set("crawled_at", _now())
         log.info("catalogue: full crawl gen %d — %d games, %d tagged, %d deleted, %.0fs",
@@ -397,7 +421,8 @@ class Catalogue:
             # Column order here IS _SCALARS; rich comes last and is unpacked, not shipped.
             rows = self._db.execute(
                 "SELECT igdb_id,name,norm_name,slug,year,cover,rating,rating_count,"
-                " user_rating,user_rating_count,critic_rating,critic_count,game_type,rich"
+                " user_rating,user_rating_count,critic_rating,critic_count,game_type,"
+                " parent_id,version_parent_id,rich"
                 f" FROM catalogue WHERE {_SCOREABLE_SQL} AND rich IS NOT NULL"
             ).fetchall()
         n = len(_SCALARS)

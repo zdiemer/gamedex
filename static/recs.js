@@ -139,7 +139,15 @@ function recsCard(x) {
   // rather than in a tooltip: 27 voters and 5,827 voters produce the same-looking 82%.
   const meta = [row.releaseYear || null, votes != null ? `${votes.toLocaleString()} voted` : null]
     .filter(Boolean).join(" · ");
+  /* The whole card is the link, via an anchor stretched over it rather than a click
+     handler on the div. A real <a> is what makes middle-click, ⌘-click, right-click →
+     "open in new tab" and the status-bar preview work; a JS onclick is a button wearing a
+     link's clothes. The dismiss button sits above it on z-index, and "IGDB ↗" stays as a
+     plain span — an anchor inside an anchor is not a thing. */
+  const url = escapeHtml(rec.url || `https://www.igdb.com/games/${row.igdbId}`);
   return `<div class="rec" data-id="${row.igdbId}">
+    <a class="rec-link" href="${url}" target="_blank" rel="noopener"
+       aria-label="${escapeHtml(String(row.title))} on IGDB"></a>
     <div class="rec-art">${cover}
       <span class="rec-score ${ratingClass(p.score)}">${pct}<small>%</small></span>
     </div>
@@ -150,7 +158,7 @@ function recsCard(x) {
       <div class="rec-foot">
         <span class="rec-conf ${conf}"
               title="How much evidence is behind this number — ${conf} confidence">${conf}</span>
-        <a class="rec-igdb" href="${escapeHtml(rec.url || "#")}" target="_blank" rel="noopener">IGDB ↗</a>
+        <span class="rec-igdb">IGDB ↗</span>
       </div>
     </div>
     <button class="rec-no" data-no="${row.igdbId}" title="Not interested" aria-label="Dismiss">✕</button>

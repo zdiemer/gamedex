@@ -96,6 +96,8 @@ function hydrateCatalogue(j) {
       _igdb: rec,                    // what igdbRecOf() finds (predict.js, rowFacetItems)
       igdbId: rec.igdbId,
       _norm: g[F.norm],              // for the NO_MATCH net; null when the name won't normalize
+      _parent: g[F.parentId],        // the game this is an edition/port/remaster OF…
+      _vparent: g[F.versionParentId], // …IGDB uses either field, unpredictably
       title: rec.name,
       releaseYear: rec.year,
       gameType: g[F.type],
@@ -105,15 +107,29 @@ function hydrateCatalogue(j) {
 }
 
 // ---- the join ------------------------------------------------------------
-/* Every IGDB id the sheet has claimed. Rebuilt whenever enrichment moves, which it does
-   for minutes after boot — this set grows under you, and a game leaving the list because
-   you just matched it is the feature, not a glitch. */
+/* Every IGDB id the sheet has claimed — DIRECTLY, or as an edition of.
+   Rebuilt whenever enrichment moves, which it does for minutes after boot: this set grows
+   under you, and a game leaving the list because you just matched it is the feature.
+
+   The parents matter as much as the ids. You own "Divinity: Original Sin II - Definitive
+   Edition"; IGDB files that as its own entry whose parent_game is plain "Divinity:
+   Original Sin II" — a Main Game, well reviewed, not on your sheet, and therefore a
+   perfect recommendation for a game you have already played. Claiming a row's parents
+   alongside the row itself is what stops that.
+
+   BOTH parent fields, because IGDB chooses between them with no discernible rule: the
+   Definitive Edition hangs off `parent_game`, the Divine Edition off `version_parent`.
+   Reading one catches half the cases, which is worse than reading none — it looks fixed. */
 function sheetIgdbIds() {
   if (_sheetIds && _sheetIdsEpoch === _enrichEpoch) return _sheetIds;
   const s = new Set();
   for (const k in ENRICH) {
-    const id = ENRICH[k].igdbId;
-    if (id != null) s.add(id);
+    const e = ENRICH[k];
+    if (e.igdbId != null) s.add(e.igdbId);
+    const r = e.rel;
+    if (!r) continue;
+    if (r.parentId != null) s.add(r.parentId);
+    if (r.versionParentId != null) s.add(r.versionParentId);
   }
   _sheetIdsEpoch = _enrichEpoch;
   return (_sheetIds = s);
@@ -135,18 +151,55 @@ function unmatchedNames() {
   return (_unmatchedNames = s);
 }
 
-/* Is this catalogue game already on the sheet? Cheap enough to ask per row per render. */
+/* Is this catalogue game already on the sheet — or near enough to it that offering it
+   would be offering you a game you have played?
+
+   Four ways in, and the last three all say "same game, different box":
+     - its id is one the sheet claims (or the parent of one — see sheetIgdbIds);
+     - it is an edition/port/remaster OF something you own (its parent is claimed);
+     - it SHARES a parent with something you own, which is how two editions of one game
+       find each other when you own neither the base game nor this particular box;
+     - IGDB never matched your row at all, so no id can see it, and only the name can. */
 function catInSheet(row) {
-  if (sheetIgdbIds().has(row.igdbId)) return true;
+  const ids = sheetIgdbIds();
+  if (ids.has(row.igdbId)) return true;
+  if (row._parent != null && ids.has(row._parent)) return true;
+  if (row._vparent != null && ids.has(row._vparent)) return true;
   return !!(row._norm && unmatchedNames().has(row._norm));
 }
 
-/* The catalogue games you do NOT own — the pool a recommendation can come from. */
+/* Games you cannot finish alone. Apex Legends is a fine game and a nonsense
+   recommendation for a collection built out of things you play to the end: IGDB says its
+   modes are Multiplayer, Co-operative and Battle Royale, and no Single player.
+
+   Only when the modes are KNOWN. An empty gameModes means IGDB didn't say, not that the
+   game is multiplayer-only, and throwing those away would silently drop every obscure
+   game with thin metadata — which is most of the catalogue. */
+const catMultiplayerOnly = (row) => {
+  const m = row._igdb.gameModes || [];
+  return m.length > 0 && !m.includes("Single player");
+};
+
+/* The catalogue games you do NOT own — the pool a recommendation can come from.
+   Multiplayer-only games are out here rather than in the tab, because Pick wants the same
+   answer: neither "what do I play tonight" nor "what should I buy" is asking about a game
+   with no ending. */
 function catFresh() {
   if (!CAT) return [];
   if (_catRows && _catRowsEpoch === _enrichEpoch) return _catRows;
   _catRowsEpoch = _enrichEpoch;
-  return (_catRows = CAT.filter((r) => !catInSheet(r)));
+  const live = CAT.filter((r) => !catInSheet(r) && !catMultiplayerOnly(r));
+  /* And collapse the editions of games that survived, which is the same "same game,
+     different box" problem pointed the other way. You own neither Grand Theft Auto V nor
+     its Special Edition, so both are honestly Not On The Sheet and both were being offered
+     — one at 87% and one at 82%, four rows apart, the same game twice. Keep the entry the
+     others hang off: the base game is the one with the reviews and the votes, and an
+     edition is a box around it. */
+  const surviving = new Set(live.map((r) => r.igdbId));
+  _catRowsEpoch = _enrichEpoch;
+  return (_catRows = live.filter((r) =>
+    !(r._parent != null && surviving.has(r._parent)) &&
+    !(r._vparent != null && surviving.has(r._vparent))));
 }
 
 function resetCatalogue() {
