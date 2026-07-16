@@ -2008,6 +2008,13 @@ function extraFacetCols(tab = activeTab) {
 }
 const facetCols = () => [...columns().filter((c) => c.facet).map(unifiedFacetCol), ...igdbFacetCols(), ...extraFacetCols()];
 const facetColByKey = (key) => facetCols().find((c) => c.key === key);
+// The Games tab's facets, asked for by name. facetCols() reads whatever tab is
+// active, which throws on a tab with no sheet of its own — and the two places that
+// build filters out of facets (Pick, Challenges) are both such tabs.
+const gamesFacetCols = () => {
+  const sh = DATA.sheets.games;
+  return sh ? [...sh.columns.filter((c) => c.facet).map(unifiedFacetCol), ...igdbFacetCols(), ...extraFacetCols("games")] : [];
+};
 
 // A row's facet values as [{key, raw}] — scalar → one, arrays → many, bucket → one label.
 function rowFacetItems(row, col) {
@@ -3408,8 +3415,10 @@ function syncURL(push) {
   const p = new URLSearchParams();
   if (activeTab !== "home") p.set("tab", activeTab);
   if (activeTab === "pick") {
-    if (pickState.selector) p.set("sel", pickState.selector);
-    if (pickState.param) p.set("pp", pickState.param);
+    // A preset is a name; anything you've edited since is a tree, and only the tree
+    // is the truth. Send whichever one describes what's on screen.
+    if (pickState.preset) p.set("sel", pickState.preset);
+    else if (pickState.filter && pickState.filter.kids.length) p.set("fb", pickEncode(pickState.filter));
     if (pickState.minutes) p.set("mins", String(pickState.minutes));
   } else if (activeTab === "groups") {
     if (groupState.kind) p.set("g", groupState.kind);
@@ -3443,7 +3452,14 @@ function applyStateFromURL() {
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
          "health", "shelf", "picross"].includes(tab) ? tab : "home";
   if (SPECIAL_TABS.includes(tab)) {
-    if (tab === "pick") { pickState.selector = p.get("sel") || pickState.selector; pickState.param = p.get("pp") || ""; pickState.minutes = +(p.get("mins") || 0); }
+    if (tab === "pick") {
+      pickState.minutes = +(p.get("mins") || 0);
+      const fb = p.get("fb");
+      // An old link names a selector that may no longer exist (the Playtime and
+      // "By…" groups are fields now) — fall back rather than 404 the tab.
+      if (fb) { pickState.filter = pickDecode(fb); pickState.preset = ""; }
+      else applyPreset(p.get("sel") || pickState.preset || "backlog");
+    }
     if (tab === "challenges") { chState.open = p.get("ch") || null; chState.showAll = null; }
     if (tab === "stats") {
       const s = p.get("s");
@@ -4188,75 +4204,27 @@ function renderStatsReviews(rows) {
   return (typeof reviewStats === "function" ? reviewStats(rows) : "") + predictionPanel();
 }
 
-// ---- "Pick my next game" ------------------------------------------------
-const pickState = { selector: "backlog", param: "", picked: null, minutes: 0 };
+/* ---- "Pick my next game" ------------------------------------------------
+   This was ~45 hand-written selectors, one per idea, which works right up until
+   you want an idea nobody hand-wrote — "co-op, on the Switch, under 10 hours,
+   not a shooter". So the selectors are a starting point now rather than the whole
+   vocabulary: each one EXPANDS into criteria you can see and edit (see PRESETS),
+   and the + button builds the ones nobody thought of.
+
+   A criterion is a facet field plus the values you ticked, which is the same
+   shape the sidebar filters have always had — so the builder inherits the grid's
+   entire vocabulary for free: sheet columns, IGDB (themes, keywords, perspective),
+   and the constructed facets (predicted rating, playtime, sales). See pickFields(). */
+const pickState = { filter: null, preset: "backlog", picked: null, minutes: 0 };
 let _completedFranchises = null;
 const completedFranchises = () => (_completedFranchises ||=
   new Set(((DATA.sheets.completed || {}).rows || []).flatMap((r) => unifiedFranchiseVals(r))));
 const pickYear = () => new Date().getFullYear();
 
-const quickF = (r) => { const p = playtimeOf(r); return p != null && p < 5; };
-const acclaimedF = (r) => { const m = metacriticOf(r); return m != null && m >= 0.8; };
-const retroF = (r) => { const y = +r.releaseYear; return y && y < 2000; };
-const modeIncludes = (r, m) => { const e = ENRICH[r._k]; return !!(e && e.gameModes && e.gameModes.some((x) => x.toLowerCase().includes(m))); };
-
-// Each selector filters the backlog (games not completed). `param` selectors
-// take a value (platform/genre/…); `topBy` narrows to extremes before the roll.
-// Curated + expanded from zdiemer/GamePicker's selector library.
-/* ---- the fun ones ---------------------------------------------------------
-   Ported from zdiemer/GamePicker's characteristics/ selectors. These exist because
-   sometimes you don't want a good game, you want an EXCUSE — a reason to play this
-   one rather than that one. */
-
 // The month/day you were born. Read from the sheet's own data would be nice, but
 // there's nowhere to put it — so it's a setting, remembered per browser.
 const BIRTHDAY_KEY = "gamedex.birthday";
 const birthday = () => localStorage.getItem(BIRTHDAY_KEY) || "";     // "MM-DD"
-
-/* Pick a game by the colour of its box.
-
-   The cover's dominant colour is already computed for the drawer's accent
-   (extras.js coverAccent: a tiny canvas, near-black and near-white pixels thrown
-   away, the colourful ones weighted up). So this needs no new machinery — just a
-   hue bucket and somewhere to put the answer. Covers resolve asynchronously, so
-   the pool fills in as the art loads; that's why the count climbs while you look
-   at it. */
-const HUE_BUCKETS = [
-  { id: "red", label: "Red", test: (h, s) => s > .18 && (h < 18 || h >= 342) },
-  { id: "orange", label: "Orange", test: (h, s) => s > .18 && h >= 18 && h < 45 },
-  { id: "yellow", label: "Yellow", test: (h, s) => s > .18 && h >= 45 && h < 68 },
-  { id: "green", label: "Green", test: (h, s) => s > .18 && h >= 68 && h < 160 },
-  { id: "blue", label: "Blue", test: (h, s) => s > .18 && h >= 160 && h < 255 },
-  { id: "purple", label: "Purple", test: (h, s) => s > .18 && h >= 255 && h < 300 },
-  { id: "pink", label: "Pink", test: (h, s) => s > .18 && h >= 300 && h < 342 },
-  { id: "mono", label: "Black, white or grey", test: (h, s) => s <= .18 },
-];
-
-const COVER_HUE = new Map();     // matchKey -> bucket id
-function coverHueOf(row) {
-  if (COVER_HUE.has(row._k)) return COVER_HUE.get(row._k);
-  const src = coverSrc(ENRICH[row._k], "cover_small");
-  if (!src) return null;
-  coverAccent(src, (accent) => {
-    const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(accent) ||
-              /#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(accent);
-    if (!m) return;
-    const base = accent.startsWith("#") ? 16 : 10;
-    const [r, g, b] = [parseInt(m[1], base), parseInt(m[2], base), parseInt(m[3], base)];
-    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-    const sat = max ? d / max : 0;
-    let h = 0;
-    if (d) {
-      if (max === r) h = 60 * (((g - b) / d) % 6);
-      else if (max === g) h = 60 * ((b - r) / d + 2);
-      else h = 60 * ((r - g) / d + 4);
-    }
-    if (h < 0) h += 360;
-    const hit = HUE_BUCKETS.find((x) => x.test(h, sat));
-    COVER_HUE.set(row._k, hit ? hit.id : null);
-  });
-  return COVER_HUE.get(row._k) ?? null;
-}
 
 const alphaOnly = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const isPalindrome = (t) => {
@@ -4270,116 +4238,360 @@ const isObscure = (r) => {
   return metacriticOf(r) == null && userRatingOf(r) == null && salesOf(r) == null && !e.igdbId;
 };
 
-const SELECTORS = [
-  { id: "backlog", label: "Anything in my backlog", group: "General", filter: () => true },
-  { id: "neverstarted", label: "Never started", group: "General", filter: (r) => r.owned && !r.dateStarted && !r.playingStatus },
-  { id: "unfinished", label: "Started but unfinished", group: "General", filter: (r) => r.dateStarted && !r.completed },
-  { id: "recentadd", label: "Recently added", group: "General", filter: (r) => !!r.dateAdded, topBy: { by: (r) => r.dateAdded, desc: true, take: 150 } },
-  { id: "aging", label: "Longest in my backlog", group: "General", filter: (r) => !!(r.datePurchased || r.dateAdded), topBy: { by: (r) => r.datePurchased || r.dateAdded, desc: false, take: 150 } },
+/* ---- the field registry -------------------------------------------------
+   Everything the builder can filter on. Most of it is just the Games tab's own
+   facets; the rest is defined here because it only makes sense against a backlog
+   you're choosing FROM ("never started", "released on my birthday").
 
-  { id: "playing", label: "Currently playing", group: "Status", filter: (r) => r.playingStatus === "Playing" },
-  { id: "upnext", label: "Up next", group: "Status", filter: (r) => r.playingStatus === "Up Next" },
-  { id: "onhold", label: "On hold", group: "Status", filter: (r) => r.playingStatus === "On Hold" },
-  { id: "priority", label: "High priority", group: "Status", filter: (r) => priorityRank(r.priority) >= 4 },
+   Fields are facet columns, exactly — {key, label, kind, getVals|getVal|buckets} —
+   so rowFacetItems() reads them and no second matching path exists. */
 
-  // ---- for the hell of it ----
-  { id: "birthday", label: "Released on my birthday", group: "For the hell of it",
-    filter: (r) => {
-      const b = birthday();
-      return !!b && typeof r.releaseDate === "string" && r.releaseDate.slice(5, 10) === b;
-    } },
-  { id: "palindrome", label: "Palindrome titles", group: "For the hell of it",
-    filter: (r) => isPalindrome(r.title) },
-  { id: "longtitle", label: "Absurdly long titles", group: "For the hell of it",
-    filter: (r) => String(r.title || "").length > 45,
-    topBy: { by: (r) => String(r.title).length, desc: true, take: 150 } },
-  { id: "shorttitle", label: "One-word titles", group: "For the hell of it",
-    filter: (r) => String(r.title || "").trim().split(/\s+/).length === 1 },
-  { id: "obscure", label: "Nobody has heard of these", group: "For the hell of it",
-    filter: isObscure },
-  { id: "cooptimus", label: "Verified co-op (Co-Optimus)", group: "For the hell of it",
-    filter: (r) => { const e = ENRICH[r._k] || {}; return e.coopLocal > 1 || e.coopOnline > 1; } },
-  { id: "couch", label: "Co-op on one couch", group: "For the hell of it",
-    filter: (r) => (ENRICH[r._k] || {}).coopLocal > 1 },
-  { id: "colour", label: "By the colour of the box", group: "For the hell of it",
-    param: "__hue",
-    paramVals: () => HUE_BUCKETS.map((b) => b.label),
-    filter: (r, p) => {
-      const want = HUE_BUCKETS.find((b) => b.label === p);
-      return !!want && coverHueOf(r) === want.id;
-    } },
-  { id: "maxpriority", label: "Top priority", group: "Status", filter: (r) => priorityRank(r.priority) >= 5 },
+// Numeric fields have no list to tick: nobody wants to scroll 300 distinct prices.
+// So cut the values the library actually HAS into a few ranges at round numbers.
+// Data-derived rather than hard-coded, because a $60 bucket means nothing to a
+// collection of $8 eBay lots.
+const NICE_STEPS = [1, 2, 2.5, 5, 10];
+function niceNum(v) {
+  if (!(v > 0)) return 0;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const step = NICE_STEPS.find((s) => v / mag <= s) ?? 10;
+  return step * mag;
+}
+function autoBuckets(vals, fmt, n = 5) {
+  const xs = vals.filter((v) => typeof v === "number" && isFinite(v)).sort((a, b) => a - b);
+  if (!xs.length) return [];
+  const out = [];
+  // Free is a category, not a range — "$0" and "cheap" are different thoughts.
+  const hasZero = xs[0] === 0;
+  if (hasZero) out.push({ label: "Free", test: (v) => v === 0 });
+  const pos = hasZero ? xs.filter((v) => v > 0) : xs;
+  if (!pos.length) return out;
+  const max = pos[pos.length - 1];
+  const above = (v) => (hasZero ? v > 0 : true);
+  // Quantile cuts snapped to round numbers. A lumpy distribution can snap two
+  // cuts onto the same number, hence the dedupe.
+  const cuts = [];
+  for (let i = 1; i < n; i++) {
+    const c = niceNum(pos[Math.floor((pos.length - 1) * i / n)]);
+    if (c > 0 && c < max && !cuts.includes(c)) cuts.push(c);
+  }
+  if (!cuts.length) return [...out, { label: `${fmt(pos[0])}–${fmt(max)}`, test: above }];
+  cuts.forEach((c, i) => {
+    const lo = i ? cuts[i - 1] : null;
+    out.push(lo == null
+      ? { label: `< ${fmt(c)}`, test: (v) => above(v) && v < c }
+      : { label: `${fmt(lo)}–${fmt(c)}`, test: (v) => v >= lo && v < c });
+  });
+  const last = cuts[cuts.length - 1];
+  out.push({ label: `${fmt(last)}+`, test: (v) => v >= last });
+  return out;
+}
 
-  { id: "onesit", label: "One sitting (under 2h)", group: "Playtime", filter: (r) => { const p = playtimeOf(r); return p != null && p < 2; } },
-  { id: "quick", label: "Quick (under 5h)", group: "Playtime", filter: quickF },
-  { id: "medium", label: "Medium (5–15h)", group: "Playtime", filter: (r) => { const p = playtimeOf(r); return p != null && p >= 5 && p < 15; } },
-  { id: "long", label: "Long haul (15–40h)", group: "Playtime", filter: (r) => { const p = playtimeOf(r); return p != null && p >= 15 && p < 40; } },
-  { id: "marathon", label: "Marathon (40h+)", group: "Playtime", filter: (r) => { const p = playtimeOf(r); return p != null && p >= 40; } },
+/* Dates and eras answer "how long has this been sitting there" / "how old is it",
+   and the honest answer overlaps: a game added last week was also added this year.
+   These are multi-valued tag fields rather than buckets for exactly that reason —
+   tick "Last year" and you get everything inside a year, which is what you meant. */
+const DAY_MS = 864e5;
+function recencyTags(v) {
+  if (!v) return [];
+  const t = Date.parse(v);
+  if (isNaN(t)) return [];
+  const d = (Date.now() - t) / DAY_MS;
+  const out = [];
+  if (d <= 30) out.push("Last 30 days");
+  if (d <= 90) out.push("Last 3 months");
+  if (d <= 365) out.push("Last year");
+  if (d > 365) out.push("Over a year ago");
+  if (d > 365 * 3) out.push("Over 3 years ago");
+  return out;
+}
+function eraTags(r) {
+  const y = +r.releaseYear;
+  if (!y) return [];
+  const now = pickYear(), out = [];
+  if (y === now) out.push("This year");
+  if (y >= now - 3) out.push("Last 3 years");
+  if (y < 2000) out.push("Retro (pre-2000)");
+  out.push(y < 1980 ? "Pre-1980" : `${Math.floor(y / 10) * 10}s`);
+  return out;
+}
 
-  { id: "acclaimed", label: "Critically acclaimed (80+)", group: "Rating", filter: acclaimedF },
-  { id: "masterpiece", label: "Masterpieces (90+)", group: "Rating", filter: (r) => { const m = metacriticOf(r); return m != null && m >= 0.9; } },
-  { id: "beloved", label: "Beloved by players (80+)", group: "Rating", filter: (r) => { const m = userRatingOf(r); return m != null && m >= 0.8; } },
-  { id: "shortsweet", label: "Short & sweet (< 5h, 80+)", group: "Rating", filter: (r) => quickF(r) && acclaimedF(r) },
-  { id: "retrogem", label: "Retro gems (pre-2000, 80+)", group: "Rating", filter: (r) => retroF(r) && acclaimedF(r) },
-
-  { id: "owned", label: "Owned & unplayed", group: "Ownership & price", filter: (r) => !!r.owned },
-  { id: "physical", label: "Physical copies", group: "Ownership & price", filter: (r) => r.owned && (r.format || "").toLowerCase() === "physical" },
-  { id: "digital", label: "Digital copies", group: "Ownership & price", filter: (r) => r.owned && (r.format || "").toLowerCase() === "digital" },
-  { id: "wishlist", label: "Wishlisted", group: "Ownership & price", filter: (r) => !!r.wishlisted },
-  { id: "free", label: "Free games", group: "Ownership & price", filter: (r) => r.owned && r.purchasePrice === 0 },
-  { id: "cheap", label: "Cheap (under $10)", group: "Ownership & price", filter: (r) => r.purchasePrice != null && r.purchasePrice > 0 && r.purchasePrice < 10 },
-  { id: "unplayedbuy", label: "Unplayed purchases", group: "Ownership & price", filter: (r) => r.owned && r.purchasePrice != null },
-
-  { id: "coopmodes", label: "Co-op (per IGDB)", group: "Play style", filter: (r) => modeIncludes(r, "co-op") || modeIncludes(r, "cooperative") },
-  { id: "multi", label: "Multiplayer", group: "Play style", filter: (r) => modeIncludes(r, "multiplayer") },
-  { id: "solo", label: "Single-player", group: "Play style", filter: (r) => modeIncludes(r, "single player") },
-  { id: "vr", label: "VR games", group: "Play style", filter: (r) => !!r.vr },
-  { id: "dlc", label: "DLC & expansions", group: "Play style", filter: (r) => !!r.dlc },
-
-  { id: "retro", label: "Retro (before 2000)", group: "Era", filter: retroF },
-  { id: "recent", label: "Recent (last 3 years)", group: "Era", filter: (r) => { const y = +r.releaseYear; return y && y >= pickYear() - 3; } },
-  { id: "thisyear", label: "This year's releases", group: "Era", filter: (r) => +r.releaseYear === pickYear() },
-
-  { id: "franchise", label: "Continue a franchise I've played", group: "Progress", filter: (r) => unifiedFranchiseVals(r).some((f) => completedFranchises().has(f)) },
-
-  { id: "platform", label: "By platform…", group: "By…", param: "platform", filter: (r, v) => r.platform === v },
-  // Unified: the value list and the match both span sheet + IGDB, so you can pick a
-  // studio/franchise/genre the sheet never named and still get results.
-  { id: "genre", label: "By genre…", group: "By…", param: "genre", filter: (r, v) => unifiedGenreVals(r).includes(v),
-    paramVals: () => topCounts(pickEligible().flatMap(unifiedGenreVals), 200).map((x) => x.label) },
-  { id: "byfranchise", label: "By franchise…", group: "By…", param: "franchise", filter: (r, v) => unifiedFranchiseVals(r).includes(v),
-    paramVals: () => topCounts(pickEligible().flatMap(unifiedFranchiseVals), 200).map((x) => x.label) },
-  { id: "bydev", label: "By developer…", group: "By…", param: "developer", filter: (r, v) => unifiedDevVals(r).includes(v),
-    paramVals: () => topCounts(pickEligible().flatMap(unifiedDevVals), 200).map((x) => x.label) },
-  { id: "bypub", label: "By publisher…", group: "By…", param: "publisher", filter: (r, v) => unifiedPubVals(r).includes(v),
-    paramVals: () => topCounts(pickEligible().flatMap(unifiedPubVals), 200).map((x) => x.label) },
-];
+// Was it ever picked up, and did it get put down? "Never started" is not a sheet
+// column — it's the absence of three of them.
+function backlogTags(r) {
+  const out = [];
+  if (!r.dateStarted && !r.playingStatus) out.push("Never started");
+  if (r.dateStarted && !r.completed) out.push("Started but unfinished");
+  return out;
+}
+/* Co-op lived in two places — Co-Optimus' verified numbers under "For the hell of
+   it", IGDB's game modes under "Play style" — which meant two answers to one
+   question. IGDB's modes are already a facet (Game Mode), so this field is only
+   what Co-Optimus knows that IGDB doesn't: how MANY, and how. */
+function coopTags(r) {
+  const e = ENRICH[r._k] || {};
+  const out = [];
+  if (e.coopLocal > 1) out.push("Local / couch");
+  if (e.coopOnline > 1) out.push("Online");
+  if (e.coopSplit) out.push("Split screen");
+  if (e.coopCampaign) out.push("Full campaign");
+  if (e.coopDropIn) out.push("Drop-in / drop-out");
+  return out;
+}
+function franchiseTags(r) {
+  const vals = unifiedFranchiseVals(r);
+  if (!vals.length) return [];
+  return [vals.some((f) => completedFranchises().has(f)) ? "Continues one I've played" : "New to me"];
+}
+function titleShapeTags(r) {
+  const t = String(r.title || "");
+  const out = [];
+  if (isPalindrome(t)) out.push("Palindrome");
+  if (t.trim().split(/\s+/).length === 1) out.push("One word");
+  if (t.length > 45) out.push("Absurdly long");
+  return out;
+}
+function birthdayTags(r) {
+  const b = birthday();
+  return b && typeof r.releaseDate === "string" && r.releaseDate.slice(5, 10) === b
+    ? ["Released on my birthday"] : [];
+}
 
 const pickEligible = () => ((DATA.sheets.games || {}).rows || []).filter((r) => !r.completed && r.title);
 
+// The pool is the backlog, so a Completed facet would offer one value ("No").
+const PICK_SKIP_FIELDS = new Set(["completed"]);
+// Sheet and IGDB facets arrive with no grouping of their own; the builder's field
+// list is 40-odd entries and unusable as one flat list.
+const PICK_FIELD_GROUP = {
+  platform: "The basics", genre: "The basics", franchise: "The basics",
+  developer: "The basics", publisher: "The basics", releaseRegion: "The basics",
+  releaseYear: "Era", __pk_era: "Era",
+  playingStatus: "Status", priority: "Status", __pk_backlog: "Status",
+  __playtime: "Time & ratings", __metacritic: "Time & ratings", __userrating: "Time & ratings",
+  __predicted: "Time & ratings", __steamrev: "Time & ratings", __sales: "Time & ratings",
+  __igdb_mode: "Play style", __igdb_persp: "Play style", vr: "Play style", dlc: "Play style",
+  playable: "Play style", english: "Play style", __pk_coop: "Play style",
+  __igdb_theme: "The basics", __igdb_kw: "The basics",
+  owned: "Ownership & price", format: "Ownership & price", wishlisted: "Ownership & price",
+  digitalPlatform: "Ownership & price", subscription: "Ownership & price",
+  limitedPrint: "Ownership & price",
+};
+const pickFieldGroup = (c) => PICK_FIELD_GROUP[c.key] || c.group || "More";
+const PICK_GROUP_ORDER = ["The basics", "Status", "Time & ratings", "Play style", "Era",
+                          "Ownership & price", "Progress", "For the hell of it", "More"];
+
+function pickExtraFields() {
+  const rows = pickEligible();
+  return [
+    { key: "__pk_backlog", label: "Backlog status", kind: "fn", getVals: backlogTags },
+    { key: "__pk_era", label: "Era", kind: "fn", getVals: eraTags },
+    { key: "__pk_coop", label: "Co-op (Co-Optimus)", kind: "fn", getVals: coopTags },
+    { key: "__pk_added", label: "Added", group: "Ownership & price", kind: "fn", getVals: (r) => recencyTags(r.dateAdded) },
+    { key: "__pk_bought", label: "Purchased", group: "Ownership & price", kind: "fn", getVals: (r) => recencyTags(r.datePurchased) },
+    { key: "__pk_price", label: "Purchase price", group: "Ownership & price", kind: "bucket",
+      buckets: autoBuckets(rows.map((r) => r.purchasePrice), usd), getVal: (r) => r.purchasePrice },
+    { key: "__pk_value", label: "Market value", group: "Ownership & price", kind: "bucket",
+      buckets: autoBuckets(rows.map((r) => collectionValueOf(r)), usd), getVal: collectionValueOf },
+    { key: "__pk_franchise", label: "Franchise", group: "Progress", kind: "fn", getVals: franchiseTags },
+    { key: "__pk_title", label: "Title shape", group: "For the hell of it", kind: "fn", getVals: titleShapeTags },
+    { key: "__pk_obscure", label: "Obscurity", group: "For the hell of it", kind: "fn",
+      getVals: (r) => (isObscure(r) ? ["Nobody has heard of it"] : []) },
+    { key: "__pk_bday", label: "My birthday", group: "For the hell of it", kind: "fn", getVals: birthdayTags },
+    // An empty ladder means the column is empty too — offering it would be a dead end.
+  ].filter((f) => f.kind !== "bucket" || f.buckets.length);
+}
+
+/* Rebuilt when the sheet reloads or the last enrichment source lands, because the
+   auto-bucketed fields read values that only exist once enrichment has answered.
+   Not cached harder than that: everything else here is cheap, and a stale field
+   list would quietly filter on numbers that no longer exist. */
+let _pickFields = null, _pickFieldsFor = null, _pickFieldsDone = null;
+function pickFields() {
+  if (_pickFields && _pickFieldsFor === DATA && _pickFieldsDone === ENRICH_COMPLETE) return _pickFields;
+  _pickFieldsFor = DATA;
+  _pickFieldsDone = ENRICH_COMPLETE;
+  const all = [...gamesFacetCols().filter((c) => !PICK_SKIP_FIELDS.has(c.key)), ...pickExtraFields()];
+  return (_pickFields = all.map((c) => ({ ...c, group: pickFieldGroup(c) })));
+}
+const pickFieldByKey = (k) => pickFields().find((f) => f.key === k);
+
+/* ---- the filter tree ----------------------------------------------------
+   A group is {op:"and"|"or", not, kids}; a criterion is {key, vals, not}. Groups
+   nest, which is the whole point of having OR at all — "(co-op or multiplayer)
+   and under 10 hours" is unsayable with one flat list of ANDs. */
+const pickGroup = (op = "and", kids = []) => ({ op, not: false, kids });
+const pickCond = (key, vals = []) => ({ key, vals, not: false });
+const isPickGroup = (n) => !!n && Array.isArray(n.kids);
+const pickNodeAt = (path) => path.reduce((n, i) => n.kids[i], pickState.filter);
+const pickPath = (s) => (s ? s.split(".").map(Number) : []);
+
+/* The tree, in a link. Every other bit of URL state here is flat (`f.platform=PS2~GC`)
+   and a tree isn't, so it gets JSON — inventing a grammar to save forty characters
+   in a string nobody types by hand is not a trade worth making. Short keys only
+   because the thing nests. */
+const pickPack = (n) => isPickGroup(n)
+  ? { o: n.op === "or" ? 1 : 0, n: n.not ? 1 : 0, k: n.kids.map(pickPack) }
+  : { f: n.key, v: n.vals || [], n: n.not ? 1 : 0 };
+const pickEncode = (n) => JSON.stringify(pickPack(n));
+function pickDecode(s) {
+  try {
+    const un = (x) => x.k
+      ? { op: x.o ? "or" : "and", not: !!x.n, kids: x.k.map(un) }
+      : { key: x.f, vals: Array.isArray(x.v) ? x.v : [], not: !!x.n };
+    const t = un(JSON.parse(s));
+    return isPickGroup(t) ? t : pickGroup("and", [t]);
+  } catch (_) { return pickGroup(); }        // a mangled link shouldn't blank the tab
+}
+
+/* Compiled to a closure tree once per pass rather than walked per row: resolving
+   a field by key for each of 14.7k rows is how you make a dice roll feel slow.
+   `except` drops one node — that's how a criterion's own value list gets counted
+   against everything BUT itself. */
+function compilePick(node, except) {
+  if (node === except) return () => true;
+  if (isPickGroup(node)) {
+    const kids = node.kids.map((k) => compilePick(k, except));
+    // An empty group is a group you haven't filled in yet, not a wall. (It matters:
+    // `some` over nothing is false, so an empty OR would match no games at all.)
+    if (!kids.length) return () => true;
+    const f = node.op === "or" ? (row) => kids.some((k) => k(row)) : (row) => kids.every((k) => k(row));
+    return node.not ? (row) => !f(row) : f;
+  }
+  const col = pickFieldByKey(node.key);
+  if (!col || !node.vals || !node.vals.length) return () => true;   // half-built: no-op
+  const want = new Set(node.vals);
+  const f = (row) => rowFacetItems(row, col).some((it) => want.has(it.key));
+  return node.not ? (row) => !f(row) : f;
+}
+
 // "I have 45 minutes." A game qualifies if you could plausibly FINISH it in the
 // time you've got — HLTB's main-story number where we have it, the sheet's
-// estimate otherwise. 0 means "don't care".
+// estimate otherwise. 0 means "don't care". This stacks on top of the builder
+// rather than living inside it: it's a fact about your evening, not about the game.
 function withinTimeBudget(rows) {
   if (!pickState.minutes) return rows;
   const hours = pickState.minutes / 60;
   return rows.filter((r) => { const t = playtimeOf(r); return t != null && t <= hours; });
 }
-function pickPool() {
-  const sel = SELECTORS.find((s) => s.id === pickState.selector) || SELECTORS[0];
-  let pool = withinTimeBudget(
-    pickEligible().filter((r) => (sel.param ? pickState.param && sel.filter(r, pickState.param) : sel.filter(r))));
-  if (sel.topBy && pool.length) {   // narrow to extremes (recent/oldest) before rolling
-    pool = [...pool].sort((a, b) => { const x = sel.topBy.by(a) || "", y = sel.topBy.by(b) || ""; return x < y ? -1 : x > y ? 1 : 0; });
-    if (sel.topBy.desc) pool.reverse();
-    pool = pool.slice(0, sel.topBy.take);
-  }
-  return { sel, pool };
+function pickPool(except) {
+  // Seed here rather than trusting renderPicker to have run: compilePick(null) would
+  // fall through to the criterion branch and deref `null.key`.
+  if (!pickState.filter) pickState.filter = pickGroup();
+  return withinTimeBudget(pickEligible().filter(compilePick(pickState.filter, except)));
 }
 function pickGame() {
-  const { pool } = pickPool();
+  const pool = pickPool();
   pickState.picked = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   renderPicker();
+}
+
+// Values for a field, counted against the pool as it would be WITHOUT this
+// criterion — so ticking a second value tells you what it would ADD, not what
+// survived. Same trick the sidebar plays.
+function pickFieldValues(field, except) {
+  const counts = new Map();
+  for (const r of pickPool(except)) {
+    for (const it of rowFacetItems(r, field)) {
+      if (!counts.has(it.key)) counts.set(it.key, { n: 0, label: facetLabel(field, it.raw) });
+      counts.get(it.key).n++;
+    }
+  }
+  const vals = [...counts.entries()].map(([key, v]) => ({ key, label: v.label, n: v.n }));
+  if (field.buckets) {                       // ladders have a meaning-order, not a count-order
+    const ord = new Map(field.buckets.map((b, i) => [b.label, i]));
+    vals.sort((a, b) => (ord.get(a.key) ?? 99) - (ord.get(b.key) ?? 99));
+  } else if (field.type === "year") {
+    vals.sort((a, b) => Number(b.key) - Number(a.key));
+  } else {
+    vals.sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+  }
+  return vals;
+}
+
+/* ---- presets ------------------------------------------------------------
+   The old selectors, rewritten as trees. They're a starting point you can see and
+   argue with now: pick "Short & sweet" and the two criteria it means appear as
+   chips, so you can widen the playtime or drop the score without starting over.
+
+   Gone from the list, because the builder says them better: the whole "By…" group
+   (platform/genre/franchise/developer/publisher are fields — add one), the whole
+   Playtime group (the "I have" budget, or the Playtime field), and the Play style
+   entries that only ever restated IGDB's Game Mode facet. */
+const pkc = (key, ...vals) => pickCond(key, vals);   // a preset criterion, terser
+const PRESETS = [
+  { id: "backlog", label: "Anything in my backlog", group: "General", build: () => [] },
+  // Owned is its own criterion now, so the FIELD is ownership-agnostic — but the
+  // preset has always meant "sitting on my shelf, still shrink-wrapped", and a
+  // wishlist entry is not that. It says so in chips rather than in a hidden clause.
+  { id: "neverstarted", label: "Never started", group: "General", build: () => [pkc("owned", "true"), pkc("__pk_backlog", "Never started")] },
+  { id: "unfinished", label: "Started but unfinished", group: "General", build: () => [pkc("__pk_backlog", "Started but unfinished")] },
+  { id: "recentadd", label: "Recently added", group: "General", build: () => [pkc("__pk_added", "Last 3 months")] },
+  // "How long has this been sitting there" is answered by whichever date exists:
+  // the old selector ranked on `datePurchased || dateAdded`, and rows only carry
+  // the fields they have — so an OR, or a game bought in 2019 and never given a
+  // Date Added drops out of the one preset built to find it.
+  { id: "aging", label: "Longest in my backlog", group: "General",
+    build: () => [pickGroup("or", [pkc("__pk_added", "Over 3 years ago"), pkc("__pk_bought", "Over 3 years ago")])] },
+
+  { id: "playing", label: "Currently playing", group: "Status", build: () => [pkc("playingStatus", "Playing")] },
+  { id: "upnext", label: "Up next", group: "Status", build: () => [pkc("playingStatus", "Up Next")] },
+  { id: "onhold", label: "On hold", group: "Status", build: () => [pkc("playingStatus", "On Hold")] },
+  { id: "priority", label: "High priority", group: "Status", build: () => [pkc("priority", "Must Play", "Will Play")] },
+  { id: "maxpriority", label: "Top priority", group: "Status", build: () => [pkc("priority", "Must Play")] },
+
+  { id: "acclaimed", label: "Critically acclaimed (80+)", group: "Rating", build: () => [pkc("__metacritic", "80–89", "90–100")] },
+  { id: "masterpiece", label: "Masterpieces (90+)", group: "Rating", build: () => [pkc("__metacritic", "90–100")] },
+  { id: "beloved", label: "Beloved by players (80+)", group: "Rating", build: () => [pkc("__userrating", "80–89", "90–100")] },
+  { id: "foryou", label: "Predicted for you (80+)", group: "Rating", build: () => [pkc("__predicted", "80–89", "90–100")] },
+  { id: "shortsweet", label: "Short & sweet (< 5h, 80+)", group: "Rating",
+    build: () => [pkc("__playtime", "< 2h", "2–5h"), pkc("__metacritic", "80–89", "90–100")] },
+  { id: "retrogem", label: "Retro gems (pre-2000, 80+)", group: "Rating",
+    build: () => [pkc("__pk_era", "Retro (pre-2000)"), pkc("__metacritic", "80–89", "90–100")] },
+
+  { id: "owned", label: "Owned & unplayed", group: "Ownership & price", build: () => [pkc("owned", "true")] },
+  { id: "physical", label: "Physical copies", group: "Ownership & price", build: () => [pkc("owned", "true"), pkc("format", "Physical")] },
+  { id: "digital", label: "Digital copies", group: "Ownership & price", build: () => [pkc("owned", "true"), pkc("format", "Digital")] },
+  { id: "wishlist", label: "Wishlisted", group: "Ownership & price", build: () => [pkc("wishlisted", "true")] },
+  { id: "free", label: "Free games", group: "Ownership & price", build: () => [pkc("owned", "true"), pkc("__pk_price", "Free")] },
+
+  { id: "retro", label: "Retro (before 2000)", group: "Era", build: () => [pkc("__pk_era", "Retro (pre-2000)")] },
+  { id: "recent", label: "Recent (last 3 years)", group: "Era", build: () => [pkc("__pk_era", "Last 3 years")] },
+  { id: "thisyear", label: "This year's releases", group: "Era", build: () => [pkc("__pk_era", "This year")] },
+
+  { id: "franchise", label: "Continue a franchise I've played", group: "Progress", build: () => [pkc("__pk_franchise", "Continues one I've played")] },
+
+  { id: "birthday", label: "Released on my birthday", group: "For the hell of it", build: () => [pkc("__pk_bday", "Released on my birthday")] },
+  { id: "palindrome", label: "Palindrome titles", group: "For the hell of it", build: () => [pkc("__pk_title", "Palindrome")] },
+  { id: "longtitle", label: "Absurdly long titles", group: "For the hell of it", build: () => [pkc("__pk_title", "Absurdly long")] },
+  { id: "shorttitle", label: "One-word titles", group: "For the hell of it", build: () => [pkc("__pk_title", "One word")] },
+  { id: "obscure", label: "Nobody has heard of these", group: "For the hell of it", build: () => [pkc("__pk_obscure", "Nobody has heard of it")] },
+  { id: "couch", label: "Co-op on one couch", group: "For the hell of it", build: () => [pkc("__pk_coop", "Local / couch")] },
+];
+const presetById = (id) => PRESETS.find((p) => p.id === id);
+
+/* A preset names its values by the spelling the sheet is SUPPOSED to use, and some
+   columns arrive exactly as they were typed into Excel — Format is not in parse.py's
+   _VALUE_LABELS, so "Physical", "physical" and "PHYSICAL" all reach us as-is. The
+   old selector lowercased before comparing; a preset naming a literal can't, so it
+   would quietly match nothing over a capital letter. Snap each named value onto the
+   real facet key instead, which also self-heals if a value gets re-spelled later. */
+function snapPresetVals(node) {
+  if (isPickGroup(node)) { node.kids.forEach(snapPresetVals); return; }
+  const field = pickFieldByKey(node.key);
+  if (!field || !node.vals.length) return;
+  const real = new Set();
+  for (const r of pickEligible()) for (const it of rowFacetItems(r, field)) real.add(it.key);
+  if (node.vals.every((v) => real.has(v))) return;           // the usual case
+  const byLower = new Map([...real].map((k) => [k.toLowerCase(), k]));
+  node.vals = node.vals.map((v) => real.has(v) ? v : (byLower.get(String(v).toLowerCase()) || v));
+}
+function applyPreset(id) {
+  const p = presetById(id) || PRESETS[0];
+  pickState.preset = p.id;
+  pickState.filter = pickGroup("and", p.build());
+  pickState.filter.kids.forEach(snapPresetVals);
+  pickState.picked = null;
 }
 
 function pickCard(row) {
@@ -4423,62 +4635,206 @@ function pickCard(row) {
   </div>`;
 }
 
+/* ---- the builder UI -----------------------------------------------------
+   One popover does both jobs: pick a field, then tick its values. It's anchored
+   as a CHILD of the chip that opened it rather than positioned against the
+   viewport — there's no popover machinery in this app to borrow, and a child that
+   scrolls with its anchor needs none. */
+const pickPop = { path: null, mode: null, q: "", all: false };
+const PICK_POP_CAP = 12;                    // before "show all" — the sidebar's trick
+
+/* A group's and/or/not, as one thing you read rather than two you combine. It was a
+   NOT toggle beside an and/or select, which meant an un-negated group still rendered
+   the word "NOT" next to "Match any of" — greyed out, but the sentence read as though
+   the negation were on. A group has only three states worth saying out loud, so say
+   them: the select IS the negation. */
+const GROUP_MODES = [
+  { v: "all", label: "Match all of", op: "and", not: false },
+  { v: "any", label: "Match any of", op: "or", not: false },
+  { v: "none", label: "Match none of", op: "or", not: true },   // NOT(a or b) — "neither"
+  { v: "notall", label: "Don’t match all of", op: "and", not: true },
+];
+const groupMode = (n) =>
+  GROUP_MODES.find((m) => m.op === n.op && m.not === !!n.not) || GROUP_MODES[0];
+
+const closePickPop = () => { pickPop.path = null; pickPop.mode = null; pickPop.q = ""; };
+function openPickPop(path, mode) {
+  pickPop.path = path.join(".");
+  pickPop.mode = mode;
+  pickPop.q = "";
+  pickPop.all = false;
+}
+// Any edit means the tree is no longer what the preset said it was. Saying so
+// keeps the dropdown honest rather than leaving it pointing at a shape you've
+// since taken apart.
+function pickEdited() {
+  pickState.preset = "";
+  pickState.picked = null;
+}
+
+/* The open popover's value list, held across keystrokes. Counting means a pass over
+   the whole backlog plus a facet pass per row, and typing in the filter box CAN'T
+   change a count — it only hides rows — so recomputing per keystroke was scanning
+   the collection eight times to spell "nintendo". renderPicker clears it whenever
+   the pool actually moves. */
+let _pkVals = null;
+
+function pickValueRowsHtml(node, field) {
+  const all = _pkVals || (_pkVals = pickFieldValues(field, node));
+  const q = pickPop.q.toLowerCase();
+  const vals = q ? all.filter((v) => v.label.toLowerCase().includes(q)) : all;
+  if (!vals.length) return `<p class="pk-pop-empty">Nothing here matches the rest of your filter.</p>`;
+  const shown = pickPop.all ? vals : vals.slice(0, PICK_POP_CAP);
+  const on = new Set(node.vals || []);
+  return shown.map((v) => `<label class="facet-opt${on.has(v.key) ? " checked" : ""}">
+      <input type="checkbox" data-v="${escapeHtml(v.key)}"${on.has(v.key) ? " checked" : ""}>
+      <span class="lbl">${escapeHtml(v.label)}</span><span class="cnt">${v.n.toLocaleString()}</span>
+    </label>`).join("") +
+    (vals.length > shown.length
+      ? `<button class="facet-more" id="pkPopMore">Show ${(vals.length - shown.length).toLocaleString()} more…</button>`
+      : "");
+}
+
+function pickPopHtml(path) {
+  const node = pickNodeAt(path);
+  const field = pickFieldByKey(node.key);
+  if (pickPop.mode === "field") {
+    const q = pickPop.q.toLowerCase();
+    const hits = pickFields().filter((f) => !q || f.label.toLowerCase().includes(q));
+    const groups = PICK_GROUP_ORDER
+      .map((g) => [g, hits.filter((f) => f.group === g)])
+      .filter(([, fs]) => fs.length);
+    return `<div class="pk-pop" data-path="${path.join(".")}">
+      ${searchField("pkPopSearch", "Find a field…", pickPop.q, "field-facet")}
+      <div class="pk-pop-list" id="pkPopList">${groups.map(([g, fs]) =>
+        `<div class="pk-pop-grp">${escapeHtml(g)}</div>` +
+        fs.map((f) => `<button class="pk-pop-field${f.key === node.key ? " on" : ""}" data-f="${escapeHtml(f.key)}">${escapeHtml(f.label)}</button>`).join("")
+      ).join("") || `<p class="pk-pop-empty">No field by that name.</p>`}</div>
+    </div>`;
+  }
+  if (!field) return "";
+  // The birthday isn't in the sheet and there's nowhere to put it, so the one
+  // field that needs a setting carries it.
+  const bday = field.key === "__pk_bday"
+    ? `<label class="pk-pop-set">My birthday
+         <input id="pkBday" type="date" value="${birthday() ? `2000-${birthday()}` : ""}" title="Only the month and day are used">
+       </label>` : "";
+  const many = (field.buckets || []).length === 0;
+  return `<div class="pk-pop" data-path="${path.join(".")}">
+    <div class="pk-pop-head">
+      <button class="pk-pop-refield" data-act="refield" data-path="${path.join(".")}">${escapeHtml(field.label)} <span class="chev">▾</span></button>
+      <button class="pk-pop-clear" data-act="clear" data-path="${path.join(".")}">Clear</button>
+    </div>
+    ${bday}
+    ${many ? searchField("pkPopSearch", "Filter values…", pickPop.q, "field-facet") : ""}
+    <div class="pk-pop-list" id="pkPopList">${pickValueRowsHtml(node, field)}</div>
+  </div>`;
+}
+
+function pickCondHtml(node, path) {
+  const p = path.join(".");
+  const field = pickFieldByKey(node.key);
+  const vals = node.vals || [];
+  const shown = vals.slice(0, 2).map((v) => (field && field.type === "bool") ? (v === "true" ? "Yes" : "No") : v);
+  // A field can genuinely vanish — an old ?fb= link, or an auto-bucketed one whose
+  // ladder came back empty (no priced games, nothing to bucket). compilePick treats
+  // that as a no-op, so the chip must not sit there in a filter's clothing claiming
+  // to narrow anything: name it, blame it, and let it be removed.
+  const text = !field ? "field unavailable"
+    : vals.length ? shown.join(", ") + (vals.length > 2 ? ` +${vals.length - 2}` : "")
+    : "choose…";
+  return `<div class="pk-chip${node.not ? " neg" : ""}${field ? "" : " broken"}${vals.length && field ? "" : " todo"}${pickPop.path === p ? " open" : ""}"
+    ${field ? "" : `title="Nothing in this collection answers “${escapeHtml(String(node.key))}”, so this criterion is ignored."`}>
+    <b class="pk-chip-f">${escapeHtml(field ? field.label : "Unknown field")}</b>
+    <button class="pk-chip-not" data-act="not" data-path="${p}"
+      title="${node.not ? "Currently excluding these" : "Currently including these"}">${node.not ? "is not" : "is"}</button>
+    <button class="pk-chip-v" data-act="${field ? "edit" : "refield"}" data-path="${p}">${escapeHtml(text)}</button>
+    <button class="pk-chip-x" data-act="del" data-path="${p}" title="Remove" aria-label="Remove">✕</button>
+    ${pickPop.path === p ? pickPopHtml(path) : ""}
+  </div>`;
+}
+
+function pickGroupHtml(node, path) {
+  const p = path.join(".");
+  const nested = path.length > 0;
+  const kids = node.kids.map((k, i) =>
+    (isPickGroup(k) ? pickGroupHtml : pickCondHtml)(k, [...path, i])).join("");
+  // "Match all of" one thing is a question nobody asked — the and/or only starts
+  // meaning something at two. A nested group keeps its bar regardless: that's where
+  // its remove button lives.
+  const showOp = node.kids.length > 1;
+  const mode = groupMode(node);
+  // "Don't match all of" is unreachable from this select (De Morgan says it's
+  // "any of (not…, not…)", which reads better) — but a hand-edited ?fb= link can
+  // still say it, and a select that can't show the state it's in would lie.
+  const modes = GROUP_MODES.filter((m) => m.v !== "notall" || mode.v === "notall");
+  const bar = (nested || showOp)
+    ? `<div class="pkg-bar">
+        ${showOp ? `<select class="pkg-op" data-act="op" data-path="${p}" title="How these criteria combine">
+          ${modes.map((m) => `<option value="${m.v}"${m.v === mode.v ? " selected" : ""}>${escapeHtml(m.label)}</option>`).join("")}
+        </select>` : ""}
+        ${nested ? `<button class="pkg-x" data-act="gdel" data-path="${p}" title="Remove this group" aria-label="Remove group">✕</button>` : ""}
+      </div>`
+    : "";
+  return `<div class="pkg${nested ? " nested" : ""}${node.not ? " neg" : ""}">
+    ${bar}
+    ${!node.kids.length && !nested ? `<p class="pkg-empty">No criteria yet — every game in the backlog is in play.</p>` : ""}
+    <div class="pkg-kids">
+      ${kids}
+      <button class="pk-add" data-act="add" data-path="${p}" title="Add a criterion">${icon("i-plus", 12)} Criterion</button>
+      <button class="pk-add ghost" data-act="gadd" data-path="${p}" title="Add a nested group">${icon("i-plus", 12)} Group</button>
+    </div>
+  </div>`;
+}
+
 function renderPicker() {
   const host = $("#picker");
-  const sel = SELECTORS.find((s) => s.id === pickState.selector) || SELECTORS[0];
-  pickState.selector = sel.id;
-  const groups = {};
-  SELECTORS.forEach((s) => { (groups[s.group] = groups[s.group] || []).push(s); });
-  const opts = Object.entries(groups).map(([g, ss]) =>
-    `<optgroup label="${g}">${ss.map((s) => `<option value="${s.id}" ${s.id === sel.id ? "selected" : ""}>${escapeHtml(s.label)}</option>`).join("")}</optgroup>`).join("");
-  let paramHtml = "";
-  // The birthday selector needs a birthday. There's nowhere in the sheet to keep
-  // one, so it lives in this browser — set it once.
-  if (sel.id === "birthday") {
-    const b = birthday();
-    paramHtml = `<input id="pickBday" type="date" value="${b ? `2000-${b}` : ""}"
-      title="Only the month and day are used" style="max-width:170px">`;
+  _pkVals = null;                  // the pool may have moved; recount on demand
+  if (!pickState.filter) applyPreset(pickState.preset || "backlog");
+  // A popover is pinned to a path, and the tree underneath it can move (a preset
+  // replaces it wholesale, a chip two along gets removed). Re-check the path still
+  // lands on a criterion rather than painting against a node that isn't there.
+  if (pickPop.path !== null) {
+    let n = null;
+    try { n = pickNodeAt(pickPath(pickPop.path)); } catch (_) { /* path went stale */ }
+    if (!n || isPickGroup(n)) closePickPop();
   }
-  if (sel.param) {
-    // A param is usually a row FIELD (platform, genre). Some are computed — the
-    // colour of the box isn't in the sheet — so a selector can supply its own.
-    const vals = sel.paramVals
-      ? sel.paramVals()
-      // Rank values by how many backlog games each has (keeps big lists usable).
-      : topCounts(pickEligible().map((r) => r[sel.param]), 200).map((x) => `${x.label}`);
-    if (!vals.includes(pickState.param)) pickState.param = vals[0] || "";
-    paramHtml = `<select id="pickParam">${vals.map((v) => `<option ${v === pickState.param ? "selected" : ""}>${escapeHtml(v)}</option>`).join("")}</select>`;
-  }
-  const { pool } = pickPool();
+  const pool = pickPool();
   const TIMES = [[0, "Any length"], [30, "30 minutes"], [45, "45 minutes"], [60, "1 hour"],
                  [120, "2 hours"], [300, "5 hours"], [600, "10 hours"]];
+  const groups = {};
+  PRESETS.forEach((s) => { (groups[s.group] = groups[s.group] || []).push(s); });
+  const opts = Object.entries(groups).map(([g, ss]) =>
+    `<optgroup label="${escapeHtml(g)}">${ss.map((s) =>
+      `<option value="${s.id}"${s.id === pickState.preset ? " selected" : ""}>${escapeHtml(s.label)}</option>`).join("")}</optgroup>`).join("");
+
   host.innerHTML = `
     <div class="pick-controls">
-      <label>Pick <select id="pickSel">${opts}</select></label>${paramHtml}
+      <label>Start from <select id="pickPreset">
+        ${pickState.preset ? "" : `<option value="" selected>Custom filter</option>`}${opts}
+      </select></label>
       <label class="pick-time">I have
         <select id="pickTime">${TIMES.map(([m, l]) =>
-          `<option value="${m}" ${m === pickState.minutes ? "selected" : ""}>${escapeHtml(l)}</option>`).join("")}</select>
+          `<option value="${m}"${m === pickState.minutes ? " selected" : ""}>${escapeHtml(l)}</option>`).join("")}</select>
       </label>
       <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
       <span class="pick-count">${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"} in pool</span>
     </div>
+    <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
     <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
       ? pickCard(pickState.picked)
-      : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "No backlog games match this selector."}</div>`}</div>`;
-  $("#pickSel").onchange = (e) => { pickState.selector = e.target.value; pickState.param = ""; pickState.picked = null; renderPicker(); nav(); };
-  const pp = $("#pickParam");
-  if (pp) pp.onchange = (e) => { pickState.param = e.target.value; pickState.picked = null; renderPicker(); nav(); };
-  $("#pickTime").onchange = (e) => { pickState.minutes = +e.target.value; pickState.picked = null; renderPicker(); nav(); };
-  const bd = $("#pickBday");
-  if (bd) bd.onchange = (e) => {
-    const v = e.target.value;                       // yyyy-mm-dd; only MM-DD is used
-    if (v) localStorage.setItem(BIRTHDAY_KEY, v.slice(5, 10));
-    else localStorage.removeItem(BIRTHDAY_KEY);
-    pickState.picked = null;
-    renderPicker();
-  };
+      : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>`;
 
+  // "Custom filter" is a readout of where you've ended up, not a thing you can
+  // choose — selecting it should leave the tree you built alone.
+  $("#pickPreset").onchange = (e) => {
+    if (!e.target.value) return;
+    closePickPop(); applyPreset(e.target.value); renderPicker(); nav();
+  };
+  $("#pickTime").onchange = (e) => { pickState.minutes = +e.target.value; pickState.picked = null; renderPicker(); nav(); };
   $("#pickBtn").onclick = () => { pickGame(); nav(); };
+  wirePickBuilder();
+
   const game = host.querySelector("#pickGameCard");
   if (game) {
     // Same card component as the listings, so it gets the same hover trailer.
@@ -4489,6 +4845,132 @@ function renderPicker() {
     if (open) open.onclick = () => openDrawer(pickState.picked, "games");
   }
 }
+
+// Repaint just the popover's option rows. Rebuilding the picker on every keystroke
+// would destroy the input the keystrokes are going into — the same trap the facet
+// sidebar documents at renderFacets.
+function pickPopRepaint() {
+  const list = $("#pkPopList");
+  if (!list || !pickPop.path) return;
+  const path = pickPath(pickPop.path);
+  const node = pickNodeAt(path);
+  if (pickPop.mode === "field") {
+    const wrap = list.closest(".pk-pop");
+    wrap.outerHTML = pickPopHtml(path);
+  } else {
+    list.innerHTML = pickValueRowsHtml(node, pickFieldByKey(node.key));
+  }
+  wirePickBuilder();
+  const q = $("#pkPopSearch");
+  if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+
+function wirePickBuilder() {
+  const host = $("#pickBuilder");
+  if (!host) return;
+
+  host.onclick = (e) => {
+    const b = e.target.closest("[data-act]");
+    if (!b || !host.contains(b)) return;
+    const path = pickPath(b.dataset.path);
+    const act = b.dataset.act;
+    if (act === "op") return;                       // a <select>, handled below
+    e.stopPropagation();
+    if (act === "add") {
+      // A criterion with no field yet is a criterion you're mid-way through
+      // choosing — park it in the tree and open the field list on it.
+      const g = pickNodeAt(path);
+      g.kids.push(pickCond(pickFields()[0].key, []));
+      pickEdited();
+      openPickPop([...path, g.kids.length - 1], "field");
+      renderPicker();
+      $("#pkPopSearch")?.focus();
+      return;
+    }
+    if (act === "gadd") { pickNodeAt(path).kids.push(pickGroup("or")); pickEdited(); renderPicker(); nav(); return; }
+    if (act === "gdel" || act === "del") {
+      closePickPop();
+      pickNodeAt(path.slice(0, -1)).kids.splice(path[path.length - 1], 1);
+      pickEdited(); renderPicker(); nav(); return;
+    }
+    if (act === "not") {
+      const n = pickNodeAt(path);
+      n.not = !n.not; pickEdited(); renderPicker(); nav(); return;
+    }
+    if (act === "edit") {
+      const p = path.join(".");
+      if (pickPop.path === p && pickPop.mode === "values") closePickPop();
+      else openPickPop(path, "values");
+      renderPicker(); return;
+    }
+    if (act === "refield") { openPickPop(path, "field"); renderPicker(); $("#pkPopSearch")?.focus(); return; }
+    if (act === "clear") {
+      pickNodeAt(path).vals = [];
+      pickEdited(); renderPicker(); return;
+    }
+  };
+  host.onchange = (e) => {
+    const s = e.target.closest("[data-act='op']");
+    if (!s) return;
+    const m = GROUP_MODES.find((x) => x.v === s.value) || GROUP_MODES[0];
+    const n = pickNodeAt(pickPath(s.dataset.path));
+    n.op = m.op; n.not = m.not;
+    pickEdited(); renderPicker(); nav();
+  };
+
+  const pop = host.querySelector(".pk-pop");
+  if (!pop) return;
+  const path = pickPath(pop.dataset.path);
+  const node = pickNodeAt(path);
+
+  // No stopPropagation here, however tempting: the popover lives INSIDE #pickBuilder,
+  // so swallowing its clicks would starve the delegated handler above and the
+  // popover's own head buttons (change field, Clear) would quietly do nothing. The
+  // outside-click listener already exempts anything inside .pk-pop.
+  const q = $("#pkPopSearch");
+  if (q) q.oninput = (ev) => { pickPop.q = ev.target.value; pickPop.all = false; pickPopRepaint(); };
+  const more = $("#pkPopMore");
+  if (more) more.onclick = () => { pickPop.all = true; pickPopRepaint(); };
+
+  pop.querySelectorAll(".pk-pop-field").forEach((el) => {
+    el.onclick = () => {
+      node.key = el.dataset.f;
+      node.vals = [];                              // values belong to the old field
+      pickPop.mode = "values"; pickPop.q = ""; pickPop.all = false;
+      pickEdited(); renderPicker(); nav();
+    };
+  });
+  pop.querySelectorAll("input[type=checkbox]").forEach((el) => {
+    el.onchange = () => {
+      const v = el.dataset.v;
+      const on = new Set(node.vals || []);
+      on.has(v) ? on.delete(v) : on.add(v);
+      node.vals = [...on];
+      pickEdited();
+      // Repaint the whole picker (the pool count moved) but keep the popover open,
+      // so ticking three platforms is three clicks and not three re-opens.
+      renderPicker(); nav();
+    };
+  });
+  const bd = $("#pkBday");
+  if (bd) bd.onchange = (ev) => {
+    const v = ev.target.value;                     // yyyy-mm-dd; only MM-DD is used
+    if (v) localStorage.setItem(BIRTHDAY_KEY, v.slice(5, 10));
+    else localStorage.removeItem(BIRTHDAY_KEY);
+    pickState.picked = null;
+    renderPicker();
+  };
+}
+
+// Click anywhere else and the popover goes away — the one behaviour every popover
+// needs and this app has never had to implement before.
+document.addEventListener("click", (e) => {
+  if (!pickPop.path || activeTab !== "pick") return;
+  if (e.target.closest(".pk-pop") || e.target.closest("[data-act='edit']") ||
+      e.target.closest("[data-act='add']") || e.target.closest("[data-act='refield']")) return;
+  closePickPop();
+  renderPicker();
+});
 
 let searchTimer = null;
 $("#search").addEventListener("input", (e) => {
@@ -4792,7 +5274,7 @@ $("#cmdkInput").addEventListener("keydown", (e) => {
 // Wordmark = home: back to the landing page with nothing filtered/sorted.
 $("#brand").addEventListener("click", () => {
   for (const t of TABS) tabState[t] = { ...freshState(), view: tabState[t].view, combine: tabState[t].combine };
-  pickState.selector = "backlog"; pickState.param = ""; pickState.picked = null;
+  closePickPop(); applyPreset("backlog"); pickState.minutes = 0;
   $("#search").value = "";
   setFacets(false);
   switchTab("home");
