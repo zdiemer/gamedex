@@ -759,26 +759,31 @@ def enrichment_override(body: Override, user: dict = Depends(require_admin)):
 
 
 # Cached against the workbook hash: the answer only changes when the sheet does
-# (or when enrichment fills in more similar-games lists, which the count catches).
-_recs = {"hash": None, "matched": -1, "data": None}
+# (or when enrichment fills in more similar-games lists, which the count catches, or when
+# a new crawl brings in games the catalogue arm could vote for).
+_recs = {"hash": None, "matched": -1, "gen": -1, "data": None}
 
 
 @app.get("/api/recommendations")
 def recommendations():
-    """"Because you liked …" — see recommend.py."""
+    """"Because you liked …" — see recommend.py. Two lists: `items` are games already in
+    the backlog, `catalogue` are games that aren't on the sheet at all."""
     if not enricher or not store.ready:
         return {"enabled": False, "items": []}
     snap = store.snapshot()
     src_hash = snap["meta"].get("sourceHash")
     matched = enricher.stats().get("matched", 0)
-    if _recs["data"] and _recs["hash"] == src_hash and _recs["matched"] == matched:
+    gen = catalogue.generation if catalogue else 0
+    if _recs["data"] and _recs["hash"] == src_hash and _recs["matched"] == matched \
+            and _recs["gen"] == gen:
         return {"enabled": True, **_recs["data"]}
     data = recommend.build(
         snap["data"].get("games", {}).get("rows", []),
         enricher.all_records(),
         enricher.normalize,
+        catalogue=(catalogue.names() if catalogue and gen else None),
     )
-    _recs.update({"hash": src_hash, "matched": matched, "data": data})
+    _recs.update({"hash": src_hash, "matched": matched, "gen": gen, "data": data})
     return {"enabled": True, **data}
 
 

@@ -128,16 +128,35 @@ Working list. Checked = shipped and deployed.
         shrunk — we can't judge what we can't see. `playerVerdict()` collapsed the value /
         source / count chains into one, because three parallel walks of the same fallback
         list drift and that label has already been wrong twice.
-  - [ ] **3. The tab + the Pick facet** — rank the catalogue by predicted rating,
-        crossed with `recommend.py`'s IDF-weighted similar-games votes for a "because
-        you liked…" reason (today it only votes for games already IN the backlog). Pick's
-        pool grows to the catalogue behind an "In the sheet" facet defaulting to on.
-        The join is on `igdbId` and lives in the BROWSER, wired into
-        `loadAllEnrichment`'s existing invalidation block: it's the only copy that is
-        never stale (a manual override moves a row between IGDB ids without changing
-        any count the server could cache against), and without it a game matched
-        mid-session shows up twice in Pick. `NO_MATCH` + the normalized title already
-        in `_k` covers the games IGDB never matched, which the id join can't see.
+  - [x] **3. The tab + the Pick facet** — `recs.js`: 25,494 games IGDB knows that the sheet
+        doesn't, ranked by the catalogue model and crossed with `recommend.py`'s new
+        catalogue arm for a "because you liked…" reason. Quotes its OWN 9.1, not the
+        backlog model's. Dismissals ride in `prefs`. Pick's pool grows to the same games
+        behind an "In the sheet" field that `applyPreset` seeds with *On the sheet* in
+        every preset — visible and deletable, not a hidden default — so Pick is unchanged
+        until you widen it (13,086 → 38,580). A catalogue game's card has no drawer and no
+        launch button; it links to IGDB and says so. The join is on `igdbId`, in the
+        browser, wired into `loadAllEnrichment`'s invalidation block. Three real bugs fell
+        out of driving it in a browser:
+        - **The model was fitted before enrichment existed, and never refitted.** Live and
+          pre-existing: `resetTaste()` ran only at boot, *before* the first render. Landing
+          on Home — the default — paints a shelf that calls `tasteModel()` at once, so the
+          model kept for the whole session had learned **zero IGDB tags**. Measured on the
+          live site: land on Home → 0 tags; land on Stats → 3,722. It hid because the
+          sheet's columns cover for it on a backlog game (8.93 vs 8.88); it is fatal for a
+          catalogue game, which has no columns — 25k rows all scored at the global mean.
+        - **IGDB publishes 8,394 ratings with zero voters** (24.5% of the scoreable set) —
+          "East vs. West" is rated 20% by nobody. A missing IGDB count is a zero, not an
+          unknown, so `catPlayerVotes` reads `?? 0`; `?? null` meant "can't judge, don't
+          shrink" and let a quarter of the catalogue through at face value.
+        - **The working cited factors that didn't factor** — a fully-shrunk zero-vote score
+          still drew a bar saying "IGDB players (0) gave it 70".
+  - [ ] **Recommendations: worth a look later** — the tab ranks 25k games on open (~1s,
+        cached per enrichment epoch); if the catalogue grows a lot, chunk it. And the model
+        is trained on games he CHOSE to buy, so asking it about a game he didn't choose is
+        a different question than the one it learned — the top of the list is sane
+        (Divinity, Ōkami, Journey) but that premise is worth revisiting once there's a
+        dismissal history to measure against.
 
 - [ ] **RetroAchievements** — the next source to add, and the shape is ideal:
       `GetGameList` is a BULK endpoint returning every game for a console in one

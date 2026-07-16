@@ -138,6 +138,38 @@ a once-a-day download instead of a once-a-session one. The generation rides alon
 `/api/data`'s `meta.catalogue`, since the client can't learn it from the cached URL it
 is trying to build.
 
+The join itself is on **`igdbId`** (`catalogue.js`) — an integer comparison that cannot
+mismatch, the same rule that makes PCGamingWiki and Wikidata trustworthy. Its one blind
+spot is a sheet row the matcher never resolved, which has no id to join on; `NO_MATCH`
+names exactly those, and `_k` already carries their normalized title, computed by the
+same Python normalizer that made the catalogue's `norm` — so there's no JS port to drift.
+That net is scoped to those rows on purpose: applied to the whole sheet it would hide the
+2019 *Resident Evil 2* because you own the 1998 one.
+
+## Recommendations
+
+A top-level tab (`recs.js`): the ~25k IGDB games that **aren't on your sheet**, ranked by
+what you'd probably score them. Everything else here recommends out of the backlog, which
+can only re-rank what you already bought.
+
+Two independent voices, crossed. The **model** (`predict.js`) has an opinion about
+everything and is off by 9.1 points; **`similar_games`** only speaks up for games actually
+adjacent to your favourites, but when it does it can say *why* — "because you liked Yakuza
+0" is an argument in a way that "87%" isn't. `recommend.py` runs both arms off the same
+seeds and the same IDF weighting; the catalogue arm has no `_related()` gate, because that
+gate compares two *sheet* rows on the sheet's own columns and a catalogue entry has none.
+
+The tab quotes the **catalogue model's own error**, not the backlog model's, and it says
+which games it's unsure about — 70% of the catalogue has under ten voters, where the model
+is barely better than guessing. Dismissals live in `prefs` (`dismissed`), so "not that one"
+follows you between browsers.
+
+**Pick** grows the same pool behind an "In the sheet" field that every preset seeds with
+*On the sheet* — a real, visible, deletable criterion rather than a hidden default, so Pick
+still answers "what do I play tonight" out of the box. Delete the chip or tick *Not on the
+sheet* and it becomes "what should I buy". A catalogue game's card has no drawer (no match
+key, nothing to fetch) and no launch button — it links to IGDB and says *Not on your sheet*.
+
 ## Local asset cache
 
 The UI pulls a *lot* of assets from third parties — IGDB covers/screenshots/artwork

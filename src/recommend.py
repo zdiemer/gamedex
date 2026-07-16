@@ -37,8 +37,16 @@ def _related(seed, cand):
     return False
 
 
-def build(rows, records, normalize, limit=60):
-    """rows: the games sheet · records: {match_key: igdb record} · normalize: str -> str"""
+def build(rows, records, normalize, limit=60, catalogue=None):
+    """rows: the games sheet · records: {match_key: igdb record} · normalize: str -> str
+
+    `catalogue`, when given, is [(igdb_id, name)] for games that are NOT on the sheet (see
+    catalogue.py). The same seeds and the same IDF weighting then answer a second question:
+    not "what in my backlog is like the things I loved" but "what ISN'T in my backlog and
+    is like the things I loved" — which is the only version of the question a recommender
+    can act on. Returned separately rather than mixed in, because a game you own and a game
+    you don't are different suggestions and the UI says so differently.
+    """
     # Index the backlog by the IGDB name of whatever it matched.
     by_name = {}
     for r in rows:
@@ -53,6 +61,13 @@ def build(rows, records, normalize, limit=60):
         if name:
             by_name.setdefault(name, []).append(r)
 
+    # And the catalogue by the same key, so one pass over the seeds can vote for both.
+    cat_by_name = {}
+    for igdb_id, name in (catalogue or []):
+        n = normalize(name or "")
+        if n:
+            cat_by_name.setdefault(n, []).append((igdb_id, name))
+
     # How often does IGDB call each game "similar" to ANYTHING? Its similar_games
     # lists are dominated by a handful of titles that turn up next to everything,
     # so a raw vote count just ranks those (Borderlands 3 came out top, "because
@@ -66,6 +81,7 @@ def build(rows, records, normalize, limit=60):
                 ubiquity[nm] += 1
 
     votes = {}
+    cat_votes = {}
     seeds = 0
     for r in rows:
         if not r.get("completed") or (r.get("rating") or 0) < MIN_RATING:
@@ -96,9 +112,30 @@ def build(rows, records, normalize, limit=60):
                 v["votes"] += 1
                 v["seeds"].add((r.get("rating") or 0, r["title"]))
 
-    ranked = sorted(votes.values(), key=lambda v: -v["score"])[:limit]
+            # The same vote, against the games you DON'T own. No _related() gate here and
+            # it isn't an oversight: that gate compares two SHEET rows on the sheet's own
+            # genre/franchise/developer columns, and a catalogue entry has none of them.
+            # The IDF weight is what keeps this honest — a game IGDB calls similar to
+            # everything is worth almost nothing to anyone — and the browser crosses every
+            # candidate with the predicted rating anyway, which is a far stricter filter
+            # than "shares a genre" ever was.
+            for igdb_id, real_name in cat_by_name.get(name, []):
+                v = cat_votes.get(igdb_id)
+                if v is None:
+                    v = cat_votes[igdb_id] = {"id": igdb_id, "name": real_name,
+                                              "score": 0.0, "votes": 0, "seeds": set()}
+                v["score"] += weight
+                v["votes"] += 1
+                v["seeds"].add((r.get("rating") or 0, r["title"]))
 
-    log.info("recommendations: %d seeds -> %d candidates", seeds, len(votes))
+    ranked = sorted(votes.values(), key=lambda v: -v["score"])[:limit]
+    # A wider cap for the catalogue: this list is crossed with the model rather than shown
+    # as-is, so it is an input to a ranking, not a ranking.
+    cat_ranked = sorted(cat_votes.values(), key=lambda v: -v["score"])[:limit * 10]
+
+    log.info("recommendations: %d seeds -> %d backlog, %d catalogue candidates",
+             seeds, len(votes), len(cat_votes))
+    because = lambda v: [t for _, t in sorted(v["seeds"], reverse=True)][:MAX_BECAUSE]
     return {
         "seeds": seeds,
         "items": [
@@ -111,8 +148,18 @@ def build(rows, records, normalize, limit=60):
                 "score": round(v["score"], 3),
                 # Cite the games you liked MOST, not whichever we happened to see
                 # first — the reason IS the recommendation.
-                "because": [t for _, t in sorted(v["seeds"], reverse=True)][:MAX_BECAUSE],
+                "because": because(v),
             }
             for v in ranked
+        ],
+        "catalogue": [
+            {
+                "igdbId": v["id"],
+                "title": v["name"],
+                "votes": v["votes"],
+                "score": round(v["score"], 3),
+                "because": because(v),
+            }
+            for v in cat_ranked
         ],
     }

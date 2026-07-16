@@ -225,7 +225,12 @@ function applyCoverAccent(row) {
 
 // Literal, not the consts: challenges.js loads AFTER this file, so referencing
 // CH_CUSTOM_KEY here would hit its temporal dead zone at parse time.
-const PREFS_KEYS = { views: "gamedex.views", challenges: "gamedex.challenges" };
+const PREFS_KEYS = {
+  views: "gamedex.views", challenges: "gamedex.challenges",
+  // IGDB ids dismissed on the Recommendations tab. A list of integers, so it stays far
+  // inside the 256KB pref cap even after years of saying "not that one".
+  dismissed: "gamedex.dismissed",
+};
 
 const prefsLocal = (key) => {
   try { return JSON.parse(localStorage.getItem(PREFS_KEYS[key]) || "[]"); }

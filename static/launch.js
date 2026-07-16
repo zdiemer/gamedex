@@ -466,7 +466,11 @@ function rowFacetItems(row, col) {
     return lbl ? [{ key: lbl, raw: lbl }] : [];
   }
   let v;
-  if (col.virtual) { const e = ENRICH[row._k]; v = e ? e[col.source] : undefined; }
+  // igdbRecOf, not ENRICH[_k]: a catalogue row carries its record inline and has no match
+  // key, so every IGDB facet (genre, theme, mode, keyword…) would be blank for it here —
+  // which is to say the Pick builder's whole IGDB vocabulary would silently stop applying
+  // the moment the pool grew past the sheet.
+  if (col.virtual) { v = igdbRecOf(row)[col.source]; }
   else v = row[col.key];
   if (v === undefined || v === null || v === "") return [];
   const arr = Array.isArray(v) ? v : [v];

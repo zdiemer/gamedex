@@ -593,12 +593,37 @@ async function loadAllEnrichment() {
       // membership changes as enrichment lands — drop the cached indexes.
       resetGroups(); _completedFranchises = null;
       if (typeof chReset === "function") chReset();
+      /* And the prediction model, which was fitted from THIS MAP and cached before it
+         existed. Landing on Home — the default — paints the "You'd probably love" shelf at
+         once, that calls tasteModel(), and the model it builds and keeps for the rest of
+         the session has learned exactly zero IGDB tags: no genres, no themes, no
+         developers, no keywords. Nine of its vocabularies, silently empty. Measured on the
+         live site before this line existed: land on Home and the model knows 0 tags; land
+         on Stats (whose panel happens to ask for it late) and it knows 3,722.
+         It hid for so long because the sheet's own columns cover for the missing tags on a
+         backlog game — 8.93 against 8.88, which is nothing. It is not nothing for a game
+         that ISN'T on the sheet: the catalogue model has no columns to fall back to, so
+         tagless it scores every game at your global mean and the Recommendations tab
+         becomes 25,000 rows of 64%. */
+      resetTaste();
+      // The catalogue's whole job is answering "do I already own this?", and it answers it
+      // out of the map that just changed: a game becomes yours the moment its sheet row
+      // matches, which can happen minutes after boot or while you are looking at the list.
+      // Without this it would keep offering you a game you own, and Pick would show it
+      // TWICE — once as a sheet row and once as a catalogue row.
+      if (typeof resetCatalogue === "function") resetCatalogue();
       // Patch in place rather than re-rendering (which would flicker every image).
       if (activeTab === "stats") renderStats();
       else if (activeTab === "home") patchHomeCovers();   // in place: a full re-render flickers
       else if (activeTab === "challenges") renderChallenges();
       else if (activeTab === "health") renderHealth();
       else if (activeTab === "groups") renderGroups();     // membership shifts, not just covers
+      /* Recommendations is the most enrichment-dependent thing here and the least able to
+         say so. Opened by direct link it paints before this map arrives, and with no map
+         there are no tags to predict from and no igdbIds to join on — so it shows the
+         whole catalogue, unfiltered, every game scored at your global mean because the
+         model has nothing to go on, sorted by nothing. It looks like data. Re-render. */
+      else if (activeTab === "recs") renderRecs();
       else if (activeTab !== "pick") {
         patchEnrichedCells();
         patchTimelineCovers();          // the Completed tab's third view

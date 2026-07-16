@@ -46,6 +46,24 @@ let ENRICH_ENABLED = false;
 let ENRICH_COMPLETE = false;       // all sources backfilled → stop shimmering covers
 let ENRICH_SOURCES = [];           // enabled secondary sources (hltb, metacritic, gameye)
 const ENRICH = {};                 // matchKey -> light enrichment
+
+/* The IGDB record behind a row, whichever kind of row it is.
+
+   A sheet row joins to it by match key. A game from the IGDB catalogue (catalogue.js)
+   carries its record inline on `_igdb` instead, because there IS no match key for a game
+   that isn't on the sheet: `_k` is normalize(title)|platform|year, and a catalogue entry
+   has no platform — IGDB keeps one entry per game where the sheet keeps one row per
+   platform copy.
+
+   Carrying it on the row rather than in a second global map keeps ENRICH exactly what it
+   says it is: pick.js caches its entire field list against ENRICH_COMPLETE and several
+   health checks count this map's contents, so quietly growing it by 25k entries would be
+   a very confusing bug.
+
+   It lives HERE, next to the map it falls back to, rather than with its first caller —
+   everything downstream of enrich.js may need it, and the <script> order in index.html is
+   load-bearing (see the README). */
+const igdbRecOf = (row) => (row && row._igdb) || ENRICH[(row || {})._k] || {};
 const DETAIL = {};                 // matchKey -> full IGDB detail (drawer cache)
 const HLTBC = {};                  // matchKey -> HLTB playtimes (drawer cache)
 const MCC = {};                    // matchKey -> Metacritic score (drawer cache)

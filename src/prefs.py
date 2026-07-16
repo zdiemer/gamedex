@@ -24,7 +24,11 @@ from datetime import datetime, timezone
 log = logging.getLogger("gamedex.prefs")
 
 # Anything not on this list is refused, so a stray key can't fill the disk.
-KEYS = {"views", "challenges", "picross"}   # picross: the daily streak, so it follows you between devices
+# picross: the daily streak, so it follows you between devices.
+# dismissed: IGDB ids you've told the Recommendations tab you're not interested in. A
+#   recommender with no way to say "no" asks the same question forever, and the answer
+#   belongs to you rather than to the browser you happened to say it in.
+KEYS = {"views", "challenges", "picross", "dismissed"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

@@ -372,6 +372,14 @@ class Catalogue:
             "crawledAt": self._kv_get("crawled_at"),
         }
 
+    def names(self):
+        """[(igdb_id, name)] for every scoreable game — what the similar-games recommender
+        needs to vote for a title that isn't on the sheet. Just the two columns: it joins
+        on the normalized name and would throw the rest away."""
+        with self._db_lock:
+            return [(r[0], r[1]) for r in self._db.execute(
+                f"SELECT igdb_id,name FROM catalogue WHERE {_SCOREABLE_SQL} AND rich IS NOT NULL")]
+
     def payload(self):
         """The scoreable catalogue, interned and columnar. A pure function of the crawl:
         no sheet, no enrichment, no per-visitor state — so it caches like a static file."""

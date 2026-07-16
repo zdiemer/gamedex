@@ -11,7 +11,7 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "recs"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges"
   const special = SPECIAL_TABS.includes(mode);
   $("#stats").hidden = mode !== "stats";
@@ -22,6 +22,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#groups").hidden = mode !== "groups";
   $("#shelfview").hidden = mode !== "shelf";
   $("#picross").hidden = mode !== "picross";
+  $("#recs").hidden = mode !== "recs";
   $(".resultbar").hidden = special;
   $("#pager").style.display = special ? "none" : "";
   document.querySelector(".facets").style.display = special ? "none" : "";
@@ -46,6 +47,7 @@ function renderAll() {
   if (activeTab === "groups") { setSpecialMode("groups"); renderGroups(); return; }
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
+  if (activeTab === "recs") { setSpecialMode("recs"); renderRecs(); return; }
   setSpecialMode(null);
   renderFacets();
   // Completed shows every finished game individually — each episode of a series
@@ -87,6 +89,11 @@ function syncURL(push) {
     if (groupState.open) p.set("gk", groupState.open);
   } else if (activeTab === "challenges") {
     if (chState.open) p.set("ch", chState.open);
+  } else if (activeTab === "recs") {
+    if (recsState.sort !== "both") p.set("rs", recsState.sort);
+    if (recsState.era) p.set("re", recsState.era);
+    if (recsState.genre) p.set("rg", recsState.genre);
+    if (recsState.minConf) p.set("rc", "1");
   } else if (activeTab === "stats") {
     if (statsState.section && statsState.section !== "overview") p.set("s", statsState.section);
     if (statsState.year) p.set("sy", String(statsState.year));
@@ -112,7 +119,7 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross"].includes(tab) ? tab : "home";
+         "health", "shelf", "picross", "recs"].includes(tab) ? tab : "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "pick") {
       pickState.minutes = +(p.get("mins") || 0);
@@ -121,6 +128,14 @@ function applyStateFromURL() {
       // "By…" groups are fields now) — fall back rather than 404 the tab.
       if (fb) { pickState.filter = pickDecode(fb); pickState.preset = ""; }
       else applyPreset(p.get("sel") || pickState.preset || "backlog");
+    }
+    if (tab === "recs") {
+      const rs = p.get("rs");
+      recsState.sort = RECS_SORTS.some((x) => x.id === rs) ? rs : "both";
+      recsState.era = RECS_ERAS.some((x) => x.id === p.get("re")) ? p.get("re") : "";
+      recsState.genre = p.get("rg") || "";
+      recsState.minConf = p.get("rc") ? 0.5 : 0;
+      recsState.page = 1;
     }
     if (tab === "challenges") { chState.open = p.get("ch") || null; chState.showAll = null; }
     if (tab === "stats") {
@@ -189,6 +204,7 @@ async function load() {
   if (typeof chReset === "function") chReset();
   resetTaste();
   resetRelations();
+  if (typeof resetCatalogue === "function") resetCatalogue();
   for (const k of Object.keys(_cmdkFacets)) delete _cmdkFacets[k];
   const en = DATA.meta && DATA.meta.enrichment;
   ENRICH_ENABLED = !!(en && en.enabled !== false);

@@ -131,6 +131,7 @@
     <button data-tab="groups"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-layers"/></svg><span>Groupings</span></button>
     <button data-tab="stats"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-stats"/></svg><span>Stats</span></button>
     <button data-tab="pick"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-dice"/></svg><span>Pick</span></button>
+    <button data-tab="recs"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-sparkle"/></svg><span>Recommend</span></button>
     <button data-tab="challenges"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-target"/></svg><span>Challenges</span></button>
     <button data-tab="health"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-health"/></svg><span>Health</span></button>
   </nav>
@@ -181,6 +182,7 @@
       <div class="shelfview" id="shelfview" hidden></div>
       <div class="groups" id="groups" hidden></div>
       <div class="picross" id="picross" hidden></div>
+      <div class="recs" id="recs" hidden></div>
       <datalist id="pxTitles"></datalist>
       <div class="timeline" id="timeline" hidden></div>
       <div class="pager" id="pager"></div>
@@ -270,6 +272,8 @@
   <script src="timeline.js"></script>
   <script src="relations.js"></script>
   <script src="predict.js"></script>
+  <script src="catalogue.js"></script>
+  <script src="recs.js"></script>
   <script src="extras.js"></script>
   <script>
     // Installable + offline. The SW is opt-out-safe: if registration fails the

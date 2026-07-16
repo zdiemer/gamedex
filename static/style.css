@@ -4188,3 +4188,94 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .attract-art.kb { animation: none; }
   .attract-stage { transition-duration: 380ms; }
 }
+
+/* ---- Recommendations ----------------------------------------------------
+   Games that are NOT on the sheet, so nothing here can borrow the grid card: no
+   drawer to open, no launch button, no ownership badge. Everything is built from
+   the vars above so it follows the light theme like the rest. */
+.recs { padding: 4px 0 40px; }
+.rec-head { max-width: 760px; margin: 0 auto 22px; text-align: center; }
+.rec-head h2 { font: 700 24px/1.2 var(--display); display: flex; gap: 9px; align-items: center; justify-content: center; }
+.rec-sub { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin-top: 10px; }
+.rec-sub b { color: var(--text); }
+
+.rec-bar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  justify-content: center; margin-bottom: 22px;
+}
+.rec-bar select {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px;
+}
+.rec-conf-f { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+.rec-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+}
+.rec {
+  position: relative;
+  display: flex; gap: 12px; background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: 12px; padding: 10px; transition: border-color .15s, transform .15s var(--ease);
+}
+.rec:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+.rec-art { position: relative; flex: 0 0 76px; }
+.rec-art .card-cover {
+  width: 76px; height: 101px; border-radius: 7px; object-fit: cover; display: block;
+  background: var(--surface-3);
+}
+.rec-art .card-cover.ph { display: grid; place-items: center; color: var(--dim); }
+/* Inside the art, not hanging off it: the badge belongs to the cover it is scoring. */
+.rec-score {
+  position: absolute; left: 4px; bottom: 4px;
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: 999px; padding: 2px 6px; font: 700 12px/1 var(--display);
+  backdrop-filter: blur(6px);
+}
+.rec-score small { font-size: 8px; opacity: .7; margin-left: 1px; }
+.rec-score.rating-good { color: var(--good); }
+.rec-score.rating-mid { color: var(--warn); }
+.rec-score.rating-bad { color: var(--bad); }
+
+.rec-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rec-body h3 {
+  font: 600 13.5px/1.3 var(--display); overflow: hidden; padding-right: 16px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.rec-meta { color: var(--dim); font-size: 11px; }
+.rec-why {
+  color: var(--accent-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rec-foot { margin-top: auto; padding-top: 4px; display: flex; align-items: center; gap: 8px; }
+/* nowrap: "confidence" wrapped onto a second line and made every card two rows taller. */
+.rec-conf {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+  border-radius: 4px; padding: 2px 5px; font-weight: 700;
+}
+.rec-conf.high { background: var(--good-soft); color: var(--good); }
+.rec-conf.fair { background: var(--accent-soft); color: var(--accent-2); }
+.rec-conf.low { background: var(--surface-3); color: var(--dim); }
+.rec-igdb { color: var(--muted); font-size: 11px; text-decoration: none; margin-left: auto; }
+.rec-igdb:hover { color: var(--accent-2); }
+/* Dismiss lives in the card's own corner and only on hover — it is a rare, destructive-ish
+   action and it should not compete with the title for attention on 60 cards at once. */
+.rec-no {
+  position: absolute; top: 4px; right: 4px;
+  background: none; border: none; color: var(--dim); cursor: pointer;
+  font-size: 12px; line-height: 1; padding: 3px 5px; border-radius: 5px;
+  opacity: 0; transition: opacity .12s;
+}
+.rec:hover .rec-no { opacity: 1; }
+.rec-no:hover { color: var(--bad); background: var(--surface-3); }
+.rec-no:focus-visible { opacity: 1; }
+
+.rec-more { text-align: center; margin-top: 24px; }
+.rec-more button {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 9px 22px; font: 600 13px/1 var(--display); cursor: pointer;
+}
+.rec-more button:hover { border-color: var(--accent-line); }
+.rec-empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+.rec-empty h2 { font: 700 22px/1.2 var(--display); color: var(--text); margin-bottom: 10px; }
+.rec-load { display: flex; gap: 8px; align-items: center; justify-content: center; }
