@@ -2,7 +2,7 @@ image:
   # Built + pushed to GHCR by build.sh; the package is public so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: ghcr.io/zdiemer/gamedex
-  tag: "1.45.1"
+  tag: "1.46.0"
   pullPolicy: IfNotPresent
 
 service:
@@ -31,6 +31,13 @@ igdb:
   # eventually cover the whole library. Runs at 4 req/s behind on-demand
   # requests, cached on the PVC. Also drives the HLTB backfill (1 req/s).
   backfill: true
+  # Mirror IGDB's whole games table to the PVC — every game there is, not just the
+  # ones on the sheet (see src/catalogue.py). This is what lets us recommend a game
+  # you DON'T own. Measured: 369,802 rows, 76MB on the volume, ~910 requests and
+  # 7 minutes for a full sweep. Runs weekly (the only pass that can see a deletion),
+  # with a daily `updated_at` pass in between. Off means /api/catalogue serves
+  # {"enabled": false} and nothing else notices.
+  catalogue: true
   # HowLongToBeat playtimes (1 req/s) — feeds the Playtime facet + card, falls
   # back to the sheet's Estimated Time. Uses HLTB's /api/bleed token handshake.
   hltb: true

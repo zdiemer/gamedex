@@ -76,6 +76,39 @@ Working list. Checked = shipped and deployed.
 
 ## Next
 
+- [ ] **Recommend games you DON'T own** — three commits. Everything here recommends
+      out of the backlog, which can only ever re-rank what you already bought. The
+      sheet is 4% of IGDB; the other 96% is where a recommendation has to come from.
+  - [x] **1. The catalogue** (`src/catalogue.py`, `GET /api/catalogue`) — IGDB's whole
+        games table on the PVC: **369,802 games in 7 minutes, 76 MB**. Weekly full
+        sweep + a daily `updated_at` pass; the weekly one earns its keep by being the
+        only thing that can see a DELETION. Two passes, because only **34,247** of the
+        264,542 covered main games have ANY rating — the model's best features are the
+        two outside opinions, so for the other 231,000 it would hand back your global
+        mean and call it a recommendation. Payload is **2.23 MB gzipped**, interned +
+        columnar. The endpoint is sheet-unaware on purpose: a pure function of the
+        crawl, so `?g=<gen>` is immutable and the SW keeps it for a day.
+  - [ ] **2. A second model** — `predict.js` leans on the sheet-column features
+        (franchise/developer/publisher/genre/platform) and HLTB length, none of which a
+        catalogue game has. They aren't merely missing: `developer` and `igdbDev` are
+        near-collinear, ridge SPLITS the weight across them while training, so scoring
+        with only the IGDB half live silently halves that signal. Needs its own encoder
+        over the IGDB-only subset, fitted on the same rated completions and
+        cross-validated for its OWN honest MAE — which the tab must quote instead of
+        the 9.2 that belongs to the backlog. Also settles whether keywords stay in the
+        payload — they cost 14% of it (0.31 MB) and are worth 0.03pt in the full model,
+        but that model has the sheet columns to lean on and this one won't.
+  - [ ] **3. The tab + the Pick facet** — rank the catalogue by predicted rating,
+        crossed with `recommend.py`'s IDF-weighted similar-games votes for a "because
+        you liked…" reason (today it only votes for games already IN the backlog). Pick's
+        pool grows to the catalogue behind an "In the sheet" facet defaulting to on.
+        The join is on `igdbId` and lives in the BROWSER, wired into
+        `loadAllEnrichment`'s existing invalidation block: it's the only copy that is
+        never stale (a manual override moves a row between IGDB ids without changing
+        any count the server could cache against), and without it a game matched
+        mid-session shows up twice in Pick. `NO_MATCH` + the normalized title already
+        in `_k` covers the games IGDB never matched, which the id join can't see.
+
 - [ ] **RetroAchievements** — the next source to add, and the shape is ideal:
       `GetGameList` is a BULK endpoint returning every game for a console in one
       call, with achievement counts AND ROM hashes. ~30 calls, not 14k. The hashes

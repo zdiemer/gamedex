@@ -49,6 +49,23 @@ _FIELDS = (
     "external_games.external_game_source,external_games.uid,external_games.url;"
 )
 
+# The catalogue crawl (see catalogue.py) reads the whole games table rather than one title,
+# so it asks for two much narrower field sets than _FIELDS. Pass 1 is every game and takes
+# only flat columns — no nested expansion at all, which is what keeps a 370k-row sweep to a
+# few hundred MB instead of a few GB. Pass 2 is the ~34k rated games and takes the nested
+# tags the predicted-rating model actually reads.
+_CATALOGUE_LEAN = (
+    "fields id,name,slug,game_type,first_release_date,cover.image_id,"
+    "total_rating,total_rating_count,rating,rating_count,"
+    "aggregated_rating,aggregated_rating_count,updated_at,checksum;"
+)
+_CATALOGUE_RICH = (
+    "fields id,checksum,genres.name,themes.name,game_modes.name,"
+    "player_perspectives.name,keywords.name,game_engines.name,"
+    "involved_companies.company.name,involved_companies.developer,"
+    "involved_companies.publisher,franchise.name,franchises.name;"
+)
+
 # Keywords that describe the SHOP or the PLUMBING, not the game. Drawn from a census of the
 # actual library rather than guessed: unfiltered, the single most common keyword across 2,000
 # games was "steam achievements", and after a first pass it was "digital distribution" (1,773).
@@ -574,6 +591,99 @@ class IgdbClient:
                 on_chunk(batch, chunk)
             time.sleep(0.35)                          # be a good neighbour to the live workers
         return out
+
+    # -- catalogue crawl ----------------------------------------------------
+    def _post_resilient(self, route, body, tries=5):
+        """_post with backoff on the codes that mean "later", not "never".
+
+        The catalogue crawl is ~800 requests sharing a rate limiter with six backfill
+        threads and the live enrichment workers, so a 429 mid-sweep is a matter of when.
+        Mirrors extras_for()'s retry, which exists because the first version of that pass
+        walked the library in one go and IGDB answered 429 four seconds in.
+        """
+        for attempt in range(tries):
+            try:
+                return self._post(route, body)
+            except requests.HTTPError as exc:
+                code = exc.response.status_code if exc.response is not None else 0
+                if code not in (429, 500, 502, 503):
+                    raise
+                time.sleep(2 ** attempt)          # 1s, 2s, 4s, 8s, 16s
+            except requests.RequestException:
+                time.sleep(2 ** attempt)
+        raise RuntimeError(f"igdb: {route} failed after {tries} tries")
+
+    def count(self, where: str = "") -> int:
+        """How many games match — one request, and the only honest way to size a crawl."""
+        return int((self._post("games/count", f"where {where};" if where else "") or {}).get("count", 0))
+
+    def catalogue_page(self, after_id: int = 0, limit: int = 500):
+        """One keyset page of the whole games table: `where id > N; sort id asc`.
+
+        Ids are not contiguous — there are gaps everywhere — so `after_id` is a cursor,
+        never a progress bar.
+        """
+        body = f"{_CATALOGUE_LEAN} where id > {int(after_id)}; sort id asc; limit {int(limit)};"
+        return self._post_resilient("games", body) or []
+
+    def catalogue_updated(self, since: int, offset: int = 0, limit: int = 500):
+        """One page of everything IGDB has touched since `since`.
+
+        Offset, not keyset, because `updated_at` is not unique and cannot be a cursor.
+        That is safe only because the result set is a day of churn rather than the whole
+        table — catalogue.py falls back to a full crawl if it ever isn't.
+        """
+        body = (f"{_CATALOGUE_LEAN} where updated_at >= {int(since)}; "
+                f"sort updated_at asc; limit {int(limit)}; offset {int(offset)};")
+        return self._post_resilient("games", body) or []
+
+    def catalogue_rich(self, igdb_ids, stop=None):
+        """Yield {igdb_id: {"rich": {...}, "checksum": str}} in batches.
+
+        A generator, so the caller writes each batch away as it lands instead of holding
+        34k records in memory and losing the lot to a crash halfway through — the same
+        reason extras_for() grew its on_chunk callback.
+        """
+        for i in range(0, len(igdb_ids), 200):
+            if stop is not None and stop.is_set():
+                return
+            chunk = [int(x) for x in igdb_ids[i:i + 200]]
+            body = f"{_CATALOGUE_RICH} where id = ({','.join(str(c) for c in chunk)}); limit 500;"
+            batch = {}
+            for g in self._post_resilient("games", body) or []:
+                batch[g["id"]] = {"rich": self._catalogue_rich_of(g), "checksum": g.get("checksum")}
+            if batch:
+                yield batch
+            time.sleep(0.35)                      # be a good neighbour to the live workers
+
+    def _catalogue_rich_of(self, c):
+        """The tag fields, in the same shape and vocabulary as an enrichment record.
+
+        Same shape on purpose: the browser's predicted-rating model reads `genres` /
+        `themes` / `developers` / … off a sheet game's enrichment record, and it has to
+        read the identical keys off a catalogue game or it would be scoring the two
+        against different vocabularies and calling the result comparable.
+        """
+        devs, pubs = [], []
+        for ic in c.get("involved_companies", []):
+            nm = (ic.get("company") or {}).get("name")
+            if not nm:
+                continue
+            if ic.get("developer"):
+                devs.append(nm)
+            if ic.get("publisher"):
+                pubs.append(nm)
+        return {
+            "genres": [g["name"] for g in c.get("genres", []) if g.get("name")],
+            "themes": [t["name"] for t in c.get("themes", []) if t.get("name")],
+            "gameModes": [m["name"] for m in c.get("game_modes", []) if m.get("name")],
+            "perspectives": [p["name"] for p in c.get("player_perspectives", []) if p.get("name")],
+            "keywords": self._keywords_of(c),
+            "engines": self._engines_of(c),
+            "developers": sorted(set(devs)),
+            "publishers": sorted(set(pubs)),
+            "franchises": self._franchises_of(c),
+        }
 
     def enrichment_from_result(self, c):
         devs, pubs = [], []

@@ -6,6 +6,7 @@ lazy IGDB enrichment.
     POST /api/enrichment           -> {items, pending, stats} for a batch of matchKeys
     GET  /api/enrichment/detail    -> full IGDB detail for one matchKey
     GET  /api/enrichment/stats     -> enrichment progress
+    GET  /api/catalogue?g=<gen>    -> every IGDB game worth ranking (see catalogue.py)
     GET  /                         -> static/index.html (+ /app.js, /style.css)
 
 Enrichment is on-demand and host-cached (see enrich.py); it's disabled unless
@@ -37,6 +38,7 @@ import gamerankings as gr_mod
 import shelf as shelf_mod
 
 from arcadedb import ArcadeDbClient
+from catalogue import Catalogue
 from enrich import Enricher
 from fallback import FallbackClient
 from gameye import GameEyeClient
@@ -70,6 +72,7 @@ IGDB_CLIENT_ID = os.environ.get("IGDB_CLIENT_ID", "")
 IGDB_CLIENT_SECRET = os.environ.get("IGDB_CLIENT_SECRET", "")
 ENRICH_DB = os.environ.get("ENRICH_DB", "/data/enrichment.sqlite")
 ENRICH_BACKFILL = os.environ.get("ENRICH_BACKFILL", "false").lower() in ("1", "true", "yes")
+CATALOGUE_DB = os.environ.get("CATALOGUE_DB", "/data/catalogue.sqlite")
 _on = lambda name, default="true": os.environ.get(name, default).lower() in ("1", "true", "yes")
 
 # Single-admin login. The account is seeded once from the environment (first boot
@@ -140,6 +143,14 @@ enricher = (
     if _igdb.configured else None
 )
 
+# The whole IGDB games table, mirrored on the PVC (see catalogue.py). Independent of the
+# enricher: it asks "what games are there?", not "what is this row?". Off by default —
+# it is 370k rows and ~800 requests a week against somebody else's rate limit, so it
+# should be a decision rather than a surprise.
+catalogue = (
+    Catalogue(_igdb, CATALOGUE_DB) if _igdb.configured and _on("CATALOGUE_ENABLED", "false") else None
+)
+
 store = DataStore(
     DROPBOX_URL, XLSX_FILENAME, REFRESH_INTERVAL,
     on_update=(enricher.reindex if enricher else None),
@@ -164,10 +175,16 @@ async def lifespan(_: FastAPI):
     if enricher:
         enricher.start()
         logging.getLogger("gamedex").info("IGDB enrichment enabled (backfill=%s)", ENRICH_BACKFILL)
+    if catalogue:
+        catalogue.start()
+        logging.getLogger("gamedex").info(
+            "IGDB catalogue enabled (generation=%d)", catalogue.generation)
     yield
     store.stop()
     if enricher:
         enricher.stop()
+    if catalogue:
+        catalogue.stop()
 
 
 app = FastAPI(title="Gamedex", lifespan=lifespan)
@@ -628,6 +645,11 @@ def data():
         )
     meta = dict(snap["meta"])
     meta["enrichment"] = enricher.stats() if enricher else {"enabled": False}
+    # The catalogue's generation rides along here so the client can ask for
+    # /api/catalogue?g=<generation> — a URL it can cache for a day (see api_catalogue).
+    # It cannot learn the generation from the catalogue endpoint itself without
+    # defeating the point of the cache key.
+    meta["catalogue"] = catalogue.stats() if catalogue else {"enabled": False}
     return {"meta": meta, "sheets": snap["data"]}
 
 
@@ -758,6 +780,53 @@ def recommendations():
     )
     _recs.update({"hash": src_hash, "matched": matched, "data": data})
     return {"enabled": True, **data}
+
+
+# Built once per crawl generation and held as serialized bytes: interning 34k games is
+# ~1.1s of work whose answer is identical for every visitor until the next crawl, so
+# re-doing it per request would be both slow and pointless. ~6.3MB of JSON held resident;
+# GZipMiddleware takes it to ~2.2MB on the way out.
+_cat_payload = {"gen": None, "body": None}
+
+
+@app.get("/api/catalogue")
+def api_catalogue(response: Response):
+    """Every IGDB game worth ranking — and nothing about your spreadsheet.
+
+    Deliberately sheet-unaware. The in-sheet/not-in-sheet join happens in the browser
+    against the live enrichment map, for two reasons. It is the only copy that is never
+    stale: enrichment lands asynchronously for minutes after boot, and a manual override
+    can move a row from one IGDB id to another without changing any count this endpoint
+    could cache against. And filtering here would be one-way — a game we excluded could
+    never come BACK into the pool client-side, because it was never sent.
+
+    The reward for that ignorance is that this response is a pure function of the crawl:
+    identical for everyone all day, so ?g=<generation> makes it immutable and the service
+    worker can keep it. It costs ~30% more rows than a filtered payload and buys a
+    once-a-day download instead of a once-a-session one.
+
+    `g` is a CACHE KEY, not a selector: it is ignored here, and the current generation is
+    always what you get. There is no serving an old one — the client reads the generation
+    off /api/data's meta.catalogue and asks for that URL, and the body says which
+    generation it actually is regardless. A stale `g` therefore costs a wasted cache
+    entry, never wrong data.
+    """
+    if not catalogue:
+        return {"enabled": False, "games": []}
+    gen = catalogue.generation
+    if not gen:
+        # Mid-first-crawl. Not an error — say so, and don't cache the emptiness.
+        response.headers["Cache-Control"] = "no-store"
+        return {"enabled": True, "ready": False, "games": []}
+    if _cat_payload["gen"] != gen:
+        _cat_payload.update(
+            {"gen": gen, "body": json.dumps(catalogue.payload(), separators=(",", ":"))})
+    return Response(
+        content=_cat_payload["body"],
+        media_type="application/json",
+        # Immutable per generation: the URL carries it, so a new crawl is a new URL.
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
+    )
 
 
 @app.get("/api/value-history")

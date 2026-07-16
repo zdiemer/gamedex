@@ -97,6 +97,10 @@ spec:
               value: /data/enrichment.sqlite
             - name: ENRICH_BACKFILL
               value: {{ .Values.igdb.backfill | quote }}
+            - name: CATALOGUE_DB
+              value: /data/catalogue.sqlite
+            - name: CATALOGUE_ENABLED
+              value: {{ .Values.igdb.catalogue | quote }}
             - name: HLTB_ENABLED
               value: {{ .Values.igdb.hltb | quote }}
             - name: METACRITIC_ENABLED

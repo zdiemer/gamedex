@@ -87,6 +87,57 @@ Endpoints: `POST /api/enrichment` (batch of matchKeys → light covers/facets),
 `GET /api/enrichment/detail?key=` (full detail for the drawer),
 `GET /api/enrichment/stats`. Each served row carries a `_k` matchKey.
 
+## The IGDB catalogue
+
+Enrichment asks IGDB one question per spreadsheet row — *what is **this** game?* With
+`igdb.catalogue: true` the app also asks the other one: *what games **are** there?*
+**369,802** of them, mirrored to `/data/catalogue.sqlite` by `src/catalogue.py`. The
+sheet's 14.7k is four percent of that. This is what lets the app talk about a game you
+**don't** own — a recommendation you could act on, rather than a re-ranking of the
+backlog you already have.
+
+- **It's cheap.** ~740 requests at `limit 500` for pass 1 and ~170 for pass 2, all at
+  IGDB's 4 req/s — measured end to end at **7 minutes** for the whole table, **76 MB**
+  on the volume. It runs **weekly**, with a **daily `updated_at` pass** in between. The
+  weekly sweep isn't redundant: `updated_at` can report an edit but never a
+  **deletion**, and IGDB's own answer to that is a webhook — which a public,
+  unauthenticated app has no business growing. Bulk CSV dumps would beat all of this
+  and are Data-Partner-only.
+- **Two passes, because most of IGDB is unrecommendable.** Of the 264,542 main games
+  that have cover art, only **34,248** have any rating at all — no player score, no
+  critic score, nothing. The predicted-rating model's strongest features by a distance
+  are those two outside opinions, so for the other 231,000 it would hand back your
+  global mean and call it a recommendation. Pass 1 takes cheap flat columns for all
+  369,802 — that's what makes *"does IGDB know this game?"* answerable, and what the
+  delete sweep needs. Pass 2 takes the nested tags (genres, themes, keywords,
+  companies) only for the 34,248 worth ranking. Asking for nested fields on every game
+  would multiply the crawl's bytes by an order of magnitude to describe games nothing
+  will ever rank.
+- **Keyset, not offset.** `where id > N; sort id asc`. v4 doesn't document an offset
+  ceiling, but v3 capped it at 10,000 and an undocumented cap isn't an absent one —
+  and a moving offset can skip or double-count rows when IGDB inserts mid-crawl.
+- **The generation gates everything.** It advances only when a full crawl finishes
+  *both* passes, so the payload can never name a half-built catalogue.
+
+`GET /api/catalogue?g=<generation>` serves the scoreable set in **2.23 MB gzipped**
+(6.3 MB raw), **interned** — a vocabulary per tag namespace plus int arrays; 23 genres
+cover all 34k games — and **columnar** (arrays, not objects: at this size, repeating
+twenty key names per row *is* the payload). `g` is a cache key, not a selector: the
+current generation is always what you get, and the body says which one it is.
+
+It knows **nothing about the spreadsheet**, deliberately. The in-sheet/not-in-sheet
+join happens in the browser against the live enrichment map, because that's the only
+copy that's never stale — enrichment lands asynchronously for minutes after boot, and
+a manual override can move a row from one IGDB id to another without changing any
+count the server could cache against. Filtering here would also be **one-way**: a game
+excluded server-side could never come *back* into the pool client-side, because it was
+never sent. The reward for that ignorance is that the response is a pure function of
+the crawl — byte-identical for every visitor all day — so `?g=` makes it immutable and
+the service worker keeps it. It costs ~30% more rows than a filtered payload and buys
+a once-a-day download instead of a once-a-session one. The generation rides along on
+`/api/data`'s `meta.catalogue`, since the client can't learn it from the cached URL it
+is trying to build.
+
 ## Local asset cache
 
 The UI pulls a *lot* of assets from third parties — IGDB covers/screenshots/artwork
