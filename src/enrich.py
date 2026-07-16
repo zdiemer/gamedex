@@ -28,6 +28,7 @@ log = logging.getLogger("gamedex.enrich")
 _IGDB_LIGHT = ("igdbId", "cover", "coverUrl", "source", "rating", "year", "genres", "themes", "gameModes",
                "perspectives", "keywords", "engines", "ageRating",
                "developers", "publishers", "franchises", "criticRating", "criticCount",
+               "userRating", "userRatingCount",
                "name", "stores", "url", "confidence")
 # `confidence` is MatchValidator.match_score, 0-15: title matched 5, title EXACT
 # a further 5, then +1 each for platform, release date, publisher, developer and
@@ -37,7 +38,12 @@ _IGDB_LIGHT = ("igdbId", "cover", "coverUrl", "source", "rating", "year", "genre
 # ones, and spot games with no metadata at all.
 # `name` is what we matched you TO. Without it a low-confidence warning is just a
 # number; with it, "Backbone -> Backbone: Prologue" tells you at a glance.
+# `userRatingCount` / `criticCount` are not decoration: the prediction model shrinks an
+# outside opinion toward the mean in proportion to how few people are behind it, so a
+# score without its count is a score it has to take at face value. Two votes and two
+# thousand looked identical from here until they were sent. See predict.js.
 _FACET_LIGHT = ("cover", "coverUrl", "genres", "themes", "gameModes", "userRating",
+                "userRatingCount",
                 "perspectives", "keywords", "engines", "ageRating",
                 "developers", "publishers", "franchises", "criticRating", "criticCount",
                 "igdbId", "source", "stores", "url", "confidence", "name")
@@ -85,7 +91,11 @@ _SECONDARY_LIGHT = {
     "arcadedb": lambda d: {"adbCover": d.get("cabinet") or d.get("flyer") or d.get("titleScreen"),
                            "adbPlayers": d.get("playersDetail"), "adbOrientation": d.get("orientation"),
                            "adbUrl": d.get("url")},
+    # `votes` was scraped and stored from the start and never served. VNDB's whole claim
+    # is that its vote count dwarfs everyone else's on a visual novel — which is exactly
+    # the fact the model needs to decide how much to believe the rating.
     "vndb": lambda d: {"vnRating": d.get("rating"), "vnHours": d.get("hours"),
+                       "vnVotes": d.get("votes"),
                        "vnCover": d.get("cover"), "vnUrl": d.get("url")},
     # `boxart` has been scraped and stored for every matched game and never once used —
     # not even as a cover. It is a real box front, so it belongs in the cover chain for

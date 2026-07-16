@@ -46,8 +46,8 @@
       Measured that way it lands near 8.8 points of average error, against 9.8 for the old
       five-feature model, 11.1 for simply quoting the critics, and 12.4 for guessing your
       average every time. (It read 9.2 when this was written and the library was smaller;
-      re-measured on 1,709 rated games, and again after IGDB's player score was backfilled
-      onto the library — see backfill_critic — which was worth 0.05 of it.)
+      re-measured on 1,709 rated games, and again after IGDB's player score and its VOTE
+      COUNT were backfilled onto the library — see backfill_critic — worth 0.09 together.)
 
       That is about one notch on a scale you record in notches of five, and it is close to
       the practical floor for these features: your ratings have a standard deviation of
@@ -60,13 +60,14 @@
    5. TWO MODELS, because there are two kinds of game to ask about. A row on the sheet has
       the sheet's columns and a playtime; a game from the IGDB catalogue — one you do not
       own, and the only kind a recommendation can be about — has neither. Reusing one model
-      for both under-predicts every catalogue game by 0.70 points, silently. So `full`
-      (8.82 pts) scores the backlog and `igdb` (9.21 pts) scores the catalogue, each fitted
+      for both under-predicts every catalogue game by 0.66 points, silently. So `full`
+      (8.78 pts) scores the backlog and `igdb` (9.10 pts) scores the catalogue, each fitted
       and cross-validated on the same rated games under its own handicap. See SCOPES.
 
    Loaded after app.js; shares its globals. */
 
 const PRIOR_K = 3;               // evidence needed before a group average is trusted
+const VOTE_K = 5;                // ...and before an outside score is taken at face value
 const RIDGE = 0.05;              // regularisation (on standardised features)
 const MIN_HISTORY = 60;          // below this we simply don't have enough to say
 const CV_FOLDS = 5;
@@ -135,26 +136,39 @@ const predCritic = (row) => {
 
    IGDB stays in the chain, last, because it is the only player score a game that is NOT on
    the sheet can possibly have: there is no GameFAQs column on a row that doesn't exist. */
-const predPlayers = (row) => {
+/* ONE chain, three questions: what the players said, who the players were, and how many
+   of them there were. All three at once, because they must never disagree — the drawer
+   prints the name beside the number, the model shrinks the number by the count, and three
+   parallel walks of the same fallback list would drift the first time one was reordered.
+   That is not hypothetical: this label has been wrong twice already (see the `taste` flag
+   below), and putting GameFAQs ahead of IGDB would have made it wrong a third time.
+
+   `votes` is null where the source doesn't say. GameFAQs arrives as a bare column on the
+   sheet with no count beside it, so a GameFAQs score cannot be judged for thinness and
+   isn't shrunk — see fitEncoder. */
+function playerVerdict(row) {
   const e = igdbRecOf(row);
-  if (e.vnRating != null) return e.vnRating;          // VNs: VNDB's vote count dwarfs all
-  if (row.gamefaqsUserRating != null) return row.gamefaqsUserRating;
+  if (e.vnRating != null)                              // VNs: VNDB's vote count dwarfs all
+    return { value: e.vnRating, source: "VNDB", votes: e.vnVotes ?? null };
+  if (row.gamefaqsUserRating != null)
+    return { value: row.gamefaqsUserRating, source: "GameFAQs", votes: null };
   const g = typeof rowsByK === "function" ? rowsByK().games.get(row._k) : null;
-  if (g && g.gamefaqsUserRating != null) return g.gamefaqsUserRating;
-  return e.userRating != null ? e.userRating : null;
-};
-/* Which of them actually answered. Lives here, touching the chain above, because the two
-   must be edited together: the drawer prints this name beside that number, and a label
-   naming a source the value didn't come from is a lie the UI cannot detect. It has been
-   wrong before for exactly this reason (see the `taste` flag below), and reordering the
-   chain above without this would have said "IGDB players" over a GameFAQs score. */
-const predPlayersSource = (row) => {
-  const e = igdbRecOf(row);
-  if (e.vnRating != null) return "VNDB";
-  if (row.gamefaqsUserRating != null) return "GameFAQs";
-  const g = typeof rowsByK === "function" ? rowsByK().games.get(row._k) : null;
-  if (g && g.gamefaqsUserRating != null) return "GameFAQs";
-  return "IGDB players";
+  if (g && g.gamefaqsUserRating != null)
+    return { value: g.gamefaqsUserRating, source: "GameFAQs", votes: null };
+  if (e.userRating != null)
+    return { value: e.userRating, source: "IGDB players", votes: e.userRatingCount ?? null };
+  return { value: null, source: null, votes: null };
+}
+const predPlayers = (row) => playerVerdict(row).value;
+const predPlayersSource = (row) => playerVerdict(row).source;
+const predPlayerVotes = (row) => playerVerdict(row).votes;
+/* How many critics. criticSourceOf() already walks the same chain criticOf() does and
+   already reports the count for the two sources that publish one (IGDB's aggregate and
+   the GameRankings archive); Metacritic and the sheet's own column don't record one.
+   Asking it rather than re-walking the chain keeps this honest for free. */
+const predCriticVotes = (row) => {
+  const cs = typeof criticSourceOf === "function" ? criticSourceOf(row) : null;
+  return cs && cs.n != null ? cs.n : null;
 };
 const predLength = (row) => {
   const e = igdbRecOf(row);
@@ -182,6 +196,8 @@ const catPlayers = (row) => {
   const e = igdbRecOf(row);
   return e.userRating != null ? e.userRating : null;
 };
+const catCriticVotes = (row) => igdbRecOf(row).criticCount ?? null;
+const catPlayerVotes = (row) => igdbRecOf(row).userRatingCount ?? null;
 
 /* THE TWO WORLDS A PREDICTION CAN LIVE IN.
 
@@ -201,40 +217,51 @@ const catPlayers = (row) => {
    Measured, scoring all 1,709 rated games as if each were a catalogue entry, identical
    inputs either way and only the fitted feature set differing:
 
-       naive  (full model, absent features -> mean)   9.56 pts, bias -0.70
-       proper (fitted on what is actually there)      9.21 pts, bias  0.00
+       naive  (full model, absent features -> mean)   9.41 pts, bias -0.66
+       proper (fitted on what is actually there)      9.10 pts, bias +0.01
 
-   So the honest version is worth 0.34 points — but the bias is the real story. The naive
-   model under-predicts EVERY catalogue game by seven tenths of a point, silently, and a
+   So the honest version is worth 0.31 points — but the bias is the real story. The naive
+   model under-predicts EVERY catalogue game by two thirds of a point, silently, and a
    recommender that shades everything down is one that never recommends anything. The
    restricted model is unbiased.
 
    So: two models, fitted on the same rated completions, cross-validated the same way.
-   One may use everything (8.82 pts). The other is restricted to what a catalogue game
-   carries (9.21 pts), so its weights are fitted in the world it will actually predict in
-   — and 9.21 is the only honest number to quote next to a recommendation. Restriction
-   costs 0.39 points against a sheet row, and the result still beats quoting IGDB's
-   critics by 18% and guessing your average by 26%.
+   One may use everything (8.78 pts). The other is restricted to what a catalogue game
+   carries (9.10 pts), so its weights are fitted in the world it will actually predict in
+   — and 9.10 is the only honest number to quote next to a recommendation. Restriction
+   costs 0.31 points against a sheet row, and the result still beats quoting IGDB's
+   critics by 19% and guessing your average by 27%.
 
-   ONE CAVEAT ON THAT 9.21, because it is an average over the wrong population. The model
+   ONE CAVEAT ON THAT 9.10, because it is an average over the wrong population. The model
    is far better on games people have actually voted on:
 
-       < 10 voters   12.50 pts   (i.e. no better than guessing your average, 12.45)
-       10-99         8.42 pts
-       >= 100        6.99 pts
+       < 10 voters   12.23 pts   (i.e. barely better than guessing your average, 12.45)
+       10-99          8.15 pts
+       >= 100         6.95 pts
 
-   and 70% of the catalogue has fewer than ten voters. Weighted over the whole 34k that
-   implies ~11.2 pts, which would make the exercise pointless. It isn't, because those
-   games cannot reach the top of a ranking: with no outside opinion the model parks them
-   at your mean rather than at 90%, so the noise sits in the middle of the list, not the
-   head. Measured on the real catalogue, the top 50 recommendations are 6% thin and the
-   top 200 are 19%. Quote 9.21, but do not promise it for an obscure game — the
-   confidence bar is there to say so. */
+   and 70% of the catalogue has fewer than ten voters. VOTE_K is why those numbers aren't
+   worse, and it cannot make them good: there is no information in two votes. What saves
+   the ranking is that those games cannot reach the top of it — with no outside opinion
+   worth believing, the model parks them at your mean rather than at 90%, so the noise
+   sits in the middle of the list and not the head. Measured on the real catalogue, the
+   top 50 recommendations are 6% thin and the top 200 are 19%. Quote 9.10, but do not
+   promise it for an obscure game — that is what the confidence bar is for, and it now
+   knows the difference. */
 const SCOPES = {
   // A row on the sheet: everything we know about anything.
-  full: { columns: PRED_FEATURES, critic: predCritic, players: predPlayers, length: predLength },
+  full: {
+    columns: PRED_FEATURES,
+    critic: predCritic, criticVotes: predCriticVotes,
+    players: predPlayers, playerVotes: predPlayerVotes,
+    length: predLength,
+  },
   // A game from the IGDB catalogue: IGDB's tags and IGDB's two opinions, full stop.
-  igdb: { columns: [], critic: catCritic, players: catPlayers, length: null },
+  igdb: {
+    columns: [],
+    critic: catCritic, criticVotes: catCriticVotes,
+    players: catPlayers, playerVotes: catPlayerVotes,
+    length: null,
+  },
 };
 const scopeFor = (row) => (row && row._igdb ? SCOPES.igdb : SCOPES.full);
 
@@ -368,8 +395,36 @@ function fitEncoder(train, scope = SCOPES.full) {
       n: pairs.length, slope, intercept,
     };
   };
-  const C = calib(scope.critic);
-  const U = calib(scope.players);
+  /* HOW MANY PEOPLE ARE BEHIND THAT NUMBER.
+
+     A 95% from two voters and a 95% from five thousand were the same fact to this model,
+     and they are not. Shrink each outside opinion toward its own source's mean in
+     proportion to how little backs it — the same (n·v + k·prior)/(n + k) already applied
+     to group averages twenty lines down, pointed at votes instead of games.
+
+     Measured on the catalogue model, which is where it bites: 9.21 -> 9.10 overall and
+     better in every bucket (<10 voters 12.34 -> 12.23, 10-99 8.35 -> 8.15, >=100
+     6.98 -> 6.95); the full model gains 0.03. The optimum is a plateau from ~3 to ~10 and
+     decays past 20, so VOTE_K is the middle of a flat region, not a fitted constant.
+
+     It does not rescue a thinly-voted game. Nothing can: there is no information in two
+     votes, and the honest error there stays ~12.2 against 12.45 for simply guessing your
+     average. What it buys is that the model stops FOLLOWING those two votes — which
+     matters for what reaches the top of a ranking far more than it shows up in an MAE.
+     70% of the IGDB catalogue has fewer than ten voters.
+
+     A null count means the source doesn't publish one (Metacritic, and the sheet's own
+     GameFAQs column). Those aren't shrunk: we can't judge what we can't see, and a
+     Metacritic aggregate is a panel of professionals rather than a community thumbs-up. */
+  const meanOf = (get) => avg(train.map(get).filter((v) => v != null)) || global;
+  const cMean = meanOf(scope.critic), uMean = meanOf(scope.players);
+  const byVotes = (v, n, mean) =>
+    v == null ? null : n == null ? v : (n * v + VOTE_K * mean) / (n + VOTE_K);
+  const criticVal = (row) => byVotes(scope.critic(row), scope.criticVotes(row), cMean);
+  const playersVal = (row) => byVotes(scope.players(row), scope.playerVotes(row), uMean);
+
+  const C = calib(criticVal);
+  const U = calib(playersVal);
   const lenMed = scope.length ? med(train.map(scope.length).filter((v) => v != null)) : 0;
   const midYear = med(train.map(ratedYear).filter((v) => v != null)) || NOW_YEAR;
 
@@ -405,7 +460,7 @@ function fitEncoder(train, scope = SCOPES.full) {
     for (const f of scope.columns) xs.push(groupEst(f, row[f], self) ?? global);
     for (const f of PRED_MULTI_KEYS) xs.push(multiEst(f, row, self) ?? global);
 
-    const c = scope.critic(row), u = scope.players(row);
+    const c = criticVal(row), u = playersVal(row);
     const ce = C.est(c), ue = U.est(u);
     xs.push(ce ?? global);
     xs.push(c != null ? 1 : 0);            // whether we have a critic score at all
@@ -555,8 +610,13 @@ function predictRating(row) {
   // the global mean isn't a prediction. (For a catalogue game `columns` is empty, so this
   // rests entirely on the tags and the two outside opinions — as it should.)
   const have = m.scope.columns.filter((f) => row[f] && m.stats[f].has(row[f]));
+  // The RAW scores, for the working: the bars report what the critics and the players
+  // actually said. The shrunk versions are the model's private business (see VOTE_K) —
+  // printing "IGDB players gave it 78" when IGDB says 95 would be inventing a quote.
   const mc = m.scope.critic(row);
   const pl = m.scope.players(row);
+  const mcN = m.scope.criticVotes(row);
+  const plN = m.scope.playerVotes(row);
   const nTags = PRED_MULTI_KEYS.reduce((a, f) => a + PRED_MULTI[f](row).length, 0);
   if (!have.length && mc == null && pl == null && !nTags) return null;
 
@@ -608,16 +668,27 @@ function predictRating(row) {
     // walk a chain of sources keyed on a match key it hasn't got.
     const cs = row._igdb ? { label: "IGDB critics" }
       : (typeof criticSourceOf === "function" ? criticSourceOf(row) : null);
-    signals.push({ kind: "Critics", label: (cs && cs.label) || "Critics", value: mc, n: null, taste: false });
+    signals.push({ kind: "Critics", label: (cs && cs.label) || "Critics", value: mc, n: mcN, taste: false });
   }
   if (pl != null) {
     // Same courtesy: say who the players actually are — asked of the chain itself rather
     // than re-derived here, so the name can't drift from the number.
     const src = m.scope === SCOPES.igdb ? "IGDB players" : predPlayersSource(row);
-    signals.push({ kind: "Players", label: src, value: pl, n: null, taste: false });
+    signals.push({ kind: "Players", label: src, value: pl, n: plN, taste: false });
   }
 
-  const nSignals = have.length + (mc != null ? 1 : 0) + (pl != null ? 1 : 0) + (nTags ? 1 : 0);
+  /* Confidence counts EVIDENCE, not signals. A score from two voters and one from five
+     thousand both used to count as "1 outside opinion", so an obscure game could present
+     itself exactly as confidently as Elden Ring while the model was quietly discounting
+     the very number it was citing. Weight each outside opinion by the fraction of itself
+     the model actually believed — n/(n + VOTE_K), the same weight the shrinkage gave it —
+     so the confidence bar and the arithmetic finally agree. A source that publishes no
+     count keeps its full vote: no reason to doubt it, just no way to check. */
+  const believed = (n) => (n == null ? 1 : n / (n + VOTE_K));
+  const evidence = have.length
+    + (mc != null ? believed(mcN) : 0)
+    + (pl != null ? believed(plN) : 0)
+    + (nTags ? 1 : 0);
   return {
     score,
     // Two different lines, and they are not interchangeable. The VERDICT is read against
@@ -625,7 +696,7 @@ function predictRating(row) {
     // averages, so they're read against your all-time average.
     baseline: m.baselineNow,
     baselineAllTime: m.global,
-    confidence: Math.min(1, nSignals / 5),
+    confidence: Math.min(1, evidence / 5),
     signals: signals
       .sort((a, b) => Math.abs(b.value - m.global) - Math.abs(a.value - m.global))
       .slice(0, 5),

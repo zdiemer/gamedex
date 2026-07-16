@@ -84,7 +84,8 @@ WATERMARK_MAX = 25_000
 # Scalars first, in the order payload()'s SELECT reads them.
 _SCALARS = [
     "id", "name", "norm", "slug", "year", "cover",
-    "rating", "ratingCount", "userRating", "criticRating", "criticCount", "type",
+    "rating", "ratingCount", "userRating", "userRatingCount",
+    "criticRating", "criticCount", "type",
 ]
 # Then (payload namespace, rich-record key) for every interned vocabulary. Names repeat
 # hard across 34k games — 23 genres cover the lot — so a dictionary plus int arrays is
@@ -385,17 +386,19 @@ class Catalogue:
 
         games = []
         with self._db_lock:
+            # Column order here IS _SCALARS; rich comes last and is unpacked, not shipped.
             rows = self._db.execute(
                 "SELECT igdb_id,name,norm_name,slug,year,cover,rating,rating_count,"
-                " user_rating,critic_rating,critic_count,game_type,rich FROM catalogue"
-                f" WHERE {_SCOREABLE_SQL} AND rich IS NOT NULL"
+                " user_rating,user_rating_count,critic_rating,critic_count,game_type,rich"
+                f" FROM catalogue WHERE {_SCOREABLE_SQL} AND rich IS NOT NULL"
             ).fetchall()
+        n = len(_SCALARS)
         for r in rows:
             try:
-                rich = json.loads(r[12]) or {}
+                rich = json.loads(r[n]) or {}
             except (TypeError, ValueError):
                 continue
-            games.append(list(r[:12]) + [
+            games.append(list(r[:n]) + [
                 [intern(ns, v) for v in (rich.get(key) or []) if v] for ns, key in _VOCAB
             ])
         return {

@@ -110,12 +110,24 @@ Working list. Checked = shipped and deployed.
           publisher (0.058) and developer (0.052). In the full model they were worth 0.03;
           with the sheet columns gone they stop echoing and start carrying. Perspective
           (-0.001) and engine (-0.004) are worth nothing and stay only as facets.
-  - [ ] **2b. Confidence should know about vote count** — the model scores <10-voter games
-        at 12.50 pts (guessing your average is 12.45) vs 6.99 at >=100, and 70% of the
-        catalogue is thin. It doesn't poison the ranking — with no outside opinion those
-        games park at the mean, so the top 50 is 6% thin — but `confidence` counts signals
-        without weighting their quality, so a two-vote game can present as confidently as
-        Elden Ring. IGDB's `rating_count` is now backfilled and could gate or shrink it.
+  - [x] **2b. Weight the outside opinions by vote count** — a 95% from two voters and a 95%
+        from five thousand were the same fact to the model. Each outside opinion is now
+        shrunk toward its own source's mean by `(n·v + k·mean)/(n + k)` — the same formula
+        the file already used for group averages, pointed at votes instead of games.
+        VOTE_K=5 sits in the middle of a flat 3–10 optimum. Worth 0.11 to the catalogue
+        model (9.21 → 9.10) and 0.03 to the full one, better in **every** vote bucket
+        (<10: 12.34 → 12.23 · 10-99: 8.35 → 8.15 · >=100: 6.98 → 6.95). It can't rescue a
+        two-vote game — there's no information in two votes — but it stops the model
+        *following* one, which is what decides the top of a ranking. `confidence` now
+        counts evidence rather than signals, weighting each opinion by `n/(n+VOTE_K)`, the
+        exact fraction the shrinkage believed, and the drawer prints the count beside the
+        score. 2 voters saying 95% now predicts 68.7 where 5,000 saying 95% predicts 77.4.
+        Shipping it needed three fields that were stored and never served: `userRatingCount`
+        and VNDB's `vnVotes` (light maps), and `user_rating_count` (catalogue payload).
+        A source with no published count (Metacritic, the sheet's GameFAQs column) isn't
+        shrunk — we can't judge what we can't see. `playerVerdict()` collapsed the value /
+        source / count chains into one, because three parallel walks of the same fallback
+        list drift and that label has already been wrong twice.
   - [ ] **3. The tab + the Pick facet** — rank the catalogue by predicted rating,
         crossed with `recommend.py`'s IDF-weighted similar-games votes for a "because
         you liked…" reason (today it only votes for games already IN the backlog). Pick's

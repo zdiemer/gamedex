@@ -174,10 +174,16 @@ function predictWhyHtml(row) {
   const rows = p.signals.map((sg) => {
     const d = delta(sg.value);
     // An outside opinion isn't a thing you've rated, so it doesn't get "N rated" — it
-    // says who was doing the rating instead.
+    // says who was doing the rating instead, and HOW MANY of them there were where the
+    // source says. "IGDB players gave it 95" reads identically off two votes and off five
+    // thousand; the model has always known the difference (it shrinks the number by the
+    // count — see VOTE_K in predict.js) and the panel was the last place still hiding it.
+    const who = sg.n != null
+      ? `${escapeHtml(sg.label)} <span>(${sg.n.toLocaleString()})</span>`
+      : escapeHtml(sg.label);
     const label = sg.taste
       ? `${escapeHtml(sg.label)}${sg.n ? ` <span>· ${sg.n} rated</span>` : ""}`
-      : `${escapeHtml(sg.kind)} <span>· ${escapeHtml(sg.label)} gave it ${pts(sg.value)}</span>`;
+      : `${escapeHtml(sg.kind)} <span>· ${who} gave it ${pts(sg.value)}</span>`;
     return `<div class="vd-r">
       <span class="vd-t">${label}</span>
       <span class="vd-d ${d >= 0 ? "up" : "dn"}">${d >= 0 ? "+" : "−"}${Math.abs(d)} vs your average</span>
