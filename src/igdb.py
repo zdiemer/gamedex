@@ -453,17 +453,31 @@ class IgdbClient:
         return out
 
     def critic_for(self, igdb_ids):
-        """{igdb_id: (criticRating, criticCount)} — the external critic aggregate, fetched
-        by id to backfill records matched before we stored it."""
+        """{igdb_id: {criticRating, criticCount, userRating, userRatingCount}} — the two
+        outside opinions, fetched by id to backfill records matched before we stored them.
+
+        `rating` (what IGDB's players think) rides along with `aggregated_rating` (what the
+        critics think) because it is the same query, by the same ids, in the same batches
+        of 500 — asking for one and not the other costs an identical ~30 calls and leaves
+        the field null forever. It WAS null forever: userRating has been in the record
+        shape, in the light map and read by predict.js since it was added, and it was
+        populated on 1.2% of the library, because only games matched AFTER the field was
+        added ever got one and nothing ever went back for the rest. IGDB has a player
+        score for 61% of this library.
+        """
         out = {}
         for i in range(0, len(igdb_ids), 500):
             chunk = [int(x) for x in igdb_ids[i:i + 500]]
-            body = ("fields id,aggregated_rating,aggregated_rating_count; "
+            body = ("fields id,aggregated_rating,aggregated_rating_count,rating,rating_count; "
                     f"where id = ({','.join(str(c) for c in chunk)}); limit 500;")
             for g in self._post("games", body) or []:
-                a = g.get("aggregated_rating")
-                out[g["id"]] = (round(a / 100, 4) if a is not None else None,
-                                g.get("aggregated_rating_count"))
+                a, u = g.get("aggregated_rating"), g.get("rating")
+                out[g["id"]] = {
+                    "criticRating": round(a / 100, 4) if a is not None else None,
+                    "criticCount": g.get("aggregated_rating_count"),
+                    "userRating": round(u / 100, 4) if u is not None else None,
+                    "userRatingCount": g.get("rating_count"),
+                }
         return out
 
     def franchises_for(self, igdb_ids):

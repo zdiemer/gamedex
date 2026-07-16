@@ -172,7 +172,10 @@ VALUE_RESCRAPE_DAYS = int(os.environ.get("VALUE_RESCRAPE_DAYS", "7"))
 STORES_VERSION = "4"
 RELATIONS_VERSION = "3"
 FRANCHISE_VERSION = "1"    # bump to re-fetch franchises onto already-matched records
-CRITIC_VERSION = "1"       # bump to re-fetch IGDB's critic aggregate onto matched records
+# v2 adds IGDB's PLAYER score (`rating`) alongside the critic aggregate. v1 wrote
+# criticRating and skipped any record that had it, so the player score needs a bump to
+# reach the 98.8% of the library where it is still null.
+CRITIC_VERSION = "2"       # bump to re-fetch IGDB's critic + player scores onto matched records
 EXTRAS_VERSION = "2"       # keywords / engines / age rating / perspectives
 # GameTDB is dump-backed, so a re-match is free — bump this and every disc picks up the
 # new record shape (this bump adds the box front, `cover`).
@@ -1011,9 +1014,17 @@ class Enricher:
         log.info("extras backfill: %d records updated", stats["found"])
 
     def backfill_critic(self):
-        """IGDB's aggregated_rating — the EXTERNAL CRITIC score. We always asked for it and
-        never stored it, so every existing record is missing it. It is the best fallback
-        critic score for a game Metacritic never covered."""
+        """IGDB's two outside opinions — aggregated_rating (the EXTERNAL CRITIC score) and
+        rating (what IGDB's own PLAYERS think). We always asked for both and stored neither,
+        so every older record is missing them. The critic score is the best fallback for a
+        game Metacritic never covered.
+
+        v2 adds the player score, which had been quietly null on 98.8% of the library: the
+        field was in the record shape, in the light map and read by the prediction model,
+        but only games matched after it was added ever got one. IGDB has a player score for
+        61% of this library, and for the games that are NOT on the sheet it is the only
+        player score there is — GameFAQs lives in a spreadsheet column a catalogue game
+        hasn't got. Worth 0.45 points of prediction error on those. See predict.js."""
         if not self._igdb.configured:
             return
         stale = self._kv_get("critic_version") != CRITIC_VERSION
@@ -1028,35 +1039,43 @@ class Enricher:
                 rec = json.loads(raw)
             except Exception:
                 continue
-            if "criticRating" in rec and not stale:
+            # Both keys, so a record written by v1 (critic only) is still picked up here.
+            if "criticRating" in rec and "userRating" in rec and not stale:
                 continue
             need.setdefault(int(igdb_id), []).append(key)
         if not need:
             self._kv_set("critic_version", CRITIC_VERSION)
             return
-        log.info("critic backfill: fetching IGDB critic scores for %d games", len(need))
+        log.info("critic backfill: fetching IGDB critic + player scores for %d games", len(need))
         try:
             got = self._igdb.critic_for(list(need))
         except Exception as exc:
             log.warning("critic backfill failed: %s", exc)
             return
-        found = 0
+        found = players = 0
         with self._db_lock:
             for gid, keys in need.items():
-                score, count = got.get(gid, (None, None))
+                vals = got.get(gid) or {}
                 for key in keys:
                     row = self._db.execute("SELECT data FROM enrichment WHERE match_key=?", (key,)).fetchone()
                     if not row or not row[0]:
                         continue
                     rec = json.loads(row[0])
-                    rec["criticRating"] = score       # None is a valid answer: "no critics"
-                    rec["criticCount"] = count
+                    # None is a valid answer here — it means "nobody scored this" — so write
+                    # it rather than skipping, or the next pass re-fetches it forever.
+                    rec["criticRating"] = vals.get("criticRating")
+                    rec["criticCount"] = vals.get("criticCount")
+                    rec["userRating"] = vals.get("userRating")
+                    rec["userRatingCount"] = vals.get("userRatingCount")
                     self._db.execute("UPDATE enrichment SET data=? WHERE match_key=?", (json.dumps(rec), key))
-                    if score is not None:
+                    if vals.get("criticRating") is not None:
                         found += 1
+                    if vals.get("userRating") is not None:
+                        players += 1
             self._db.commit()
         self._kv_set("critic_version", CRITIC_VERSION)
-        log.info("critic backfill: %d games got a critic score", found)
+        log.info("critic backfill: %d games got a critic score, %d got a player score",
+                 found, players)
 
     def _await_reindex(self) -> bool:
         """True once the first spreadsheet poll has landed. start() runs before it, so a

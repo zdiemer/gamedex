@@ -88,16 +88,34 @@ Working list. Checked = shipped and deployed.
         mean and call it a recommendation. Payload is **2.23 MB gzipped**, interned +
         columnar. The endpoint is sheet-unaware on purpose: a pure function of the
         crawl, so `?g=<gen>` is immutable and the SW keeps it for a day.
-  - [ ] **2. A second model** — `predict.js` leans on the sheet-column features
-        (franchise/developer/publisher/genre/platform) and HLTB length, none of which a
-        catalogue game has. They aren't merely missing: `developer` and `igdbDev` are
-        near-collinear, ridge SPLITS the weight across them while training, so scoring
-        with only the IGDB half live silently halves that signal. Needs its own encoder
-        over the IGDB-only subset, fitted on the same rated completions and
-        cross-validated for its OWN honest MAE — which the tab must quote instead of
-        the 9.2 that belongs to the backlog. Also settles whether keywords stay in the
-        payload — they cost 14% of it (0.31 MB) and are worth 0.03pt in the full model,
-        but that model has the sheet columns to lean on and this one won't.
+  - [x] **2. A second model** — `predict.js` now fits two: `full` (**8.82**) for a sheet
+        row, `igdb` (**9.21**) for a catalogue game, same rated completions, same 5-fold
+        CV, each under its own handicap. Reusing one model and defaulting the absent
+        features is not neutral — `developer`/`igdbDev` correlate 0.775 and ridge splits
+        weight across them, so the naive path under-predicts **every** catalogue game by
+        0.70 pts (9.56, bias -0.70 vs 9.21, bias 0.00). The twin is fitted lazily: it is
+        +181ms and the grid's Predicted facet calls tasteModel() on every visit.
+        Three things fell out of measuring it:
+        - **IGDB's player score was null on 98.8% of the library** — the field was in the
+          record, in the light map and read by the model, but only games matched *after*
+          it was added ever got one, and nothing went back for the rest. IGDB has one for
+          61% of the library. `backfill_critic` now fetches it alongside the critic
+          aggregate (same query, same ids, same ~30 calls) at CRITIC_VERSION=2. Worth
+          **0.45 pts** to the catalogue model, which otherwise has no player signal at all.
+        - **GameFAQs reads him better than IGDB's community** (r 0.580 vs 0.560 head to
+          head), so predPlayers asks it first. Without that, the backfill would have cost
+          the full model 0.12 pts by swapping 79% of rows onto the weaker signal.
+        - **Keywords earn their 14% of the payload after all.** Dropping them costs the
+          catalogue model 0.072 pts — the largest of any vocabulary it has, ahead of
+          publisher (0.058) and developer (0.052). In the full model they were worth 0.03;
+          with the sheet columns gone they stop echoing and start carrying. Perspective
+          (-0.001) and engine (-0.004) are worth nothing and stay only as facets.
+  - [ ] **2b. Confidence should know about vote count** — the model scores <10-voter games
+        at 12.50 pts (guessing your average is 12.45) vs 6.99 at >=100, and 70% of the
+        catalogue is thin. It doesn't poison the ranking — with no outside opinion those
+        games park at the mean, so the top 50 is 6% thin — but `confidence` counts signals
+        without weighting their quality, so a two-vote game can present as confidently as
+        Elden Ring. IGDB's `rating_count` is now backfilled and could gate or shrink it.
   - [ ] **3. The tab + the Pick facet** — rank the catalogue by predicted rating,
         crossed with `recommend.py`'s IDF-weighted similar-games votes for a "because
         you liked…" reason (today it only votes for games already IN the backlog). Pick's

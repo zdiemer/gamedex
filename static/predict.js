@@ -43,9 +43,11 @@
    4. HONEST SCORING. Five-fold cross-validation, with every encoder (the group averages,
       both calibrations, the scaler) rebuilt from the TRAINING fold alone — score a model
       against games whose ratings shaped its own features and it will flatter itself.
-      Measured that way it lands near 9.2 points of average error, against 9.8 for the old
-      five-feature model, 10.3 for simply quoting the critics, and 12.4 for guessing your
-      average every time.
+      Measured that way it lands near 8.8 points of average error, against 9.8 for the old
+      five-feature model, 11.1 for simply quoting the critics, and 12.4 for guessing your
+      average every time. (It read 9.2 when this was written and the library was smaller;
+      re-measured on 1,709 rated games, and again after IGDB's player score was backfilled
+      onto the library — see backfill_critic — which was worth 0.05 of it.)
 
       That is about one notch on a scale you record in notches of five, and it is close to
       the practical floor for these features: your ratings have a standard deviation of
@@ -55,6 +57,13 @@
       games), gradient-boosted trees, fitting the median instead of the mean, k-nearest
       taste neighbours, and feeding it your own wishlist flags.
 
+   5. TWO MODELS, because there are two kinds of game to ask about. A row on the sheet has
+      the sheet's columns and a playtime; a game from the IGDB catalogue — one you do not
+      own, and the only kind a recommendation can be about — has neither. Reusing one model
+      for both under-predicts every catalogue game by 0.70 points, silently. So `full`
+      (8.82 pts) scores the backlog and `igdb` (9.21 pts) scores the catalogue, each fitted
+      and cross-validated on the same rated games under its own handicap. See SCOPES.
+
    Loaded after app.js; shares its globals. */
 
 const PRIOR_K = 3;               // evidence needed before a group average is trusted
@@ -62,24 +71,46 @@ const RIDGE = 0.05;              // regularisation (on standardised features)
 const MIN_HISTORY = 60;          // below this we simply don't have enough to say
 const CV_FOLDS = 5;
 
+/* The IGDB record behind a row.
+
+   A sheet row joins to it by match key. A game from the IGDB catalogue (catalogue.js)
+   carries its record inline instead, because there IS no match key for a game that isn't
+   on the sheet: `_k` is normalize(title)|platform|year, and a catalogue entry has no
+   platform — IGDB keeps one entry per game where the sheet keeps one row per platform
+   copy. Carrying it on the row rather than in a second global map also keeps ENRICH
+   exactly what it says it is; pick.js caches its whole field list against
+   ENRICH_COMPLETE, and quietly growing that map by 28k entries would be a puzzling bug. */
+const igdbRecOf = (row) => (row && row._igdb) || ENRICH[(row || {})._k] || {};
+
 // The sheet's single-valued columns.
 const PRED_FEATURES = ["franchise", "developer", "publisher", "genre", "platform"];
 // IGDB's multi-valued tags. A game carries several of each, and each one gets a vote.
 const PRED_MULTI = {
-  igdbGenre: (r) => (ENRICH[r._k] || {}).genres || [],
-  igdbTheme: (r) => (ENRICH[r._k] || {}).themes || [],
-  igdbMode: (r) => (ENRICH[r._k] || {}).gameModes || [],
-  igdbDev: (r) => (ENRICH[r._k] || {}).developers || [],
-  igdbPub: (r) => (ENRICH[r._k] || {}).publishers || [],
-  igdbFran: (r) => (ENRICH[r._k] || {}).franchises || [],
-  // Keywords, perspective and engine. Measured, honestly: worth about 0.03 points on the
-  // same cross-validation — consistently positive across every seed, but small. They earn
-  // their place only because the data is already in the payload for the facets; if it cost
-  // a fetch it would not be worth it. The fine-grained vocabulary I expected to be a big win
-  // (metroidvania, soulslike) turns out to be mostly saying what genre already said.
-  igdbKeyword: (r) => (ENRICH[r._k] || {}).keywords || [],
-  igdbPersp: (r) => (ENRICH[r._k] || {}).perspectives || [],
-  igdbEngine: (r) => (ENRICH[r._k] || {}).engines || [],
+  igdbGenre: (r) => igdbRecOf(r).genres || [],
+  igdbTheme: (r) => igdbRecOf(r).themes || [],
+  igdbMode: (r) => igdbRecOf(r).gameModes || [],
+  igdbDev: (r) => igdbRecOf(r).developers || [],
+  igdbPub: (r) => igdbRecOf(r).publishers || [],
+  igdbFran: (r) => igdbRecOf(r).franchises || [],
+  /* Keywords, perspective and engine. Measured, honestly: worth about 0.03 points on the
+     same cross-validation — consistently positive across every seed, but small. They earn
+     their place only because the data is already in the payload for the facets; if it cost
+     a fetch it would not be worth it. The fine-grained vocabulary I expected to be a big win
+     (metroidvania, soulslike) turns out to be mostly saying what genre already said.
+
+     That verdict is for the FULL model, and the restricted one overturns it. Once the
+     sheet's developer/publisher/genre columns are gone, keywords stop echoing them and
+     start carrying them: dropping keywords costs the catalogue model 0.072 points, which
+     is the LARGEST contribution of any vocabulary it has — ahead of publisher (0.058),
+     developer (0.052) and genre (0.019). They are 14% of the catalogue payload (0.31MB)
+     and they are worth it, which is the opposite of what the paragraph above predicted.
+
+     Perspective and engine are a different story: in the restricted model they are worth
+     -0.001 and -0.004, i.e. nothing, twice. They stay because they are facets in their own
+     right, not because the model wants them. */
+  igdbKeyword: (r) => igdbRecOf(r).keywords || [],
+  igdbPersp: (r) => igdbRecOf(r).perspectives || [],
+  igdbEngine: (r) => igdbRecOf(r).engines || [],
 };
 const PRED_MULTI_KEYS = Object.keys(PRED_MULTI);
 const pnorm = (s) => String(s).trim().toLowerCase();
@@ -91,21 +122,121 @@ const predCritic = (row) => {
   if (c != null) return c;
   return row.criticScore != null ? row.criticScore : null;
 };
-// What PLAYERS thought — a different opinion, not a second helping of the same one. The
-// GameFAQs column lives on the GAMES sheet, so a completed row has to reach across for it;
-// that join is the reason this signal sat unused, and it is the single biggest win here.
+/* What PLAYERS thought — a different opinion, not a second helping of the same one. The
+   GameFAQs column lives on the GAMES sheet, so a completed row has to reach across for it;
+   that join is the reason this signal sat unused, and it is the single biggest win here.
+
+   GameFAQs goes FIRST, ahead of IGDB's community score, which is measured rather than
+   assumed: on the 1,282 rated games where both exist, GameFAQs correlates 0.580 with what
+   you actually scored and IGDB's community 0.560. Small, and it only became visible when
+   IGDB's player score was backfilled onto the library (it had been null on 98.8% of it,
+   see backfill_critic) — asking IGDB first at that point swapped 79% of the training rows
+   onto the weaker signal and cost the model 0.124 points. The order is the whole fix.
+
+   IGDB stays in the chain, last, because it is the only player score a game that is NOT on
+   the sheet can possibly have: there is no GameFAQs column on a row that doesn't exist. */
 const predPlayers = (row) => {
-  const e = ENRICH[row._k] || {};
-  if (e.userRating != null) return e.userRating;
-  if (e.vnRating != null) return e.vnRating;
+  const e = igdbRecOf(row);
+  if (e.vnRating != null) return e.vnRating;          // VNs: VNDB's vote count dwarfs all
   if (row.gamefaqsUserRating != null) return row.gamefaqsUserRating;
   const g = typeof rowsByK === "function" ? rowsByK().games.get(row._k) : null;
-  return g && g.gamefaqsUserRating != null ? g.gamefaqsUserRating : null;
+  if (g && g.gamefaqsUserRating != null) return g.gamefaqsUserRating;
+  return e.userRating != null ? e.userRating : null;
+};
+/* Which of them actually answered. Lives here, touching the chain above, because the two
+   must be edited together: the drawer prints this name beside that number, and a label
+   naming a source the value didn't come from is a lie the UI cannot detect. It has been
+   wrong before for exactly this reason (see the `taste` flag below), and reordering the
+   chain above without this would have said "IGDB players" over a GameFAQs score. */
+const predPlayersSource = (row) => {
+  const e = igdbRecOf(row);
+  if (e.vnRating != null) return "VNDB";
+  if (row.gamefaqsUserRating != null) return "GameFAQs";
+  const g = typeof rowsByK === "function" ? rowsByK().games.get(row._k) : null;
+  if (g && g.gamefaqsUserRating != null) return "GameFAQs";
+  return "IGDB players";
 };
 const predLength = (row) => {
-  const e = ENRICH[row._k] || {};
+  const e = igdbRecOf(row);
   return e.hltbBest != null ? e.hltbBest : null;
 };
+
+/* WHAT A CATALOGUE GAME CAN ACTUALLY ANSWER WITH.
+
+   These are deliberately meaner than the two above, and it matters more than it looks.
+   predCritic() walks Metacritic → your sheet → IGDB → the GameRankings archive; a game
+   that is not on the sheet has only IGDB's aggregate, because every other link in that
+   chain is keyed on a match key it doesn't have. Same for the players: no GameFAQs
+   column, no VNDB, just IGDB's own community score.
+
+   Training the restricted model on the FULL chain and then predicting with IGDB's
+   aggregate alone would fit the calibration to one distribution and apply it to a
+   different one — Metacritic and IGDB's critic aggregate are neither the same scale nor
+   the same coverage. So the model that scores catalogue games is trained on exactly the
+   signals a catalogue game has, and its error bar is honest about it. */
+const catCritic = (row) => {
+  const e = igdbRecOf(row);
+  return e.criticRating != null ? e.criticRating : null;
+};
+const catPlayers = (row) => {
+  const e = igdbRecOf(row);
+  return e.userRating != null ? e.userRating : null;
+};
+
+/* THE TWO WORLDS A PREDICTION CAN LIVE IN.
+
+   A row on the sheet and a game from the IGDB catalogue are not the same kind of thing.
+   The sheet's five single-valued columns and HowLongToBeat's playtime exist for one and
+   not the other; a catalogue game has no platform at all, because IGDB keeps one entry
+   per game where the sheet keeps one row per platform copy.
+
+   The tempting move is to feed the missing features the global mean and reuse the one
+   model. That is wrong in a way that does not announce itself. `developer` and `igdbDev`
+   say nearly the same thing — measured on this library, r = 0.775, and 0.72 for
+   publisher, 0.74 for franchise — and ridge SPLITS weight across collinear features,
+   which is precisely why standardise() exists in this file. Kill the sheet half of each
+   pair at prediction time and the surviving half carries a coefficient that was fitted
+   expecting help.
+
+   Measured, scoring all 1,709 rated games as if each were a catalogue entry, identical
+   inputs either way and only the fitted feature set differing:
+
+       naive  (full model, absent features -> mean)   9.56 pts, bias -0.70
+       proper (fitted on what is actually there)      9.21 pts, bias  0.00
+
+   So the honest version is worth 0.34 points — but the bias is the real story. The naive
+   model under-predicts EVERY catalogue game by seven tenths of a point, silently, and a
+   recommender that shades everything down is one that never recommends anything. The
+   restricted model is unbiased.
+
+   So: two models, fitted on the same rated completions, cross-validated the same way.
+   One may use everything (8.82 pts). The other is restricted to what a catalogue game
+   carries (9.21 pts), so its weights are fitted in the world it will actually predict in
+   — and 9.21 is the only honest number to quote next to a recommendation. Restriction
+   costs 0.39 points against a sheet row, and the result still beats quoting IGDB's
+   critics by 18% and guessing your average by 26%.
+
+   ONE CAVEAT ON THAT 9.21, because it is an average over the wrong population. The model
+   is far better on games people have actually voted on:
+
+       < 10 voters   12.50 pts   (i.e. no better than guessing your average, 12.45)
+       10-99         8.42 pts
+       >= 100        6.99 pts
+
+   and 70% of the catalogue has fewer than ten voters. Weighted over the whole 34k that
+   implies ~11.2 pts, which would make the exercise pointless. It isn't, because those
+   games cannot reach the top of a ranking: with no outside opinion the model parks them
+   at your mean rather than at 90%, so the noise sits in the middle of the list, not the
+   head. Measured on the real catalogue, the top 50 recommendations are 6% thin and the
+   top 200 are 19%. Quote 9.21, but do not promise it for an obscure game — the
+   confidence bar is there to say so. */
+const SCOPES = {
+  // A row on the sheet: everything we know about anything.
+  full: { columns: PRED_FEATURES, critic: predCritic, players: predPlayers, length: predLength },
+  // A game from the IGDB catalogue: IGDB's tags and IGDB's two opinions, full stop.
+  igdb: { columns: [], critic: catCritic, players: catPlayers, length: null },
+};
+const scopeFor = (row) => (row && row._igdb ? SCOPES.igdb : SCOPES.full);
 
 /* WHEN you rated it, which turns out to matter more than almost anything else about the
    game. Your standard has tightened relentlessly: you averaged 82 in 2009 and 59 in 2025.
@@ -193,11 +324,11 @@ const med = (xs) => {
    calibrations, the length median. Built from a training set alone, then applied to games
    it has never seen. Cross-validation rebuilds one per fold; the live model builds one from
    everything you have rated. */
-function fitEncoder(train) {
+function fitEncoder(train, scope = SCOPES.full) {
   const global = avg(train.map((r) => r.rating));
 
   const single = {};
-  for (const f of PRED_FEATURES) {
+  for (const f of scope.columns) {
     const m = new Map();
     for (const r of train) {
       const v = r[f];
@@ -237,9 +368,9 @@ function fitEncoder(train) {
       n: pairs.length, slope, intercept,
     };
   };
-  const C = calib(predCritic);
-  const U = calib(predPlayers);
-  const lenMed = med(train.map(predLength).filter((v) => v != null));
+  const C = calib(scope.critic);
+  const U = calib(scope.players);
+  const lenMed = scope.length ? med(train.map(scope.length).filter((v) => v != null)) : 0;
   const midYear = med(train.map(ratedYear).filter((v) => v != null)) || NOW_YEAR;
 
   const shrink = (sum, n) => (n < 1 ? null : (sum + PRIOR_K * global) / (n + PRIOR_K));
@@ -271,10 +402,10 @@ function fitEncoder(train) {
 
   const featurise = (row, self) => {
     const xs = [];
-    for (const f of PRED_FEATURES) xs.push(groupEst(f, row[f], self) ?? global);
+    for (const f of scope.columns) xs.push(groupEst(f, row[f], self) ?? global);
     for (const f of PRED_MULTI_KEYS) xs.push(multiEst(f, row, self) ?? global);
 
-    const c = predCritic(row), u = predPlayers(row);
+    const c = scope.critic(row), u = scope.players(row);
     const ce = C.est(c), ue = U.est(u);
     xs.push(ce ?? global);
     xs.push(c != null ? 1 : 0);            // whether we have a critic score at all
@@ -288,11 +419,16 @@ function fitEncoder(train) {
     // Where critics and players DISAGREE is exactly where either one alone misleads.
     xs.push(ce != null && ue != null ? ce - ue : 0);
 
-    const h = predLength(row);
-    xs.push(Math.log1p(h != null ? h : lenMed));        // length has a long tail, so log it
+    // Omitted, not defaulted, when the scope has no playtime: standardise() would turn a
+    // constant column into a zero contribution anyway, so feeding it lenMed for every row
+    // is a column of nothing that still costs a coefficient to fit.
+    if (scope.length) {
+      const h = scope.length(row);
+      xs.push(Math.log1p(h != null ? h : lenMed));      // length has a long tail, so log it
+    }
     const yr = row.releaseYear ? +row.releaseYear : null;
     xs.push(yr ? (yr - 2005) / 10 : 0);
-    const cc = (ENRICH[row._k] || {}).criticCount;
+    const cc = igdbRecOf(row).criticCount;
     xs.push(cc != null ? Math.log1p(cc) : 0);           // how reviewed = how big a release
 
     // Your drifting standard. Three cases, and getting the middle one wrong quietly ruins
@@ -313,7 +449,7 @@ function fitEncoder(train) {
   const recent = train.filter((r) => (ratedYear(r) ?? 0) >= NOW_YEAR - 3).map((r) => r.rating);
   const baselineNow = recent.length >= 30 ? avg(recent) : global;
 
-  return { global, baselineNow, featurise, groupEst, single, multi, critic: C, players: U };
+  return { global, baselineNow, featurise, groupEst, single, multi, critic: C, players: U, scope };
 }
 
 // Fit the weights, using leave-one-out features so the model never sees its own answer.
@@ -326,37 +462,39 @@ function fitWeights(train, enc) {
 }
 
 // ---- the model -------------------------------------------------------------
-function tasteModel() {
-  if (_model) return _model;
-  const done = ((DATA.sheets.completed || {}).rows || []).filter((r) => r.rating != null);
-  if (done.length < MIN_HISTORY) return (_model = { ok: false, n: done.length });
+/* Fit one scope: cross-validate it, then train it on everything.
 
-  // Five-fold CV. The encoder is rebuilt inside the loop on purpose: the group averages are
-  // themselves learned from your ratings, so a model scored against games that shaped its
-  // own features would be marking its own homework.
+   Five-fold CV. The encoder is rebuilt inside the loop on purpose: the group averages are
+   themselves learned from your ratings, so a model scored against games that shaped its
+   own features would be marking its own homework.
+
+   Both scopes are scored on the SAME games — your rated completions — because those are
+   the only games whose answer we know. The restricted scope simply isn't allowed to look
+   at the sheet columns while doing it, which is exactly the handicap it will run under
+   when it meets a game that has none. */
+function fitScope(done, scope) {
   const errs = [], errsMean = [], errsCritic = [];
   for (let f = 0; f < CV_FOLDS; f++) {
     const train = done.filter((_, i) => i % CV_FOLDS !== f);
     const test = done.filter((_, i) => i % CV_FOLDS === f);
     if (train.length < MIN_HISTORY || !test.length) continue;
-    const enc = fitEncoder(train);
+    const enc = fitEncoder(train, scope);
     const predict = fitWeights(train, enc);
     for (const r of test) {
       const p = Math.max(0, Math.min(1, predict(enc.featurise(r, null))));
       errs.push(Math.abs(p - r.rating));
       errsMean.push(Math.abs(enc.global - r.rating));
-      const c = predCritic(r);
+      const c = scope.critic(r);
       errsCritic.push(Math.abs((c != null ? c : enc.global) - r.rating));
     }
   }
 
   // The live model: trained on everything you have rated.
-  const enc = fitEncoder(done);
+  const enc = fitEncoder(done, scope);
   const predict = fitWeights(done, enc);
   const mae = avg(errs), maeMean = avg(errsMean), maeCritic = avg(errsCritic);
 
-  return (_model = {
-    ok: true,
+  return {
     global: enc.global,
     baselineNow: enc.baselineNow,
     stats: enc.single,
@@ -364,9 +502,9 @@ function tasteModel() {
     featurise: enc.featurise,
     groupEst: enc.groupEst,
     predict,
+    scope,
     critic: { slope: enc.critic.slope, intercept: enc.critic.intercept, est: enc.critic.est, n: enc.critic.n },
     players: { est: enc.players.est, n: enc.players.n },
-    n: done.length,
     eval: {
       mae, maeMean, maeCritic,
       liftVsMean: 1 - mae / (maeMean || 1),
@@ -374,20 +512,51 @@ function tasteModel() {
       tested: errs.length,
       folds: CV_FOLDS,
     },
+  };
+}
+
+function tasteModel() {
+  if (_model) return _model;
+  const done = ((DATA.sheets.completed || {}).rows || []).filter((r) => r.rating != null);
+  if (done.length < MIN_HISTORY) return (_model = { ok: false, n: done.length });
+
+  // The full scope is spread at the top level so every existing caller (the Stats panel's
+  // homework, the drawer's error bar) keeps reading `m.eval` / `m.n` and means the same
+  // thing by it. `m.igdb` is the restricted twin — a different model with a different,
+  // worse, and correct error bar, and the one a recommendation must quote.
+  const full = fitScope(done, SCOPES.full);
+  let igdb = null;
+  return (_model = {
+    ok: true, n: done.length, ...full,
+    /* Lazily fitted, and it has to be. The restricted twin is another five folds of
+       cross-validation — measured at +181ms, 68% on top of the full model — and
+       tasteModel() sits behind the grid's Predicted facet, so it runs for anyone who
+       opens All Games. Someone who never opens Recommendations should not pay to fit a
+       model they never ask a question of. Fitted on first access, then held with the
+       rest of the model until resetTaste(). */
+    get igdb() {
+      if (!igdb) igdb = fitScope(done, SCOPES.igdb);
+      return igdb;
+    },
   });
 }
 
 // ---- prediction ------------------------------------------------------------
 function predictRating(row) {
   if (!row || row.completed || row.rating != null) return null;
-  const m = tasteModel();
-  if (!m.ok) return null;
+  const top = tasteModel();
+  if (!top.ok) return null;
+  // A catalogue game gets the model fitted for what a catalogue game has. Everything
+  // downstream — the working, the confidence, the verdict — reads off THIS one, so the
+  // number and its explanation can never come from different models.
+  const m = row._igdb ? top.igdb : top;
 
   // Which signals do we actually have for this game? A prediction resting on nothing but
-  // the global mean isn't a prediction.
-  const have = PRED_FEATURES.filter((f) => row[f] && m.stats[f].has(row[f]));
-  const mc = predCritic(row);
-  const pl = predPlayers(row);
+  // the global mean isn't a prediction. (For a catalogue game `columns` is empty, so this
+  // rests entirely on the tags and the two outside opinions — as it should.)
+  const have = m.scope.columns.filter((f) => row[f] && m.stats[f].has(row[f]));
+  const mc = m.scope.critic(row);
+  const pl = m.scope.players(row);
   const nTags = PRED_MULTI_KEYS.reduce((a, f) => a + PRED_MULTI[f](row).length, 0);
   if (!have.length && mc == null && pl == null && !nTags) return null;
 
@@ -435,13 +604,16 @@ function predictRating(row) {
   if (mc != null) {
     // Name the source that actually answered — the score may be Metacritic, IGDB's critic
     // aggregate, or the GameRankings archive, and calling all three "Metacritic" lies.
-    const cs = typeof criticSourceOf === "function" ? criticSourceOf(row) : null;
+    // A catalogue game has only ever been asked IGDB, so don't send criticSourceOf() to
+    // walk a chain of sources keyed on a match key it hasn't got.
+    const cs = row._igdb ? { label: "IGDB critics" }
+      : (typeof criticSourceOf === "function" ? criticSourceOf(row) : null);
     signals.push({ kind: "Critics", label: (cs && cs.label) || "Critics", value: mc, n: null, taste: false });
   }
   if (pl != null) {
-    // Same courtesy: say who the players actually are.
-    const e = ENRICH[row._k] || {};
-    const src = e.userRating != null ? "IGDB players" : e.vnRating != null ? "VNDB" : "GameFAQs";
+    // Same courtesy: say who the players actually are — asked of the chain itself rather
+    // than re-derived here, so the name can't drift from the number.
+    const src = m.scope === SCOPES.igdb ? "IGDB players" : predPlayersSource(row);
     signals.push({ kind: "Players", label: src, value: pl, n: null, taste: false });
   }
 
