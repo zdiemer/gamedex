@@ -85,6 +85,23 @@ and any decisions made along the way.
       - [x] Attract mode excludes Recommend games (they aren't games you own). `attract.js`.
 - [x] **23. Snappier hover** (new) — preview dwell 550ms → 280ms. `preview.js`.
 
+## Shipped in 1.58.21
+
+- [x] **24. Per-page skeletons** — Home now boots into a hero-+-shelves skeleton instead of
+      the All Games card grid (peeks the URL tab before data lands). `enrich.js`, `style.css`.
+- [x] **25. Smooth cover fade-in** — each poster cover fades in as it decodes (one delegated
+      capture-phase load/error listener adds `.loaded`) instead of the whole page flashing in
+      at once. `+ decoding="async"` for off-thread decode. `enrich.js`, `style.css`, `table.js`,
+      `preview.js`, `home.js`.
+- [x] **25b. The O(seconds) image block (user's hypothesis, confirmed)** — `/api/enrichment/all`
+      was **~3s server-side every call** (it JSON-parses all ~14.7k records) and held a
+      connection that long, starving the cover loads. Now cached and keyed on the DB's
+      `total_changes`, so it regenerates only when enrichment actually changes (1.19s→0.16s
+      measured). Client also fetches it at `priority:"low"` so images win the connection race.
+      Note: the page's own covers already came from the fast page-scoped `maybeEnrich` POST
+      (0.12s), and cache hits carry `immutable, max-age=1yr` (repeat loads are instant).
+      `src/enrich.py`, `panels.js`.
+
 ## Remaining (need a browser session on the shelf)
 
 - [ ] **14. Invisible inner hinge** — opening a box exposes the outside view. 3D CSS.

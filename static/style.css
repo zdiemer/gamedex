@@ -184,6 +184,10 @@ a { color: var(--accent-2); }
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skel-line { height: 10px; border-radius: 999px; margin-bottom: 7px; }
 .skel-line.short { width: 55%; }
+/* Home skeleton (showHomeSkeleton): sizes for the hero text + shelf headings. */
+.sk-head { width: 190px; height: 16px; margin: 0; }
+.sk-eyebrow { width: 84px; height: 10px; margin-bottom: 12px; }
+.sk-title { width: 55%; height: 26px; margin-bottom: 14px; }
 
 /* ---- Top bar ------------------------------------------------------------ */
 .topbar {
@@ -722,6 +726,13 @@ td.cover { width: 46px; padding: 5px 8px; }
    what makes the tour's hand-off between cards a dissolve rather than a cut. */
 .card-cover { transition: opacity .45s var(--ease); }
 .card.playing .card-cover { opacity: 0; }
+/* Fade each cover in as it decodes, instead of every image on the page popping in at once
+   when the network catches up. Only the <img> covers (not the placeholder divs); JS adds
+   .loaded on the load/error event (markCoverLoaded, enrich.js). A cached image still fades,
+   just over a frame or two. The .playing rule above outranks .loaded, so a card mid-trailer
+   still hides its cover. */
+img.card-cover { opacity: 0; }
+img.card-cover.loaded { opacity: 1; }
 
 /* Placeholders hold an ICON now, not a character — so they need to centre a box,
    and the icon should sit back rather than shout. */

@@ -442,7 +442,7 @@ function patchEnrichedCells() {
       // Must re-apply .pixel here too: on first paint the enrichment hasn't
       // arrived, so every cover starts as a placeholder and is swapped in HERE.
       img.className = "card-cover" + (coverIsPixelArt(ENRICH[card.dataset.k], cs) ? " pixel" : "");
-      img.loading = "lazy"; img.alt = ""; img.src = cs;
+      img.loading = "lazy"; img.decoding = "async"; img.alt = ""; img.src = cs;
       cur.replaceWith(img);
     } else if (!cs && cur && cur.classList.contains("skel") &&
                (ENRICH_COMPLETE || NO_MATCH.has(card.dataset.k) || (card.dataset.k in ENRICH))) {

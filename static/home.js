@@ -208,7 +208,7 @@ function patchHomeCovers() {
     if (!cs) return;
     const img = document.createElement("img");
     img.className = "card-cover" + (coverIsPixelArt(e, cs) ? " pixel" : "");
-    img.loading = "lazy"; img.alt = ""; img.src = cs;
+    img.loading = "lazy"; img.decoding = "async"; img.alt = ""; img.src = cs;
     ph.replaceWith(img);
   });
 }

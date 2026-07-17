@@ -25,6 +25,18 @@ const cImg = (u) =>
 // booklet you've opened before comes off local disk, not the Archive.
 const cManual = (u) => (u && /^https?:\/\//.test(u) ? `/api/manual?u=${encodeURIComponent(u)}` : (u || ""));
 const IMG = (id, size) => (id ? cImg(`https://images.igdb.com/igdb/image/upload/t_${size}/${id}.jpg`) : "");
+
+/* Fade each poster cover in as it finishes loading, so a page's worth of images doesn't flash
+   in all at once when the proxy catches up (they load lazily and at wildly different speeds).
+   ONE delegated listener in the capture phase — load/error don't bubble, so a per-<img> handler
+   would mean wiring every render path; this catches them all, present and future, for the cost
+   of one listener. Error marks it loaded too, so a dead cover doesn't sit invisible. */
+function markCoverLoaded(e) {
+  const img = e.target;
+  if (img && img.tagName === "IMG" && img.classList.contains("card-cover")) img.classList.add("loaded");
+}
+document.addEventListener("load", markCoverLoaded, true);
+document.addEventListener("error", markCoverLoaded, true);
 // Cover URL: fallback sources give a full coverUrl; IGDB gives an image id.
 // Cover: IGDB image id, else a fallback source's full URL, else the art the
 // gated sources bring — an arcade cabinet scan or a VN cover beats a blank box.
@@ -165,11 +177,41 @@ function updateEnrichStatus(stats) {
 }
 
 // Shimmering placeholder cards while the spreadsheet loads.
+// Per-page loading skeletons. On boot the target tab isn't applied yet (applyStateFromURL
+// runs after the data lands), so peek at the URL — landing on Home and seeing a grid of
+// listing-card skeletons was the giveaway that the shell was generic. Home gets a hero +
+// shelves skeleton; the listing tabs (and the enrich-wait hold) get the card grid.
 function showSkeletons(n = 30) {
+  const tab = (activeTab && activeTab !== "home") ? activeTab
+    : (new URLSearchParams(location.search).get("tab") || "home");
+  if (tab === "home") return showHomeSkeleton();
+  if (typeof setSpecialMode === "function") setSpecialMode(null);
   $("#gridwrap").hidden = false;
   $("#grid").innerHTML = Array.from({ length: n }, () =>
     `<div class="card"><div class="card-cover ph skel"></div><div class="card-body">
       <div class="skel skel-line"></div><div class="skel skel-line short"></div></div></div>`).join("");
+}
+
+// A skeleton the shape of Home: the hero, then a couple of horizontal shelves.
+function showHomeSkeleton() {
+  if (typeof setSpecialMode === "function") setSpecialMode("home");
+  const host = $("#home");
+  if (!host) return;
+  const shelfRow = Array.from({ length: 9 }, () =>
+    `<div class="card sk-shelf-card"><div class="card-cover ph skel"></div></div>`).join("");
+  const sect = () => `<section class="h-sect">
+    <div class="h-sect-head"><div class="skel skel-line sk-head"></div></div>
+    <div class="h-shelf">${shelfRow}</div></section>`;
+  host.innerHTML = `
+    <div class="h-hero"><div class="h-hero-inner">
+      <div class="h-hero-cover ph skel"></div>
+      <div class="h-hero-txt">
+        <div class="skel skel-line sk-eyebrow"></div>
+        <div class="skel skel-line sk-title"></div>
+        <div class="skel skel-line"></div>
+        <div class="skel skel-line short"></div>
+      </div></div></div>
+    ${sect()}${sect()}`;
 }
 
 const chips = (arr, fk) => (arr && arr.length

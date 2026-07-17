@@ -307,7 +307,7 @@ function posterCardHtml(row, { cls = "", note = "", attrs = "" } = {}) {
   const pixel = coverIsPixelArt(ENRICH[row._k], cs) ? " pixel" : "";
   const title = escapeHtml(String(row.title || row.game || "Untitled"));
   const cover = cs
-    ? `<img class="card-cover${pixel}" loading="lazy" src="${escapeHtml(cs)}" alt="">`
+    ? `<img class="card-cover${pixel}" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
     : `<div class="card-cover ph">${icon("i-library", 26)}</div>`;
   const sub = [row.platform, row.releaseYear].filter((x) => x != null && x !== "")
     .map((x) => escapeHtml(String(x))).join(" · ");
@@ -329,7 +329,7 @@ function renderGrid(pageRows) {
     const pend = coverPending(row);
     const pixel = coverIsPixelArt(ENRICH[row._k], cs) ? " pixel" : "";
     const cover = cs
-      ? `<img class="card-cover${pixel}" loading="lazy" src="${cs}" alt="">`
+      ? `<img class="card-cover${pixel}" loading="lazy" decoding="async" src="${cs}" alt="">`
       : `<div class="card-cover ph${pend ? " skel" : ""}">${pend ? "" : icon("i-library", 26)}</div>`;
     const card = document.createElement("div");
     card.style.setProperty("--i", Math.min(i, 24) * 22 + "ms");   // fan-in stagger

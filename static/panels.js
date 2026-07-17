@@ -577,7 +577,11 @@ let allTimer = null;
 async function loadAllEnrichment() {
   if (!ENRICH_ENABLED) return;
   try {
-    const res = await fetch("api/enrichment/all");
+    // Low priority on purpose: this is the whole-library map (facets + the rest of the
+    // covers), a few MB, and the page's own visible covers come from the fast page-scoped
+    // maybeEnrich POST. Let the browser hand the ~6 connection slots to the images first and
+    // fetch this behind them, so a landing page paints its covers instead of waiting on it.
+    const res = await fetch("api/enrichment/all", { priority: "low" });
     const j = await res.json();
     if (j.enabled === false) { ENRICH_ENABLED = false; return; }
     let changed = false;

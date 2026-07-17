@@ -249,6 +249,13 @@ class Enricher:
 
         self._db_lock = threading.Lock()
         self._db = sqlite3.connect(db_path, check_same_thread=False)
+        # The whole-library light map (get_all_light) costs ~3s to build — it JSON-parses
+        # every matched record — and it was rebuilt on EVERY request, holding a connection
+        # that long and starving the page's cover loads. Cache it, keyed on the connection's
+        # total_changes: any INSERT/UPDATE/DELETE bumps that, so the map regenerates exactly
+        # when enrichment actually changes (a backfill poll) and is instant otherwise.
+        self._all_light_cache = None
+        self._all_light_ver = -1
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS enrichment(match_key TEXT PRIMARY KEY, igdb_id INTEGER,"
             " status TEXT, score INTEGER, data TEXT, updated_at TEXT, manual INTEGER DEFAULT 0)"
@@ -720,6 +727,9 @@ class Enricher:
     def get_all_light(self):
         out = {}
         with self._db_lock:
+            ver = self._db.total_changes
+            if self._all_light_cache is not None and self._all_light_ver == ver:
+                return self._all_light_cache
             for mk, data, manual in self._db.execute(
                     "SELECT match_key,data,manual FROM enrichment WHERE status='matched'"):
                 if data:
@@ -740,6 +750,11 @@ class Enricher:
                 for mk, data in self._db.execute(f"SELECT match_key,data FROM {src} WHERE status='matched'"):
                     if data:
                         out.setdefault(mk, {}).update(extract(json.loads(data)))
+        # Cache under the change count read at the top. total_changes only grows, so a write
+        # that lands mid-build just means the next call sees a newer count and rebuilds — never
+        # a stale map served as fresh.
+        self._all_light_ver = ver
+        self._all_light_cache = out
         return out
 
     def get_detail(self, key):
