@@ -4344,17 +4344,15 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    visible which facts came from an account rather than the spreadsheet. */
 .mine-pill.plat { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
 
+.mine-ach-track { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
+.mine-ach-track > b { font: 700 11px/1 var(--font); color: var(--dim); flex: 0 0 auto; }
 .mine-ach-bar {
-  position: relative; height: 8px; border-radius: 999px; overflow: hidden;
-  background: var(--surface); border: 1px solid var(--border); margin: 4px 0 10px;
+  flex: 1; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border);
 }
 .mine-ach-bar i {
   display: block; height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-}
-.mine-ach-bar span {
-  position: absolute; right: 6px; top: -1px;
-  font: 700 8.5px/10px var(--font); color: var(--muted);
 }
 .mine-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
 .mine-ach-it {
@@ -4394,3 +4392,28 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .plat-who { font-size: 12px; color: var(--accent); }
 .plat-stats { font-size: 12px; margin-top: 5px; }
 .plat-form { margin-top: 8px; }
+
+/* Trophy grades (PSN): the cell's ring says bronze/silver/gold/platinum. */
+.mine-ach-it.t-bronze.on { border-color: #b0713c; }
+.mine-ach-it.t-silver.on { border-color: #9aa3ad; }
+.mine-ach-it.t-gold.on { border-color: #d4a017; }
+.mine-ach-it.t-platinum.on { border-color: #7ed6df; box-shadow: 0 0 6px rgba(126, 214, 223, .45); }
+.plat-hint { font-size: 11.5px; line-height: 1.45; margin: 2px 0 6px; overflow-wrap: anywhere; }
+
+/* Achievement hover: the cell lifts, and a real tooltip replaces the native
+   title's one-second shrug. Fixed-positioned so it never fights the drawer's
+   overflow; .below flips it under the cell when there's no room above. */
+.mine-ach-it { transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease; cursor: default; }
+.mine-ach-it:hover, .mine-ach-it:focus-visible {
+  transform: scale(1.14); border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35); z-index: 2; outline: none;
+}
+#achTip {
+  position: fixed; z-index: 300; max-width: 280px; pointer-events: none;
+  padding: 9px 11px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--accent-line);
+  box-shadow: var(--glow); font-size: 12px; line-height: 1.45;
+}
+#achTip b { display: block; font-size: 12.5px; margin-bottom: 2px; }
+#achTip .at-desc { color: var(--dim); }
+#achTip .at-meta { color: var(--muted); font-size: 11px; margin-top: 5px; }

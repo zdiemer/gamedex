@@ -23,10 +23,28 @@ let MINE_ENABLED = false;
 // The one provider pass 1 ships. Later providers add themselves here and
 // everything below — pills, panels, badges — picks them up.
 const MINE_PROVIDERS = {
-  steam: { label: "Steam", verb: "on Steam" },
-  psn: { label: "PlayStation", verb: "on PlayStation" },
-  xbox: { label: "Xbox", verb: "on Xbox" },
-  nintendo: { label: "Nintendo", verb: "on Switch" },
+  steam: { label: "Steam", verb: "on Steam", achWord: "Achievements" },
+  psn: { label: "PlayStation", verb: "on PlayStation", achWord: "Trophies" },
+  xbox: { label: "Xbox", verb: "on Xbox", achWord: "Achievements" },
+  nintendo: { label: "Nintendo", verb: "on Switch", achWord: "Achievements" },
+};
+
+// What linking each provider asks for. type=text everywhere — browsers autofill
+// the site's own saved login into any password field, no matter what
+// autocomplete says, which is how a box arrives pre-filled with bullets.
+const PLAT_FORMS = {
+  steam: {
+    hint: "Key from steamcommunity.com/dev/apikey; SteamID64 from your profile URL.",
+    fields: [
+      { k: "apiKey", label: "Web API key", ph: "from steamcommunity.com/dev/apikey" },
+      { k: "steamId", label: "SteamID64", ph: "7656119…", mode: "numeric" },
+    ],
+  },
+  psn: {
+    hint: "Sign in at playstation.com, then visit ca.account.sony.com/api/v1/ssocookie" +
+          " in the same browser and paste the npsso value. Lasts ~2 months.",
+    fields: [{ k: "npsso", label: "NPSSO token", ph: "64-character token" }],
+  },
 };
 const mineEntries = (key) => Object.entries(MINE[key] || {})
   .filter(([p]) => MINE_PROVIDERS[p]);
@@ -102,13 +120,21 @@ function mineAchHtml(provider, d) {
     ...done.sort((a, b) => String(b.unlockedAt || "").localeCompare(String(a.unlockedAt || ""))),
     ...list.filter((a) => !a.unlocked).sort((a, b) => (b.globalPct || 0) - (a.globalPct || 0)),
   ];
+  const grade = (a) => ["bronze", "silver", "gold", "platinum"].includes(a.rarity)
+    ? ` t-${a.rarity}` : "";
   const cell = (a) => {
     const icn = a.unlocked ? a.iconUrl : (a.iconLockedUrl || a.iconUrl);
-    const tip = [a.name, a.description,
-                 a.unlocked && a.unlockedAt ? `Unlocked ${fmtDate(String(a.unlockedAt).slice(0, 10))}` : null,
-                 a.globalPct != null ? `${a.globalPct}% of players` : null]
-      .filter(Boolean).join(" — ");
-    return `<div class="mine-ach-it${a.unlocked ? " on" : ""}" title="${escapeHtml(tip)}">
+    const meta = [a.unlocked && a.unlockedAt
+                    ? `Unlocked ${fmtDate(String(a.unlockedAt).slice(0, 10))}` : (a.unlocked ? "Unlocked" : "Locked"),
+                  a.rarity && isNaN(a.rarity) ? a.rarity[0].toUpperCase() + a.rarity.slice(1) : null,
+                  a.globalPct != null ? `${a.globalPct}% of players have this` : null]
+      .filter(Boolean).join(" · ");
+    // A hidden, still-locked achievement keeps its secret — same rule Steam uses.
+    const secret = a.hidden && !a.unlocked;
+    return `<div class="mine-ach-it${a.unlocked ? " on" : ""}${grade(a)}" tabindex="0"
+      data-tip-name="${escapeHtml(secret ? "Hidden achievement" : a.name || "")}"
+      data-tip-desc="${escapeHtml(secret ? "Unlock it to find out." : a.description || "")}"
+      data-tip-meta="${escapeHtml(meta)}">
       ${icn ? `<img loading="lazy" src="${escapeHtml(cImg(icn))}" alt="" onerror="this.remove()">` : ""}
       ${a.globalPct != null && a.globalPct <= 5 ? `<i class="rare">${a.globalPct}%</i>` : ""}
     </div>`;
@@ -116,8 +142,8 @@ function mineAchHtml(provider, d) {
   const FOLD = 24;
   const grid = (arr) => `<div class="mine-ach-grid">${arr.map(cell).join("")}</div>`;
   return `<div class="hltb mine-ach">
-    <div class="hltb-head">${icon("i-trophy", 15)} Achievements — ${done.length} / ${list.length} · ${escapeHtml(label)}</div>
-    <div class="mine-ach-bar"><i style="width:${pct}%"></i><span>${pct}%</span></div>
+    <div class="hltb-head">${icon("i-trophy", 15)} ${MINE_PROVIDERS[provider].achWord} — ${done.length} / ${list.length} · ${escapeHtml(label)}</div>
+    <div class="mine-ach-track"><div class="mine-ach-bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     ${grid(sorted.slice(0, FOLD))}
     ${sorted.length > FOLD
       ? `<details class="mine-ach-more"><summary>All ${sorted.length}</summary>${grid(sorted.slice(FOLD))}</details>`
@@ -168,7 +194,54 @@ function mineFixHtml(provider, d, key) {
   </details>`;
 }
 
+// One floating tooltip for every achievement grid — built lazily, repositioned
+// per cell, clamped to the viewport. The native title attr was doing this job
+// with a 1s delay and no typography.
+function achTip() {
+  let t = document.getElementById("achTip");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "achTip";
+    t.hidden = true;
+    document.body.appendChild(t);
+  }
+  return t;
+}
+function achTipShow(cell) {
+  const t = achTip();
+  const name = cell.dataset.tipName, desc = cell.dataset.tipDesc, meta = cell.dataset.tipMeta;
+  if (!name && !desc) return;
+  t.innerHTML = `${name ? `<b>${escapeHtml(name)}</b>` : ""}` +
+    `${desc ? `<div class="at-desc">${escapeHtml(desc)}</div>` : ""}` +
+    `${meta ? `<div class="at-meta">${escapeHtml(meta)}</div>` : ""}`;
+  t.hidden = false;
+  const r = cell.getBoundingClientRect();
+  const tw = t.offsetWidth, th = t.offsetHeight;
+  let x = r.left + r.width / 2 - tw / 2;
+  x = Math.max(8, Math.min(x, window.innerWidth - tw - 8));
+  let y = r.top - th - 8;
+  t.classList.toggle("below", y < 8);
+  if (y < 8) y = r.bottom + 8;
+  t.style.left = `${Math.round(x)}px`;
+  t.style.top = `${Math.round(y)}px`;
+}
+function achTipHide() { achTip().hidden = true; }
+
 function wireMineDetail(el, key) {
+  el.querySelectorAll(".mine-ach-grid").forEach((grid) => {
+    grid.addEventListener("mouseover", (e) => {
+      const cell = e.target.closest(".mine-ach-it");
+      if (cell) achTipShow(cell);
+    });
+    grid.addEventListener("mouseout", (e) => {
+      if (e.target.closest(".mine-ach-it")) achTipHide();
+    });
+    grid.addEventListener("focusin", (e) => {
+      const cell = e.target.closest(".mine-ach-it");
+      if (cell) achTipShow(cell);
+    });
+    grid.addEventListener("focusout", achTipHide);
+  });
   // Personal screenshots reuse the one lightbox (see panels.js openShotSet).
   el.querySelectorAll("[data-mineshots]").forEach((strip) => {
     const p = strip.dataset.mineshots;
@@ -242,17 +315,16 @@ function platCardsHtml(state) {
         <span class="muted">coming later</span></div></div>`;
     }
     if (!s.linked) {
+      const form = PLAT_FORMS[p];
+      const fields = (form ? form.fields : []).map((f) =>
+        `<label>${escapeHtml(f.label)}<input type="text" data-cred="${f.k}" autocomplete="off"
+          name="${p}-${f.k}" spellcheck="false" placeholder="${escapeHtml(f.ph)}"${
+          f.mode ? ` inputmode="${f.mode}"` : ""}></label>`).join("");
       return `<div class="plat-card" data-plat="${p}">
         <div class="plat-head"><b>${escapeHtml(def.label)}</b><span class="muted">not linked</span></div>
         <form class="auth-form plat-form">
-          <!-- type=text, NOT password: browsers autofill the site's saved login
-               into any password field (autocomplete=off is ignored for those),
-               which filled this with bullets that looked like a pre-set key. -->
-          <label>Web API key<input type="text" data-cred="apiKey" autocomplete="off"
-            name="steam-api-key" spellcheck="false"
-            placeholder="from steamcommunity.com/dev/apikey"></label>
-          <label>SteamID64<input type="text" data-cred="steamId" autocomplete="off"
-            name="steam-id64" placeholder="7656119…" inputmode="numeric"></label>
+          ${form && form.hint ? `<p class="plat-hint muted">${escapeHtml(form.hint)}</p>` : ""}
+          ${fields}
           <p class="auth-err" data-plat-err hidden></p>
           <div class="ce-acts"><span></span><div class="ce-right">
             <button class="sh-btn primary" type="submit">Link</button>

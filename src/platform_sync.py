@@ -37,7 +37,8 @@ log = logging.getLogger("gamedex.platform_sync")
 _PLATFORM_FAMILY = {
     "steam": {"pc", "mac os"},
     "psn": {"playstation", "playstation 2", "playstation 3", "playstation 4",
-            "playstation 5", "playstation vita", "psp"},
+            "playstation 5", "playstation network", "playstation portable",
+            "playstation vita"},
     "xbox": {"xbox", "xbox 360", "xbox one", "xbox series x|s"},
     "nintendo": {"nintendo switch", "nintendo switch 2", "nintendo wii u",
                  "nintendo 3ds"},
@@ -165,6 +166,9 @@ class PlatformSync:
             counts["reviews"] = stage(
                 "reviews", lambda: self._sync_reviews(provider, client, creds))
             self._db.mark_sync(provider)
+        # Tokens may have rotated during the pass (PSN's do) — the dict the
+        # provider mutated is the only copy that still works next time.
+        self._db.update_credentials(provider, creds)
         self._db.set_status(provider, "error" if errors else "linked",
                             "; ".join(errors) if errors else None)
         log.info("%s sync%s done: %s%s", provider, " (achievements chunk)" if ach_only else "",
@@ -339,19 +343,19 @@ class PlatformSync:
         games = self._db.lib_games(provider)
         matched = appid_hits = title_hits = fuzzy_hits = 0
         owned_appid_keys = []     # keys whose owned appid should refresh steamx/pcgw
+        per_app = {}              # written in ONE transaction at the end
         for g in games:
             aid = str(g["appId"])
             if aid in overrides:
                 mk = overrides[aid]
-                self._db.replace_matches(provider, aid,
-                                         [(mk, "manual", None)] if mk else [])
+                per_app[aid] = [(mk, "manual", None)] if mk else []
                 if mk:
                     matched += 1
                     owned_appid_keys.append((mk, aid))
                 continue
             keys = appid_keys.get(aid)
             if keys:
-                self._db.replace_matches(provider, aid, [(k, "appid", None) for k in keys])
+                per_app[aid] = [(k, "appid", None) for k in keys]
                 matched += 1
                 appid_hits += 1
                 owned_appid_keys += [(k, aid) for k in keys]
@@ -359,7 +363,7 @@ class PlatformSync:
             norm = self._validator.normalize(g["name"] or "")
             keys = by_norm.get(norm)
             if keys:
-                self._db.replace_matches(provider, aid, [(k, "title", None) for k in keys])
+                per_app[aid] = [(k, "title", None) for k in keys]
                 matched += 1
                 title_hits += 1
                 owned_appid_keys += [(k, aid) for k in keys]
@@ -379,12 +383,13 @@ class PlatformSync:
                 hit = self._fuzzy_scan(g["name"], norm, by_norm, meta)
                 keys = [hit] if hit else None
             if keys:
-                self._db.replace_matches(provider, aid, [(k, "fuzzy", None) for k in keys])
+                per_app[aid] = [(k, "fuzzy", None) for k in keys]
                 matched += 1
                 fuzzy_hits += 1
                 owned_appid_keys += [(k, aid) for k in keys]
             else:
-                self._db.replace_matches(provider, aid, [])
+                per_app[aid] = []
+        self._db.replace_matches_bulk(provider, per_app)
         self._db.kv_set(f"match_stamp:{provider}", self._match_stamp(provider))
         log.info("%s matching: %d/%d matched (%d appid, %d title, %d fuzzy)",
                  provider, matched, len(games), appid_hits, title_hits, fuzzy_hits)

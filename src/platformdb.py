@@ -164,6 +164,15 @@ class PlatformDB:
             self._db.commit()
         log.info("unlinked %s (purge=%s)", provider, purge)
 
+    def update_credentials(self, provider: str, credentials: dict) -> None:
+        """Persist rotated tokens (PSN refreshes them mid-sync) without touching
+        status or identity the way link() would."""
+        with self._lock:
+            self._db.execute(
+                "UPDATE linked_accounts SET credentials=? WHERE provider=?",
+                (json.dumps(credentials), provider))
+            self._db.commit()
+
     def set_status(self, provider: str, status: str, error: str | None = None) -> None:
         with self._lock:
             self._db.execute(
@@ -236,6 +245,25 @@ class PlatformDB:
                 self._db.execute(
                     "INSERT OR REPLACE INTO lib_matches(provider,app_id,match_key,source,score)"
                     " VALUES(?,?,?,?,?)", (provider, app_id, mk, source, score))
+            self._db.commit()
+
+    def replace_matches_bulk(self, provider: str,
+                             per_app: dict[str, list[tuple[str, str, int | None]]]) -> None:
+        """The whole matching pass in ONE transaction. Per-app commits meant
+        ~5,000 fsyncs on the PVC — five minutes of a matching pass that
+        computes in under a second."""
+        with self._lock:
+            for app_id, matches in per_app.items():
+                self._db.execute(
+                    "DELETE FROM lib_matches WHERE provider=? AND app_id=?",
+                    (provider, app_id))
+                for mk, source, score in matches:
+                    if not mk:
+                        continue
+                    self._db.execute(
+                        "INSERT OR REPLACE INTO lib_matches(provider,app_id,match_key,"
+                        " source,score) VALUES(?,?,?,?,?)",
+                        (provider, app_id, mk, source, score))
             self._db.commit()
 
     def matches(self, provider: str) -> dict[str, list[dict]]:

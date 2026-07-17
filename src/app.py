@@ -35,6 +35,7 @@ import picross as picross_mod
 import platformdb as platformdb_mod
 import platform_sync as platform_sync_mod
 import prefs as prefs_mod
+import psn_user as psn_user_mod
 import romm
 import steam_user as steam_user_mod
 import gamerankings as gr_mod
@@ -169,7 +170,8 @@ SHOTS_DIR = Path(os.environ.get("PLATFORM_SHOTS_DIR", "/data/platshots"))
 PLATDB = platformdb_mod.PlatformDB(PLATFORMS_DB)
 PSYNC = platform_sync_mod.PlatformSync(
     PLATDB,
-    providers={"steam": steam_user_mod.SteamUserClient()},
+    providers={"steam": steam_user_mod.SteamUserClient(),
+               "psn": psn_user_mod.PsnUserClient()},
     enricher=enricher, catalogue=catalogue, store=store, shots_dir=SHOTS_DIR,
     interval=int(os.environ.get("PLATFORM_SYNC_INTERVAL", "21600")),
     ach_backfill=int(os.environ.get("ACH_BACKFILL_PER_SYNC", "150")),
