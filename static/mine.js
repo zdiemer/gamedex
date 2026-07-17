@@ -356,7 +356,16 @@ async function openPlatformsDialog() {
       if (!r.ok) return;
       const providers = (await r.json()).providers;
       const cards = host.querySelector("#platCards");
-      if (cards && host.isConnected) { cards.innerHTML = platCardsHtml(providers); wirePlatCards(host); }
+      if (!cards || !host.isConnected) return;
+      // Preserve which sections the user has expanded — a blind re-render resets
+      // every <details> to its default and collapses whatever they just opened.
+      const openState = {};
+      cards.querySelectorAll(".plat-card[data-plat]").forEach((d) => { openState[d.dataset.plat] = d.open; });
+      cards.innerHTML = platCardsHtml(providers);
+      cards.querySelectorAll(".plat-card[data-plat]").forEach((d) => {
+        if (d.dataset.plat in openState) d.open = openState[d.dataset.plat];
+      });
+      wirePlatCards(host);
     } catch (_) { /* next tick */ }
   }, 3000);
 }

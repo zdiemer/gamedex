@@ -74,7 +74,7 @@ class ItadClient:
         r.raise_for_status()
         return r.json()
 
-    # ---- appid -> ITAD game id ------------------------------------------------
+    # ---- store id / title -> ITAD game id -------------------------------------
     def lookup_appid(self, appid) -> str | None:
         try:
             j = self._get("/games/lookup/v1", {"appid": int(appid)})
@@ -84,6 +84,41 @@ class ItadClient:
         if j.get("found") and (j.get("game") or {}).get("id"):
             return j["game"]["id"]
         return None
+
+    def lookup_title(self, title) -> str | None:
+        """ITAD game id from a title — how GOG/Epic wishlist items (which carry
+        no Steam appid) get priced. Less exact than an appid, so title-matched
+        prices are as good as the name."""
+        if not (title or "").strip():
+            return None
+        try:
+            j = self._get("/games/lookup/v1", {"title": title})
+        except Exception as exc:
+            log.debug("itad title lookup %r: %s", title, exc)
+            return None
+        if j.get("found") and (j.get("game") or {}).get("id"):
+            return j["game"]["id"]
+        return None
+
+    # ---- bundles --------------------------------------------------------------
+    def bundles(self, itad_id: str) -> list[dict]:
+        """The active bundles a game is currently in — [{title, url, expiry}].
+        One call per game (ITAD has no batch here) and usually empty, so callers
+        pace + cache it. `expired=false` keeps it to bundles you can still buy."""
+        try:
+            rows = self._get("/games/bundles/v2",
+                             {"id": itad_id, "country": self._country, "expired": "false"})
+        except Exception as exc:
+            log.debug("itad bundles %s: %s", itad_id, exc)
+            return None            # None = "couldn't check", vs [] = "checked, none"
+        out = []
+        for bnd in rows or []:
+            page = bnd.get("page") or {}
+            out.append({"title": bnd.get("title"),
+                        "url": bnd.get("url") or page.get("url"),
+                        "shop": (page.get("name") if isinstance(page, dict) else None),
+                        "expiry": bnd.get("expiry")})
+        return out
 
     # ---- prices (batched) -----------------------------------------------------
     def prices(self, itad_ids: list[str]) -> dict:

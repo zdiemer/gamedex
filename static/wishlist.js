@@ -69,11 +69,18 @@ function wishlistDealHtml(row) {
     chips.push(`<a class="btn buy" href="${escapeHtml(p.url)}" target="_blank" rel="noopener"
       title="${escapeHtml(p.voucher ? "Coupon: " + p.voucher : "")}">${escapeHtml(label)} · ${escapeHtml(price)}${p.cut > 0 ? ` (−${p.cut}%)` : ""} ↗</a>`);
   }
+  // In a current bundle — a chip linking straight to it.
+  const bnd = row._wlBundle;
+  if (bnd && bnd.url) {
+    chips.push(`<a class="btn ghost wl-bundle-chip" href="${escapeHtml(bnd.url)}"
+      target="_blank" rel="noopener" title="${escapeHtml(bnd.title || "")}">🎁 In a bundle ↗</a>`);
+  }
   const line = wishlistPriceLine(row);
   if (!chips.length && !line) return "";
   return `<div class="hltb wl-deal">
     <div class="hltb-head">${icon("i-star", 14)} Deal</div>
     ${line}
+    ${bnd && bnd.title ? `<div class="wl-bundle-line">In a bundle: <b>${escapeHtml(bnd.title)}</b></div>` : ""}
     ${chips.length ? `<div class="wl-deal-chips">${chips.join("")}</div>` : ""}
   </div>`;
 }
@@ -244,6 +251,7 @@ function buildWishlistSheet() {
     if (!e.name || /^App \d+$/.test(e.name)) e.name = w.name || e.name;
     // ITAD price rides along on the Steam entry (the console networks have none).
     if (w.price && (w.price.current != null || w.price.low != null)) e.price = w.price;
+    if (w.bundle && w.bundle.title) e.bundle = w.bundle;
   }
 
   // Stamp the price/discount/deal columns (and _wlPrice for the card) from an
@@ -251,6 +259,7 @@ function buildWishlistSheet() {
   const stampPrice = (row, e) => {
     const p = e.price;
     row._wlPrice = p || null;
+    row._wlBundle = e.bundle || null;
     row.price = p && p.current != null ? p.current : null;
     row.discount = p && p.cut ? `-${p.cut}%` : null;
     const deal = [];
@@ -260,6 +269,7 @@ function buildWishlistSheet() {
       else if (p.current != null) deal.push("Full price");
       if (p.current === 0) deal.push("Free");
     }
+    if (e.bundle) deal.push("In a bundle");    // faceted value → "In a Bundle" filter
     row.deal = deal;
     return row;
   };

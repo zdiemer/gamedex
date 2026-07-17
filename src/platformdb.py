@@ -98,7 +98,7 @@ class PlatformDB:
             " itad_id TEXT, price_current REAL, price_regular REAL, price_cut INTEGER,"
             " price_low REAL, price_currency TEXT, price_url TEXT, price_shop TEXT,"
             " price_at_low INTEGER, price_voucher TEXT, price_steam_url TEXT,"
-            " price_updated TEXT,"
+            " price_updated TEXT, bundle_title TEXT, bundle_url TEXT, bundle_checked TEXT,"
             " PRIMARY KEY(provider, app_id))"
         )
         _wl_cols = {r[1] for r in c.execute("PRAGMA table_info(wishlist)")}
@@ -107,7 +107,9 @@ class PlatformDB:
                          ("price_low", "REAL"), ("price_currency", "TEXT"),
                          ("price_url", "TEXT"), ("price_shop", "TEXT"),
                          ("price_at_low", "INTEGER"), ("price_voucher", "TEXT"),
-                         ("price_steam_url", "TEXT"), ("price_updated", "TEXT")):
+                         ("price_steam_url", "TEXT"), ("price_updated", "TEXT"),
+                         ("bundle_title", "TEXT"), ("bundle_url", "TEXT"),
+                         ("bundle_checked", "TEXT")):
             if col not in _wl_cols:
                 c.execute(f"ALTER TABLE wishlist ADD COLUMN {col} {typ}")
         c.execute(
@@ -426,7 +428,8 @@ class PlatformDB:
     _WL_KEEP = ("match_key", "igdb_id", "cover", "name", "itad_id",
                 "price_current", "price_regular", "price_cut", "price_low",
                 "price_currency", "price_url", "price_shop", "price_at_low",
-                "price_voucher", "price_steam_url", "price_updated")
+                "price_voucher", "price_steam_url", "price_updated",
+                "bundle_title", "bundle_url", "bundle_checked")
 
     def replace_wishlist(self, provider: str, items: list[dict]) -> None:
         """Full refresh, but keep the prior match AND price columns for entries
@@ -443,8 +446,9 @@ class PlatformDB:
                     "INSERT INTO wishlist(provider,app_id,name,added_at,priority,extra,"
                     " match_key,igdb_id,cover,updated_at,itad_id,price_current,"
                     " price_regular,price_cut,price_low,price_currency,price_url,"
-                    " price_shop,price_at_low,price_voucher,price_steam_url,price_updated)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " price_shop,price_at_low,price_voucher,price_steam_url,price_updated,"
+                    " bundle_title,bundle_url,bundle_checked)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (provider, aid, w.get("name") or p.get("name"), w.get("addedAt"),
                      w.get("priority"),
                      json.dumps(w["extra"]) if w.get("extra") else None,
@@ -452,18 +456,19 @@ class PlatformDB:
                      p.get("itad_id"), p.get("price_current"), p.get("price_regular"),
                      p.get("price_cut"), p.get("price_low"), p.get("price_currency"),
                      p.get("price_url"), p.get("price_shop"), p.get("price_at_low"),
-                     p.get("price_voucher"), p.get("price_steam_url"), p.get("price_updated")))
+                     p.get("price_voucher"), p.get("price_steam_url"), p.get("price_updated"),
+                     p.get("bundle_title"), p.get("bundle_url"), p.get("bundle_checked")))
             self._db.commit()
 
     def wishlist_for_pricing(self, provider: str, stale_before: str) -> list[dict]:
-        """Steam wishlist entries whose price is missing or older than
-        `stale_before` (an ISO timestamp) — the ones a price pass should refresh."""
+        """Wishlist entries whose price is missing or older than `stale_before`
+        (an ISO timestamp) — the ones a price pass should refresh."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT app_id, itad_id FROM wishlist WHERE provider=?"
+                "SELECT app_id, itad_id, name FROM wishlist WHERE provider=?"
                 " AND (price_updated IS NULL OR price_updated < ?)",
                 (provider, stale_before)).fetchall()
-        return [{"appId": r[0], "itadId": r[1]} for r in rows]
+        return [{"appId": r[0], "itadId": r[1], "name": r[2]} for r in rows]
 
     def set_wishlist_price(self, provider: str, app_id: str, itad_id: str | None,
                            price: dict | None) -> None:
@@ -500,13 +505,33 @@ class PlatformDB:
                 (match_key, igdb_id, cover, name, provider, str(app_id)))
             self._db.commit()
 
+    def wishlist_for_bundles(self, provider: str, stale_before: str, limit: int) -> list[dict]:
+        """Matched wishlist entries whose bundle status is unchecked or stale.
+        Bounded — bundle checks are one ITAD call each and usually come back
+        empty, so this backfills a little per pass."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT app_id, itad_id FROM wishlist WHERE provider=? AND itad_id IS NOT NULL"
+                " AND (bundle_checked IS NULL OR bundle_checked < ?) LIMIT ?",
+                (provider, stale_before, limit)).fetchall()
+        return [{"appId": r[0], "itadId": r[1]} for r in rows]
+
+    def set_wishlist_bundle(self, provider: str, app_id: str, bundle: dict | None) -> None:
+        with self._lock:
+            self._db.execute(
+                "UPDATE wishlist SET bundle_title=?, bundle_url=?, bundle_checked=?"
+                " WHERE provider=? AND app_id=?",
+                ((bundle or {}).get("title"), (bundle or {}).get("url"), _now(),
+                 provider, str(app_id)))
+            self._db.commit()
+
     def wishlist_all(self) -> list[dict]:
         with self._lock:
             rows = self._db.execute(
                 "SELECT provider, app_id, name, added_at, priority, match_key,"
                 " igdb_id, cover, price_current, price_regular, price_cut, price_low,"
                 " price_currency, price_url, price_shop, price_at_low, price_voucher,"
-                " price_steam_url FROM wishlist").fetchall()
+                " price_steam_url, bundle_title, bundle_url FROM wishlist").fetchall()
         out = []
         for r in rows:
             item = {"provider": r[0], "appId": r[1], "name": r[2], "addedAt": r[3],
@@ -516,6 +541,8 @@ class PlatformDB:
                                  "low": r[11], "currency": r[12], "url": r[13],
                                  "shop": r[14], "atLow": bool(r[15]), "voucher": r[16],
                                  "steamUrl": r[17]}
+            if r[18]:                                       # currently in a bundle
+                item["bundle"] = {"title": r[18], "url": r[19]}
             out.append(item)
         return out
 

@@ -4464,3 +4464,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .wl-deal-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn.buy { background: linear-gradient(90deg, #1f9d63, #24c98a); color: #04140c; border: none; font-weight: 700; }
 .btn.buy:hover { filter: brightness(1.08); }
+
+/* Wishlist bundle chip/line. */
+.wl-bundle-line { font-size: 12.5px; margin-bottom: 8px; color: var(--dim); }
+.wl-bundle-chip { border-color: var(--accent-line); }

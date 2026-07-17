@@ -331,18 +331,21 @@ class PlatformSync:
         # sync_account — so a big first backfill drains on the fast loop.
         return len(items)
 
+    # PC storefronts whose wishlists have a store price worth pricing via ITAD.
+    _PRICED_STORES = {"steam", "gog", "epic"}
+
     def _price_wishlist(self, provider):
-        """Refresh ITAD prices for wishlist entries whose price is stale (>12h)
-        or never fetched. Steam only — ITAD keys off the Steam appid, and the
-        console networks have no store price to compare.
+        """Refresh ITAD prices for a store's wishlist. Steam resolves to an ITAD
+        game by its appid (exact); GOG and Epic have no Steam appid, so they
+        resolve by title (as good as the name). Console networks have no store
+        price and are skipped.
 
         Two kinds of work with very different costs: entries that already have a
         resolved ITAD id just need a (batched, cheap) price refresh; entries
-        without one need a lookup EACH. The lookups are capped per pass
-        (ITAD_LOOKUP_PER_SYNC) so the first-time backfill of a few thousand
-        wishlist items spreads over a handful of syncs instead of blocking one
-        for 15 minutes — the ids cache once resolved, so it's a one-time cost."""
-        if self._itad is None or not self._itad.configured or provider != "steam":
+        without one need a lookup EACH. The lookups are capped per pass so the
+        first-time backfill of a few thousand items spreads over a handful of
+        syncs — the ids cache once resolved, so it's a one-time cost."""
+        if self._itad is None or not self._itad.configured or provider not in self._PRICED_STORES:
             return
         from datetime import datetime, timedelta, timezone
         stale = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat(timespec="seconds")
@@ -350,12 +353,14 @@ class PlatformSync:
         if not todo:
             return
         resolved = {w["appId"]: w["itadId"] for w in todo if w["itadId"]}
-        need_lookup = [w["appId"] for w in todo if not w["itadId"]]
+        need_lookup = [w for w in todo if not w["itadId"]]
         cap = int(getattr(self, "_itad_lookup_cap", 500))
-        for app_id in need_lookup[:cap]:
+        for w in need_lookup[:cap]:
             if self._stop.is_set():
                 break
-            iid = self._itad.lookup_appid(app_id)
+            app_id = w["appId"]
+            iid = (self._itad.lookup_appid(app_id) if provider == "steam"
+                   else self._itad.lookup_title(w["name"]))
             if iid:
                 resolved[app_id] = iid
             else:
@@ -367,6 +372,7 @@ class PlatformSync:
         prices = self._itad.prices(list(set(resolved.values())))
         for app_id, iid in resolved.items():
             self._db.set_wishlist_price(provider, app_id, iid, prices.get(iid))
+        self._bundles_wishlist(provider)
         remaining = max(0, len(need_lookup) - cap)
         # Keep the worker on the fast loop until the id backlog is drained, so
         # the first-time price backfill finishes in one sitting rather than one
@@ -375,6 +381,28 @@ class PlatformSync:
             self._hot[provider] = True
         log.info("steam wishlist prices: refreshed %d (ITAD)%s", len(resolved),
                  f", {remaining} left to resolve" if remaining else "")
+
+    def _bundles_wishlist(self, provider):
+        """Check ITAD bundles for a bounded slice of matched wishlist items whose
+        bundle status is unchecked/stale. One call each and usually empty, so a
+        small bite per pass, cached a day (bundles change slowly)."""
+        if self._itad is None or not self._itad.configured:
+            return
+        from datetime import datetime, timedelta, timezone
+        stale = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+        todo = self._db.wishlist_for_bundles(provider, stale, 40)
+        found = 0
+        for w in todo:
+            if self._stop.is_set():
+                break
+            bundles = self._itad.bundles(w["itadId"])
+            if bundles is None:               # couldn't check — leave it for next pass
+                continue
+            b = bundles[0] if bundles else None
+            self._db.set_wishlist_bundle(provider, w["appId"], b)
+            found += 1 if b else 0
+        if found:
+            log.info("steam wishlist bundles: %d now in a bundle", found)
 
     def _sync_reviews(self, provider, client, creds) -> int:
         items = client.fetch_reviews(creds)
