@@ -4398,7 +4398,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .mine-ach-it.t-silver.on { border-color: #9aa3ad; }
 .mine-ach-it.t-gold.on { border-color: #d4a017; }
 .mine-ach-it.t-platinum.on { border-color: #7ed6df; box-shadow: 0 0 6px rgba(126, 214, 223, .45); }
-.plat-hint { font-size: 11.5px; line-height: 1.45; margin: 2px 0 6px; overflow-wrap: anywhere; }
+.plat-hint { font-size: 11.5px; line-height: 1.5; margin: 2px 0 8px; color: var(--dim); overflow-wrap: anywhere; }
+.plat-hint a { overflow-wrap: anywhere; }
+.plat-hint code { font-size: 11px; padding: 1px 4px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); }
+.plat-steps { margin: 0 0 6px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.plat-steps li { padding-left: 2px; }
 
 /* Achievement hover: the cell lifts, and a real tooltip replaces the native
    title's one-second shrug. Fixed-positioned so it never fights the drawer's

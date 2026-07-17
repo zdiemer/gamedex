@@ -127,14 +127,28 @@ class PsnUserClient:
         return r.json()
 
     def validate(self, creds: dict) -> dict:
+        # The ONLY thing that decides a valid link is whether the NPSSO buys a
+        # token pair. Anything after that — the display-name lookup — is cosmetic
+        # and must not fail the link (a 502 on the profile call is exactly what
+        # blocked the first real attempt).
         try:
             self._npsso_to_tokens(creds)
         except ValueError:
             raise
         except Exception as exc:
+            log.warning("psn auth failed: %s", exc)
             raise ValueError(f"couldn't reach PSN auth ({exc})")
-        j = self._get(creds, "/userProfile/v1/internal/users/me/profiles")
-        return {"displayName": j.get("onlineId")}
+        name = None
+        for path in ("/userProfile/v1/internal/users/me/profiles",
+                     "/userProfile/v1/users/me/profile2"):
+            try:
+                j = self._get(creds, path)
+                name = j.get("onlineId") or ((j.get("profile") or {}).get("onlineId"))
+                if name:
+                    break
+            except Exception as exc:
+                log.info("psn profile lookup via %s failed: %s", path, exc)
+        return {"displayName": name}
 
     # ---- library ----------------------------------------------------------------
     def fetch_library(self, creds: dict) -> list[dict]:

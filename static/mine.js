@@ -34,15 +34,21 @@ const MINE_PROVIDERS = {
 // autocomplete says, which is how a box arrives pre-filled with bullets.
 const PLAT_FORMS = {
   steam: {
-    hint: "Key from steamcommunity.com/dev/apikey; SteamID64 from your profile URL.",
+    // hintHtml is trusted, author-written markup (NOT user data) — the only
+    // place in a provider card that isn't escaped.
+    hintHtml: `Get a key at <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey ↗</a>;
+      your SteamID64 is the number in your profile URL (<a href="https://steamid.io" target="_blank" rel="noopener">steamid.io ↗</a> resolves a vanity name).`,
     fields: [
       { k: "apiKey", label: "Web API key", ph: "from steamcommunity.com/dev/apikey" },
       { k: "steamId", label: "SteamID64", ph: "7656119…", mode: "numeric" },
     ],
   },
   psn: {
-    hint: "Sign in at playstation.com, then visit ca.account.sony.com/api/v1/ssocookie" +
-          " in the same browser and paste the npsso value. Lasts ~2 months.",
+    hintHtml: `<ol class="plat-steps">
+      <li><a href="https://www.playstation.com" target="_blank" rel="noopener">Sign in to playstation.com ↗</a> with your PSN account.</li>
+      <li>In the same browser, open <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noopener">ca.account.sony.com/api/v1/ssocookie ↗</a>.</li>
+      <li>Copy the <code>npsso</code> value from the JSON it returns and paste it below.</li>
+    </ol><span class="muted">The token lasts ~2 months; you'll be asked for a fresh one when it expires.</span>`,
     fields: [{ k: "npsso", label: "NPSSO token", ph: "64-character token" }],
   },
 };
@@ -323,7 +329,7 @@ function platCardsHtml(state) {
       return `<div class="plat-card" data-plat="${p}">
         <div class="plat-head"><b>${escapeHtml(def.label)}</b><span class="muted">not linked</span></div>
         <form class="auth-form plat-form">
-          ${form && form.hint ? `<p class="plat-hint muted">${escapeHtml(form.hint)}</p>` : ""}
+          ${form && form.hintHtml ? `<div class="plat-hint">${form.hintHtml}</div>` : ""}
           ${fields}
           <p class="auth-err" data-plat-err hidden></p>
           <div class="ce-acts"><span></span><div class="ce-right">

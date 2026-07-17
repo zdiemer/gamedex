@@ -433,8 +433,12 @@ def api_platform_link(provider: str, body: PlatformLink,
         info = client.validate(body.credentials)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception:
-        raise HTTPException(status_code=502, detail="could not reach the platform")
+    except Exception as e:
+        # Log the real cause; hand the browser the class + message so a link
+        # failure is diagnosable instead of a blank "could not reach the platform".
+        logging.getLogger("gamedex").warning("%s link validate failed: %r", provider, e)
+        raise HTTPException(status_code=502,
+                            detail=f"{provider} auth error: {type(e).__name__}: {e}")
     PLATDB.link(provider, body.credentials, info.get("displayName"))
     PSYNC.kick()
     return {"ok": True, "displayName": info.get("displayName")}
