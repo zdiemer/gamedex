@@ -87,10 +87,16 @@ function detailHtml(d) {
   // own list would only ever say "Puzzle".
   const curated = drawerRow ? curatedGenres(drawerRow) : [];
   const genreChips = [...new Set([...curated, ...(d.genres || []).map((g) => String(canonGenre(g)))])];
-  const tags = chips(genreChips, "genre") + chips(d.themes, "__igdb_theme")
-    + chips(d.perspectives, "__igdb_persp")
-    + chips(d.gameModes, "__igdb_mode")
-    + chips(d.keywords, "__igdb_kw");
+  // One combined, capped list: genres/themes/perspectives/modes first, then IGDB's long
+  // keyword tail. Everything past TAG_CAP folds behind "+N more" (tagChipsHtml).
+  const tagItems = [
+    ...genreChips.map((x) => ({ x, fk: "genre" })),
+    ...(d.themes || []).map((x) => ({ x, fk: "__igdb_theme" })),
+    ...(d.perspectives || []).map((x) => ({ x, fk: "__igdb_persp" })),
+    ...(d.gameModes || []).map((x) => ({ x, fk: "__igdb_mode" })),
+    ...(d.keywords || []).map((x) => ({ x, fk: "__igdb_kw" })),
+  ];
+  const tags = tagChipsHtml(tagItems);
   return (badge ? `<div class="badges">${badge}</div>` : "") +
     (text ? `<div class="detail-row notes"><div class="k">Summary (${escapeHtml(d.source || "IGDB")})</div><div class="v">${escapeHtml(text)}</div></div>` : "") +
     (tags ? `<div class="detail-row notes tag-row"><div class="k">Tags</div><div class="v">${tags}</div></div>` : "") +

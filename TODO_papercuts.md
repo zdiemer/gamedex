@@ -42,7 +42,8 @@ and any decisions made along the way.
       picks). `home.js`.
 - [x] **9. Collapse long tag lists** — the drawer's Tags row is now one combined, capped
       list (`TAG_CAP=12`); the keyword tail folds behind a "+N more" chip that expands
-      in place. `hero.js`, `chrome.js`, `style.css`.
+      in place. `hero.js`, `chrome.js`, `style.css`. (Wiring fix in 1.58.16: the helper
+      was defined but not called, so the fold didn't happen until then.)
 - [x] **10. Equal cards per row** — `applyGridColumns` measures the natural (widest-fit)
       column count live and reduces it to the one that best fills the last row, so every
       row holds the same number of cards; re-balances on resize. `table.js`.
@@ -59,13 +60,14 @@ and any decisions made along the way.
 
 ## Shelf (`shelf.js`)
 
-- [ ] **13. More performant rendering for low-spec machines.**
+- [x] **13. Perf on low-spec** (1.58.16) — real spine scans load lazily via the
+      IntersectionObserver as they near the viewport, not ~2,000 decodes up front.
+- [x] **16. Mobile tap-then-bounce** (1.58.16) — a height-only resize (URL bar) no longer
+      rebuilds the shelf and closes the just-opened box.
 - [ ] **14. Invisible inner hinge** — opening a box exposes the outside view through the
-      hinge.
+      hinge. NEEDS VISUAL DIAGNOSIS (3D CSS).
 - [ ] **15. Black outline on box fronts/backs** — likely the model bleeding through
-      behind the art.
-- [ ] **16. Mobile tap bounces back** — tapping a box brings it forward then it instantly
-      returns to the shelf, likely a load/refresh race.
+      behind the art. NEEDS VISUAL DIAGNOSIS (3D CSS).
 
 ## Notes
 

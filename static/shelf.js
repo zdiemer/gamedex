@@ -140,12 +140,21 @@ function shFitName(spine) {
   }
 }
 let shFitObs = null;
+// One observer, two jobs, both keyed on "about to be seen": fit a standard spine's title,
+// and load a real spine's scan (deferred from first paint — see shSpineHtml). rootMargin
+// warms each a little before it scrolls into view, so neither pops in visibly.
 function shObserveFit(root) {
   if (shFitObs) shFitObs.disconnect();
   shFitObs = new IntersectionObserver((ents) => {
-    for (const e of ents) if (e.isIntersecting) { shFitName(e.target); shFitObs.unobserve(e.target); }
+    for (const e of ents) {
+      if (!e.isIntersecting) continue;
+      const el = e.target;
+      if (el.dataset.bg) { el.style.background = el.dataset.bg; delete el.dataset.bg; }  // real: load the scan
+      else shFitName(el);                                                                // std: fit the title
+      shFitObs.unobserve(el);
+    }
   }, { rootMargin: "300px" });
-  root.querySelectorAll(".sh-spine.std").forEach((el) => shFitObs.observe(el));
+  root.querySelectorAll(".sh-spine.std, .sh-spine.real[data-bg]").forEach((el) => shFitObs.observe(el));
 }
 
 async function loadShelf() {
@@ -199,19 +208,24 @@ async function renderShelf() {
   document.getElementById("shVeil").onclick = shelfClose;
   window.addEventListener("resize", shOnResize);   // dedup'd — re-pack boards to new width
   paintShelfRows();
+  shLastW = document.getElementById("shRows")?.clientWidth || 0;   // baseline for the width-only guard
 }
 
 // The board width depends on the viewport, so re-pack when it changes. Debounced, and a
 // no-op once the shelf is gone from the DOM.
-let shResizeT = 0;
+let shResizeT = 0, shLastW = 0;
 function shOnResize() {
   clearTimeout(shResizeT);
   shResizeT = setTimeout(() => {
-    if (!document.getElementById("shRows")) return;
-    paintShelfRows();
-    // A box in your hand when the phone turns: the room above the sheet is a different
-    // shape now, so work out where the case belongs and put it there.
-    if (shCur >= 0) { shPlaceTarget(); shPaint(); }
+    const rows = document.getElementById("shRows");
+    if (!rows) return;
+    const w = rows.clientWidth;
+    // A box in your hand: NEVER re-pack — paintShelfRows() closes the open case, and that
+    // was the phone bug where tapping a spine popped the box out and it snapped straight
+    // back. Just re-place it in the (possibly reshaped) room. The mobile URL bar hiding on
+    // tap fires a resize with an unchanged width; only a real WIDTH change needs a re-pack.
+    if (shCur >= 0) { shLastW = w; shPlaceTarget(); shPaint(); return; }
+    if (w !== shLastW) { shLastW = w; paintShelfRows(); }
   }, 160);
 }
 
@@ -235,10 +249,12 @@ function shSpineHtml(g, i) {
   const done = g.done ? " done" : "";
   const badge = g.done ? `<i class="sh-check" aria-hidden="true"></i>` : "";
   if (real) {
-    // The hue sits UNDER the scan, so a spine whose scan hasn't arrived yet is the
-    // right colour rather than a black rectangle.
-    const bg = `background:${g.hue} center/100% 100% no-repeat url(${faceUrl(g.k, "spine", g.uv)})`;
-    return `<button class="sh-spine real${done}" data-i="${i}" ${t} style="${dims};${bg}">${badge}</button>`;
+    // The hue sits UNDER the scan, so a spine whose scan hasn't arrived yet is the right
+    // colour rather than a black rectangle. The scan itself is LAZY — decoding two thousand
+    // spine images up front is what made the shelf crawl on low-spec machines. It's stashed
+    // in data-bg and applied by shObserveFit only as the spine nears the viewport.
+    const bg = `${g.hue} center/100% 100% no-repeat url(${faceUrl(g.k, "spine", g.uv)})`;
+    return `<button class="sh-spine real${done}" data-i="${i}" ${t} data-bg="${escapeHtml(bg)}" style="${dims};background:${g.hue}">${badge}</button>`;
   }
   const s = spineStyle(g.p);
   return `<button class="sh-spine std${done}" data-i="${i}" ${t} style="${dims};background:${s.base}">${badge}${stdSpineHtml(g)}</button>`;
