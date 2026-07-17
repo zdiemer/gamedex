@@ -437,6 +437,37 @@ class IgdbClient:
         result = self.fetch_by_slug(m.group(1))
         return self.enrichment_from_result(result) if result else None
 
+    # external_game_source ids (mirror of _STORE_SOURCE): 1 steam, 36 playstation,
+    # 11 xbox, 5 gog, 26 epic. The authoritative appid -> IGDB join.
+    _EXT_SOURCE = {"steam": 1, "playstation": 36, "xbox": 11, "gog": 5, "epic": 26}
+
+    def game_by_store_id(self, store: str, app_id: str) -> dict | None:
+        """The IGDB game a storefront id points at — {igdbId, name, cover, year}.
+        This is exact where a title match only guesses: a Steam wishlist entry
+        carries its appid, and external_games maps it straight to the game."""
+        src = self._EXT_SOURCE.get(store)
+        if src is None or not app_id:
+            return None
+        try:
+            rows = self._post(
+                "external_games",
+                f'fields game.id,game.name,game.cover.image_id,'
+                f'game.first_release_date; '
+                f'where uid = "{app_id}" & external_game_source = {src}; limit 5;')
+        except Exception as exc:
+            log.debug("external_games %s/%s: %s", store, app_id, exc)
+            return None
+        for r in rows:
+            g = r.get("game") or {}
+            if g.get("id"):
+                yr = None
+                if g.get("first_release_date"):
+                    from datetime import datetime, timezone
+                    yr = datetime.fromtimestamp(g["first_release_date"], timezone.utc).year
+                return {"igdbId": g["id"], "name": g.get("name"),
+                        "cover": (g.get("cover") or {}).get("image_id"), "year": yr}
+        return None
+
     def _to_enrichment(self, c, info):
         e = self.enrichment_from_result(c)
         e["confidence"] = info.match_score

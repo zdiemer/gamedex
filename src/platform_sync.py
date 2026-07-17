@@ -457,6 +457,9 @@ class PlatformSync:
         self._enricher.requeue_appid_sources(wrong)
         self._db.kv_set("requeue_sig:steam", sig)
 
+    # The IGDB external_games slot each provider's app id lives under.
+    _EXT_STORE = {"steam": "steam", "psn": "playstation", "xbox": "xbox"}
+
     def _match_wishlist(self, provider):
         if self._enricher is None:
             return
@@ -466,22 +469,36 @@ class PlatformSync:
         for mk, m in meta.items():     # any platform: a wishlisted PC game may be owned on PS4
             by_norm.setdefault(self._validator.normalize(m.get("title") or ""),
                                []).append(mk)
+        # An IGDB appid->game lookup is the authoritative match for a wishlist
+        # item (a Steam entry carries its appid; external_games maps it straight
+        # to the game), but it's one API call each — so it's paced: a bounded
+        # slice of the still-unmatched items per pass, the rest next time.
+        igdb = getattr(self._enricher, "_igdb", None)
+        store = self._EXT_STORE.get(provider)
+        api_budget = 150
         for w in self._db.wishlist_unmatched(provider):
             aid = str(w["appId"])
             keys = appid_keys.get(aid)
             if keys:
                 self._db.set_wishlist_match(provider, aid, keys[0], None)
                 continue
-            if not w["name"]:
-                continue
-            norm = self._validator.normalize(w["name"])
-            keys = by_norm.get(norm)
+            norm = self._validator.normalize(w["name"]) if w["name"] else ""
+            keys = by_norm.get(norm) if norm else None
             if keys:
                 self._db.set_wishlist_match(provider, aid, keys[0], None)
                 continue
-            if self._catalogue is not None:
+            if norm and self._catalogue is not None:
                 hit = self._catalogue.lookup_norm(norm)
                 if hit:
                     self._db.set_wishlist_match(provider, aid, None, hit["igdbId"],
                                                 cover=hit.get("cover"),
                                                 name=w["name"] or hit.get("name"))
+                    continue
+            # Last resort: ask IGDB directly by store id. Bounded per pass.
+            if igdb is not None and store and api_budget > 0:
+                api_budget -= 1
+                g = igdb.game_by_store_id(store, aid)
+                if g and g.get("igdbId"):
+                    self._db.set_wishlist_match(provider, aid, None, g["igdbId"],
+                                                cover=g.get("cover"),
+                                                name=w["name"] or g.get("name"))
