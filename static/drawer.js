@@ -266,6 +266,7 @@ function openDrawer(row, sheetKey, keepStack) {
   // which is why one game's scroll position leaked into the next.
   $("#drawer").scrollTop = 0;
   drawerRow = row;
+  if (typeof setDocTitle === "function") setDocTitle();   // "<game> · Gamedex" in the address bar
   syncScrollLock();                       // the page behind the drawer must not scroll
   if (ENRICH_ENABLED && row._k && !row._wlOnly) loadDetail(row._k, $("#igdbDetail"), 0, row);
   else if (wlDetail) loadDetail(row._k, $("#igdbDetail"), 0, row, row._igdbId);
@@ -273,6 +274,7 @@ function openDrawer(row, sheetKey, keepStack) {
 }
 function closeDrawer() {
   $("#overlay").hidden = true; drawerStack = [];
+  if (typeof setDocTitle === "function") setDocTitle();   // back to the tab's title
   // If this drawer was opened FROM attract mode, closing it hands the screen straight
   // back to the slideshow (which re-locks scroll itself) — don't also kick the tour.
   if (typeof attractResume === "function" && attractResume()) return;

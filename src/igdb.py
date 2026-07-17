@@ -450,7 +450,7 @@ class IgdbClient:
                 rows = self._post(
                     "games",
                     "fields id,name,cover.image_id,first_release_date,"
-                    "videos.video_id,platforms.name,summary,"
+                    "videos.video_id,screenshots.image_id,platforms.name,summary,"
                     "genres.name,themes.name,game_modes.name,player_perspectives.name,"
                     "keywords.name,game_engines.name,franchises.name,franchise.name,"
                     "involved_companies.company.name,involved_companies.developer,"
@@ -481,10 +481,19 @@ class IgdbClient:
                     if ic.get("publisher"):
                         pubs.append(nm)
                 crit, usr = g.get("aggregated_rating"), g.get("rating")
+                vid = (vids[0].get("video_id") if vids else None)
+                # A few screenshot ids so a trailer-less card (recs / wishlist) can cross-fade
+                # its stills on hover instead of showing nothing — same convention as the
+                # enrichment light map: only when there's no trailer, capped small.
+                shots = None
+                if not vid:
+                    ss = [s.get("image_id") for s in (g.get("screenshots") or []) if s.get("image_id")]
+                    shots = ss[:4] or None
                 out[gid] = {
                     "name": g.get("name"),
                     "cover": (g.get("cover") or {}).get("image_id"),
-                    "video": (vids[0].get("video_id") if vids else None),
+                    "video": vid,
+                    "shots": shots,
                     "year": year, "release": iso,
                     "platforms": [p.get("name") for p in (g.get("platforms") or []) if p.get("name")],
                     "genres": [x.get("name") for x in (g.get("genres") or []) if x.get("name")],

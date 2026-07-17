@@ -155,6 +155,7 @@ function switchTab(tab, reset) {
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("active", b.dataset.tab === tab);
   if (!SPECIAL_TABS.includes(tab)) $("#search").value = tabState[tab].search;
   renderAll();
+  setDocTitle();
 }
 
 // ---- URL state: back/forward + shareable/refreshable links ---------------
@@ -261,8 +262,26 @@ function applyStateFromURL() {
   applyingState = false;
   switchTab(tab);
 }
-const nav = () => syncURL(true);
-window.addEventListener("popstate", applyStateFromURL);
+const nav = () => { syncURL(true); setDocTitle(); };
+window.addEventListener("popstate", () => { applyStateFromURL(); setDocTitle(); });
+
+// Reflect the current view in the browser tab / address bar — an open game reads as
+// "Chrono Trigger · Gamedex", a tab as "All Games · Gamedex", Home as just "Gamedex" —
+// instead of a permanent "Gamedex". Tab labels are read from the live nav so they can't
+// go stale.
+function setDocTitle() {
+  // An open game names itself ("Chrono Trigger · Gamedex"); otherwise the tab does ("All
+  // Games · Gamedex"), and Home is just "Gamedex".
+  let lead = "";
+  if (typeof drawerRow !== "undefined" && drawerRow && !$("#overlay").hidden) {
+    lead = String(drawerRow.title || drawerRow.game || "");
+  } else {
+    const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"] span`);
+    const label = btn ? btn.textContent.trim() : (activeTab === "picross" ? "Daily Picross" : "");
+    if (label && label !== "Home") lead = label;
+  }
+  document.title = lead ? `${lead} · Gamedex` : "Gamedex";
+}
 
 function setFreshness() {
   const m = DATA.meta || {};

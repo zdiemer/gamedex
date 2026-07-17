@@ -437,7 +437,11 @@ function patchEnrichedCells() {
     if (!row) return;
     const cur = card.querySelector(".card-cover");
     const cs = coverSrc(ENRICH[card.dataset.k], "cover_big");
-    if (cs && cur && cur.tagName !== "IMG") {          // placeholder → real cover
+    // Swap the cover when it's a placeholder OR when the resolved cover CHANGED — the
+    // latter is how a hand-uploaded box art (uploadCover, set by loadUploads a moment after
+    // the IGDB cover was already painted) actually reaches the card; without it the manual
+    // art only ever showed on a full re-render and vanished on the next patch.
+    if (cs && cur && (cur.tagName !== "IMG" || cur.getAttribute("src") !== cs)) {
       const img = document.createElement("img");
       // Must re-apply .pixel here too: on first paint the enrichment hasn't
       // arrived, so every cover starts as a placeholder and is swapped in HERE.

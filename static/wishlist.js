@@ -331,6 +331,7 @@ function buildWishlistSheet() {
     const m = e.igdbId ? (WL_META[e.igdbId] || null) : null;
     if (m) {
       if (m.video && !rec.video) rec.video = m.video;
+      if (m.shots && !rec.shots) rec.shots = m.shots;   // trailer-less: screenshots for the hover fade
       if (m.cover && !rec.cover) rec.cover = m.cover;
       // The taste model's catalogue scope (predict.js SCOPES.igdb) regresses on
       // exactly these IGDB fields. Merging them onto the record — the same one

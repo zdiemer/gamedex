@@ -142,7 +142,11 @@ async function postEnrich(keys) {
     const j = await res.json();
     if (j.enabled === false) { ENRICH_ENABLED = false; return; }
     let changed = false;
-    for (const [k, v] of Object.entries(j.items || {})) { ENRICH[k] = v; changed = true; }
+    // MERGE, don't replace: a hand-uploaded cover (uploadCover) is stamped onto ENRICH[k] by
+    // loadUploads, and if this page-scoped response lands after that it would wipe it — the
+    // manual box art flashing in then vanishing. Object.assign keeps client-only fields
+    // (uploadCover, and any wl:/rec: seed) while taking the server's. Matches loadAllEnrichment.
+    for (const [k, v] of Object.entries(j.items || {})) { ENRICH[k] = Object.assign(ENRICH[k] || {}, v); changed = true; }
     updateEnrichStatus(j.stats);
     if (changed) { _enrichEpoch++; resetSearchCache(); patchEnrichedCells(); }   // in-place: no flicker
     if (j.pending && j.pending.length) {                    // still resolving — poll

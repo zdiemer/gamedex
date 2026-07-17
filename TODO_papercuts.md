@@ -114,6 +114,36 @@ and any decisions made along the way.
       the library, leaking its stamped `_wlPrice` badge onto All Games. Gated to the Wishlist
       tab. `table.js`.
 
+## Shipped in 1.58.24 (bugs found while you were testing + two new items)
+
+- [x] **Manual cover flashed then vanished (regression)** — the faster enrichment endpoint
+      changed the load ordering and exposed it: `postEnrich` (page-scoped map) did `ENRICH[k]=v`
+      (a REPLACE), wiping the `uploadCover` that `loadUploads` had just stamped; and
+      `patchEnrichedCells` only swapped placeholder→img so a newly-set upload never replaced an
+      already-shown IGDB cover. Fix: `postEnrich` MERGES (like loadAllEnrichment), and
+      patchEnrichedCells reconciles the cover when `coverSrc` changes. `enrich.js`, `preview.js`.
+- [x] **27. Dynamic address bar title** (new) — was permanently "Gamedex"; now "All Games ·
+      Gamedex", "Chrono Trigger · Gamedex" (open game), "Gamedex" on Home. `app.js`, `drawer.js`.
+- [x] **28. Home hero cover didn't refresh after enrichment** — the hero cover carries data-hk
+      but isn't a `.card`, so `patchHomeCovers` skipped it and the first game's box art only
+      appeared after paging the carousel. Now refreshes via `renderHero` (guarded so a genuinely
+      cover-less game doesn't re-render every poll). `home.js`.
+- [x] **Recs hover showed only trailers, never screenshots** — `/api/wishlist/meta`
+      (`games_light`) didn't return screenshots, so a trailer-less rec/wishlist card had nothing
+      to fade. Added `screenshots.image_id` → a `shots` field (trailer-less only), merged into
+      the rec/wishlist ENRICH seeds. `igdb.py`, `recs.js`, `wishlist.js`.
+- [x] **Recs did full-page redraws** — `loadRecsMeta` and the enrichment-poll handler both
+      `renderAll()`'d; the covers are stable catalogue art and the hover reads video/shots live,
+      so both now `patchEnrichedCells()` in place. `recs.js`, `panels.js`.
+
+## Code-health cleanups (tracked, NOT started — do not work on these yet)
+
+- [ ] **Extract the rate limiter out of `igdb.py`** into its own module — it's a general
+      concern, not IGDB-specific.
+- [ ] **Extract the IGDB API out of `/api/wishlist`** into a general-purpose service used by
+      BOTH Wishlist and Recommend (`games_light` / `/api/wishlist/meta` are currently
+      wishlist-named but recs reuses them). Rectify this coupling in general.
+
 ## Remaining (need YOUR eyes on the shelf — 3D CSS + perf, hard to verify blind)
 
 - [ ] **14. Invisible inner hinge** — SEEN in a screenshot: an opened box shows a pure-black

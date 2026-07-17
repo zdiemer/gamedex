@@ -200,6 +200,16 @@ function renderHero(playing) {
 function patchHomeCovers() {
   const host = $("#home");
   if (!host) return;
+  // The hero's cover carries data-hk but is NOT a .card, so the loop below (which looks for a
+  // child .card-cover.ph) never touched it — the first game's box art only appeared once you
+  // paged the carousel. Refresh it here via renderHero, which re-reads coverSrc and re-wires
+  // the pager/swipe/click. Guarded on the CURRENT hero game actually having a cover now, so a
+  // genuinely cover-less game doesn't re-render the hero on every enrichment poll.
+  if (host.querySelector(".h-hero-cover.ph")) {
+    const playing = byStatus("Playing").sort(byDateDesc("dateStarted"));
+    const cur = playing.length ? playing[homeState.heroIdx % playing.length] : null;
+    if (cur && coverSrc(ENRICH[cur._k], "cover_big")) renderHero(playing);
+  }
   host.querySelectorAll("[data-hk]").forEach((el) => {
     const ph = el.querySelector(".card-cover.ph");
     if (!ph) return;

@@ -107,6 +107,7 @@ function recRow(x) {
   const m = RECS_META[id] || null;
   if (m) {
     if (m.video && !e.video) e.video = m.video;
+    if (m.shots && !e.shots) e.shots = m.shots;   // trailer-less: screenshots for the hover fade
     for (const f of ["hltbMain", "hltbBest", "hltbUrl"]) if (m[f] != null && e[f] == null) e[f] = m[f];
   }
   const conf = p.confidence >= 0.75 ? "High" : p.confidence >= 0.5 ? "Fair" : "Low";
@@ -154,6 +155,7 @@ function mergeRecsMeta() {
     if (!m) continue;
     const e = ENRICH[row._k] || (ENRICH[row._k] = {});
     if (m.video && !e.video) e.video = m.video;
+    if (m.shots && !e.shots) e.shots = m.shots;   // trailer-less: screenshots for the hover fade
     for (const f of ["hltbMain", "hltbBest", "hltbUrl"]) if (m[f] != null && e[f] == null) e[f] = m[f];
     if (!row.platform && m.platforms && m.platforms[0]) row.platform = m.platforms[0];
     if (!row.release && m.release) row.release = m.release;
@@ -179,7 +181,11 @@ async function loadRecsMeta(pageRows) {
       for (const id of batch) RECS_META[id] = items[id] || null;
     }
     mergeRecsMeta();
-    if (activeTab === "recs") renderAll();
+    // Patch in place, don't renderAll: the covers are already there (catalogue art), and the
+    // hover preview reads video/shots off ENRICH live, so a full redraw would only flicker the
+    // grid and restart the tour. patchEnrichedCells refreshes the card bodies (platform, est
+    // time) and the previews light up on the next hover.
+    if (activeTab === "recs" && typeof patchEnrichedCells === "function") patchEnrichedCells();
   } finally { _recsMetaBusy = false; }
 }
 
