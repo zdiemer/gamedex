@@ -94,27 +94,30 @@ function wishlistDealHtml(row) {
   }
   const line = wishlistPriceLine(row);
   if (!chips.length && !line) return "";
+  // "Deal" only when there's actually something dealy — a discount, an all-time
+  // low, a bundle, or free. At plain regular price the section is just the price
+  // and where to buy it, so don't oversell it.
+  const isDeal = !!bnd || (p && (p.cut > 0 || p.atLow || p.current === 0));
   return `<div class="hltb wl-deal">
-    <div class="hltb-head">${icon("i-star", 14)} Deal</div>
+    <div class="hltb-head">${icon("i-star", 14)} ${isDeal ? "Deal" : "Where to buy"}</div>
     ${line}
     ${bnd && bnd.title ? `<div class="wl-bundle-line">In a bundle: <b>${escapeHtml(bnd.title)}</b></div>` : ""}
     ${chips.length ? `<div class="wl-deal-chips">${chips.join("")}</div>` : ""}
   </div>`;
 }
 
-// Admin: map (or remap) a wishlist-only row to an IGDB game by pasting its URL.
-// Shows for EVERY wl-only row — the whole point is the ones that didn't match,
-// which otherwise have no IGDB section at all to hang a fix on.
+// Admin: map a wishlist-only row that DIDN'T match to an IGDB game, by pasting
+// its URL. Only the completely unmapped ones — a matched item has an IGDB detail
+// panel, whose own "Fix mapping" section already handles remapping it, so
+// showing this too would be a redundant second box on every matched wish.
 function wishlistMapHtml(row) {
-  if (!IS_ADMIN || !row._wlOnly || !row._wlAppIds) return "";
-  const cur = row._igdbId ? `https://www.igdb.com/games/` : "";
+  if (!IS_ADMIN || !row._wlOnly || !row._wlAppIds || row._igdbId) return "";
   return `<div class="hltb wl-map" data-wl-appids='${escapeHtml(JSON.stringify(row._wlAppIds))}'>
-    <div class="hltb-head">${icon("i-edit", 14)} ${row._igdbId ? "Fix IGDB mapping" : "Map to an IGDB game"}</div>
+    <div class="hltb-head">${icon("i-edit", 14)} Map to an IGDB game</div>
     <div class="map-src"><label>IGDB game URL</label>
       <div class="map-row">
-        <input type="url" placeholder="igdb.com/games/&lt;slug&gt;" value="${escapeHtml(cur)}" data-wl-map-input>
+        <input type="url" placeholder="igdb.com/games/&lt;slug&gt;" data-wl-map-input>
         <button class="btn" data-wl-map-go>Map</button>
-        ${row._igdbId ? `<button class="linkbtn danger" data-wl-map-clear title="Unmap">Clear</button>` : ""}
       </div>
       <p class="auth-err" data-wl-map-err hidden></p>
     </div>
