@@ -11,7 +11,7 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "recs", "wishlist"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "recs"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges"
   const special = SPECIAL_TABS.includes(mode);
   $("#stats").hidden = mode !== "stats";
@@ -23,7 +23,6 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#shelfview").hidden = mode !== "shelf";
   $("#picross").hidden = mode !== "picross";
   $("#recs").hidden = mode !== "recs";
-  $("#wishlist").hidden = mode !== "wishlist";
   $(".resultbar").hidden = special;
   $("#pager").style.display = special ? "none" : "";
   document.querySelector(".facets").style.display = special ? "none" : "";
@@ -52,7 +51,6 @@ function renderAll() {
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
   if (activeTab === "recs") { setSpecialMode("recs"); renderRecs(); return; }
-  if (activeTab === "wishlist") { setSpecialMode("wishlist"); renderWishlist(); return; }
   setSpecialMode(null);
   // A filter that reads enrichment cannot be answered before enrichment is here.
   ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
@@ -272,6 +270,7 @@ async function load() {
   resetTaste();
   resetRelations();
   if (typeof resetCatalogue === "function") resetCatalogue();
+  buildWishlistSheet();         // the synthetic Wishlist sheet joins the real ones (wishlist.js)
   for (const k of Object.keys(_cmdkFacets)) delete _cmdkFacets[k];
   const en = DATA.meta && DATA.meta.enrichment;
   ENRICH_ENABLED = !!(en && en.enabled !== false);
@@ -282,6 +281,7 @@ async function load() {
   loadAllEnrichment();          // global covers + IGDB facets (polls during backfill)
   loadRomm();                   // which games we can actually play in the browser
   loadMine();                   // the linked platform accounts’ hours / achievements / appids
+  loadWishlist();               // platform wishlists merge into the Wishlist tab's synthetic sheet
   loadNas();                    // which games are actually in the ROM library
   loadUploads();                // hand-uploaded box art becomes the cover everywhere
   loadGameRankings();           // frozen fallback critic score for pre-Metacritic games

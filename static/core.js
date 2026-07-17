@@ -16,15 +16,15 @@ let PAGE_SIZE = 50;
 //             user toggle: it's the default everywhere EXCEPT Completed, where
 //             every finished game (each episode of a series included) stands on
 //             its own. Orthogonal to the view: a list combines just as a grid does.
-const VIEW_DEFAULT = { games: "grid", completed: "timeline", onOrder: "grid" };
-const COMBINE_DEFAULT = { games: true, completed: false, onOrder: true };
+const VIEW_DEFAULT = { games: "grid", completed: "timeline", onOrder: "grid", wishlist: "grid" };
+const COMBINE_DEFAULT = { games: true, completed: false, onOrder: true, wishlist: false };
 const FACET_CAP = 12;              // values shown before "show more"
 const FACET_FILTER_THRESHOLD = 12; // show a per-facet search box past this many values
 
 // ---- state --------------------------------------------------------------
 let DATA = null;            // {meta, sheets}
 let activeTab = "home";
-const TABS = ["games", "completed", "onOrder"];
+const TABS = ["games", "completed", "onOrder", "wishlist"];
 // Per-tab UI state, isolated so switching tabs preserves filters.
 const tabState = {};
 // Filters/search/sort/page — wiped when you navigate to a tab afresh.
@@ -69,6 +69,7 @@ function ratingClass(v) {
 // Returns an HTML string for a cell value given its column type.
 function fmtCell(value, type) {
   if (value === undefined || value === null || value === "") return `<span class="muted">—</span>`;
+  if (Array.isArray(value)) value = value.join(", ");   // multi-valued cell (e.g. Wishlisted On)
   switch (type) {
     case "rating":
       return `<span class="${ratingClass(value)}">${Math.round(value * 100)}%</span>`;

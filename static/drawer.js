@@ -166,13 +166,13 @@ function openDrawer(row, sheetKey, keepStack) {
   const body = $("#drawerBody");
   const titleText = escapeHtml(String(row[titleCol.key] ?? "Untitled"));
   let html = heroHtml(row, titleText);
-  if (ENRICH_ENABLED && row._k) html += `<div id="igdbDetail" class="igdb-detail"></div>`;
+  if (ENRICH_ENABLED && row._k && !row._wlOnly) html += `<div id="igdbDetail" class="igdb-detail"></div>`;
 
   // Box art override — same manual upload as the shelf, so a game's cover can be fixed
   // (or supplied outright) from any detail card. Offered for every real sheet row, not
   // just owned physical ones: a game IGDB never matched has no cover at all, and this is
   // the only way to give it one. Grouped collection cards have no single row to attach to.
-  if (IS_ADMIN && row._k && !row._collection) html += `<button class="sh-btn drawer-art" id="drawerArt">Manage box art</button>`;
+  if (IS_ADMIN && row._k && !row._collection && !row._wlOnly) html += `<button class="sh-btn drawer-art" id="drawerArt">Manage box art</button>`;
 
   /* Your own history with the game was buried in the "Raw data" disclosure,
      alongside File Size and MAME Romset — and it's the most personal thing on the
@@ -254,7 +254,7 @@ function openDrawer(row, sheetKey, keepStack) {
   $("#drawer").scrollTop = 0;
   drawerRow = row;
   syncScrollLock();                       // the page behind the drawer must not scroll
-  if (ENRICH_ENABLED && row._k) loadDetail(row._k, $("#igdbDetail"), 0, row);
+  if (ENRICH_ENABLED && row._k && !row._wlOnly) loadDetail(row._k, $("#igdbDetail"), 0, row);
   if (row._k && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
 }
 function closeDrawer() {

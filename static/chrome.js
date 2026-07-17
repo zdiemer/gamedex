@@ -533,6 +533,7 @@ $("#refresh").addEventListener("click", async () => {
         DATA = await dres.json();
         resetCollections();
         resetSearchCache();
+        buildWishlistSheet();
         const en = DATA.meta && DATA.meta.enrichment;
         ENRICH_ENABLED = !!(en && en.enabled !== false);
         setFreshness(); renderAll(); loadAllEnrichment();

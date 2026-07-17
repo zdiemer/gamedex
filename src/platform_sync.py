@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -62,6 +63,7 @@ class PlatformSync:
         self._wake = threading.Event()
         self._thread = None
         self._busy = {}          # provider -> stage string, for /api/platforms
+        self._hot = {}           # provider -> achievements backlog remains; drain promptly
 
     # ---- lifecycle ---------------------------------------------------------
     def start(self):
@@ -95,9 +97,13 @@ class PlatformSync:
                 client = self._providers.get(provider)
                 if client is None or acct["status"] == "disabled":
                     continue
-                if forced or self._due(acct):
+                full = forced or self._due(acct)
+                if full or self._hot.get(provider):
                     try:
-                        self.sync_account(acct, client)
+                        # A hot pass is achievements-only: the backlog drains in
+                        # chunks without re-scraping reviews or re-pulling the
+                        # library every few seconds.
+                        self.sync_account(acct, client, ach_only=not full)
                     except Exception as exc:
                         log.warning("%s sync pass failed: %s", provider, exc)
                         self._db.set_status(provider, "error", str(exc))
@@ -107,7 +113,11 @@ class PlatformSync:
                 self._rematch_if_stale()
             except Exception as exc:
                 log.warning("rematch failed: %s", exc)
-            self._wake.wait(60)
+            # A provider with a never-fetched achievements backlog goes again
+            # almost immediately — the whole first backfill drains in bounded,
+            # restart-safe chunks instead of one multi-hour stage or a week of
+            # six-hour waits. Everyone else naps.
+            self._wake.wait(5 if any(self._hot.values()) else 60)
             self._wake.clear()
 
     def _due(self, acct) -> bool:
@@ -121,7 +131,7 @@ class PlatformSync:
         return (datetime.now(timezone.utc) - last).total_seconds() >= self._interval
 
     # ---- one pass ------------------------------------------------------------
-    def sync_account(self, acct: dict, client) -> dict:
+    def sync_account(self, acct: dict, client, ach_only: bool = False) -> dict:
         provider, creds = acct["provider"], acct["credentials"]
         errors = []
         counts = {}
@@ -137,22 +147,28 @@ class PlatformSync:
             finally:
                 self._busy.pop(provider, None)
 
-        changed = stage("library", lambda: self._sync_library(provider, client, creds))
-        stage("matching", lambda: self._match_library(provider))
+        changed = [] if ach_only else \
+            stage("library", lambda: self._sync_library(provider, client, creds))
+        # Matching costs minutes of fuzzy CPU over a big library — only when the
+        # sheet or the library actually moved (manual pins go through the API,
+        # which rewrites lib_matches directly and needs no pass here).
+        if not ach_only and \
+                self._db.kv_get(f"match_stamp:{provider}") != self._match_stamp(provider):
+            stage("matching", lambda: self._match_library(provider))
         counts["achievements"] = stage(
             "achievements", lambda: self._sync_achievements(provider, client, creds, changed or []))
-        counts["screenshots"] = stage(
-            "screenshots", lambda: self._sync_screenshots(provider, client, creds))
-        counts["wishlist"] = stage(
-            "wishlist", lambda: self._sync_wishlist(provider, client, creds))
-        counts["reviews"] = stage(
-            "reviews", lambda: self._sync_reviews(provider, client, creds))
-
-        self._db.mark_sync(provider)
+        if not ach_only:
+            counts["screenshots"] = stage(
+                "screenshots", lambda: self._sync_screenshots(provider, client, creds))
+            counts["wishlist"] = stage(
+                "wishlist", lambda: self._sync_wishlist(provider, client, creds))
+            counts["reviews"] = stage(
+                "reviews", lambda: self._sync_reviews(provider, client, creds))
+            self._db.mark_sync(provider)
         self._db.set_status(provider, "error" if errors else "linked",
                             "; ".join(errors) if errors else None)
-        log.info("%s sync done: %s%s", provider, counts,
-                 f" ({len(errors)} stage errors)" if errors else "")
+        log.info("%s sync%s done: %s%s", provider, " (achievements chunk)" if ach_only else "",
+                 counts, f" ({len(errors)} stage errors)" if errors else "")
         return counts
 
     # ---- stages -----------------------------------------------------------------
@@ -166,12 +182,24 @@ class PlatformSync:
     def _sync_achievements(self, provider, client, creds, changed: list[str]) -> int:
         have = self._db.apps_with_achievements(provider)
         no_ach = lambda a: self._db.kv_get(f"noach:{provider}:{a}") is not None
-        # Recently-played first, then a bounded slice of the never-asked backlog.
-        todo = [a for a in changed if not no_ach(a)]
-        backlog = [g["appId"] for g in self._db.lib_games(provider)
-                   if g["appId"] not in have and g["appId"] not in todo
-                   and not no_ach(g["appId"])]
-        todo += backlog[: self._ach_backfill]
+        # Two queues with different budgets. REFRESHES (changed apps we already
+        # hold rows for) are always all taken — that's a handful of games you
+        # actually played since last pass. NEVER-FETCHED apps are capped at
+        # ach_backfill per pass regardless of why they qualified: on the very
+        # first sync every app counts as "changed", and without the cap that
+        # first pass would grind the whole library in one 4-hour sitting.
+        refresh = [a for a in changed if a in have and not no_ach(a)]
+        fresh = {a for a in changed if a not in have and not no_ach(a)}
+        by_played = sorted(
+            (g for g in self._db.lib_games(provider)
+             if g["appId"] in fresh or (g["appId"] not in have
+                                        and not no_ach(g["appId"]))),
+            key=lambda g: g["playtimeMin"] or 0, reverse=True)
+        # Most-played first: the games with hours on them are the ones whose
+        # achievement grid is worth seeing tonight, not in a week.
+        backlog = [g["appId"] for g in by_played if g["appId"] not in refresh]
+        todo = refresh + backlog[: self._ach_backfill]
+        self._hot[provider] = len(backlog) > self._ach_backfill
         fetched = 0
         for app_id in todo:
             if self._stop.is_set():
@@ -264,6 +292,33 @@ class PlatformSync:
                 out.setdefault(str(sid), []).append(mk)
         return out
 
+    # The pieces of a title the fuzzy matcher accepts as "the same game": its
+    # normalized whole, either side of a colon/dash subtitle (articles
+    # stripped), and the name with a leading possessive removed. Mirrors
+    # MatchValidator.titles_equal_fuzzy's cheap branches so those can be
+    # answered by ONE index lookup instead of a scan of the whole sheet —
+    # 5,000 apps x 2,000 sheet rows of regex + edit distance was an hour of
+    # CPU per matching pass, and this is the part that was all of the volume.
+    _ARTICLES_RE = re.compile(r"(^The )|(, The$)|(^A )|(, A$)|(^An )|(, An$)")
+    _POSSESSIVE_RE = re.compile(r"(^[^':]+'s )")
+
+    def _frags(self, title) -> set[str]:
+        t = str(title or "").strip()
+        if not t:
+            return set()
+        out = {self._validator.normalize(t)}
+        for sep in (":", " - "):
+            if sep in t:
+                left, right = t.split(sep, 1)
+                for part in (left, right):
+                    out.add(self._validator.normalize(
+                        self._ARTICLES_RE.sub("", part.strip())))
+        stripped = self._POSSESSIVE_RE.sub("", t)
+        if stripped != t:
+            out.add(self._validator.normalize(stripped))
+        out.discard("")
+        return out
+
     def _match_library(self, provider):
         if self._enricher is None:
             return
@@ -272,10 +327,14 @@ class PlatformSync:
         meta = self._enricher.keys_meta()
         family = _PLATFORM_FAMILY.get(provider, set())
         by_norm: dict[str, list[str]] = {}
+        frag_index: dict[str, set[str]] = {}   # fragment -> full norms carrying it
         for mk, m in meta.items():
             if (m.get("platform") or "").lower() in family:
-                by_norm.setdefault(self._validator.normalize(m.get("title") or ""),
-                                   []).append(mk)
+                title = m.get("title") or ""
+                n = self._validator.normalize(title)
+                by_norm.setdefault(n, []).append(mk)
+                for f in self._frags(title):
+                    frag_index.setdefault(f, set()).add(n)
 
         games = self._db.lib_games(provider)
         matched = appid_hits = title_hits = fuzzy_hits = 0
@@ -305,12 +364,25 @@ class PlatformSync:
                 title_hits += 1
                 owned_appid_keys += [(k, aid) for k in keys]
                 continue
-            hit = self._fuzzy_one(g["name"], by_norm, meta)
-            if hit:
-                self._db.replace_matches(provider, aid, [(hit, "fuzzy", None)])
+            # Fuzzy, cheap tier: one fragment-index lookup. Unique full-norm
+            # across every shared fragment or nothing — a fragment like a bare
+            # franchise name hits many games and means we don't know.
+            norms = set()
+            for f in self._frags(g["name"]):
+                norms |= frag_index.get(f, set())
+            keys = by_norm.get(next(iter(norms))) if len(norms) == 1 else None
+            # Expensive tier (edit-distance typos, long-substring containment):
+            # only for games with actual hours — the rest of a 5,000-app
+            # library isn't worth a scan each, and the cheap tiers already
+            # caught everything systematic.
+            if not keys and (g["playtimeMin"] or 0) > 0:
+                hit = self._fuzzy_scan(g["name"], norm, by_norm, meta)
+                keys = [hit] if hit else None
+            if keys:
+                self._db.replace_matches(provider, aid, [(k, "fuzzy", None) for k in keys])
                 matched += 1
                 fuzzy_hits += 1
-                owned_appid_keys.append((hit, aid))
+                owned_appid_keys += [(k, aid) for k in keys]
             else:
                 self._db.replace_matches(provider, aid, [])
         self._db.kv_set(f"match_stamp:{provider}", self._match_stamp(provider))
@@ -318,18 +390,26 @@ class PlatformSync:
                  provider, matched, len(games), appid_hits, title_hits, fuzzy_hits)
         self._requeue_corrected(provider, owned_appid_keys, appid_keys)
 
-    def _fuzzy_one(self, name, by_norm, meta) -> str | None:
+    def _fuzzy_scan(self, name, norm, by_norm, meta) -> str | None:
         """A UNIQUE fuzzy hit or nothing — a tie means we don't know, and a wrong
-        match here quietly hangs my hours on someone else's game."""
+        match here quietly hangs my hours on someone else's game. Candidates are
+        length-gated first: the only accept paths the fragment index doesn't
+        already cover are edit distance <= 3 and long-substring containment,
+        and neither can fire outside these bounds."""
         if not name:
             return None
-        hits = []
-        for norm, keys in by_norm.items():
+        hit_norm = None
+        for cand, keys in by_norm.items():
+            plausible = abs(len(cand) - len(norm)) <= 3 \
+                or (len(norm) > 15 and norm in cand) \
+                or (len(cand) > 15 and cand in norm)
+            if not plausible:
+                continue
             if self._validator.titles_equal_fuzzy(name, meta[keys[0]].get("title") or ""):
-                hits += keys
-                if len(hits) > 1:
+                if hit_norm is not None and hit_norm != cand:
                     return None
-        return hits[0] if len(hits) == 1 else None
+                hit_norm = cand
+        return by_norm[hit_norm][0] if hit_norm else None
 
     def _requeue_corrected(self, provider, owned_appid_keys, appid_keys):
         """Where the appid I actually own differs from the one IGDB guessed,
