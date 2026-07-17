@@ -36,6 +36,9 @@ import picross as picross_mod
 import platformdb as platformdb_mod
 import platform_sync as platform_sync_mod
 import prefs as prefs_mod
+import epic_user as epic_user_mod
+import gog_user as gog_user_mod
+import itch_user as itch_user_mod
 import nintendo_user as nintendo_user_mod
 import psn_user as psn_user_mod
 import romm
@@ -179,6 +182,9 @@ _itad = itad_mod.ItadClient(os.environ.get("ITAD_API_KEY", ""),
 PSYNC = platform_sync_mod.PlatformSync(
     PLATDB,
     providers={"steam": steam_user_mod.SteamUserClient(),
+               "gog": gog_user_mod.GogUserClient(),
+               "epic": epic_user_mod.EpicUserClient(),
+               "itch": itch_user_mod.ItchUserClient(),
                "psn": psn_user_mod.PsnUserClient(),
                "xbox": xbox_user_mod.XboxUserClient(),
                "nintendo": nintendo_user_mod.NintendoUserClient()},
@@ -420,6 +426,10 @@ def _profile_url(provider: str, creds: dict, name: str | None) -> str | None:
         return f"https://psnprofiles.com/{name}"
     if provider == "xbox" and name:
         return f"https://www.xbox.com/play/user/{name}"
+    if provider == "gog" and name:
+        return f"https://www.gog.com/u/{name}"
+    if provider == "itch" and name:
+        return f"https://{name}.itch.io"
     return None
 
 

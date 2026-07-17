@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 
 log = logging.getLogger("gamedex.platformdb")
 
-PROVIDERS = ("steam", "psn", "xbox", "nintendo")
+PROVIDERS = ("steam", "gog", "epic", "itch", "psn", "xbox", "nintendo")
 
 
 def _now() -> str:

@@ -740,7 +740,7 @@ td.cover { width: 46px; padding: 5px 8px; }
 .card-sortval > span { color: rgba(226, 232, 244, .7); overflow: hidden; text-overflow: ellipsis; }
 .card-sortval i { font-style: normal; }
 .card-rating, .card-meta {
-  position: absolute; top: 8px; z-index: 1; backdrop-filter: blur(8px);
+  position: absolute; top: 5px; z-index: 2; backdrop-filter: blur(8px);
   background: rgba(8, 10, 14, .62); border: 1px solid rgba(255, 255, 255, .14);
   color: #f2f5fa;
   border-radius: 6px; padding: 1px 7px; font-size: 11.5px; font-weight: 700;
@@ -4383,15 +4383,30 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 .mine-rev-verdict { font-size: 13px; margin-bottom: 6px; }
 
-/* Admin dialog: one card per provider. */
-.plat-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; max-height: 60vh; overflow-y: auto; }
-.plat-card { padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); }
-.plat-card.off { opacity: .55; }
-.plat-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+/* Admin dialog: a collapsible section per provider (seven of them). */
+.ce-scrim.plat-wide .ce { max-width: 620px; width: min(620px, calc(100vw - 32px)); }
+.plat-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 66vh; overflow-y: auto; }
+.plat-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); }
+.plat-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 11px 14px; cursor: pointer; list-style: none; user-select: none;
+}
+.plat-head::-webkit-details-marker { display: none; }
+.plat-head::after { content: "▸"; color: var(--muted); font-size: 11px; transition: transform .18s; }
+.plat-card[open] > .plat-head::after { transform: rotate(90deg); }
 .plat-head b { font: 700 14px/1.2 var(--display); }
+.plat-head .plat-chip { margin-left: auto; }
+.plat-chip {
+  font: 600 11px/1 var(--font); padding: 3px 8px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--dim);
+}
+.plat-chip.ok { border-color: var(--accent-line); color: var(--accent); }
+.plat-chip.live { border-color: var(--accent-line); color: var(--accent-2); }
+.plat-chip.err { border-color: rgba(240, 90, 90, .5); color: #f0704f; }
+.plat-body { padding: 0 14px 12px; }
 .plat-who { font-size: 12px; color: var(--accent); }
 .plat-stats { font-size: 12px; margin-top: 5px; }
-.plat-form { margin-top: 8px; }
+.plat-form { margin-top: 4px; }
 
 /* Trophy grades (PSN): the cell's ring says bronze/silver/gold/platinum. */
 .mine-ach-it.t-bronze.on { border-color: #b0713c; }

@@ -24,6 +24,9 @@ let MINE_ENABLED = false;
 // everything below — pills, panels, badges — picks them up.
 const MINE_PROVIDERS = {
   steam: { label: "Steam", verb: "on Steam", achWord: "Achievements" },
+  gog: { label: "GOG", verb: "on GOG", achWord: "Achievements" },
+  epic: { label: "Epic Games", verb: "on Epic", achWord: "Achievements" },
+  itch: { label: "itch.io", verb: "on itch.io", achWord: "Achievements" },
   psn: { label: "PlayStation", verb: "on PlayStation", achWord: "Trophies" },
   xbox: { label: "Xbox", verb: "on Xbox", achWord: "Achievements" },
   nintendo: { label: "Nintendo", verb: "on Switch", achWord: "Achievements" },
@@ -57,6 +60,31 @@ const PLAT_FORMS = {
       <li>Copy your key from <a href="https://xbl.io/dashboard/keys" target="_blank" rel="noopener">xbl.io/dashboard/keys ↗</a> and paste it below.</li>
     </ol><span class="muted">Free tier is 150 requests/hour — plenty for the nightly trickle this does.</span>`,
     fields: [{ k: "apiKey", label: "OpenXBL API key", ph: "from xbl.io/dashboard/keys" }],
+  },
+  gog: {
+    hintHtml: `Brings your DRM-free library + wishlist (GOG doesn't expose playtime).
+      <ol class="plat-steps">
+        <li><a href="https://auth.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=client2" target="_blank" rel="noopener">Log in to GOG ↗</a>.</li>
+        <li>You'll land on a blank page — copy its <b>whole URL</b> (it has <code>?code=…</code>) and paste it below.</li>
+      </ol>`,
+    fields: [{ k: "code", label: "Login code (or the redirect URL)", ph: "…on_login_success?code=…" }],
+  },
+  epic: {
+    hintHtml: `Brings your Epic library + real playtime (+ wishlist where available).
+      <ol class="plat-steps">
+        <li>Sign in to <a href="https://www.epicgames.com" target="_blank" rel="noopener">epicgames.com ↗</a>, then open
+          <a href="https://www.epicgames.com/id/api/redirect?clientId=34a02cf8f4414e29b15921876da36f9a&responseType=code" target="_blank" rel="noopener">this redirect link ↗</a>.</li>
+        <li>Copy the <code>authorizationCode</code> value from the JSON and paste it below.</li>
+      </ol><span class="muted">The code is single-use; grab a fresh one if it's rejected.</span>`,
+    fields: [{ k: "code", label: "Authorization code", ph: "32-character code" }],
+  },
+  itch: {
+    hintHtml: `Brings the games you own on itch.io.
+      <ol class="plat-steps">
+        <li>Make a key at <a href="https://itch.io/user/settings/api-keys" target="_blank" rel="noopener">itch.io/user/settings/api-keys ↗</a>.</li>
+        <li>Paste it below.</li>
+      </ol>`,
+    fields: [{ k: "apiKey", label: "itch.io API key", ph: "from itch.io/user/settings/api-keys" }],
   },
   nintendo: {
     hintHtml: `Nintendo only exposes playtime, through the Parental Controls app —
@@ -312,6 +340,7 @@ async function openPlatformsDialog() {
       <h3>Linked platforms</h3>
       <div class="ce-sub">Personal libraries, synced in the background</div>
       <div class="plat-cards" id="platCards">${state ? platCardsHtml(state) : "<p class='auth-err'>Couldn't reach the server.</p>"}</div>`);
+  host.classList.add("plat-wide");     // a roomier modal — seven providers need it
   wirePlatCards(host);
   // Live counts while a sync runs: repoll while the dialog is up, stop the
   // moment it closes (closeAuthModal removes the host from the DOM).
@@ -332,59 +361,65 @@ async function openPlatformsDialog() {
   }, 3000);
 }
 
+// Each provider is a collapsible section — with seven of them, a flat list of
+// full cards is a mile-long thin modal. The summary carries the label + a status
+// chip; expanding shows the link form (unlinked) or the stats + actions (linked).
+// Linked providers open by default so their state is visible at a glance; the
+// unlinked forms stay tucked away until you want one.
 function platCardsHtml(state) {
   return Object.entries(MINE_PROVIDERS).map(([p, def]) => {
     const s = state[p] || { linked: false, supported: false };
+    const chip = !s.supported ? `<span class="plat-chip muted">coming later</span>`
+      : s.linked
+        ? (s.status === "error" ? `<span class="plat-chip err">needs attention</span>`
+           : s.syncing ? `<span class="plat-chip live">syncing…</span>`
+           : `<span class="plat-chip ok">${escapeHtml(s.displayName || "linked")}</span>`)
+        : `<span class="plat-chip">not linked</span>`;
+    const open = s.linked ? " open" : "";
+
+    let bodyInner;
     if (!s.supported) {
-      return `<div class="plat-card off"><div class="plat-head"><b>${escapeHtml(def.label)}</b>
-        <span class="muted">coming later</span></div></div>`;
-    }
-    if (!s.linked) {
+      bodyInner = `<p class="muted">Support for ${escapeHtml(def.label)} isn't wired up.</p>`;
+    } else if (!s.linked) {
       const form = PLAT_FORMS[p];
       const fields = (form ? form.fields : []).map((f) =>
         `<label>${escapeHtml(f.label)}<input type="text" data-cred="${f.k}" autocomplete="off"
           name="${p}-${f.k}" spellcheck="false" placeholder="${escapeHtml(f.ph)}"${
           f.mode ? ` inputmode="${f.mode}"` : ""}></label>`).join("");
-      return `<div class="plat-card" data-plat="${p}">
-        <div class="plat-head"><b>${escapeHtml(def.label)}</b><span class="muted">not linked</span></div>
-        <form class="auth-form plat-form">
+      bodyInner = `<form class="auth-form plat-form">
           ${form && form.hintHtml ? `<div class="plat-hint">${form.hintHtml}</div>` : ""}
           ${fields}
           <p class="auth-err" data-plat-err hidden></p>
           <div class="ce-acts"><span></span><div class="ce-right">
             <button class="sh-btn primary" type="submit">Link</button>
           </div></div>
-        </form>
-      </div>`;
+        </form>`;
+    } else {
+      const c = s.counts || {};
+      const stats = [
+        c.games != null ? `${c.games.toLocaleString()} games (${c.matched} matched)` : null,
+        c.achievements ? `${c.achievementsUnlocked}/${c.achievements} achievements` : null,
+        c.screenshots ? `${c.screenshots} screenshots` : null,
+        c.wishlist ? `${c.wishlist} wishlisted` : null,
+        c.reviews ? `${c.reviews} reviews` : null,
+      ].filter(Boolean).join(" · ");
+      const when = s.lastSync ? new Date(s.lastSync).toLocaleString(undefined,
+        { dateStyle: "medium", timeStyle: "short" }) : "never";
+      const who = s.displayName && s.profileUrl
+        ? `<div class="plat-stats"><a class="plat-who" href="${escapeHtml(s.profileUrl)}" target="_blank" rel="noopener">${escapeHtml(s.displayName)} ↗</a></div>` : "";
+      bodyInner = `${who}
+        <div class="plat-stats muted">${escapeHtml(stats || "nothing synced yet")}</div>
+        <div class="plat-stats muted">Last sync: ${escapeHtml(when)}<b data-plat-stage>${s.syncing ? ` · syncing (${escapeHtml(s.syncing)})…` : ""}</b></div>
+        ${s.status === "error" && s.error ? `<p class="auth-err">${escapeHtml(s.error)}</p>` : ""}
+        <div class="ce-acts"><span></span><div class="ce-right">
+          <button class="sh-btn" data-plat-sync type="button">Sync now</button>
+          <button class="sh-btn danger" data-plat-unlink type="button">Unlink</button>
+        </div></div>`;
     }
-    const c = s.counts || {};
-    const stats = [
-      c.games != null ? `${c.games.toLocaleString()} games (${c.matched} matched)` : null,
-      c.achievements ? `${c.achievementsUnlocked}/${c.achievements} achievements` : null,
-      c.screenshots ? `${c.screenshots} screenshots` : null,
-      c.wishlist ? `${c.wishlist} wishlisted` : null,
-      c.reviews ? `${c.reviews} reviews` : null,
-    ].filter(Boolean).join(" · ");
-    const when = s.lastSync ? new Date(s.lastSync).toLocaleString(undefined,
-      { dateStyle: "medium", timeStyle: "short" }) : "never";
-    // The account name, a link out to the profile when we know the URL. Every
-    // linked provider shows its identity — Steam persona, PSN online ID, Xbox
-    // gamertag — not just Steam.
-    const who = s.displayName
-      ? (s.profileUrl
-          ? `<a class="plat-who" href="${escapeHtml(s.profileUrl)}" target="_blank" rel="noopener">${escapeHtml(s.displayName)} ↗</a>`
-          : `<span class="plat-who">${escapeHtml(s.displayName)}</span>`)
-      : "";
-    return `<div class="plat-card" data-plat="${p}">
-      <div class="plat-head"><b>${escapeHtml(def.label)}</b>${who}</div>
-      <div class="plat-stats muted">${escapeHtml(stats || "nothing synced yet")}</div>
-      <div class="plat-stats muted">Last sync: ${escapeHtml(when)}<b data-plat-stage>${s.syncing ? ` · syncing (${escapeHtml(s.syncing)})…` : ""}</b></div>
-      ${s.status === "error" && s.error ? `<p class="auth-err">${escapeHtml(s.error)}</p>` : ""}
-      <div class="ce-acts"><span></span><div class="ce-right">
-        <button class="sh-btn" data-plat-sync type="button">Sync now</button>
-        <button class="sh-btn danger" data-plat-unlink type="button">Unlink</button>
-      </div></div>
-    </div>`;
+    return `<details class="plat-card" data-plat="${p}"${open}>
+      <summary class="plat-head"><b>${escapeHtml(def.label)}</b>${chip}</summary>
+      <div class="plat-body">${bodyInner}</div>
+    </details>`;
   }).join("");
 }
 

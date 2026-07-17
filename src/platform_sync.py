@@ -45,8 +45,9 @@ def _scrub(s) -> str:
     return _SECRET_RE.sub(r"\1<redacted>", str(s))
 
 # Which platforms' sheet rows a provider's library may match onto.
+_PC = {"pc", "mac os", "linux"}
 _PLATFORM_FAMILY = {
-    "steam": {"pc", "mac os"},
+    "steam": _PC, "gog": _PC, "epic": _PC, "itch": _PC,   # PC storefronts
     "psn": {"playstation", "playstation 2", "playstation 3", "playstation 4",
             "playstation 5", "playstation network", "playstation portable",
             "playstation vita"},
@@ -55,7 +56,8 @@ _PLATFORM_FAMILY = {
                  "nintendo 3ds"},
 }
 # The slot in the IGDB record's `stores` map that carries this provider's id.
-_STORE_SLOT = {"steam": "steam", "psn": "playstation", "xbox": "xbox"}
+_STORE_SLOT = {"steam": "steam", "psn": "playstation", "xbox": "xbox",
+               "gog": "gog", "epic": "epic", "itch": "itch"}
 
 
 class PlatformSync:
