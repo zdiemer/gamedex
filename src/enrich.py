@@ -90,6 +90,15 @@ def _light_video(rec):
     """
     vids = (rec or {}).get("videos") or []
     return vids[0].get("id") if vids and vids[0].get("id") else None
+
+
+def _light_shots(rec):
+    """A few screenshot ids for the hover/tour preview to CROSS-FADE when a game has no
+    trailer. Like _light_video, derived from data already in the record (screenshots are
+    stored as image-id strings), so the whole library lights up with no re-enrichment.
+    Capped small — this rides in the global light map, and four is plenty for a fade."""
+    shots = (rec or {}).get("screenshots") or []
+    return [str(s) for s in shots[:4] if s]
 # Light fields each secondary source contributes to the cover/facet map.
 # Sources keyed on the Steam appid, which lives in the IGDB *enrichment* record
 # rather than the sheet — so their worker has to wait for IGDB to resolve first.
@@ -655,8 +664,13 @@ class Enricher:
             e = igdb.get(k)
             base = {f: e[1].get(f) for f in _IGDB_LIGHT} if e and e[0] == "matched" else {}
             if e and e[0] == "matched":
-                base["video"] = _light_video(e[1])
+                vid = _light_video(e[1])
+                base["video"] = vid
                 base["rel"] = _light_relations(e[1])
+                if not vid:                                   # only trailer-less games carry shots
+                    shots = _light_shots(e[1])
+                    if shots:
+                        base["shots"] = shots
                 if k in manual:
                     base["manualMatch"] = True
             for src, extract in _SECONDARY_LIGHT.items():
@@ -711,8 +725,13 @@ class Enricher:
                 if data:
                     d = json.loads(data)
                     out[mk] = {f: d.get(f) for f in _FACET_LIGHT}
-                    out[mk]["video"] = _light_video(d)
+                    vid = _light_video(d)
+                    out[mk]["video"] = vid
                     out[mk]["rel"] = _light_relations(d)
+                    if not vid:                               # only trailer-less games carry shots
+                        shots = _light_shots(d)
+                        if shots:
+                            out[mk]["shots"] = shots
                     if manual:
                         out[mk]["manualMatch"] = True
             for src, extract in _SECONDARY_LIGHT.items():

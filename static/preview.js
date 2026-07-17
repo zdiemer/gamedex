@@ -117,7 +117,8 @@ function ytWatch(frame, onFail, onPlay, onInfo) {
 // touch; and by prefers-reduced-motion.
 const WANTS_MOTION = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const PREVIEW_DELAY = 550;                 // dwell before we commit to loading
-let previewTimer = null, previewCard = null, previewWatch = null, previewLoop = null;
+let previewTimer = null, previewCard = null, previewWatch = null, previewLoop = null, previewShotTimer = null;
+const SHOT_PREVIEW_MS = 1600;              // how long each screenshot holds before the next fades in
 
 // WHICH slice of the trailer to show: a random 30 second clip, which then loops. Rolled
 // once per video and remembered, so hovering the same card twice shows the same moment — a
@@ -144,6 +145,8 @@ function stopPreview() {
   previewTimer = null;
   clearInterval(previewLoop);          // stop re-seeking a player we're about to remove
   previewLoop = null;
+  clearInterval(previewShotTimer);     // stop the screenshot slideshow too
+  previewShotTimer = null;
   // Cancel the bot-wall watchdog FIRST. Without this, hovering off a card before
   // the video has started still lets the watchdog fire 4.5s later and record a
   // failure against YouTube — so two impatient hovers on a slow connection would
@@ -155,16 +158,62 @@ function stopPreview() {
   // nothing can now reach to kill. Cheap query, and it makes "only the hovered one plays"
   // true by construction rather than by careful bookkeeping.
   document.querySelectorAll("iframe.card-preview").forEach((f) => f.remove());
+  document.querySelectorAll(".card-shots").forEach((l) => l.remove());
   document.querySelectorAll(".card.previewing, .card.playing")
     .forEach((c) => c.classList.remove("previewing", "playing"));
   previewCard = null;
 }
 
+// A card previews its TRAILER if it has one (and YouTube is playing for this client),
+// otherwise it cross-fades its SCREENSHOTS. Games with neither don't preview at all — and
+// tourEligible never schedules them, so the tour skips them for free.
 function startPreview(card) {
-  if (YT_BLOCKED) return;                 // YouTube isn't letting this client play
   const row = CARD_ROW.get(card);
-  const vid = row && (ENRICH[row._k] || {}).video;
-  if (!vid || card === previewCard) return;
+  if (!row || card === previewCard) return;
+  const e = ENRICH[row._k] || {};
+  if (e.video && !YT_BLOCKED) return startTrailerPreview(card, e.video);
+  if (e.shots && e.shots.length) return startShotPreview(card, e.shots);
+}
+
+// Cross-fade a game's screenshots over its cover — the fallback preview for the ~thousands
+// of games IGDB has stills for but no trailer. Same .previewing/.playing contract as the
+// trailer (the cover fades out under it, the tour's fadeOutPreview fades it back), so the
+// tour and hover machinery drive it unchanged. No YouTube, so it can't be bot-walled.
+function startShotPreview(card, shots) {
+  stopPreview();
+  previewCard = card;
+  const layer = document.createElement("div");
+  layer.className = "card-shots";
+  card.appendChild(layer);
+  card.classList.add("previewing");
+  let cur = null;
+  const show = (idx, first) => {
+    const img = document.createElement("img");
+    img.alt = ""; img.style.opacity = "0";
+    img.onload = () => {
+      if (previewCard !== card) return;
+      void img.offsetWidth;                  // commit opacity:0 before transitioning in
+      img.style.opacity = "1";
+      if (first) card.classList.add("playing");   // reveal only once the first shot is ready — no blank flash
+    };
+    img.onerror = () => { if (first && previewCard === card) stopPreview(); };
+    img.src = IMG(shots[idx], "screenshot_med");
+    layer.appendChild(img);
+    const old = cur; cur = img;
+    if (old) setTimeout(() => old.remove(), 650);   // after its cross-fade partner has faded up
+  };
+  show(0, true);
+  if (shots.length > 1) {
+    let i = 0;
+    previewShotTimer = setInterval(() => {
+      if (previewCard !== card) return;
+      i = (i + 1) % shots.length;
+      show(i, false);
+    }, SHOT_PREVIEW_MS);
+  }
+}
+
+function startTrailerPreview(card, vid) {
   stopPreview();
   previewCard = card;
   const frame = document.createElement("iframe");
@@ -265,12 +314,14 @@ const TOUR_GAP  = 1200;    // a beat between cards — long enough to read as a 
 const TOUR_FADE = 450;     // must match the .card-preview / .card-cover transition in CSS
 let tourIdleTimer = null, tourTimer = null, tourOn = false, tourLast = null;
 
-// A card is eligible only if it HAS a trailer — a card without one is never scheduled, so
-// it costs no time at all rather than burning a turn on a black rectangle.
+// A card is eligible only if it has SOMETHING to play — a trailer, or screenshots to
+// cross-fade. A card with neither is never scheduled, so it costs no time at all rather
+// than burning a turn on a blank tile.
 const tourEligible = () => [...document.querySelectorAll(".card")]
   .filter((c) => {
     const row = CARD_ROW.get(c);
-    return row && (ENRICH[row._k] || {}).video;
+    const e = row && ENRICH[row._k];
+    return e && (e.video || (e.shots && e.shots.length));
   });
 
 // ...and only if you can actually see it. Autoplaying a card three screens down is a

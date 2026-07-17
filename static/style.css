@@ -705,6 +705,17 @@ td.cover { width: 46px; padding: 5px 8px; }
   opacity: 0; transition: opacity .45s var(--ease);
 }
 .card.playing .card-preview { opacity: 1; }
+/* Screenshot cross-fade preview (games with no trailer). Fills the card behind the cover,
+   which fades out on .playing to reveal it; the images inside cross-fade one to the next. */
+.card-shots {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  opacity: 0; transition: opacity .45s var(--ease); pointer-events: none;
+}
+.card.playing .card-shots { opacity: 1; }
+.card-shots img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; transition: opacity .55s var(--ease);
+}
 /* The transition lives on the COVER, not inside .playing — declared only in the .playing
    rule it applies on the way in and vanishes on the way out, so the cover snapped back the
    instant the class came off. On the base rule it cross-fades both directions, which is
@@ -2539,7 +2550,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .btn.launch:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
-.btn.ghost:hover { border-color: var(--accent-line); color: var(--accent); }
+/* Keep the surface on hover. Without an explicit background the generic `.btn:hover`
+   (background: var(--accent)) wins by source order and the accent text sits on an accent
+   fill — the "View on <store>" button went a solid block with no label. Launch/Play don't
+   hit this because their own hover rules keep their background. */
+.btn.ghost:hover { background: var(--surface-2); border-color: var(--accent-line); color: var(--accent); }
 
 /* Hero pager arrows (home) */
 .h-page {

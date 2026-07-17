@@ -48,10 +48,20 @@ and any decisions made along the way.
       column count live and reduces it to the one that best fills the last row, so every
       row holds the same number of cards; re-balances on resize. `table.js`.
 
+## Shipped in 1.58.17
+
+- [x] **18. Screenshot-only games in carousel + hover** — the light map now carries up to
+      4 screenshot ids for trailer-less games (`_light_shots`, derived from stored data,
+      no re-enrichment). `startShotPreview` cross-fades them over the cover (1.6s each) on
+      hover AND in the autoplay tour, using the same `.previewing`/`.playing` contract as
+      the trailer. `tourEligible` now includes screenshot games. `enrich.py`, `preview.js`,
+      `style.css`. NEEDS VISUAL CHECK (the fade look).
+- [x] **19. Store-button hover** (new) — `View on <store>` (a `.btn.ghost`) hovered to
+      accent-on-accent (invisible text) because it never overrode the generic `.btn:hover`
+      background; gave ghost's hover an explicit surface so the label stays readable, like
+      Play/Run. `style.css`.
+
 ## Remaining
-- [ ] **18. Screenshot-only games in carousel + hover** — games with only screenshots
-      (no video) should join the autoplay carousel AND the hover state, fading between
-      the game's screenshots (~1–2s each).
 
 ## Recommend page (`recs.js`)
 
