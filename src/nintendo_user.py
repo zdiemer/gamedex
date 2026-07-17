@@ -67,19 +67,21 @@ class NintendoUserClient:
         if not session:
             raise ValueError("no Nintendo session token")
         self._limiter.wait()
+        # The token endpoint wants a Dalvik User-Agent and a JSON body (per nxapi);
+        # a wrong UA gets rejected.
         r = requests.post(TOKEN_URL,
                           json={"client_id": CLIENT_ID, "grant_type": GRANT,
                                 "session_token": session},
-                          headers={"User-Agent": _UA,
+                          headers={"User-Agent": "Dalvik/2.1.0 (Linux; U; Android 8.0.0)",
+                                   "Content-Type": "application/json",
                                    "Accept": "application/json"}, timeout=25)
         if r.status_code in (400, 401):
-            raise ValueError("Nintendo rejected the session token — sign in again"
-                             " and paste a fresh one")
+            raise ValueError("Nintendo rejected the session token — make sure it's a"
+                             " Parental Controls token (nxapi pctl auth) and current")
         r.raise_for_status()
         j = r.json()
-        # The Moon API authenticates with the ID token as a Bearer — NOT the
-        # access token (that path 401s).
-        creds["_moonToken"] = j.get("id_token") or j.get("access_token")
+        # The Moon API authenticates with the ACCESS token as a Bearer (nxapi).
+        creds["_moonToken"] = j.get("access_token") or j.get("id_token")
         creds["_moonExp"] = time.time() + int(j.get("expires_in") or 900)
         return creds["_moonToken"]
 
