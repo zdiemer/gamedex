@@ -49,7 +49,7 @@ function renderViews() {
       const v = loadViews()[+el.dataset.vi];
       if (!v) return;
       history.pushState({}, "", v.query || location.pathname);
-      applyStateFromURL();
+      restoreFromURL();
     };
   });
   bar.querySelectorAll("[data-vx]").forEach((el) => {
