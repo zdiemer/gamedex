@@ -215,6 +215,23 @@ async function openPlatformsDialog() {
       <div class="ce-sub">Personal libraries, synced in the background</div>
       <div class="plat-cards" id="platCards">${state ? platCardsHtml(state) : "<p class='auth-err'>Couldn't reach the server.</p>"}</div>`);
   wirePlatCards(host);
+  // Live counts while a sync runs: repoll while the dialog is up, stop the
+  // moment it closes (closeAuthModal removes the host from the DOM).
+  const tick = setInterval(async () => {
+    if (!host.isConnected) { clearInterval(tick); return; }
+    // Never clobber someone mid-typing: skip the refresh while a credential
+    // form has focus or content.
+    const active = document.activeElement;
+    if (active && host.contains(active) && active.matches("input, button")) return;
+    if ([...host.querySelectorAll(".plat-form input")].some((i) => i.value)) return;
+    try {
+      const r = await fetch("api/platforms");
+      if (!r.ok) return;
+      const providers = (await r.json()).providers;
+      const cards = host.querySelector("#platCards");
+      if (cards && host.isConnected) { cards.innerHTML = platCardsHtml(providers); wirePlatCards(host); }
+    } catch (_) { /* next tick */ }
+  }, 3000);
 }
 
 function platCardsHtml(state) {
@@ -228,9 +245,14 @@ function platCardsHtml(state) {
       return `<div class="plat-card" data-plat="${p}">
         <div class="plat-head"><b>${escapeHtml(def.label)}</b><span class="muted">not linked</span></div>
         <form class="auth-form plat-form">
-          <label>Web API key<input type="password" data-cred="apiKey" autocomplete="off"
+          <!-- type=text, NOT password: browsers autofill the site's saved login
+               into any password field (autocomplete=off is ignored for those),
+               which filled this with bullets that looked like a pre-set key. -->
+          <label>Web API key<input type="text" data-cred="apiKey" autocomplete="off"
+            name="steam-api-key" spellcheck="false"
             placeholder="from steamcommunity.com/dev/apikey"></label>
-          <label>SteamID64<input type="text" data-cred="steamId" placeholder="7656119…" inputmode="numeric"></label>
+          <label>SteamID64<input type="text" data-cred="steamId" autocomplete="off"
+            name="steam-id64" placeholder="7656119…" inputmode="numeric"></label>
           <p class="auth-err" data-plat-err hidden></p>
           <div class="ce-acts"><span></span><div class="ce-right">
             <button class="sh-btn primary" type="submit">Link</button>
