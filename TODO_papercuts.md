@@ -70,14 +70,27 @@ and any decisions made along the way.
 - [x] **22. Health tab owner-only** (new) — hidden nav button + deep-link guard, like Wishlist;
       the palette already skips hidden tabs. `index.html`, `chrome.js`, `app.js`.
 
-## Remaining
+## Shipped in 1.58.19
 
-- [ ] **17. Recommend → full sheet-backed tab** (in progress, user chose full scope) —
-      synthetic DATA.sheets.recs mirroring the Wishlist catalogue-row pattern: shared facets/
-      grid/table/sort/pager, in-app drawers (via `_catOnly`+`_igdbId`), hover+autoplay
-      previews and HLTB via per-page `/api/wishlist/meta` fetch. Big multi-file build.
-- [ ] **21. Shelf perf, round 2** (new) — still rough on a MacBook vs desktop. Likely the
-      per-spine box-shadows × 2,000 and off-screen board paint. Needs a browser pass.
+- [x] **17. Recommend → full sheet-backed tab** (user chose full scope) — synthetic
+      `DATA.sheets.recs` (recs.js) mirroring the Wishlist catalogue-row pattern: rows are
+      catalogue games seeded into ENRICH under a `rec:` key, so the shared facet sidebar,
+      search, grid/table, sort (default "best of both"), pager, in-app drawers (`_wlOnly`+
+      `_igdbId` → detail-by-id), hover/autoplay previews and Estimated Time all work. Per-
+      page `/api/wishlist/meta` fetch fills trailer/HLTB/platform. Predicted badge on cards
+      + a "Recommended for you" drawer block with dismiss. `recs.js`, `app.js`, `core.js`,
+      `table.js`, `drawer.js`, `chrome.js`, `panels.js`, `style.css`. Verified locally:
+      tab machinery, gating, and shared rendering all clean; no JS errors. Recs full render
+      needs the prod catalogue to eyeball.
+      - [x] Attract mode excludes Recommend games (they aren't games you own). `attract.js`.
+- [x] **23. Snappier hover** (new) — preview dwell 550ms → 280ms. `preview.js`.
+
+## Remaining (need a browser session on the shelf)
+
+- [ ] **14. Invisible inner hinge** — opening a box exposes the outside view. 3D CSS.
+- [ ] **15. Black outline on box fronts/backs** — model bleeding through. 3D CSS.
+- [ ] **21. Shelf perf, round 2** — still rough on a MacBook vs desktop. Likely the
+      per-spine box-shadows × 2,000 and off-screen board paint.
 
 ## Recommend page (`recs.js`)
 

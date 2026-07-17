@@ -11,7 +11,7 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "recs"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges"
   const special = SPECIAL_TABS.includes(mode);
   $("#stats").hidden = mode !== "stats";
@@ -38,6 +38,19 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   }
 }
 
+// The Recommend loading/empty panel: show #recs and hide the listing chrome (recsReady()
+// painted the message). Recommend isn't in SPECIAL_TABS — it's only "special" while its
+// catalogue data isn't ready yet — so this stands in for setSpecialMode's special branch.
+function recsGate() {
+  setSpecialMode(null);                       // hide the other special hosts, reset base state
+  $("#recs").hidden = false;
+  $(".resultbar").hidden = true;
+  document.querySelector(".facets").style.display = "none";
+  $("#tablewrap").hidden = true; $("#gridwrap").hidden = true; $("#timeline").hidden = true;
+  $("#views").hidden = true; $("#pager").style.display = "none";
+  $("#fabFilters").hidden = true; $("#fabSort").hidden = true;
+}
+
 function renderAll() {
   // Recomputed by the row branch at the bottom. Cleared here so that navigating away from
   // a held list — clicking Home while it waits — doesn't leave the flag set behind you.
@@ -50,7 +63,11 @@ function renderAll() {
   if (activeTab === "groups") { setSpecialMode("groups"); renderGroups(); return; }
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
-  if (activeTab === "recs") { setSpecialMode("recs"); renderRecs(); return; }
+  // Recommend is a sheet-backed tab (synthetic DATA.sheets.recs, recs.js), but its data only
+  // exists once the IGDB catalogue + taste model are ready. Until then recsReady() paints a
+  // loading/empty panel into #recs and we hold the special layout; once ready it has built
+  // the sheet and we fall through to the ordinary listing path below.
+  if (activeTab === "recs" && !recsReady()) { recsGate(); return; }
   setSpecialMode(null);
   // A filter that reads enrichment cannot be answered before enrichment is here.
   ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
@@ -157,11 +174,6 @@ function syncURL(push) {
     if (groupState.open) p.set("gk", groupState.open);
   } else if (activeTab === "challenges") {
     if (chState.open) p.set("ch", chState.open);
-  } else if (activeTab === "recs") {
-    if (recsState.sort !== "both") p.set("rs", recsState.sort);
-    if (recsState.era) p.set("re", recsState.era);
-    if (recsState.genre) p.set("rg", recsState.genre);
-    if (recsState.minConf) p.set("rc", "1");
   } else if (activeTab === "stats") {
     if (statsState.section && statsState.section !== "overview") p.set("s", statsState.section);
     if (statsState.year) p.set("sy", String(statsState.year));
@@ -200,14 +212,6 @@ function applyStateFromURL() {
       else applyPreset(p.get("sel") || pickState.preset || PICK_DEFAULT_PRESET);
       // After the tree exists, never before: this writes a criterion into it.
       pickAdoptMinutes(+(p.get("mins") || 0));
-    }
-    if (tab === "recs") {
-      const rs = p.get("rs");
-      recsState.sort = RECS_SORTS.some((x) => x.id === rs) ? rs : "both";
-      recsState.era = RECS_ERAS.some((x) => x.id === p.get("re")) ? p.get("re") : "";
-      recsState.genre = p.get("rg") || "";
-      recsState.minConf = p.get("rc") ? 0.5 : 0;
-      recsState.page = 1;
     }
     if (tab === "challenges") { chState.open = p.get("ch") || null; chState.showAll = null; }
     if (tab === "stats") {

@@ -16,15 +16,17 @@ let PAGE_SIZE = 50;
 //             user toggle: it's the default everywhere EXCEPT Completed, where
 //             every finished game (each episode of a series included) stands on
 //             its own. Orthogonal to the view: a list combines just as a grid does.
-const VIEW_DEFAULT = { games: "grid", completed: "timeline", onOrder: "grid", wishlist: "grid" };
-const COMBINE_DEFAULT = { games: true, completed: false, onOrder: true, wishlist: false };
+const VIEW_DEFAULT = { games: "grid", completed: "timeline", onOrder: "grid", wishlist: "grid", recs: "grid" };
+const COMBINE_DEFAULT = { games: true, completed: false, onOrder: true, wishlist: false, recs: false };
 const FACET_CAP = 12;              // values shown before "show more"
 const FACET_FILTER_THRESHOLD = 12; // show a per-facet search box past this many values
 
 // ---- state --------------------------------------------------------------
 let DATA = null;            // {meta, sheets}
 let activeTab = "home";
-const TABS = ["games", "completed", "onOrder", "wishlist"];
+// The sheet-backed listing tabs. Recommend is one too (a synthetic catalogue sheet, recs.js)
+// — Attract mode deliberately skips it (attractBuildPool), since those aren't games you own.
+const TABS = ["games", "completed", "onOrder", "wishlist", "recs"];
 // Per-tab UI state, isolated so switching tabs preserves filters.
 const tabState = {};
 // Filters/search/sort/page — wiped when you navigate to a tab afresh.

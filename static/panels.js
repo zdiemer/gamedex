@@ -637,7 +637,7 @@ async function loadAllEnrichment() {
          there are no tags to predict from and no igdbIds to join on — so it shows the
          whole catalogue, unfiltered, every game scored at your global mean because the
          model has nothing to go on, sorted by nothing. It looks like data. Re-render. */
-      else if (activeTab === "recs") renderRecs();
+      else if (activeTab === "recs") renderAll();   // sheet-backed now; the gate rebuilds it (owned games drop out)
       else if (activeTab !== "pick") {
         /* If a filter or a sort on screen reads this map, the row list itself may be wrong —
            not just the covers in it. It was computed against whatever the map held at the

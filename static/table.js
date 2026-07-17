@@ -19,6 +19,10 @@ const DEFAULT_SORT = {
   games: [{ key: "releaseDate", kind: "releaseDateDesc", dir: "desc" }],
   completed: [{ key: "date", dir: "desc", type: "date" }],
   onOrder: [{ key: "orderedDate", dir: "desc", type: "date" }],
+  // Recommend defaults to "best of both" (the model's score lifted by the similar-games
+  // vote — recsBoth); recScore is a hidden per-row field, not a column, and "Default" in the
+  // sort menu restores it.
+  recs: [{ key: "recScore", dir: "desc", type: "number" }],
 };
 
 const PLAYING_RANK = { "Playing": 0, "On Hold": 1, "Up Next": 2 };
@@ -161,6 +165,10 @@ function renderTable(rows) {
   else renderTableView(pageRows);
 
   maybeEnrich(pageRows);
+  // Recommend rows are catalogue games — fetch the trailer / HLTB / platform the catalogue
+  // payload doesn't carry for the page just painted (recs.js), so their cards get hover
+  // previews and Estimated Time.
+  if (activeTab === "recs" && typeof loadRecsMeta === "function") loadRecsMeta(pageRows);
   kbReset();
   renderViews();
   $("#count").textContent = `${sorted.length.toLocaleString()} of ${sheet().rows.length.toLocaleString()} games`;
@@ -264,7 +272,9 @@ function cardBodyHtml(row) {
   // an all-time-low star — so it reads at a glance instead of buried in the
   // platform/date line.
   const priceBadge = typeof wishlistPriceBadge === "function" ? wishlistPriceBadge(row) : "";
-  return `${meta}${rating}${priceBadge}<div class="card-title" title="${title}">${title}</div>` +
+  // Recommend cards carry a predicted-rating badge instead of a real/critic score.
+  const predBadge = typeof recsPredictBadge === "function" ? recsPredictBadge(row) : "";
+  return `${meta}${rating}${predBadge}${priceBadge}<div class="card-title" title="${title}">${title}</div>` +
     `<div class="card-sub">${head.join(" · ")}</div>` +
     `<div class="card-extra"><div>` +
       (extra.length ? `<div class="card-sub">${extra.join(" · ")}</div>` : "") +

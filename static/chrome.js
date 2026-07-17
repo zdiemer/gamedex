@@ -357,6 +357,14 @@ $("#drawerBody").addEventListener("click", (e) => {
     more.remove();
     return;
   }
+  // "Not interested" on a recommendation: dismiss it and close the drawer.
+  const rn = e.target.closest(".rec-dismiss");
+  if (rn) {
+    e.preventDefault(); e.stopPropagation();
+    if (typeof recsDismiss === "function") recsDismiss(+rn.dataset.recNo);
+    closeDrawer();
+    return;
+  }
   const a = e.target.closest(".facet-link");
   if (!a) return;
   e.preventDefault(); e.stopPropagation();

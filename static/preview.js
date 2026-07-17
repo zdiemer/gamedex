@@ -116,7 +116,7 @@ function ytWatch(frame, onFail, onPlay, onInfo) {
 // doesn't spawn twenty iframes; by a pointer check, since there's no hover on
 // touch; and by prefers-reduced-motion.
 const WANTS_MOTION = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const PREVIEW_DELAY = 550;                 // dwell before we commit to loading
+const PREVIEW_DELAY = 280;                 // dwell before we commit to loading — snappy, sub-second
 let previewTimer = null, previewCard = null, previewWatch = null, previewLoop = null, previewShotTimer = null;
 const SHOT_PREVIEW_MS = 1600;              // how long each screenshot holds before the next fades in
 

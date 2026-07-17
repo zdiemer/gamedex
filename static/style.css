@@ -4397,6 +4397,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .rec-empty h2 { font: 700 22px/1.2 var(--display); color: var(--text); margin-bottom: 10px; }
 .rec-load { display: flex; gap: 8px; align-items: center; justify-content: center; }
 
+/* The "Recommended for you" block inside a rec game's drawer (recsDrawerHtml). Reuses the
+   .hltb card shell; adds the predicted score line, the reason, and the dismiss button. */
+.rec-drawer-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.rec-drawer-score { font: 800 20px/1 var(--display); }   /* colour comes from ratingClass (.rating-good/-mid/-bad) */
+.rec-drawer-why { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.rec-drawer .rec-dismiss { margin-top: 12px; }
+
 /* ---- linked platforms: personal data (mine.js / wishlist.js) ------------- */
 /* The platform pills sit among the sheet's own history pills, tinted so it's
    visible which facts came from an account rather than the spreadsheet. */
