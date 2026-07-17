@@ -3965,11 +3965,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    whose back is the same scan, that reads as the cover printed backwards. It was.) The back keeps
    its thickness the flat way: a moulded rim, which is what you actually see on a real case anyway —
    a raised lip stepped in from the edge, on the front and the back both. */
+/* A hairline plastic-lip catch, NOT a frame. The old rim drew `inset 0 0 0 3px rgba(0,0,0,.30)`
+   4px in from the edge, which read as a blurred black outline sitting ON TOP of the box art
+   (not part of any real cover). Keep only the faint highlight that sells the clear-plastic
+   overlay's edge; drop the black. */
 .sh-case .f-front::before, .sh-case .f-back::before {
-  content: ""; position: absolute; inset: 4px; z-index: 1; border-radius: 3px; pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13),
-              inset 0 0 0 3px rgba(0, 0, 0, .30),
-              inset 0 1px 2px rgba(255, 255, 255, .10);
+  content: ""; position: absolute; inset: 2px; z-index: 1; border-radius: 3px; pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
 }
 /* THE INSIDE OF THE LID IS NOT THE COVER, SEEN BACKWARDS. Past 90° you are looking at the back of
    the front cover, and the back of a printed cover is the inside of the box — dark plastic, the
@@ -4019,16 +4021,20 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    box to the shelf beyond. These close the box in. Each is pinned to one edge of the back wall and
    swung forward a quarter turn, so it stands up exactly --d deep, which is the case's own depth. */
 .sh-wall { position: absolute; background: linear-gradient(180deg, #23232b, #131318); }
-.sh-wall { --wd: calc(var(--d) - 8px); visibility: hidden; }
+/* FULL depth and edge-to-edge. The walls only exist while the box is OPEN (visibility below),
+   so there's no closed-box z-fighting to avoid — and the old `d - 8px` depth + 3px insets left
+   a seam at every edge that you saw straight through to the shelf behind (the see-through
+   hinge). Run them the whole depth and the whole edge so the open box is genuinely closed. */
+.sh-wall { --wd: var(--d); visibility: hidden; }
 .sh-case.open:not(.slide) .sh-wall { visibility: visible; }
 /* The LEFT wall is the one behind the spine, and it was the one missing — four walls named in
    the comment above, three built. So the open box had a hole exactly where its spine is: you
    looked into it and straight back out through the spine (which, being backface-hidden, does
    not exist from in here) at the outside of the box. */
-.sh-wall.w-l { left: 3px;  top: 3px; width: var(--wd); height: calc(100% - 6px); transform-origin: left center;  transform: rotateY(-90deg); }
-.sh-wall.w-r { right: 3px; top: 3px; width: var(--wd); height: calc(100% - 6px); transform-origin: right center; transform: rotateY(90deg); }
-.sh-wall.w-t { left: 3px; top: 3px; width: calc(100% - 6px); height: var(--wd); transform-origin: center top; transform: rotateX(90deg); }
-.sh-wall.w-b { left: 3px; bottom: 3px; width: calc(100% - 6px); height: var(--wd); transform-origin: center bottom; transform: rotateX(-90deg); }
+.sh-wall.w-l { left: 0;  top: 0; width: var(--wd); height: 100%; transform-origin: left center;  transform: rotateY(-90deg); }
+.sh-wall.w-r { right: 0; top: 0; width: var(--wd); height: 100%; transform-origin: right center; transform: rotateY(90deg); }
+.sh-wall.w-t { left: 0; top: 0; width: 100%; height: var(--wd); transform-origin: center top; transform: rotateX(90deg); }
+.sh-wall.w-b { left: 0; bottom: 0; width: 100%; height: var(--wd); transform-origin: center bottom; transform: rotateX(-90deg); }
 
 /* Seated in the box it sits still — the idle turn is for when it's out and being looked at. */
 .sh-inside .md-cart, .sh-inside .md-disc, .sh-inside .md-umd, .sh-inside .md-shell {

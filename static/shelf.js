@@ -704,6 +704,15 @@ function shelfOpen(i) {
 
 function shelfClose() {
   if (shCur < 0) return;
+  // Shut the lid before putting the box back — a box goes home closed, not gaping open.
+  // Drop .open (the hinge swings shut on its CSS transition); if it WAS open, let it finish
+  // most of the way, then re-enter to do the slide-back.
+  const wasOpen = shEl && shEl.classList.contains("open");
+  if (shEl) shEl.classList.remove("open", "slide");
+  if (wasOpen && !shReduced()) {
+    setTimeout(() => { if (shCur >= 0) shelfClose(); }, 560);
+    return;
+  }
   shFrom = shSpineAt(shCur);      // it goes back where the spine IS now, not where it was
   shTarget = 0;
   if (shReduced()) {

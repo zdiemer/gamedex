@@ -144,13 +144,23 @@ and any decisions made along the way.
       BOTH Wishlist and Recommend (`games_light` / `/api/wishlist/meta` are currently
       wishlist-named but recs reuses them). Rectify this coupling in general.
 
-## Remaining (need YOUR eyes on the shelf — 3D CSS + perf, hard to verify blind)
+## Shipped in 1.58.25 (shelf, verified with local screenshots)
 
-- [ ] **14. Invisible inner hinge** — SEEN in a screenshot: an opened box shows a pure-black
-      interior/void at the hinge. The `.sh-liner` (inside of the lid) and interior walls need
-      a lit surface; needs iterative visual tuning against a real box with contents.
-- [ ] **15. Black outline on box fronts/backs** — couldn't reproduce locally (no cover art in
-      the scratch enrichment DB); needs a box showing real scanned art to see the bleed.
+- [x] **15. Black outline on box fronts/backs** — the `::before` "moulded rim" drew
+      `inset 0 0 0 3px rgba(0,0,0,.30)` ~4px inside the edge, a blurred black frame sitting over
+      the art. Dropped the black; kept only a hairline plastic-lip highlight. Verified: art now
+      goes clean to the edge (before/after screenshots). `style.css`.
+- [x] **14. See-through hinge** — the interior walls were only `d-8px` deep and inset 3px, so
+      the open box had seams you saw the shelf through. Since the walls only exist while open,
+      ran them full depth, edge-to-edge — the interior is now fully enclosed (confirmed with a
+      colour-coded surface diagnostic). NOTE: couldn't perfectly reproduce your exact fold
+      sliver on this GameCube case locally, so please confirm on prod. `style.css`.
+- [x] **Shut the box before putting it back** (your nit) — `shelfClose` now drops `.open` and
+      lets the hinge swing shut before sliding the box home, instead of putting a gaping box
+      back. `shelf.js`.
+
+## Remaining
+
 - [ ] **21. Shelf perf, round 2** — 1.58.16 made spine scans lazy. Remaining likely cost:
       per-spine box-shadows × ~2,000 (esp. the outer blurred one) and off-screen board paint;
       `content-visibility` is tempting but clips the hover lift/tooltip. Needs profiling.
