@@ -464,9 +464,11 @@ function openAccountMenu() {
       <h3>${escapeHtml(ME.username)}</h3>
       <div class="ce-sub">Signed in</div>
       <div class="auth-menu">
+        <button class="sh-btn" id="acctPlat" type="button">${icon("i-play", 14)} Linked platforms</button>
         <button class="sh-btn" id="acctPw" type="button">${icon("i-lock", 14)} Change password</button>
         <button class="sh-btn" id="acctOut" type="button">Log out</button>
       </div>`);
+  host.querySelector("#acctPlat").onclick = openPlatformsDialog;
   host.querySelector("#acctPw").onclick = openPasswordDialog;
   host.querySelector("#acctOut").onclick = async () => {
     try { await fetch("api/logout", { method: "POST" }); } catch (_) {}

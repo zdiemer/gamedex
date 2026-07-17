@@ -14,7 +14,12 @@ let media = [], shotIds = [], shotIdx = 0, lbIdx = 0;
 function wireCarousel(el, items) {
   const wrap = el.querySelector(".shots");
   media = items || [];
-  shotIds = media.filter((m) => m.kind === "image").map((m) => m.id);   // lightbox = stills only
+  // Lightbox = stills only. Entries are {igdb} image ids here; personal
+  // screenshots hand in {url} entries via openShotSet — one lightbox for both.
+  // The carousel keeps ITS OWN set and re-points the lightbox at it on every
+  // click, so opening the personal gallery in between can't hijack these stills.
+  const stills = media.filter((m) => m.kind === "image").map((m) => ({ igdb: m.id }));
+  shotIds = stills;
   if (!wrap || !media.length) return;
   const view = wrap.querySelector(".shot-view");
   const count = wrap.querySelector(".shot-count");
@@ -49,7 +54,7 @@ function wireCarousel(el, items) {
       img.loading = "lazy";
       img.alt = "";
       img.src = IMG(m.id, m.art ? "1080p" : "screenshot_med");
-      img.onclick = () => openLightbox(shotIds.indexOf(m.id));
+      img.onclick = () => openShotSet(stills, stills.findIndex((s) => s.igdb === m.id));
       view.appendChild(img);
     }
     count.textContent = `${shotIdx + 1} / ${media.length}`;
@@ -83,13 +88,17 @@ function ytFallback(m) {
 function lbShow(delta) {
   if (!shotIds.length) return;
   lbIdx = (lbIdx + delta + shotIds.length) % shotIds.length;
-  $("#lbImg").src = IMG(shotIds[lbIdx], "screenshot_huge");
+  const s = shotIds[lbIdx];
+  $("#lbImg").src = s.url || IMG(s.igdb, "screenshot_huge");
   $("#lbCount").textContent = `${lbIdx + 1} / ${shotIds.length}`;
   const multi = shotIds.length > 1;
   $("#lbPrev").hidden = !multi;
   $("#lbNext").hidden = !multi;
 }
 function openLightbox(i) { lbIdx = i; $("#lightbox").hidden = false; lbShow(0); syncScrollLock(); }
+// Point the lightbox at a caller-supplied set of stills ({url} or {igdb} each)
+// — how mine.js opens personal screenshots without a second lightbox.
+function openShotSet(entries, i) { shotIds = entries || []; openLightbox(i || 0); }
 function closeLightbox() { $("#lightbox").hidden = true; syncScrollLock(); }
 const lightboxOpen = () => !$("#lightbox").hidden;
 

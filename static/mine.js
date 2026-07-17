@@ -1,0 +1,307 @@
+"use strict";
+
+/* Personal platform data: MY hours, MY achievements, MY screenshots, MY review.
+
+   Everything else in the drawer is about the game; this is about what happened
+   between me and it, mirrored from the linked platform accounts (Steam first;
+   PSN/Xbox/Nintendo later) by platform_sync.py on the server.
+
+   Two caches, same shape as enrich.js keeps for every other source:
+     MINE   matchKey -> light map from /api/mine/all (playtime, ach counts, the
+            owned appid) — loaded once at boot, read synchronously by the drawer
+            pills, the hero stat strip and launch.js.
+     MINED  matchKey -> full detail from /api/mine/detail (the achievement grid,
+            the screenshots, the review) — fetched when a drawer opens.
+
+   Also the admin "Linked platforms" dialog (provider cards, credentials,
+   sync-now), reached from the account menu in chrome.js. */
+
+let MINE = {};                    // matchKey -> {steam: {...}, _flags: {...}}
+const MINED = {};                 // matchKey -> /api/mine/detail items
+let MINE_ENABLED = false;
+
+// The one provider pass 1 ships. Later providers add themselves here and
+// everything below — pills, panels, badges — picks them up.
+const MINE_PROVIDERS = {
+  steam: { label: "Steam", verb: "on Steam" },
+  psn: { label: "PlayStation", verb: "on PlayStation" },
+  xbox: { label: "Xbox", verb: "on Xbox" },
+  nintendo: { label: "Nintendo", verb: "on Switch" },
+};
+const mineEntries = (key) => Object.entries(MINE[key] || {})
+  .filter(([p]) => MINE_PROVIDERS[p]);
+
+async function loadMine() {
+  try {
+    const r = await fetch("api/mine/all");
+    if (!r.ok) return;
+    const j = await r.json();
+    MINE_ENABLED = !!j.enabled;
+    MINE = j.items || {};
+  } catch (_) { /* personal data is a layer, never a dependency */ }
+}
+
+// The appid of the copy I actually own — beats IGDB's guess in launch.js.
+function mineSteamAppId(key) {
+  const s = (MINE[key] || {}).steam;
+  return s ? s.appId : null;
+}
+
+// ---- drawer: pills + stat cells (sync, from the light map) ----------------
+function minePillsHtml(key) {
+  const pills = [];
+  for (const [p, it] of mineEntries(key)) {
+    const verb = MINE_PROVIDERS[p].verb;
+    if (it.playtimeMin != null && it.playtimeMin > 0)
+      pills.push(`<span class="mine-pill plat">${escapeHtml(fmtHours(it.playtimeMin / 60))} ${escapeHtml(verb)}</span>`);
+    if (it.ach && it.ach.total)
+      pills.push(`<span class="mine-pill plat">🏆 ${it.ach.unlocked}/${it.ach.total}</span>`);
+    if (it.review)
+      pills.push(`<span class="mine-pill plat">${it.review.recommended ? "👍" : "👎"} Reviewed ${escapeHtml(verb)}</span>`);
+  }
+  return pills.join("");
+}
+
+function mineStatCells(key) {
+  const cells = [];
+  for (const [p, it] of mineEntries(key)) {
+    if (it.playtimeMin != null && it.playtimeMin > 0)
+      cells.push([fmtHours(it.playtimeMin / 60), `Played (${MINE_PROVIDERS[p].label})`, ""]);
+  }
+  return cells;
+}
+
+// ---- drawer: the async detail panel ---------------------------------------
+async function loadMineDetail(key, el) {
+  if (!el || !MINE_ENABLED || !mineEntries(key).length) return;
+  if (!MINED[key]) {
+    try {
+      const r = await fetch("api/mine/detail?key=" + encodeURIComponent(key));
+      if (!r.ok) return;
+      MINED[key] = (await r.json()).items || {};
+    } catch (_) { return; }
+  }
+  const html = Object.entries(MINED[key])
+    .filter(([p]) => MINE_PROVIDERS[p])
+    .map(([p, d]) => mineAchHtml(p, d) + mineShotsHtml(p, d) + mineReviewHtml(p, d)
+      + (IS_ADMIN ? mineFixHtml(p, d, key) : ""))
+    .join("");
+  el.innerHTML = html;
+  wireMineDetail(el, key);
+}
+
+function mineAchHtml(provider, d) {
+  const list = d.achievements || [];
+  if (!list.length) return "";
+  const label = MINE_PROVIDERS[provider].label;
+  const done = list.filter((a) => a.unlocked);
+  const pct = Math.round((100 * done.length) / list.length);
+  // Unlocked first, newest unlock leading; the locked tail rarest-last so the
+  // next realistic target sits right after your trophies.
+  const sorted = [
+    ...done.sort((a, b) => String(b.unlockedAt || "").localeCompare(String(a.unlockedAt || ""))),
+    ...list.filter((a) => !a.unlocked).sort((a, b) => (b.globalPct || 0) - (a.globalPct || 0)),
+  ];
+  const cell = (a) => {
+    const icn = a.unlocked ? a.iconUrl : (a.iconLockedUrl || a.iconUrl);
+    const tip = [a.name, a.description,
+                 a.unlocked && a.unlockedAt ? `Unlocked ${fmtDate(String(a.unlockedAt).slice(0, 10))}` : null,
+                 a.globalPct != null ? `${a.globalPct}% of players` : null]
+      .filter(Boolean).join(" — ");
+    return `<div class="mine-ach-it${a.unlocked ? " on" : ""}" title="${escapeHtml(tip)}">
+      ${icn ? `<img loading="lazy" src="${escapeHtml(cImg(icn))}" alt="" onerror="this.remove()">` : ""}
+      ${a.globalPct != null && a.globalPct <= 5 ? `<i class="rare">${a.globalPct}%</i>` : ""}
+    </div>`;
+  };
+  const FOLD = 24;
+  const grid = (arr) => `<div class="mine-ach-grid">${arr.map(cell).join("")}</div>`;
+  return `<div class="hltb mine-ach">
+    <div class="hltb-head">${icon("i-trophy", 15)} Achievements — ${done.length} / ${list.length} · ${escapeHtml(label)}</div>
+    <div class="mine-ach-bar"><i style="width:${pct}%"></i><span>${pct}%</span></div>
+    ${grid(sorted.slice(0, FOLD))}
+    ${sorted.length > FOLD
+      ? `<details class="mine-ach-more"><summary>All ${sorted.length}</summary>${grid(sorted.slice(FOLD))}</details>`
+      : ""}
+  </div>`;
+}
+
+function mineShotsHtml(provider, d) {
+  const shots = d.screenshots || [];
+  if (!shots.length) return "";
+  return `<div class="hltb mine-shots-sect">
+    <div class="hltb-head">${icon("i-grid", 15)} Your screenshots <span class="muted">${shots.length}</span></div>
+    <div class="mine-shots" data-mineshots="${escapeHtml(provider)}">
+      ${shots.map((s, i) => `<img loading="lazy" src="${escapeHtml(s.url)}" alt=""
+        onerror="this.style.opacity=.25" data-shot="${i}" title="${escapeHtml([s.caption, s.takenAt ? fmtDate(String(s.takenAt).slice(0, 10)) : null].filter(Boolean).join(" — "))}">`).join("")}
+    </div>
+  </div>`;
+}
+
+function mineReviewHtml(provider, d) {
+  const r = d.review;
+  if (!r || (!r.text && r.recommended == null)) return "";
+  const label = MINE_PROVIDERS[provider].label;
+  const verdict = r.recommended == null ? ""
+    : `<b class="${r.recommended ? "rating-good" : "rating-bad"}">${r.recommended ? "👍 Recommended" : "👎 Not recommended"}</b>`;
+  const facts = [r.hoursAtReview != null ? `${r.hoursAtReview} hrs at review` : null,
+                 r.postedAt || null].filter(Boolean).join(" · ");
+  return `<div class="hltb mine-rev">
+    <div class="hltb-head">${icon("i-review", 15)} Your ${escapeHtml(label)} review</div>
+    <div class="mine-rev-verdict">${verdict}${facts ? ` <span class="muted">${escapeHtml(facts)}</span>` : ""}</div>
+    ${r.text ? `<blockquote class="mine-review">${escapeHtml(r.text)}</blockquote>` : ""}
+    ${r.url ? `<a class="hltb-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">On ${escapeHtml(label)} ↗</a>` : ""}
+  </div>`;
+}
+
+// Admin: repoint which library app this sheet row is matched to (the platform
+// twin of hero.js's "Fix mapping" rows).
+function mineFixHtml(provider, d, key) {
+  const label = MINE_PROVIDERS[provider].label;
+  return `<details class="map-menu mine-fix" data-minefix="${escapeHtml(provider)}">
+    <summary>${icon("i-edit", 13)} Fix ${escapeHtml(label)} library match</summary>
+    <div class="map-src"><label>${escapeHtml(label)} app id (currently ${escapeHtml(String(d.appId))})</label>
+      <div class="map-row"><input type="text" value="${escapeHtml(String(d.appId))}" data-fix-input>
+        <button class="btn" data-fix-pin>Pin</button>
+        <button class="linkbtn" data-fix-auto title="Re-run auto-matching">Auto</button>
+        <button class="linkbtn danger" data-fix-remove title="Pin as no match">Remove</button>
+      </div></div>
+  </details>`;
+}
+
+function wireMineDetail(el, key) {
+  // Personal screenshots reuse the one lightbox (see panels.js openShotSet).
+  el.querySelectorAll("[data-mineshots]").forEach((strip) => {
+    const p = strip.dataset.mineshots;
+    const shots = ((MINED[key] || {})[p] || {}).screenshots || [];
+    strip.querySelectorAll("img[data-shot]").forEach((img) => {
+      img.onclick = () => openShotSet(shots.map((s) => ({ url: s.url })), +img.dataset.shot);
+    });
+  });
+  el.querySelectorAll("[data-minefix]").forEach((box) => {
+    const provider = box.dataset.minefix;
+    const cur = ((MINED[key] || {})[provider] || {}).appId;
+    const input = box.querySelector("[data-fix-input]");
+    const post = async (body) => {
+      try {
+        const r = await fetch(`api/platforms/${provider}/match`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) return false;
+        delete MINED[key];
+        await loadMine();
+        loadMineDetail(key, el);
+        return true;
+      } catch (_) { return false; }
+    };
+    box.querySelector("[data-fix-pin]").onclick = () => {
+      const v = input.value.trim();
+      if (v) post({ appId: v, key });
+    };
+    box.querySelector("[data-fix-auto]").onclick = () => post({ appId: String(cur) });
+    box.querySelector("[data-fix-remove]").onclick = () => post({ appId: String(cur), remove: true });
+  });
+}
+
+// ---- the admin dialog: Linked platforms ------------------------------------
+async function openPlatformsDialog() {
+  let state = null;
+  try {
+    const r = await fetch("api/platforms");
+    if (r.ok) state = (await r.json()).providers;
+  } catch (_) { /* rendered below as unreachable */ }
+  const host = openAuthModal(`
+      <h3>Linked platforms</h3>
+      <div class="ce-sub">Personal libraries, synced in the background</div>
+      <div class="plat-cards" id="platCards">${state ? platCardsHtml(state) : "<p class='auth-err'>Couldn't reach the server.</p>"}</div>`);
+  wirePlatCards(host);
+}
+
+function platCardsHtml(state) {
+  return Object.entries(MINE_PROVIDERS).map(([p, def]) => {
+    const s = state[p] || { linked: false, supported: false };
+    if (!s.supported) {
+      return `<div class="plat-card off"><div class="plat-head"><b>${escapeHtml(def.label)}</b>
+        <span class="muted">coming later</span></div></div>`;
+    }
+    if (!s.linked) {
+      return `<div class="plat-card" data-plat="${p}">
+        <div class="plat-head"><b>${escapeHtml(def.label)}</b><span class="muted">not linked</span></div>
+        <form class="auth-form plat-form">
+          <label>Web API key<input type="password" data-cred="apiKey" autocomplete="off"
+            placeholder="from steamcommunity.com/dev/apikey"></label>
+          <label>SteamID64<input type="text" data-cred="steamId" placeholder="7656119…" inputmode="numeric"></label>
+          <p class="auth-err" data-plat-err hidden></p>
+          <div class="ce-acts"><span></span><div class="ce-right">
+            <button class="sh-btn primary" type="submit">Link</button>
+          </div></div>
+        </form>
+      </div>`;
+    }
+    const c = s.counts || {};
+    const stats = [
+      c.games != null ? `${c.games.toLocaleString()} games (${c.matched} matched)` : null,
+      c.achievements ? `${c.achievementsUnlocked}/${c.achievements} achievements` : null,
+      c.screenshots ? `${c.screenshots} screenshots` : null,
+      c.wishlist ? `${c.wishlist} wishlisted` : null,
+      c.reviews ? `${c.reviews} reviews` : null,
+    ].filter(Boolean).join(" · ");
+    const when = s.lastSync ? new Date(s.lastSync).toLocaleString(undefined,
+      { dateStyle: "medium", timeStyle: "short" }) : "never";
+    return `<div class="plat-card" data-plat="${p}">
+      <div class="plat-head"><b>${escapeHtml(def.label)}</b>
+        <span class="plat-who">${escapeHtml(s.displayName || "")}</span></div>
+      <div class="plat-stats muted">${escapeHtml(stats || "nothing synced yet")}</div>
+      <div class="plat-stats muted">Last sync: ${escapeHtml(when)}${s.syncing ? ` · <b>syncing (${escapeHtml(s.syncing)})…</b>` : ""}</div>
+      ${s.status === "error" && s.error ? `<p class="auth-err">${escapeHtml(s.error)}</p>` : ""}
+      <div class="ce-acts"><span></span><div class="ce-right">
+        <button class="sh-btn" data-plat-sync type="button">Sync now</button>
+        <button class="sh-btn danger" data-plat-unlink type="button">Unlink</button>
+      </div></div>
+    </div>`;
+  }).join("");
+}
+
+function wirePlatCards(host) {
+  host.querySelectorAll(".plat-card[data-plat]").forEach((card) => {
+    const p = card.dataset.plat;
+    const form = card.querySelector(".plat-form");
+    if (form) form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = card.querySelector("[data-plat-err]");
+      err.hidden = true;
+      const credentials = {};
+      form.querySelectorAll("[data-cred]").forEach((i) => credentials[i.dataset.cred] = i.value.trim());
+      const btn = form.querySelector("[type=submit]");
+      btn.disabled = true; btn.textContent = "Checking…";
+      try {
+        const r = await fetch(`api/platforms/${p}/link`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credentials }),
+        });
+        if (r.ok) {
+          showToast(`${MINE_PROVIDERS[p].label} linked ✓ — first sync started`);
+          openPlatformsDialog();
+          return;
+        }
+        const j = await r.json().catch(() => ({}));
+        err.textContent = j.detail || "Couldn't link the account.";
+        err.hidden = false;
+      } catch (_) { err.textContent = "Couldn't reach the server."; err.hidden = false; }
+      btn.disabled = false; btn.textContent = "Link";
+    });
+    const sync = card.querySelector("[data-plat-sync]");
+    if (sync) sync.onclick = async () => {
+      sync.disabled = true;
+      try { await fetch(`api/platforms/${p}/sync`, { method: "POST" }); } catch (_) {}
+      showToast("Sync started — it runs in the background");
+      sync.disabled = false;
+    };
+    const unlink = card.querySelector("[data-plat-unlink]");
+    if (unlink) unlink.onclick = async () => {
+      if (!confirm(`Unlink ${MINE_PROVIDERS[p].label}? Synced data stays until you purge it.`)) return;
+      try { await fetch(`api/platforms/${p}/link`, { method: "DELETE" }); } catch (_) {}
+      openPlatformsDialog();
+    };
+  });
+}

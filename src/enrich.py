@@ -225,6 +225,10 @@ class Enricher:
         self._backfill = backfill
         self._validator = MatchValidator()
         self._key_meta: dict = {}
+        # Set by app.py to platformdb.steam_appid_for_key: the appid of the copy
+        # the admin actually OWNS, which beats whatever IGDB's external_games
+        # guessed (IGDB links Fallout: New Vegas to an appid I don't have).
+        self.appid_override = None
         self._sources = ["igdb"] + list(self._secondary)
 
         self._lock = threading.Lock()
@@ -405,7 +409,12 @@ class Enricher:
         return "enrichment" if src == "igdb" else src
 
     def appid_for(self, key):
-        """The Steam appid from a key's primary metadata record, if it has one."""
+        """The Steam appid for a key: the one the admin's linked library says
+        they own when it differs, else the one on the IGDB record."""
+        if self.appid_override is not None:
+            owned = self.appid_override(key)
+            if owned:
+                return str(owned)
         row = self._get("enrichment", [key]).get(key)
         if not row or row[0] != "matched" or not row[1]:
             return None
@@ -535,6 +544,28 @@ class Enricher:
 
     def meta_for(self, key):
         return self._key_meta.get(key)
+
+    def keys_meta(self) -> dict:
+        """A snapshot of {match_key: meta} for every sheet row — the sync
+        engine matches the linked platform libraries against this."""
+        with self._lock:
+            return dict(self._key_meta)
+
+    def requeue_appid_sources(self, keys):
+        """Drop and re-request the appid-keyed sources (steamx, pcgw) for keys
+        whose owned appid differs from IGDB's guess — their rows were fetched
+        under the wrong id. Manual pins stay, as everywhere."""
+        todo = [k for k in keys if k in self._key_meta]
+        if not todo:
+            return
+        with self._db_lock:
+            qs = ",".join("?" * len(todo))
+            for src in _NEEDS_APPID & set(self._secondary):
+                self._db.execute(
+                    f"DELETE FROM {src} WHERE match_key IN ({qs})"
+                    " AND (manual IS NULL OR manual=0)", todo)
+            self._db.commit()
+        self.request(todo, front=False)
 
     def set_source_override(self, source, key, record):
         """Pin any source (igdb or a secondary) to a manually chosen record."""

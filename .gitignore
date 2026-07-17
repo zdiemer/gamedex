@@ -19,3 +19,4 @@ data/.cdx-cache.json
 /*.jpg
 /*.mjs
 /*.tar
+.venv/

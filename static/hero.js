@@ -97,6 +97,8 @@ function heroStatsHtml(row) {
   if (ur != null) cells.push([pct(ur), "Players", ratingClass(ur)]);
   const pt = playtimeOf(row);
   if (pt != null) cells.push([fmtHours(pt), e.hltbBest != null ? "HowLongToBeat" : "Est. playtime", ""]);
+  // The hours the platform itself counted — real, not estimated (see mine.js).
+  if (typeof mineStatCells === "function") cells.push(...mineStatCells(row._k));
   const units = salesOf(row);
   if (units != null) cells.push([fmtUnits(units), "Units sold", ""]);
   const cv = collectionValueOf(row);

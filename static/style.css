@@ -4338,3 +4338,70 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .rec-empty { text-align: center; color: var(--muted); padding: 40px 20px; }
 .rec-empty h2 { font: 700 22px/1.2 var(--display); color: var(--text); margin-bottom: 10px; }
 .rec-load { display: flex; gap: 8px; align-items: center; justify-content: center; }
+
+/* ---- linked platforms: personal data (mine.js / wishlist.js) ------------- */
+/* The platform pills sit among the sheet's own history pills, tinted so it's
+   visible which facts came from an account rather than the spreadsheet. */
+.mine-pill.plat { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
+
+.mine-ach-bar {
+  position: relative; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); margin: 4px 0 10px;
+}
+.mine-ach-bar i {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+.mine-ach-bar span {
+  position: absolute; right: 6px; top: -1px;
+  font: 700 8.5px/10px var(--font); color: var(--muted);
+}
+.mine-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.mine-ach-it {
+  position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.mine-ach-it img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mine-ach-it:not(.on) img { filter: grayscale(1); opacity: .38; }
+.mine-ach-it.on { border-color: var(--accent-line); }
+.mine-ach-it .rare {
+  position: absolute; right: 0; bottom: 0; font: 700 8px/1 var(--font); font-style: normal;
+  padding: 2px 3px; border-top-left-radius: 5px;
+  background: var(--accent); color: #fff;
+}
+.mine-ach-more summary {
+  cursor: pointer; font: 600 11.5px/1 var(--font); color: var(--muted);
+  padding: 8px 0 6px; user-select: none;
+}
+.mine-ach-more summary:hover { color: var(--accent); }
+.mine-ach-more[open] summary { margin-bottom: 6px; }
+
+.mine-shots { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.mine-shots img {
+  height: 74px; border-radius: 6px; border: 1px solid var(--border);
+  cursor: zoom-in; flex: 0 0 auto;
+}
+.mine-shots img:hover { border-color: var(--accent-line); }
+
+.mine-rev-verdict { font-size: 13px; margin-bottom: 6px; }
+
+/* Admin dialog: one card per provider. */
+.plat-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; max-height: 60vh; overflow-y: auto; }
+.plat-card { padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); }
+.plat-card.off { opacity: .55; }
+.plat-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.plat-head b { font: 700 14px/1.2 var(--display); }
+.plat-who { font-size: 12px; color: var(--accent); }
+.plat-stats { font-size: 12px; margin-top: 5px; }
+.plat-form { margin-top: 8px; }
+
+/* Wishlist tab: rides the recommendations grid/card styles. */
+.rec.wl.clickable { cursor: pointer; }
+.rec.wl.clickable:hover { border-color: var(--accent-line); }
+.wl-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+.wl-badge {
+  font: 600 10px/1 var(--font); letter-spacing: .03em; padding: 4px 7px;
+  border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--dim);
+}
+.wl-badge.wl-steam { border-color: var(--accent-line); color: var(--accent); }
+.wl-store { font: 600 11px/1 var(--font); margin-left: auto; }

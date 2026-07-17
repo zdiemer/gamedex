@@ -58,19 +58,30 @@ const storeEntry = (e, key) => {
 
 function launchTarget(row) {
   const e = ENRICH[row._k];
-  if (!e || !e.stores) return null;
+  // The appid from MY linked Steam library. It corrects two things at once:
+  // IGDB's external_games sometimes names an appid I don't own (Fallout: New
+  // Vegas), and a game IGDB never matched can still be launchable if the
+  // library says I have it.
+  const ownedSteam = typeof mineSteamAppId === "function" ? mineSteamAppId(row._k) : null;
+  if ((!e || !e.stores) && !ownedSteam) return null;
   const notes = String(row.notes || "");
   const want = NOTES_STORE[notes] || PLATFORM_STORE[row.platform] || null;
 
   // The storefront the sheet says you own it on — else whatever we know about.
-  const key = (want && storeEntry(e, want)) ? want
+  const key = (ownedSteam && (want === "steam" || !want)) ? "steam"
+    : (want && storeEntry(e, want)) ? want
     : Object.keys(STORE_OPEN).find((k) => storeEntry(e, k));
   if (!key) return null;
-  const st = storeEntry(e, key);
+  const st = (key === "steam" && ownedSteam)
+    ? { id: ownedSteam, url: null }
+    : storeEntry(e, key);
+  if (!st) return null;
   const store = STORE_OPEN[key] || key;
 
-  // A launch only makes sense when the sheet says this is the copy you own.
-  const ownThisOne = row.owned && want === key && !!STORE_LAUNCH[key];
+  // A launch only makes sense when this is the copy you own — the sheet says
+  // so, or the linked library outright contains it.
+  const ownThisOne = ((row.owned && want === key) || (key === "steam" && !!ownedSteam))
+    && !!STORE_LAUNCH[key];
   if (ownThisOne) {
     return { kind: "launch", label: "▶ " + STORE_LAUNCH[key].label,
              href: STORE_LAUNCH[key].uri(st.id), store };

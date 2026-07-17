@@ -32,8 +32,11 @@ from pydantic import BaseModel
 import accounts as accounts_mod
 import assetcache as assetcache_mod
 import picross as picross_mod
+import platformdb as platformdb_mod
+import platform_sync as platform_sync_mod
 import prefs as prefs_mod
 import romm
+import steam_user as steam_user_mod
 import gamerankings as gr_mod
 import shelf as shelf_mod
 
@@ -156,6 +159,26 @@ store = DataStore(
     on_update=(enricher.reindex if enricher else None),
 )
 
+# Personal platform accounts (see platformdb.py / platform_sync.py): the admin
+# links their Steam account in-app and a background thread mirrors the library,
+# hours, achievements, screenshots, wishlist and reviews onto the PVC. The
+# credentials live in the DB, not the environment — later providers (PSN)
+# rotate tokens at runtime, which env secrets can't do.
+PLATFORMS_DB = os.environ.get("PLATFORMS_DB", "/data/platforms.sqlite")
+SHOTS_DIR = Path(os.environ.get("PLATFORM_SHOTS_DIR", "/data/platshots"))
+PLATDB = platformdb_mod.PlatformDB(PLATFORMS_DB)
+PSYNC = platform_sync_mod.PlatformSync(
+    PLATDB,
+    providers={"steam": steam_user_mod.SteamUserClient()},
+    enricher=enricher, catalogue=catalogue, store=store, shots_dir=SHOTS_DIR,
+    interval=int(os.environ.get("PLATFORM_SYNC_INTERVAL", "21600")),
+    ach_backfill=int(os.environ.get("ACH_BACKFILL_PER_SYNC", "150")),
+)
+if enricher:
+    # The appid of the copy I actually own beats IGDB's external_games guess —
+    # this is what fixes the Fallout: New Vegas launch link and steamx lookups.
+    enricher.appid_override = PLATDB.steam_appid_for_key
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -179,12 +202,14 @@ async def lifespan(_: FastAPI):
         catalogue.start()
         logging.getLogger("gamedex").info(
             "IGDB catalogue enabled (generation=%d)", catalogue.generation)
+    PSYNC.start()
     yield
     store.stop()
     if enricher:
         enricher.stop()
     if catalogue:
         catalogue.stop()
+    PSYNC.stop()
 
 
 app = FastAPI(title="Gamedex", lifespan=lifespan)
@@ -361,6 +386,156 @@ def api_romm(user: dict | None = Depends(current_user)):
     if user is None or not ROMM.enabled:
         return {"enabled": False, "roms": {}}
     return ROMM.snapshot()
+
+
+# ---------- linked platform accounts ----------
+_PROVIDERS = set(platformdb_mod.PROVIDERS)
+
+
+def _check_provider(provider: str):
+    if provider not in _PROVIDERS:
+        raise HTTPException(status_code=404, detail="unknown provider")
+
+
+@app.get("/api/platforms")
+def api_platforms(user: dict = Depends(require_admin)):
+    """The admin's provider cards: link state, identity, last sync, counts.
+    Admin-only — it names the account and how the last sync went."""
+    linked = {a["provider"]: a for a in PLATDB.accounts()}
+    out = {}
+    for p in platformdb_mod.PROVIDERS:
+        a = linked.get(p)
+        if a is None:
+            out[p] = {"linked": False, "supported": PSYNC.provider(p) is not None}
+            continue
+        out[p] = {"linked": True, "supported": PSYNC.provider(p) is not None,
+                  "displayName": a["displayName"], "status": a["status"],
+                  "error": a["error"], "linkedAt": a["linkedAt"],
+                  "lastSync": a["lastSync"], "syncing": PSYNC.busy(p),
+                  "counts": PLATDB.counts(p)}
+    return {"providers": out}
+
+
+class PlatformLink(BaseModel):
+    credentials: dict
+
+
+@app.post("/api/platforms/{provider}/link")
+def api_platform_link(provider: str, body: PlatformLink,
+                      user: dict = Depends(require_admin)):
+    _check_provider(provider)
+    client = PSYNC.provider(provider)
+    if client is None:
+        raise HTTPException(status_code=400, detail="provider not supported yet")
+    try:
+        info = client.validate(body.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="could not reach the platform")
+    PLATDB.link(provider, body.credentials, info.get("displayName"))
+    PSYNC.kick()
+    return {"ok": True, "displayName": info.get("displayName")}
+
+
+@app.delete("/api/platforms/{provider}/link")
+def api_platform_unlink(provider: str, purge: bool = False,
+                        user: dict = Depends(require_admin)):
+    _check_provider(provider)
+    PLATDB.unlink(provider, purge=purge)
+    return {"ok": True}
+
+
+@app.post("/api/platforms/{provider}/sync")
+def api_platform_sync(provider: str, user: dict = Depends(require_admin)):
+    _check_provider(provider)
+    if PLATDB.account(provider) is None:
+        raise HTTPException(status_code=400, detail="not linked")
+    PSYNC.kick()
+    return {"ok": True, "syncing": True}
+
+
+class PlatformMatch(BaseModel):
+    appId: str
+    key: str | None = None      # None/'' + remove=False clears back to auto
+    remove: bool = False        # pin as "matches nothing"
+
+
+@app.post("/api/platforms/{provider}/match")
+def api_platform_match(provider: str, body: PlatformMatch,
+                       user: dict = Depends(require_admin)):
+    """Pin one platform app to one sheet row (or to nothing), like
+    /api/enrichment/override does for metadata sources."""
+    _check_provider(provider)
+    if body.remove:
+        PLATDB.set_override(provider, body.appId, "")
+        PLATDB.replace_matches(provider, body.appId, [])
+        return {"status": "removed"}
+    if not body.key:
+        PLATDB.clear_override(provider, body.appId)
+        PSYNC.kick()
+        return {"status": "cleared"}
+    PLATDB.set_override(provider, body.appId, body.key)
+    PLATDB.replace_matches(provider, body.appId, [(body.key, "manual", None)])
+    return {"status": "matched", "key": body.key}
+
+
+@app.get("/api/mine/all")
+def api_mine_all():
+    """The light per-game personal map, keyed by match key — playtime for the
+    hero strip, achievement counts for the pills, the corrected Steam appid for
+    the launch button. Public like the rest of the personal history."""
+    return {"enabled": bool(PLATDB.accounts()), "items": PLATDB.mine_light()}
+
+
+@app.get("/api/mine/detail")
+def api_mine_detail(key: str):
+    """Everything personal about one game, per provider: the full achievement
+    list, the screenshots, the review."""
+    out = {}
+    for p in platformdb_mod.PROVIDERS:
+        app_id = PLATDB.app_for_key(p, key)
+        if app_id is None:
+            continue
+        shots = [{"id": s["id"], "takenAt": s["takenAt"], "caption": s["caption"],
+                  "width": s["width"], "height": s["height"],
+                  "url": f"/api/shot?provider={p}&id={s['id']}"}
+                 for s in PLATDB.shots_for_app(p, app_id)
+                 if s["filePath"] or s["sourceUrl"]]
+        out[p] = {"appId": app_id,
+                  "achievements": PLATDB.achievements_for(p, app_id),
+                  "screenshots": shots,
+                  "review": PLATDB.review_for(p, app_id)}
+    return {"enabled": True, "items": out}
+
+
+@app.get("/api/shot")
+def api_shot(provider: str, id: str):
+    """One personal screenshot, served from the PVC. The path comes off the DB
+    row, never the query, so this can't be steered outside SHOTS_DIR."""
+    row = PLATDB.shot_row(provider, id)
+    if row is None:
+        return JSONResponse({"error": "no such screenshot"}, status_code=404)
+    if row["filePath"]:
+        p = SHOTS_DIR / row["filePath"]
+        if p.is_file():
+            ext = p.suffix.lstrip(".").lower()
+            mt = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                  "webp": "image/webp"}.get(ext, "image/jpeg")
+            return Response(content=p.read_bytes(), media_type=mt,
+                            headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    if row["sourceUrl"]:                      # not downloaded yet — don't 404 the drawer
+        return RedirectResponse(row["sourceUrl"], status_code=302)
+    return JSONResponse({"error": "not available"}, status_code=404)
+
+
+@app.get("/api/wishlist")
+def api_wishlist():
+    """Every platform wishlist entry, with whatever identity matching found:
+    a match key (it's on the sheet), an IGDB id + cover (it's in the catalogue),
+    or just the store's name. The sheet's own Wishlisted rows are merged
+    client-side — the browser already has them."""
+    return {"enabled": bool(PLATDB.accounts()), "items": PLATDB.wishlist_all()}
 
 
 # ---------- the shelf ----------

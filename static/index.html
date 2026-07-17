@@ -127,6 +127,7 @@
     <button data-tab="games"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-library"/></svg><span>All Games</span></button>
     <button data-tab="completed"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-trophy"/></svg><span>Completed</span></button>
     <button data-tab="onOrder"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-package"/></svg><span>On Order</span></button>
+    <button data-tab="wishlist"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-star"/></svg><span>Wishlist</span></button>
     <button data-tab="shelf"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-shelf"/></svg><span>Shelf</span></button>
     <button data-tab="groups"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-layers"/></svg><span>Groupings</span></button>
     <button data-tab="stats"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-stats"/></svg><span>Stats</span></button>
@@ -183,6 +184,7 @@
       <div class="groups" id="groups" hidden></div>
       <div class="picross" id="picross" hidden></div>
       <div class="recs" id="recs" hidden></div>
+      <div class="recs wishlist" id="wishlist" hidden></div>
       <datalist id="pxTitles"></datalist>
       <div class="timeline" id="timeline" hidden></div>
       <div class="pager" id="pager"></div>
@@ -248,6 +250,7 @@
        which is why it comes last of this group. -->
   <script src="core.js"></script>
   <script src="enrich.js"></script>
+  <script src="mine.js"></script>
   <script src="hero.js"></script>
   <script src="panels.js"></script>
   <script src="data.js"></script>
@@ -274,6 +277,7 @@
   <script src="predict.js"></script>
   <script src="catalogue.js"></script>
   <script src="recs.js"></script>
+  <script src="wishlist.js"></script>
   <script src="extras.js"></script>
   <script>
     // Installable + offline. The SW is opt-out-safe: if registration fails the

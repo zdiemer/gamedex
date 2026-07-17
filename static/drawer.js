@@ -106,11 +106,18 @@ function mineSectionHtml(row) {
   if (h.priority) pills.push(`<span class="mine-pill">Priority ${escapeHtml(String(h.priority))}</span>`);
   if (h.emulated) pills.push(`<span class="mine-pill">Emulated</span>`);
   if (h.steamDeck) pills.push(`<span class="mine-pill">Steam Deck</span>`);
+  // What the linked platform accounts know: real hours, achievement counts,
+  // whether I reviewed it there (see mine.js).
+  if (typeof minePillsHtml === "function") {
+    const pp = minePillsHtml(row._k);
+    if (pp) pills.push(pp);
+  }
 
   const stats = [];
   if (h.rating != null)
     stats.push([`${Math.round(h.rating * 100)}`, "My rating", ratingClass(h.rating)]);
   if (h.playTime != null) stats.push([fmtHours(h.playTime), "Time played", ""]);
+  if (typeof mineStatCells === "function") stats.push(...mineStatCells(row._k));
   if (h.price != null) stats.push([`$${Number(h.price).toFixed(2)}`, "Paid", ""]);
 
   // The shape of the play-through. Only the beats that happened, in the order they
@@ -189,7 +196,11 @@ function openDrawer(row, sheetKey, keepStack) {
   }
   // The personal "history" (purchase price, dates) stays public; the NAS section leaks
   // file paths/sizes, so it's admin-only (the read is empty for anon anyway).
-  if (!row._collection) html += mineSectionHtml(row) + (IS_ADMIN ? nasSectionHtml(row) : "");
+  if (!row._collection) html += mineSectionHtml(row)
+    // The platform detail (achievement grid, personal screenshots, my Steam
+    // review) lands async from /api/mine/detail — give it a host to fill.
+    + (row._k ? `<div id="mineExtra" class="mine-extra"></div>` : "")
+    + (IS_ADMIN ? nasSectionHtml(row) : "");
   else {                                       // a grouped card's values are aggregates, not yours
     for (const c of cols) {
       const v = row[c.key];
@@ -244,6 +255,7 @@ function openDrawer(row, sheetKey, keepStack) {
   drawerRow = row;
   syncScrollLock();                       // the page behind the drawer must not scroll
   if (ENRICH_ENABLED && row._k) loadDetail(row._k, $("#igdbDetail"), 0, row);
+  if (row._k && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
 }
 function closeDrawer() {
   $("#overlay").hidden = true; drawerStack = [];

@@ -11,7 +11,7 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "recs"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "recs", "wishlist"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges"
   const special = SPECIAL_TABS.includes(mode);
   $("#stats").hidden = mode !== "stats";
@@ -23,6 +23,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#shelfview").hidden = mode !== "shelf";
   $("#picross").hidden = mode !== "picross";
   $("#recs").hidden = mode !== "recs";
+  $("#wishlist").hidden = mode !== "wishlist";
   $(".resultbar").hidden = special;
   $("#pager").style.display = special ? "none" : "";
   document.querySelector(".facets").style.display = special ? "none" : "";
@@ -51,6 +52,7 @@ function renderAll() {
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
   if (activeTab === "recs") { setSpecialMode("recs"); renderRecs(); return; }
+  if (activeTab === "wishlist") { setSpecialMode("wishlist"); renderWishlist(); return; }
   setSpecialMode(null);
   // A filter that reads enrichment cannot be answered before enrichment is here.
   ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
@@ -165,7 +167,7 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross", "recs"].includes(tab) ? tab : "home";
+         "health", "shelf", "picross", "recs", "wishlist"].includes(tab) ? tab : "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "pick") {
       const fb = p.get("fb");
@@ -279,6 +281,7 @@ async function load() {
   applyStateFromURL();          // restore tab/filters/sort/view from the URL
   loadAllEnrichment();          // global covers + IGDB facets (polls during backfill)
   loadRomm();                   // which games we can actually play in the browser
+  loadMine();                   // the linked platform accounts’ hours / achievements / appids
   loadNas();                    // which games are actually in the ROM library
   loadUploads();                // hand-uploaded box art becomes the cover everywhere
   loadGameRankings();           // frozen fallback critic score for pre-Metacritic games

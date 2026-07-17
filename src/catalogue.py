@@ -404,6 +404,20 @@ class Catalogue:
             return [(r[0], r[1]) for r in self._db.execute(
                 f"SELECT igdb_id,name FROM catalogue WHERE {_SCOREABLE_SQL} AND rich IS NOT NULL")]
 
+    def lookup_norm(self, norm: str) -> dict | None:
+        """The catalogue game for a normalized title — how a wishlisted game we
+        don't own gets an IGDB identity (and a cover). Same-named games happen;
+        the most-rated one is overwhelmingly the one a wishlist means."""
+        if not norm:
+            return None
+        with self._db_lock:
+            row = self._db.execute(
+                "SELECT igdb_id, name, cover, year FROM catalogue WHERE norm_name=?"
+                " ORDER BY COALESCE(rating_count,0) DESC LIMIT 1", (norm,)).fetchone()
+        if row is None:
+            return None
+        return {"igdbId": row[0], "name": row[1], "cover": row[2], "year": row[3]}
+
     def payload(self):
         """The scoreable catalogue, interned and columnar. A pure function of the crawl:
         no sheet, no enrichment, no per-visitor state — so it caches like a static file."""
