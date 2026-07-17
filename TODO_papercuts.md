@@ -102,12 +102,38 @@ and any decisions made along the way.
       (0.12s), and cache hits carry `immutable, max-age=1yr` (repeat loads are instant).
       `src/enrich.py`, `panels.js`.
 
-## Remaining (need a browser session on the shelf)
+## Shipped in 1.58.22 / 1.58.23
 
-- [ ] **14. Invisible inner hinge** — opening a box exposes the outside view. 3D CSS.
-- [ ] **15. Black outline on box fronts/backs** — model bleeding through. 3D CSS.
-- [ ] **21. Shelf perf, round 2** — still rough on a MacBook vs desktop. Likely the
-      per-spine box-shadows × 2,000 and off-screen board paint.
+- [x] **25b (cont.). The enrichment endpoint is fast now** — `/api/enrichment/all` was ~3.4s
+      on EVERY call. 1.58.21 cached the built dict (didn't help — serialisation dominated and
+      a live backfill invalidated it every request). 1.58.22 bounded the light-map cache by a
+      20s TTL and moved the ~3s JSON parse OUTSIDE the DB lock (so it stops blocking the fast
+      per-page `get_light`). 1.58.23 caches the finished GZIP BYTES of the whole response,
+      returned pre-encoded. Measured on prod: **3.4s → ~0.08s** on repeat calls.
+- [x] **26. Prices only on Wishlist** (new) — a wishlisted-and-owned game shares its row with
+      the library, leaking its stamped `_wlPrice` badge onto All Games. Gated to the Wishlist
+      tab. `table.js`.
+
+## Remaining (need YOUR eyes on the shelf — 3D CSS + perf, hard to verify blind)
+
+- [ ] **14. Invisible inner hinge** — SEEN in a screenshot: an opened box shows a pure-black
+      interior/void at the hinge. The `.sh-liner` (inside of the lid) and interior walls need
+      a lit surface; needs iterative visual tuning against a real box with contents.
+- [ ] **15. Black outline on box fronts/backs** — couldn't reproduce locally (no cover art in
+      the scratch enrichment DB); needs a box showing real scanned art to see the bleed.
+- [ ] **21. Shelf perf, round 2** — 1.58.16 made spine scans lazy. Remaining likely cost:
+      per-spine box-shadows × ~2,000 (esp. the outer blurred one) and off-screen board paint;
+      `content-visibility` is tempting but clips the hover lift/tooltip. Needs profiling.
+
+## Image loading — for you to verify on real prod
+
+The port-forward timing wasn't representative (kubectl serialises requests). The real fixes,
+verified server-side: `/api/enrichment/all` 3.4s→0.08s; the big map fetched at `priority:low`
+so covers win the ~6 connection slots; the per-page `get_light` (0.12s, the source of the
+VISIBLE covers) no longer blocked behind the big build; cover images fade in as they decode
+(`decoding="async"`), and cache hits are `immutable, max-age=1yr` + SW cache-first (repeat
+loads instant). If covers still feel slow on real prod, the next suspect is the cold PVC image
+fetch on a first-ever view.
 
 ## Recommend page (`recs.js`)
 
