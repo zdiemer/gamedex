@@ -145,14 +145,16 @@ function renderTable(rows) {
   for (const [id, m] of [["viewTable", "table"], ["viewGrid", "grid"], ["viewTimeline", "timeline"]]) {
     $("#" + id).classList.toggle("active", view === m);
   }
+  // Sort control shows in ALL views now, timeline included — it drives the timeline's buckets
+  // (Date → years, Title → A–Z, Rating → bands …), which is why sorting there used to do nothing.
+  $("#gridsortwrap").hidden = false;
+  populateGridSort();
   if (view === "timeline") {
     renderTimeline(rows);
     $("#count").textContent = `${rows.length.toLocaleString()} of ${sheet().rows.length.toLocaleString()} games`;
     renderViews();
     return;
   }
-  $("#gridsortwrap").hidden = false;    // sort control in both views (reaches
-  populateGridSort();                   // non-primary columns like Date Added)
   if (!sorted.length) {
     const filtered = st.search || Object.keys(st.facets).length;
     const host = view === "grid" ? $("#grid") : $("#tbody");

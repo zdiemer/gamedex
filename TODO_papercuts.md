@@ -161,6 +161,20 @@ and any decisions made along the way.
       lets the hinge swing shut before sliding the box home, instead of putting a gaping box
       back. `shelf.js`.
 
+## Shipped in 1.58.29
+
+- [x] **Timeline: sort → buckets** (new) — the timeline was hardcoded to date→year and ignored
+      the sort. It now buckets by the active sort: Date → years, Title → A–Z (diacritics
+      stripped so "Ōkami" sits under O), Platform → each platform, Rating → bands (90–100%…),
+      Playtime → time bands, etc. The sort dropdown shows in timeline view now (that's why
+      sorting there did nothing before). `timeline.js`, `table.js`.
+- [x] **Timeline: jump-nav** (new) — a sticky, horizontally-scrollable strip of the bucket
+      labels; click to jump to a section, and the active bucket lights up + scrolls into view as
+      you scroll (IntersectionObserver against the real scroll container). Desktop sticky
+      verified; on mobile it scrolls with the content like the app's other headers do (the
+      mobile layout lets the topbar/tabs scroll away too) — confirm on a real device.
+      `timeline.js`, `style.css`.
+
 ## Shipped in 1.58.28
 
 - [x] **Drop the "Default" sort option everywhere** (new) — All Games already named its default
