@@ -48,6 +48,11 @@ _FACET_LIGHT = ("cover", "coverUrl", "genres", "themes", "gameModes", "userRatin
                 "developers", "publishers", "franchises", "criticRating", "criticCount",
                 "igdbId", "source", "stores", "url", "confidence", "name")
 
+# Longest the whole-library light map (get_all_light) is served stale while a backfill is
+# actively writing. Steady state (no writes) serves it forever off total_changes; this just
+# caps how often the ~3s rebuild runs when total_changes is ticking every match.
+_ALL_LIGHT_TTL = 20.0
+
 
 def _light_relations(rec):
     """Just enough of the graph for the grid: what KIND of entry this is, and
@@ -250,12 +255,15 @@ class Enricher:
         self._db_lock = threading.Lock()
         self._db = sqlite3.connect(db_path, check_same_thread=False)
         # The whole-library light map (get_all_light) costs ~3s to build — it JSON-parses
-        # every matched record — and it was rebuilt on EVERY request, holding a connection
-        # that long and starving the page's cover loads. Cache it, keyed on the connection's
-        # total_changes: any INSERT/UPDATE/DELETE bumps that, so the map regenerates exactly
-        # when enrichment actually changes (a backfill poll) and is instant otherwise.
+        # every matched record — and it was rebuilt on EVERY request, holding the DB lock that
+        # long (starving the page's fast per-page get_light) and holding a connection that long
+        # (starving the cover image loads). Cache it, keyed on the connection's total_changes so
+        # it's instant while nothing writes; and while a backfill IS writing (total_changes
+        # ticks every match), serve the last build until it's _ALL_LIGHT_TTL seconds stale
+        # rather than rebuilding on every request. The parse itself runs OUTSIDE the lock.
         self._all_light_cache = None
         self._all_light_ver = -1
+        self._all_light_ts = 0.0
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS enrichment(match_key TEXT PRIMARY KEY, igdb_id INTEGER,"
             " status TEXT, score INTEGER, data TEXT, updated_at TEXT, manual INTEGER DEFAULT 0)"
@@ -725,35 +733,44 @@ class Enricher:
         return [r[0] for r in rows]
 
     def get_all_light(self):
-        out = {}
+        now = time.monotonic()
+        # Cache check + a snapshot of the raw rows, both under the lock (the fetch is fast);
+        # the ~3s JSON parse happens AFTER releasing it, so it never blocks a writer or a
+        # per-page get_light. Serve the last build when nothing has changed (total_changes) or
+        # when it's still fresh enough — during a backfill total_changes ticks constantly, and
+        # rebuilding every request is exactly what made this endpoint a 3s wall.
         with self._db_lock:
             ver = self._db.total_changes
-            if self._all_light_cache is not None and self._all_light_ver == ver:
-                return self._all_light_cache
-            for mk, data, manual in self._db.execute(
-                    "SELECT match_key,data,manual FROM enrichment WHERE status='matched'"):
+            cache = self._all_light_cache
+            if cache is not None and (self._all_light_ver == ver
+                                      or now - self._all_light_ts < _ALL_LIGHT_TTL):
+                return cache
+            enr_rows = self._db.execute(
+                "SELECT match_key,data,manual FROM enrichment WHERE status='matched'").fetchall()
+            sec_rows = [
+                (extract, self._db.execute(
+                    f"SELECT match_key,data FROM {src} WHERE status='matched'").fetchall())
+                for src, extract in _SECONDARY_LIGHT.items() if src in self._secondary]
+        out = {}
+        for mk, data, manual in enr_rows:
+            if data:
+                d = json.loads(data)
+                out[mk] = {f: d.get(f) for f in _FACET_LIGHT}
+                vid = _light_video(d)
+                out[mk]["video"] = vid
+                out[mk]["rel"] = _light_relations(d)
+                if not vid:                               # only trailer-less games carry shots
+                    shots = _light_shots(d)
+                    if shots:
+                        out[mk]["shots"] = shots
+                if manual:
+                    out[mk]["manualMatch"] = True
+        for extract, rows in sec_rows:
+            for mk, data in rows:
                 if data:
-                    d = json.loads(data)
-                    out[mk] = {f: d.get(f) for f in _FACET_LIGHT}
-                    vid = _light_video(d)
-                    out[mk]["video"] = vid
-                    out[mk]["rel"] = _light_relations(d)
-                    if not vid:                               # only trailer-less games carry shots
-                        shots = _light_shots(d)
-                        if shots:
-                            out[mk]["shots"] = shots
-                    if manual:
-                        out[mk]["manualMatch"] = True
-            for src, extract in _SECONDARY_LIGHT.items():
-                if src not in self._secondary:
-                    continue
-                for mk, data in self._db.execute(f"SELECT match_key,data FROM {src} WHERE status='matched'"):
-                    if data:
-                        out.setdefault(mk, {}).update(extract(json.loads(data)))
-        # Cache under the change count read at the top. total_changes only grows, so a write
-        # that lands mid-build just means the next call sees a newer count and rebuilds — never
-        # a stale map served as fresh.
+                    out.setdefault(mk, {}).update(extract(json.loads(data)))
         self._all_light_ver = ver
+        self._all_light_ts = now
         self._all_light_cache = out
         return out
 
