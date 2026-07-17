@@ -207,6 +207,11 @@ class PlatformSync:
         # must not hold up mark_sync (above) or the fast stages (before).
         counts["achievements"] = stage(
             "achievements", lambda: self._sync_achievements(provider, client, creds, changed or []))
+        # ITAD prices run on EVERY pass, full or hot — the first-time backfill of
+        # a big wishlist caps its lookups per pass, so it needs the fast hot loop
+        # (which Steam is already in for achievements) to drain, not one full
+        # pass every six hours. Cheap once the ids are cached (batched refresh).
+        stage("prices", lambda: self._price_wishlist(provider))
         # Tokens may have rotated during the pass (PSN's do) — the dict the
         # provider mutated is the only copy that still works next time.
         self._db.update_credentials(provider, creds)
@@ -312,7 +317,8 @@ class PlatformSync:
         items = client.fetch_wishlist(creds)
         self._db.replace_wishlist(provider, items)
         self._match_wishlist(provider)
-        self._price_wishlist(provider)
+        # Pricing runs as its own stage (every pass, full or hot) — see
+        # sync_account — so a big first backfill drains on the fast loop.
         return len(items)
 
     def _price_wishlist(self, provider):
@@ -352,6 +358,11 @@ class PlatformSync:
         for app_id, iid in resolved.items():
             self._db.set_wishlist_price(provider, app_id, iid, prices.get(iid))
         remaining = max(0, len(need_lookup) - cap)
+        # Keep the worker on the fast loop until the id backlog is drained, so
+        # the first-time price backfill finishes in one sitting rather than one
+        # chunk every six hours.
+        if remaining:
+            self._hot[provider] = True
         log.info("steam wishlist prices: refreshed %d (ITAD)%s", len(resolved),
                  f", {remaining} left to resolve" if remaining else "")
 
