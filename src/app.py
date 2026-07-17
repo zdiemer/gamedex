@@ -38,6 +38,7 @@ import prefs as prefs_mod
 import psn_user as psn_user_mod
 import romm
 import steam_user as steam_user_mod
+import xbox_user as xbox_user_mod
 import gamerankings as gr_mod
 import shelf as shelf_mod
 
@@ -171,7 +172,8 @@ PLATDB = platformdb_mod.PlatformDB(PLATFORMS_DB)
 PSYNC = platform_sync_mod.PlatformSync(
     PLATDB,
     providers={"steam": steam_user_mod.SteamUserClient(),
-               "psn": psn_user_mod.PsnUserClient()},
+               "psn": psn_user_mod.PsnUserClient(),
+               "xbox": xbox_user_mod.XboxUserClient()},
     enricher=enricher, catalogue=catalogue, store=store, shots_dir=SHOTS_DIR,
     interval=int(os.environ.get("PLATFORM_SYNC_INTERVAL", "21600")),
     ach_backfill=int(os.environ.get("ACH_BACKFILL_PER_SYNC", "150")),
@@ -399,6 +401,19 @@ def _check_provider(provider: str):
         raise HTTPException(status_code=404, detail="unknown provider")
 
 
+def _profile_url(provider: str, creds: dict, name: str | None) -> str | None:
+    """The public profile page for a linked account. Steam keys off the numeric
+    id (a vanity name might not resolve); the console networks have no official
+    public profile URL, so these point at the pages people actually use."""
+    if provider == "steam" and creds.get("steamId"):
+        return f"https://steamcommunity.com/profiles/{creds['steamId']}"
+    if provider == "psn" and name:
+        return f"https://psnprofiles.com/{name}"
+    if provider == "xbox" and name:
+        return f"https://www.xbox.com/play/user/{name}"
+    return None
+
+
 @app.get("/api/platforms")
 def api_platforms(user: dict = Depends(require_admin)):
     """The admin's provider cards: link state, identity, last sync, counts.
@@ -414,6 +429,7 @@ def api_platforms(user: dict = Depends(require_admin)):
                   "displayName": a["displayName"], "status": a["status"],
                   "error": a["error"], "linkedAt": a["linkedAt"],
                   "lastSync": a["lastSync"], "syncing": PSYNC.busy(p),
+                  "profileUrl": _profile_url(p, a["credentials"], a["displayName"]),
                   "counts": PLATDB.counts(p)}
     return {"providers": out}
 

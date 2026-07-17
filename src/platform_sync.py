@@ -61,24 +61,38 @@ class PlatformSync:
         self._ach_backfill = ach_backfill
         self._validator = MatchValidator()
         self._stop = threading.Event()
-        self._wake = threading.Event()
-        self._thread = None
+        self._wakes = {}         # provider -> its own wake Event (one worker each)
+        self._threads = []
         self._busy = {}          # provider -> stage string, for /api/platforms
         self._hot = {}           # provider -> achievements backlog remains; drain promptly
 
     # ---- lifecycle ---------------------------------------------------------
     def start(self):
-        self._thread = threading.Thread(target=self._loop, daemon=True,
-                                        name="platform-sync")
-        self._thread.start()
+        # ONE thread per provider, not one shared. A freshly-linked PSN must not
+        # wait behind Steam's multi-hour achievement backfill — the two sync
+        # concurrently, each on its own clock. The DB is thread-safe (a lock per
+        # method) and the enricher reads it hands out are snapshots, so parallel
+        # matching passes don't collide.
+        for name, client in self._providers.items():
+            self._wakes[name] = threading.Event()
+            t = threading.Thread(target=self._provider_loop, args=(name, client),
+                                 daemon=True, name=f"platform-sync-{name}")
+            self._threads.append(t)
+            t.start()
 
     def stop(self):
         self._stop.set()
-        self._wake.set()
+        for ev in self._wakes.values():
+            ev.set()
 
-    def kick(self):
-        """Sync now (the admin button). The loop wakes and takes a full pass."""
-        self._wake.set()
+    def kick(self, provider: str | None = None):
+        """Sync now. With a provider, wake only that worker (a fresh link syncs
+        immediately regardless of what the others are doing); without, wake all."""
+        targets = [provider] if provider else list(self._wakes)
+        for name in targets:
+            ev = self._wakes.get(name)
+            if ev:
+                ev.set()
 
     def busy(self, provider: str) -> str | None:
         return self._busy.get(provider)
@@ -86,18 +100,18 @@ class PlatformSync:
     def provider(self, name: str):
         return self._providers.get(name)
 
-    def _loop(self):
-        # First pass shortly after boot, so a restart doesn't wait 6 hours.
+    def _provider_loop(self, provider: str, client):
+        wake = self._wakes[provider]
+        # First pass shortly after boot, so a restart doesn't wait 6 hours — but
+        # a hair later per provider so four cold workers don't all hammer the
+        # enricher's first matching pass at once.
         if self._stop.wait(20):
             return
         while not self._stop.is_set():
-            forced = self._wake.is_set()
-            self._wake.clear()
-            for acct in self._db.accounts():
-                provider = acct["provider"]
-                client = self._providers.get(provider)
-                if client is None or acct["status"] == "disabled":
-                    continue
+            forced = wake.is_set()
+            wake.clear()
+            acct = self._db.account(provider)
+            if acct and acct["status"] != "disabled":
                 full = forced or self._due(acct)
                 if full or self._hot.get(provider):
                     try:
@@ -108,18 +122,16 @@ class PlatformSync:
                     except Exception as exc:
                         log.warning("%s sync pass failed: %s", provider, exc)
                         self._db.set_status(provider, "error", str(exc))
-            # Matching also depends on the SHEET, which changes on its own
-            # schedule — re-run cheaply whenever the workbook hash moves.
+            # Matching also tracks the SHEET, which moves on its own schedule.
             try:
-                self._rematch_if_stale()
+                if self._match_stale(provider):
+                    self._match_library(provider)
+                    self._match_wishlist(provider)
             except Exception as exc:
-                log.warning("rematch failed: %s", exc)
-            # A provider with a never-fetched achievements backlog goes again
-            # almost immediately — the whole first backfill drains in bounded,
-            # restart-safe chunks instead of one multi-hour stage or a week of
-            # six-hour waits. Everyone else naps.
-            self._wake.wait(5 if any(self._hot.values()) else 60)
-            self._wake.clear()
+                log.warning("%s rematch failed: %s", provider, exc)
+            # Hot (draining a first backfill) → come back in seconds; else nap.
+            wake.wait(5 if self._hot.get(provider) else 60)
+            wake.clear()
 
     def _due(self, acct) -> bool:
         from datetime import datetime, timezone
@@ -202,8 +214,14 @@ class PlatformSync:
         # Most-played first: the games with hours on them are the ones whose
         # achievement grid is worth seeing tonight, not in a week.
         backlog = [g["appId"] for g in by_played if g["appId"] not in refresh]
-        todo = refresh + backlog[: self._ach_backfill]
-        self._hot[provider] = len(backlog) > self._ach_backfill
+        # Per-provider budget. Steam's Web API is generous, so it drains fast in
+        # hot chunks; OpenXBL's free tier is 150 req/hr, so Xbox takes a small
+        # bite each 6-hour pass and never spins (hot=False) — a nightly trickle
+        # that stays under the ceiling. A provider sets these as attributes.
+        cap = getattr(client, "ach_per_sync", self._ach_backfill)
+        hot = getattr(client, "hot_drain", True)
+        todo = refresh + backlog[:cap]
+        self._hot[provider] = hot and len(backlog) > cap
         fetched = 0
         for app_id in todo:
             if self._stop.is_set():
@@ -276,12 +294,9 @@ class PlatformSync:
             src = str(self._store.snapshot()["meta"].get("sourceHash") or "")
         return f"{src}|{self._db.counts(provider)['games']}"
 
-    def _rematch_if_stale(self):
-        for acct in self._db.accounts():
-            p = acct["provider"]
-            if self._db.kv_get(f"match_stamp:{p}") != self._match_stamp(p):
-                self._match_library(p)
-                self._match_wishlist(p)
+    def _match_stale(self, provider) -> bool:
+        """The sheet or the library moved since we last matched this provider."""
+        return self._db.kv_get(f"match_stamp:{provider}") != self._match_stamp(provider)
 
     def _appid_to_keys(self, provider) -> dict[str, list[str]]:
         """{store appid: [match_key]} from every matched enrichment record."""

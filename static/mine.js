@@ -51,6 +51,13 @@ const PLAT_FORMS = {
     </ol><span class="muted">The token lasts ~2 months; you'll be asked for a fresh one when it expires.</span>`,
     fields: [{ k: "npsso", label: "NPSSO token", ph: "64-character token" }],
   },
+  xbox: {
+    hintHtml: `<ol class="plat-steps">
+      <li><a href="https://xbl.io/app/claim" target="_blank" rel="noopener">Sign in to OpenXBL ↗</a> with the Microsoft account whose Xbox library you want.</li>
+      <li>On <a href="https://xbl.io/profile" target="_blank" rel="noopener">your OpenXBL profile ↗</a>, generate an API key and paste it below.</li>
+    </ol><span class="muted">Free tier is 150 requests/hour — plenty for the nightly trickle this does.</span>`,
+    fields: [{ k: "apiKey", label: "OpenXBL API key", ph: "from xbl.io/profile" }],
+  },
 };
 const mineEntries = (key) => Object.entries(MINE[key] || {})
   .filter(([p]) => MINE_PROVIDERS[p]);
@@ -348,9 +355,16 @@ function platCardsHtml(state) {
     ].filter(Boolean).join(" · ");
     const when = s.lastSync ? new Date(s.lastSync).toLocaleString(undefined,
       { dateStyle: "medium", timeStyle: "short" }) : "never";
+    // The account name, a link out to the profile when we know the URL. Every
+    // linked provider shows its identity — Steam persona, PSN online ID, Xbox
+    // gamertag — not just Steam.
+    const who = s.displayName
+      ? (s.profileUrl
+          ? `<a class="plat-who" href="${escapeHtml(s.profileUrl)}" target="_blank" rel="noopener">${escapeHtml(s.displayName)} ↗</a>`
+          : `<span class="plat-who">${escapeHtml(s.displayName)}</span>`)
+      : "";
     return `<div class="plat-card" data-plat="${p}">
-      <div class="plat-head"><b>${escapeHtml(def.label)}</b>
-        <span class="plat-who">${escapeHtml(s.displayName || "")}</span></div>
+      <div class="plat-head"><b>${escapeHtml(def.label)}</b>${who}</div>
       <div class="plat-stats muted">${escapeHtml(stats || "nothing synced yet")}</div>
       <div class="plat-stats muted">Last sync: ${escapeHtml(when)}${s.syncing ? ` · <b>syncing (${escapeHtml(s.syncing)})…</b>` : ""}</div>
       ${s.status === "error" && s.error ? `<p class="auth-err">${escapeHtml(s.error)}</p>` : ""}
