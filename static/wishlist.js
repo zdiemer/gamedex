@@ -52,15 +52,17 @@ async function loadWishlistMeta(round = 0) {
       for (const id of batch) WL_META[id] = items[id] || null;   // negative-cache
       for (const id of j.pending || []) pending.add(+id);
     }
-    buildWishlistSheet();
-    if (activeTab === "wishlist") renderAll();
+    buildWishlistSheet();      // merge the new meta (incl. est-time) into the rows
+    // Re-render only when it changes what's on screen: the first meta load
+    // (trailers, dates, genres, predictions all arrive together), and once the
+    // deferred est-time backfill has fully drained. Rendering on every 1.5s poll
+    // round in between would call stopPreview()/rebuild the whole grid each time,
+    // which restarts the hover-autoplay tour so no trailer ever gets to play.
+    _wlPending = pending;
+    const willRetry = pending.size && round < 12;
+    if ((round === 0 || !willRetry) && activeTab === "wishlist") renderAll();
+    if (willRetry) setTimeout(() => loadWishlistMeta(round + 1), 1500);
   } finally { _wlMetaBusy = false; }
-  // Poll again for the deferred HLTB lookups — bounded, and self-terminating the
-  // moment the server resolves each one (a hit or a definite miss both clear it).
-  _wlPending = pending;
-  if (pending.size && round < 12) {
-    setTimeout(() => loadWishlistMeta(round + 1), 1500);
-  }
 }
 
 const WL_SOURCE = { sheet: "Sheet", steam: "Steam", gog: "GOG", epic: "Epic Games",
