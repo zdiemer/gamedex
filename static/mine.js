@@ -58,6 +58,18 @@ const PLAT_FORMS = {
     </ol><span class="muted">Free tier is 150 requests/hour — plenty for the nightly trickle this does.</span>`,
     fields: [{ k: "apiKey", label: "OpenXBL API key", ph: "from xbl.io/dashboard/keys" }],
   },
+  nintendo: {
+    hintHtml: `Nintendo only exposes playtime, through the Parental Controls app —
+      so this brings hours per game, nothing else.
+      <ol class="plat-steps">
+        <li>Get a Parental-Controls <b>session token</b> for your Nintendo account —
+          the <a href="https://github.com/samuelthomas2774/nxapi" target="_blank" rel="noopener">nxapi tool ↗</a>
+          (<code>nxapi pctl auth</code>) is the usual way, or any guide for the
+          "moonlight" / Parental Controls session token.</li>
+        <li>Paste it below. It's long-lived; you'll only redo this if it's revoked.</li>
+      </ol>`,
+    fields: [{ k: "sessionToken", label: "Session token", ph: "eyJ… (Parental Controls)" }],
+  },
 };
 const mineEntries = (key) => Object.entries(MINE[key] || {})
   .filter(([p]) => MINE_PROVIDERS[p]);
