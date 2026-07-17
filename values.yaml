@@ -2,7 +2,7 @@ image:
   # Built + pushed to GHCR by build.sh; the package is public so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: ghcr.io/zdiemer/gamedex
-  tag: "1.56.0"
+  tag: "1.56.1"
   pullPolicy: IfNotPresent
 
 service:
@@ -91,7 +91,8 @@ gamespot:
 # IsThereAnyDeal for wishlist prices + all-time lows (apiKey in values.local.yaml).
 # Free key from https://isthereanydeal.com/apps/ . Off unless a key is set.
 itad:
-  apiKey: ""
+  apiKey: ""            # the plain "Key" on your ITAD app page
+  clientId: ""          # OAuth client id (used as a fallback if apiKey is blank)
   country: "US"
 
 # Third-party asset cache on the PVC. The UI hotlinks a large number of covers,

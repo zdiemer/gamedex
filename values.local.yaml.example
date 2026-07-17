@@ -27,7 +27,9 @@ gamespot:
 # https://isthereanydeal.com/apps/) for wishlist prices, discounts and all-time
 # lows on the Wishlist tab. Off unless a key is set.
 itad:
-  apiKey: ""
+  apiKey: ""            # the plain "Key" from https://isthereanydeal.com/apps/my/
+  clientId: ""          # OAuth Client ID (fallback if apiKey is blank)
+  clientSecret: ""      # OAuth Client Secret (future user-auth features)
   country: "US"
 
 # Single-admin login. Seeds ONE account on first boot (when the accounts DB is

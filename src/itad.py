@@ -34,23 +34,37 @@ STEAM_SHOP_ID = 61                      # ITAD's shop id for Steam
 
 
 class ItadClient:
-    def __init__(self, api_key: str, country: str = "US"):
-        self._key = (api_key or "").strip()
+    def __init__(self, api_key: str, country: str = "US", client_id: str = ""):
+        # The price endpoints authenticate with the app's API KEY (the plain
+        # "Key" on the ITAD app page), which is distinct from the OAuth
+        # clientId/clientSecret. Accept the clientId as a fallback in case an app
+        # only surfaces that — the worst case is a 401 we log, not a crash.
+        self._key = (api_key or "").strip() or (client_id or "").strip()
         self._country = country
+        self._auth_warned = False
 
     @property
     def configured(self) -> bool:
         return bool(self._key)
 
+    def _check_auth(self, r):
+        if r.status_code in (401, 403) and not self._auth_warned:
+            self._auth_warned = True
+            log.warning("ITAD rejected the credential (%s) — the price endpoints "
+                        "want the plain API KEY from isthereanydeal.com/apps/my/, "
+                        "not the OAuth clientId/secret", r.status_code)
+
     def _get(self, path, params=None, timeout=20):
         params = dict(params or {}); params["key"] = self._key
         r = requests.get(f"{BASE}{path}", params=params, timeout=timeout)
+        self._check_auth(r)
         r.raise_for_status()
         return r.json()
 
     def _post(self, path, body, params=None, timeout=25):
         params = dict(params or {}); params["key"] = self._key
         r = requests.post(f"{BASE}{path}", params=params, json=body, timeout=timeout)
+        self._check_auth(r)
         r.raise_for_status()
         return r.json()
 

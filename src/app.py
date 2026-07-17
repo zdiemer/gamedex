@@ -174,7 +174,8 @@ PLATDB = platformdb_mod.PlatformDB(PLATFORMS_DB)
 # IsThereAnyDeal (see itad.py): wishlist prices + all-time lows. Service-wide
 # API key, like IGDB/GameSpot — off unless ITAD_API_KEY is set.
 _itad = itad_mod.ItadClient(os.environ.get("ITAD_API_KEY", ""),
-                            country=os.environ.get("ITAD_COUNTRY", "US"))
+                            country=os.environ.get("ITAD_COUNTRY", "US"),
+                            client_id=os.environ.get("ITAD_CLIENT_ID", ""))
 PSYNC = platform_sync_mod.PlatformSync(
     PLATDB,
     providers={"steam": steam_user_mod.SteamUserClient(),

@@ -139,6 +139,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "gamedex.fullname" . }}
                   key: itad-api-key
+            - name: ITAD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gamedex.fullname" . }}
+                  key: itad-client-id
             - name: ITAD_COUNTRY
               value: {{ (.Values.itad | default dict).country | default "US" | quote }}
             # Third-party asset caches on the PVC: images (covers/screenshots/art)
