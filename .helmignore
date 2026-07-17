@@ -3,6 +3,8 @@
 # into the container image at build time, and tools only ever runs on a laptop.
 # Leave them in and `helm upgrade` fails with "Secret ... is invalid: data: Too long".
 .git/
+# The dev venv (see memory: local dev) — a >5MB python binary via symlink.
+.venv/
 src/
 static/
 tools/
