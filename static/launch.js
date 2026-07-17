@@ -414,9 +414,11 @@ function extraFacetCols(tab = activeTab) {
     { key: "__userrating", label: "User Rating", type: "text", facet: true, virtual: true, kind: "bucket", buckets: METACRITIC_BUCKETS, getVal: userRatingOf },
     { key: "__sales", label: "Sales (VGChartz)", type: "text", facet: true, virtual: true, kind: "bucket", buckets: SALES_BUCKETS, getVal: salesOf },
     // Is it in the ROM library? Independent of enrichment — this comes from romnas's download
-    // receipts (see loadNas), so it lives here and not among the IGDB facets.
+    // receipts (see loadNas), so it lives here and not among the IGDB facets. `enriched: false`
+    // says so out loud: it is the one virtual facet that does NOT read the enrichment map, and
+    // holding a render for a map it never consults would be waiting on the wrong thing.
     { key: "__nas", label: "ROM library", type: "text", facet: true, virtual: true, kind: "fn",
-      getVals: nasFacetVals },
+      enriched: false, getVals: nasFacetVals },
     // Arcade-only, from the MAME romset lookup — blank for everything else.
     { key: "__adbplayers", label: "Arcade players", type: "text", facet: true, virtual: true, kind: "fn",
       getVals: (r) => { const e = ENRICH[r._k]; return e && e.adbPlayers ? [e.adbPlayers] : []; } },
@@ -446,6 +448,15 @@ function extraFacetCols(tab = activeTab) {
 }
 const facetCols = () => [...columns().filter((c) => c.facet).map(unifiedFacetCol), ...igdbFacetCols(), ...extraFacetCols()];
 const facetColByKey = (key) => facetCols().find((c) => c.key === key);
+/* Does this facet read the enrichment map — i.e. can it be answered at boot, or only
+   once that map lands? Every virtual facet reads it except the ROM library, which says
+   so at its own definition. The four unified facets (genre, developer, publisher,
+   franchise) read it too: the sheet's value for a row is here from the first paint, but
+   the values only IGDB knows — a co-developer, a genre your sheet doesn't keep — are
+   not, and they are real, clickable, linkable facet values. Everything else (Platform,
+   Priority, Rating…) is sheet-only and answerable immediately. */
+const facetIsEnriched = (col) =>
+  !!(ENRICH_ENABLED && col && ((col.virtual && col.enriched !== false) || UNIFIED_GETVALS[col.key]));
 // The Games tab's facets, asked for by name. facetCols() reads whatever tab is
 // active, which throws on a tab with no sheet of its own — and the two places that
 // build filters out of facets (Pick, Challenges) are both such tabs.

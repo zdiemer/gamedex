@@ -39,6 +39,9 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
 }
 
 function renderAll() {
+  // Recomputed by the row branch at the bottom. Cleared here so that navigating away from
+  // a held list — clicking Home while it waits — doesn't leave the flag set behind you.
+  ENRICH_WAITING = false;
   if (activeTab === "home") { setSpecialMode("home"); renderHome(); return; }
   if (activeTab === "stats") { setSpecialMode("stats"); renderStats(); return; }
   if (activeTab === "pick") { setSpecialMode("pick"); renderPicker(); return; }
@@ -49,12 +52,55 @@ function renderAll() {
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
   if (activeTab === "recs") { setSpecialMode("recs"); renderRecs(); return; }
   setSpecialMode(null);
+  // A filter that reads enrichment cannot be answered before enrichment is here.
+  ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
+  if (ENRICH_WAITING) { renderEnrichWait(); return; }
   renderFacets();
   // Completed shows every finished game individually — each episode of a series
   // stands on its own rather than collapsing into one collection card. (The
   // collection is still reachable: a member's drawer links up to it.)
   currentFiltered = filterRows(null);
   renderTable(currentFiltered);
+}
+
+/* ---- filters that arrive before their data ------------------------------
+
+   The spreadsheet is here at boot. Enrichment is not — it lands a moment later, and
+   during a backfill it keeps landing for minutes (see enrich.js). Which is fine for a
+   cover: it shimmers, then it's a cover. It is not fine for a FILTER.
+
+   Open a link that filters on Theme, Keyword, Composer, Critic score — anything joined
+   from the enrichment map — and the filter used to be applied against an empty map. The
+   page rendered "0 games". That's not an error and it isn't a spinner: it's an answer,
+   and a confident wrong one. Worse, it never corrected itself. The map landing repaints
+   covers and recounts the facet sidebar, but nothing recomputed the row list underneath,
+   so a link you shared was permanently, silently empty for whoever opened it.
+
+   Both halves are fixed. Here: hold the skeleton rather than answer early. There
+   (loadAllEnrichment, panels.js): recompute the row list when the map lands, and again
+   as a backfill refines it. Sheet-only filters — Platform, Priority, Rating — never
+   touch this path and paint as immediately as they always have. */
+function stateNeedsEnrichment() {
+  const st = tabState[activeTab];
+  if (!st) return false;                          // Shelf/Picross: no row state to filter
+  for (const [k, sel] of Object.entries(st.facets)) {
+    if (sel && sel.size && facetIsEnriched(facetColByKey(k))) return true;
+  }
+  // Sorts count too. Critic Rating, User Rating, Estimated Time and Estimated Rating all
+  // read the map, so sorting by one before it lands doesn't empty the list — it orders it
+  // wrongly, which is harder to notice and just as permanent.
+  return !!(st.sort && st.sort.some((s) => VIRTUAL_SORTS.some((v) => v.key === s.key)));
+}
+
+// Holding for the map: show the skeleton we booted with, not a list we know is wrong.
+function renderEnrichWait() {
+  $("#facets").innerHTML = "";     // the counts would be wrong for exactly the same reason
+  $("#tablewrap").hidden = true;
+  $("#timeline").hidden = true;
+  $("#views").hidden = true;
+  $("#pager").style.display = "none";
+  $("#count").textContent = "Loading game data…";
+  showSkeletons();
 }
 
 // reset: a deliberate navigation to a tab (clicking it) starts clean. Filters you
@@ -160,8 +206,26 @@ function applyStateFromURL() {
   PAGE_SIZE = parseInt(p.get("ps"), 10) || 50;
   st.search = p.get("q") || "";
   st.page = parseInt(p.get("page"), 10) || 1;
+  /* A sort spec is {key, dir, type?, kind?}, but the URL carries only "key:dir" — so the
+     other two have to be rebuilt here, and `kind` is the one that matters. It is how cmpBy
+     finds a virtual sort's accessor (there IS no row.__critic to read; the value comes from
+     metacriticOf). Without it ?sort=__critic:desc read a "__critic" property off every row,
+     found nothing every time, called the whole list blank and returned 0 for every pair:
+     not a wrong order — no order, the rows left exactly as they came. The four virtual
+     sorts (Critic, User, Estimated Time, Estimated Rating) are the only sorts the menu can
+     produce that don't survive a reload of the link it just put in your address bar.
+
+     VIRTUAL_SORTS by key rather than sortMeta(), which would be the obvious call: sortMeta
+     falls through to colByKey, colByKey reads the ACTIVE tab's columns, and the active tab
+     is still the previous one until switchTab() at the bottom of this function — on boot
+     that's "home", which has no sheet of its own and would throw. (A real column's `type`
+     needs no help: cmpBy recovers that from the column itself.) */
   const sort = p.get("sort");
-  st.sort = sort ? sort.split(",").map((s) => { const [key, dir] = s.split(":"); return { key, dir: dir === "asc" ? "asc" : "desc" }; }) : null;
+  st.sort = sort ? sort.split(",").map((s) => {
+    const [key, dir] = s.split(":");
+    const v = VIRTUAL_SORTS.find((x) => x.key === key);
+    return { key, dir: dir === "asc" ? "asc" : "desc", type: v && v.type, kind: v && v.kind };
+  }) : null;
   st.facets = {};
   for (const [k, v] of p.entries()) if (k.startsWith("f.")) st.facets[k.slice(2)] = new Set(v.split("~"));
   $("#pagesize").value = String(PAGE_SIZE);

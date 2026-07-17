@@ -583,6 +583,10 @@ async function loadAllEnrichment() {
       if (NO_MATCH.size !== before) changed = true;
     }
     if (j.stats) updateEnrichStatus(j.stats);
+    // The map now holds everything the server has matched so far, which is as good an
+    // answer as a filter is going to get. Set before the re-renders below, not after, or
+    // the render this releases would look at the flag and hold out all over again.
+    ENRICH_READY = true;
     if (changed) {
       _enrichEpoch++; resetSearchCache();     // IGDB genres just became searchable
       // Several health checks read the enrichment map (missing metadata, HLTB
@@ -625,17 +629,26 @@ async function loadAllEnrichment() {
          model has nothing to go on, sorted by nothing. It looks like data. Re-render. */
       else if (activeTab === "recs") renderRecs();
       else if (activeTab !== "pick") {
-        patchEnrichedCells();
-        patchTimelineCovers();          // the Completed tab's third view
-        renderFacets();
-        // Grouping keys off the IGDB id, which lives in the enrichment map — and
-        // the grid paints before that map arrives, so the first render has
-        // nothing to group by. Re-render, but only when the grouping actually
-        // changes, or we'd flash the grid on every poll.
-        if (!SPECIAL_TABS.includes(activeTab) && combineOn()) {
-          resetRelations();
-          const n = groupByGame(currentFiltered).length;
-          if (n !== lastGroupedCount) { lastGroupedCount = n; renderTable(currentFiltered); }
+        /* If a filter or a sort on screen reads this map, the row list itself is wrong —
+           not just the covers in it. It was computed against whatever the map held at the
+           time, which on a shared link is nothing at all. Patching cells would faithfully
+           repaint an empty list. Re-render instead, and again on every poll: a backfill
+           keeps adding rows to a genre filter for as long as it runs. Costs a flicker,
+           and only on the views that are actually filtered this way. */
+        if (stateNeedsEnrichment()) renderAll();
+        else {
+          patchEnrichedCells();
+          patchTimelineCovers();          // the Completed tab's third view
+          renderFacets();
+          // Grouping keys off the IGDB id, which lives in the enrichment map — and
+          // the grid paints before that map arrives, so the first render has
+          // nothing to group by. Re-render, but only when the grouping actually
+          // changes, or we'd flash the grid on every poll.
+          if (!SPECIAL_TABS.includes(activeTab) && combineOn()) {
+            resetRelations();
+            const n = groupByGame(currentFiltered).length;
+            if (n !== lastGroupedCount) { lastGroupedCount = n; renderTable(currentFiltered); }
+          }
         }
       }
     }
@@ -644,4 +657,14 @@ async function loadAllEnrichment() {
       allTimer = setTimeout(loadAllEnrichment, 45000);
     }
   } catch (_) { /* transient */ }
+  finally {
+    /* Every way out of this function, including the ones above that never reach the
+       renders — a 500, a dropped connection, enrichment switched off server-side — has to
+       release a render that is holding for the map. Filtering against a map that never
+       came is wrong; a page that shimmers forever is worse, because it doesn't even look
+       like a failure. On the ordinary path this is a no-op: the render already happened,
+       and it cleared the flag on its way through. */
+    ENRICH_READY = true;
+    if (ENRICH_WAITING) renderAll();
+  }
 }

@@ -44,6 +44,15 @@ let IS_ADMIN = false;              // set from /api/me on boot; gates every writ
 let ME = null;                     // {authenticated, username}
 let ENRICH_ENABLED = false;
 let ENRICH_COMPLETE = false;       // all sources backfilled → stop shimmering covers
+/* READY is not COMPLETE, and the difference is the whole reason a filter can be
+   answered at all. COMPLETE means every source has finished backfilling, which on a
+   cold instance is minutes away and on a busy one may not happen this session — a
+   filter that waited for it would wait behind a progress bar. READY means the bulk
+   map (api/enrichment/all) has answered once, so ENRICH now holds everything the
+   server has matched SO FAR. That is the honest moment to filter: it's the best
+   answer available, and each later poll refines it (see loadAllEnrichment). */
+let ENRICH_READY = false;          // the bulk map has landed once — or failed to
+let ENRICH_WAITING = false;        // ...and a render is holding out for it (see renderAll)
 let ENRICH_SOURCES = [];           // enabled secondary sources (hltb, metacritic, gameye)
 const ENRICH = {};                 // matchKey -> light enrichment
 
