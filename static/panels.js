@@ -639,13 +639,14 @@ async function loadAllEnrichment() {
          model has nothing to go on, sorted by nothing. It looks like data. Re-render. */
       else if (activeTab === "recs") renderRecs();
       else if (activeTab !== "pick") {
-        /* If a filter or a sort on screen reads this map, the row list itself is wrong —
+        /* If a filter or a sort on screen reads this map, the row list itself may be wrong —
            not just the covers in it. It was computed against whatever the map held at the
-           time, which on a shared link is nothing at all. Patching cells would faithfully
-           repaint an empty list. Re-render instead, and again on every poll: a backfill
-           keeps adding rows to a genre filter for as long as it runs. Costs a flicker,
-           and only on the views that are actually filtered this way. */
-        if (stateNeedsEnrichment()) renderAll();
+           time, which on a shared link is nothing at all. But a full renderAll rebuilds every
+           tile (flicker, and it restarts the hover/tour), so only pay that when the list
+           ACTUALLY changed: a backfill that just filled in a cover for a game already on
+           screen leaves the filtered set — and the sort order, unless you're sorting on the
+           map — identical, and those covers patch in place like any other poll. */
+        if (stateNeedsEnrichment() && enrichListChanged()) renderAll();
         else {
           patchEnrichedCells();
           patchTimelineCovers();          // the Completed tab's third view

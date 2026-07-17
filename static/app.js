@@ -92,6 +92,28 @@ function stateNeedsEnrichment() {
   return !!(st.sort && st.sort.some((s) => VIRTUAL_SORTS.some((v) => v.key === s.key)));
 }
 
+// Has the filtered/sorted result actually changed since the last paint? An enrichment
+// backfill polls every 45s (loadAllEnrichment); most polls only fill in a cover for a row
+// already on screen, which leaves the filtered SET — and the order, unless you're sorting on
+// the map — identical. In that case the tiles are durable: patch the new covers in place
+// rather than rebuilding the whole grid. We only pay a full re-render when the list truly
+// moved (a new game started matching a genre filter, or an enriched sort reordered it).
+let _enrichListSig = "";
+function enrichListChanged() {
+  const st = tabState[activeTab];
+  if (!st) return true;
+  const rows = filterRows(null);
+  const enrichedSort = !!(st.sort && st.sort.some((s) => VIRTUAL_SORTS.some((v) => v.key === s.key)));
+  let sig = String(rows.length);
+  if (enrichedSort) {                              // count can hold while the order shifts
+    const start = (st.page - 1) * PAGE_SIZE;
+    sig += "|" + sortRows(rows).slice(start, start + PAGE_SIZE).map((r) => r._k || r.title).join(",");
+  }
+  if (sig === _enrichListSig) return false;
+  _enrichListSig = sig;
+  return true;
+}
+
 // Holding for the map: show the skeleton we booted with, not a list we know is wrong.
 function renderEnrichWait() {
   $("#facets").innerHTML = "";     // the counts would be wrong for exactly the same reason
@@ -166,9 +188,9 @@ function applyStateFromURL() {
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
          "health", "shelf", "picross", "recs", "wishlist"].includes(tab) ? tab : "home";
-  // The Wishlist tab is account-owner-only (it lists the platform wishlist) — a public
-  // ?tab=wishlist link lands on Home rather than an empty, hidden tab.
-  if (tab === "wishlist" && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
+  // Wishlist and Health are account-owner-only — a public deep-link to either lands on
+  // Home rather than a tab the nav deliberately hides.
+  if ((tab === "wishlist" || tab === "health") && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "pick") {
       const fb = p.get("fb");

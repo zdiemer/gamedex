@@ -414,6 +414,9 @@ function applyAdminUI() {
   // public); revealed only once we know we're signed in.
   const wl = $("#tabWishlist");
   if (wl) wl.hidden = !IS_ADMIN;
+  // Health (the data-quality dashboard over the collection) is owner-only too.
+  const health = $("#tabHealth");
+  if (health) health.hidden = !IS_ADMIN;
   if (!acct) return;
   if (IS_ADMIN) {
     acct.title = `Signed in as ${ME.username} — account`;

@@ -61,7 +61,23 @@ and any decisions made along the way.
       background; gave ghost's hover an explicit surface so the label stays readable, like
       Play/Run. `style.css`.
 
+## Shipped in 1.58.18
+
+- [x] **20. Durable listing tiles** — an enrichment backfill polls every 45s; it used to
+      full-`renderAll()` (rebuild every tile, restart hover/tour) whenever you filtered/sorted
+      on the map. Now `enrichListChanged()` gates that: unless the filtered SET changed (or an
+      enriched sort reordered the page), the covers patch in place. `app.js`, `panels.js`.
+- [x] **22. Health tab owner-only** (new) — hidden nav button + deep-link guard, like Wishlist;
+      the palette already skips hidden tabs. `index.html`, `chrome.js`, `app.js`.
+
 ## Remaining
+
+- [ ] **17. Recommend → full sheet-backed tab** (in progress, user chose full scope) —
+      synthetic DATA.sheets.recs mirroring the Wishlist catalogue-row pattern: shared facets/
+      grid/table/sort/pager, in-app drawers (via `_catOnly`+`_igdbId`), hover+autoplay
+      previews and HLTB via per-page `/api/wishlist/meta` fetch. Big multi-file build.
+- [ ] **21. Shelf perf, round 2** (new) — still rough on a MacBook vs desktop. Likely the
+      per-spine box-shadows × 2,000 and off-screen board paint. Needs a browser pass.
 
 ## Recommend page (`recs.js`)
 
