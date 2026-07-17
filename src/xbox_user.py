@@ -55,7 +55,12 @@ class XboxUserClient:
         if r.status_code == 429:
             raise RuntimeError("OpenXBL hourly rate limit hit — try later")
         r.raise_for_status()
-        return r.json()
+        j = r.json()
+        # OpenXBL wraps the real payload in {"content": {...}, "code": 200}. Some
+        # endpoints answer flat, so unwrap only when the envelope is present.
+        if isinstance(j, dict) and "content" in j and isinstance(j["content"], (dict, list)):
+            return j["content"]
+        return j
 
     @staticmethod
     def _name_from_account(j: dict) -> tuple[str | None, str | None]:
@@ -84,14 +89,22 @@ class XboxUserClient:
         self._xuid, name = self._name_from_account(j)
         if name:
             return {"displayName": name}
-        # The key authenticated but /account had no profile in the shape we read.
-        # Rather than block the link, confirm the key can actually read data and
-        # accept it with a blank name (the sync backfills the gamertag later).
+        # /account gave no profile name. A blank-but-working key is only worth
+        # linking if it can actually read the library — otherwise the account
+        # has no Xbox profile connected on OpenXBL's side, and a silent empty
+        # link looks like a broken feature. Require real data, say so if absent.
         try:
-            self._get(creds, "/api/v2/player/titleHistory")
-        except Exception:
-            raise ValueError("OpenXBL couldn't read your Xbox profile — make sure"
-                             " the key's Microsoft account is connected at xbl.io")
+            th = self._get(creds, "/api/v2/player/titleHistory")
+        except requests.HTTPError as e:
+            code = e.response.status_code if e.response is not None else 0
+            if code == 403:
+                raise ValueError("OpenXBL accepted the key but won't return your"
+                                 " Xbox data — open xbl.io and connect your Xbox"
+                                 " (Microsoft) account, then make a new key")
+            raise ValueError(f"OpenXBL error reading your library ({code})")
+        if not (th.get("titles") or []):
+            raise ValueError("OpenXBL returned an empty Xbox library — connect the"
+                             " right Microsoft account at xbl.io and try again")
         return {"displayName": name}
 
     def account_name(self, creds: dict) -> str | None:
@@ -168,7 +181,8 @@ class XboxUserClient:
     def fetch_screenshots(self, creds: dict, cursor: str | None):
         out = []
         j = self._get(creds, "/api/v2/dvr/screenshots")
-        for s in j.get("values") or []:
+        # OpenXBL keys this list "screenshots" (game clips would be "gameClips").
+        for s in j.get("screenshots") or j.get("values") or []:
             sid = str(s.get("contentId") or "")
             if not sid:
                 continue

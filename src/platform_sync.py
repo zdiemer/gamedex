@@ -33,6 +33,17 @@ from match_validator import MatchValidator
 
 log = logging.getLogger("gamedex.platform_sync")
 
+# Redact secrets from anything we log. A requests HTTPError stringifies the full
+# URL, which for the Steam Web API carries ?key=<web api key> — a credential that
+# must never reach a log line. Also masks the OpenXBL / PSN token headers.
+_SECRET_RE = re.compile(
+    r"((?:key|apiKey|api_key|access_token|npsso|x-authorization)=)[^&\s\"']+",
+    re.IGNORECASE)
+
+
+def _scrub(s) -> str:
+    return _SECRET_RE.sub(r"\1<redacted>", str(s))
+
 # Which platforms' sheet rows a provider's library may match onto.
 _PLATFORM_FAMILY = {
     "steam": {"pc", "mac os"},
@@ -120,8 +131,8 @@ class PlatformSync:
                         # library every few seconds.
                         self.sync_account(acct, client, ach_only=not full)
                     except Exception as exc:
-                        log.warning("%s sync pass failed: %s", provider, exc)
-                        self._db.set_status(provider, "error", str(exc))
+                        log.warning("%s sync pass failed: %s", provider, _scrub(exc))
+                        self._db.set_status(provider, "error", _scrub(str(exc)))
             # Matching also tracks the SHEET, which moves on its own schedule.
             try:
                 if self._match_stale(provider):
@@ -154,8 +165,8 @@ class PlatformSync:
             try:
                 return fn()
             except Exception as exc:
-                log.warning("%s %s stage failed: %s", provider, name, exc)
-                errors.append(f"{name}: {exc}")
+                log.warning("%s %s stage failed: %s", provider, name, _scrub(exc))
+                errors.append(_scrub(f"{name}: {exc}"))
                 return None
             finally:
                 self._busy.pop(provider, None)
@@ -235,7 +246,14 @@ class PlatformSync:
         for app_id in todo:
             if self._stop.is_set():
                 break
-            rows = client.fetch_achievements(creds, app_id)
+            try:
+                rows = client.fetch_achievements(creds, app_id)
+            except Exception as exc:
+                # One game's transient 500 (Steam does this) must not abort the
+                # whole chunk — skip it and let the next pass retry.
+                log.debug("%s achievements for %s failed: %s",
+                          provider, app_id, _scrub(exc))
+                continue
             if rows is None:
                 self._db.kv_set(f"noach:{provider}:{app_id}", "1")
                 continue

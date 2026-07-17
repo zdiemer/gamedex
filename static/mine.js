@@ -366,7 +366,7 @@ function platCardsHtml(state) {
     return `<div class="plat-card" data-plat="${p}">
       <div class="plat-head"><b>${escapeHtml(def.label)}</b>${who}</div>
       <div class="plat-stats muted">${escapeHtml(stats || "nothing synced yet")}</div>
-      <div class="plat-stats muted">Last sync: ${escapeHtml(when)}${s.syncing ? ` · <b>syncing (${escapeHtml(s.syncing)})…</b>` : ""}</div>
+      <div class="plat-stats muted">Last sync: ${escapeHtml(when)}<b data-plat-stage>${s.syncing ? ` · syncing (${escapeHtml(s.syncing)})…` : ""}</b></div>
       ${s.status === "error" && s.error ? `<p class="auth-err">${escapeHtml(s.error)}</p>` : ""}
       <div class="ce-acts"><span></span><div class="ce-right">
         <button class="sh-btn" data-plat-sync type="button">Sync now</button>
@@ -407,9 +407,29 @@ function wirePlatCards(host) {
     const sync = card.querySelector("[data-plat-sync]");
     if (sync) sync.onclick = async () => {
       sync.disabled = true;
+      sync.textContent = "Syncing…";
+      // Reflect the running state on the card at once, then keep it visibly
+      // "syncing" and repoll fast until the worker reports a stage (or, for a
+      // quick provider that finishes between polls, until a refresh comes back
+      // not-busy) — so the click always produces something to see.
+      card.classList.add("syncing");
       try { await fetch(`api/platforms/${p}/sync`, { method: "POST" }); } catch (_) {}
-      showToast("Sync started — it runs in the background");
-      sync.disabled = false;
+      showToast(`${MINE_PROVIDERS[p].label}: sync started`);
+      let ticks = 0;
+      const poll = setInterval(async () => {
+        if (!card.isConnected || ++ticks > 30) { clearInterval(poll); return; }
+        try {
+          const r = await fetch("api/platforms");
+          if (!r.ok) return;
+          const s = ((await r.json()).providers || {})[p] || {};
+          const label = card.querySelector("[data-plat-stage]");
+          if (label) label.textContent = s.syncing ? ` · syncing (${s.syncing})…` : "";
+          if (!s.syncing && ticks > 1) {   // finished — refresh counts, stop
+            clearInterval(poll);
+            openPlatformsDialog();
+          }
+        } catch (_) { /* next tick */ }
+      }, 1500);
     };
     const unlink = card.querySelector("[data-plat-unlink]");
     if (unlink) unlink.onclick = async () => {
