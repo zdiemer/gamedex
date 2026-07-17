@@ -211,6 +211,10 @@ function openDrawer(row, sheetKey, keepStack) {
       if (MINE.includes(c.key)) raw = cell(c, v) + raw;
     }
   }
+  // Admin escape hatch for a wishlist-only game: map (or fix) its IGDB match by
+  // hand. Rendered for every wl-only row — especially the unmatched ones, which
+  // have no IGDB section otherwise.
+  if (typeof wishlistMapHtml === "function") html += wishlistMapHtml(row);
   html += (typeof editionsHtml === "function" ? editionsHtml(row) : "");
   html += `<div id="relations"></div>`;
   html += collectionSectionHtml(row);
@@ -230,6 +234,7 @@ function openDrawer(row, sheetKey, keepStack) {
     back.title = `Back to ${t}`;
   }
   wireCollections(body);
+  if (typeof wireWishlistMap === "function") wireWishlistMap(body, row);
   const artBtn = $("#drawerArt");
   if (artBtn) artBtn.onclick = () => {
     const key = `${row._k}#${String(row.releaseRegion || "").trim()}`;

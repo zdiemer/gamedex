@@ -577,6 +577,37 @@ def api_wishlist_meta(ids: str):
                       if _wishlist_meta_cache.get(i)}}
 
 
+class WishlistMatch(BaseModel):
+    provider: str
+    appId: str
+    url: str | None = None       # an IGDB game URL to pin; empty/absent + remove clears
+    remove: bool = False
+
+
+@app.post("/api/wishlist/match")
+def api_wishlist_match(body: WishlistMatch, user: dict = Depends(require_admin)):
+    """Pin a wishlist item to an IGDB game by hand — the escape hatch for the
+    ones auto-matching missed (or got wrong). A pasted IGDB URL resolves to the
+    id; empty clears back to unmatched."""
+    if not enricher:
+        raise HTTPException(status_code=400, detail="enrichment disabled")
+    if body.remove or not (body.url or "").strip():
+        PLATDB.set_wishlist_match(body.provider, body.appId, None, None)
+        return {"status": "cleared"}
+    m = re.search(r"/games/([^/?#]+)", body.url)
+    if not m:
+        raise HTTPException(status_code=400, detail="not an IGDB game URL")
+    rec = _igdb.fetch_by_slug(m.group(1))
+    if not rec or not rec.get("id"):
+        raise HTTPException(status_code=404, detail="no IGDB game at that URL")
+    igdb_id = rec["id"]
+    light = _igdb.games_light([igdb_id]).get(igdb_id) or {}
+    _wishlist_meta_cache[igdb_id] = light
+    PLATDB.set_wishlist_match(body.provider, body.appId, None, igdb_id,
+                              cover=light.get("cover"), name=rec.get("name"))
+    return {"status": "matched", "igdbId": igdb_id, "name": rec.get("name")}
+
+
 @app.get("/api/wishlist")
 def api_wishlist():
     """Every platform wishlist entry, with whatever identity matching found:

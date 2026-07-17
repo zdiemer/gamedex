@@ -179,8 +179,6 @@ class PlatformSync:
         if not ach_only and \
                 self._db.kv_get(f"match_stamp:{provider}") != self._match_stamp(provider):
             stage("matching", lambda: self._match_library(provider))
-        counts["achievements"] = stage(
-            "achievements", lambda: self._sync_achievements(provider, client, creds, changed or []))
         if not ach_only:
             counts["screenshots"] = stage(
                 "screenshots", lambda: self._sync_screenshots(provider, client, creds))
@@ -188,6 +186,12 @@ class PlatformSync:
                 "wishlist", lambda: self._sync_wishlist(provider, client, creds))
             counts["reviews"] = stage(
                 "reviews", lambda: self._sync_reviews(provider, client, creds))
+            # Mark the pass done HERE, before the long achievements backfill —
+            # everything else has landed, so the provider drops out of "due" and
+            # its next wake is a fast achievements-only chunk instead of another
+            # full pass. A slow-paced library (Xbox at 138/hr) would otherwise
+            # take its whole first achievements stage before it ever counted as
+            # synced, and re-run library+screenshots every time until it did.
             self._db.mark_sync(provider)
             # Backfill a display name a failed link left blank (PSN's profile
             # call needs a token the link didn't have yet). Cheap, best-effort.
@@ -198,6 +202,10 @@ class PlatformSync:
                         self._db.link(provider, creds, nm)
                 except Exception as exc:
                     log.debug("%s display-name backfill failed: %s", provider, exc)
+        # Achievements LAST — it's the long, bounded, resumable stage, and it
+        # must not hold up mark_sync (above) or the fast stages (before).
+        counts["achievements"] = stage(
+            "achievements", lambda: self._sync_achievements(provider, client, creds, changed or []))
         # Tokens may have rotated during the pass (PSN's do) — the dict the
         # provider mutated is the only copy that still works next time.
         self._db.update_credentials(provider, creds)

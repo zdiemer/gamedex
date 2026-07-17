@@ -49,6 +49,57 @@ async function loadWishlistMeta() {
 
 const WL_SOURCE = { sheet: "Sheet", steam: "Steam", psn: "PlayStation", xbox: "Xbox", nintendo: "Nintendo" };
 
+// Admin: map (or remap) a wishlist-only row to an IGDB game by pasting its URL.
+// Shows for EVERY wl-only row — the whole point is the ones that didn't match,
+// which otherwise have no IGDB section at all to hang a fix on.
+function wishlistMapHtml(row) {
+  if (!IS_ADMIN || !row._wlOnly || !row._wlAppIds) return "";
+  const cur = row._igdbId ? `https://www.igdb.com/games/` : "";
+  return `<div class="hltb wl-map" data-wl-appids='${escapeHtml(JSON.stringify(row._wlAppIds))}'>
+    <div class="hltb-head">${icon("i-edit", 14)} ${row._igdbId ? "Fix IGDB mapping" : "Map to an IGDB game"}</div>
+    <div class="map-src"><label>IGDB game URL</label>
+      <div class="map-row">
+        <input type="url" placeholder="igdb.com/games/&lt;slug&gt;" value="${escapeHtml(cur)}" data-wl-map-input>
+        <button class="btn" data-wl-map-go>Map</button>
+        ${row._igdbId ? `<button class="linkbtn danger" data-wl-map-clear title="Unmap">Clear</button>` : ""}
+      </div>
+      <p class="auth-err" data-wl-map-err hidden></p>
+    </div>
+  </div>`;
+}
+
+function wireWishlistMap(host, row) {
+  const box = host.querySelector(".wl-map");
+  if (!box) return;
+  const appIds = JSON.parse(box.dataset.wlAppids || "{}");
+  const provider = Object.keys(appIds)[0];
+  const appId = appIds[provider];
+  const err = box.querySelector("[data-wl-map-err]");
+  const post = async (bodyExtra) => {
+    err.hidden = true;
+    try {
+      const r = await fetch("api/wishlist/match", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, appId, ...bodyExtra }),
+      });
+      if (r.ok) {
+        showToast("Wishlist mapping updated ✓");
+        WL = null; loadWishlist();           // re-pull + re-render with the new match
+        closeDrawer();
+        return;
+      }
+      const j = await r.json().catch(() => ({}));
+      err.textContent = j.detail || "Couldn't map that."; err.hidden = false;
+    } catch (_) { err.textContent = "Couldn't reach the server."; err.hidden = false; }
+  };
+  const go = box.querySelector("[data-wl-map-go]");
+  const input = box.querySelector("[data-wl-map-input]");
+  go.onclick = () => { const url = input.value.trim(); if (url) post({ url }); };
+  input.onkeydown = (e) => { if (e.key === "Enter") go.onclick(); };
+  const clear = box.querySelector("[data-wl-map-clear]");
+  if (clear) clear.onclick = () => post({ remove: true });
+}
+
 const WL_COLUMNS = [
   { key: "title", label: "Title", type: "text", facet: false, search: true, sort: true, primary: true },
   { key: "platform", label: "Platform", type: "text", facet: true, search: false, sort: true, primary: true },
@@ -151,6 +202,7 @@ function buildWishlistSheet() {
     const plat = e.appIds.steam ? "PC" : (m && m.platforms && m.platforms[0]) || null;
     return {
       title: e.name, wishlistedOn: on, _k: k, _wlOnly: true, _igdbId: e.igdbId || null,
+      _wlAppIds: e.appIds,     // {provider: appId} — lets the drawer remap this item
       platform: plat,
       releaseYear: m ? m.year : null,
       release: m ? m.release : null,     // full ISO date; card + hero prefer it

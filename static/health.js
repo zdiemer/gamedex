@@ -202,6 +202,23 @@ const HEALTH_CHECKS = [
     find: () => hzGames().filter((r) => r.wishlisted && r.owned),
   },
   {
+    id: "steamwishsheet", severity: "info", sheet: "games",
+    title: "On your Steam wishlist, but already on the sheet",
+    why: "A game still on your Steam wishlist that already has a row here — matched by "
+       + "IGDB id or title. You may already own it, or can clear it off the Steam wishlist.",
+    find: () => {
+      const wl = (typeof WL !== "undefined" && WL) || [];
+      const steam = wl.filter((w) => w.provider === "steam");
+      const keys = new Set(steam.filter((w) => w.matchKey).map((w) => w.matchKey));
+      const igdbs = new Set(steam.filter((w) => w.igdbId).map((w) => Number(w.igdbId)));
+      return hzGames().filter((r) => {
+        if (keys.has(r._k)) return true;
+        const e = ENRICH[r._k];
+        return e && e.igdbId && igdbs.has(Number(e.igdbId));
+      });
+    },
+  },
+  {
     id: "hltbgap", severity: "warn", sheet: "games",
     title: "Your playtime is wildly off HowLongToBeat",
     why: "Your Completion Time differs from HLTB's main story by more than 3× — likely a units slip (minutes for hours) or a typo.",
