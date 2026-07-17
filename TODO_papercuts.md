@@ -151,10 +151,12 @@ and any decisions made along the way.
       the art. Dropped the black; kept only a hairline plastic-lip highlight. Verified: art now
       goes clean to the edge (before/after screenshots). `style.css`.
 - [x] **14. See-through hinge** — the interior walls were only `d-8px` deep and inset 3px, so
-      the open box had seams you saw the shelf through. Since the walls only exist while open,
-      ran them full depth, edge-to-edge — the interior is now fully enclosed (confirmed with a
-      colour-coded surface diagnostic). NOTE: couldn't perfectly reproduce your exact fold
-      sliver on this GameCube case locally, so please confirm on prod. `style.css`.
+      the open box had seams you saw the shelf through. Ran them full depth. (1.58.26 fixed the
+      regression this caused: the full-depth `w-l` landed on the spine plane and its black front
+      covered the real spine when open. Now `.f-left` (the spine itself) is double-sided while
+      open — real scan outside, closes the box inside — and `w-l` is inset 2px to line the inside
+      in black. Verified: outer spine shows the scan, inside is clean black, no see-through.)
+      `style.css`.
 - [x] **Shut the box before putting it back** (your nit) — `shelfClose` now drops `.open` and
       lets the hinge swing shut before sliding the box home, instead of putting a gaping box
       back. `shelf.js`.

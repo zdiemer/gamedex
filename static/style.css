@@ -3989,6 +3989,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   transform: translateZ(calc(var(--d) / 2)) rotateY(-128deg);
   backface-visibility: visible;
 }
+/* THE SPINE, FROM THE INSIDE. `.f-left` IS the full spine (a --d × --h face) and it's
+   backface-hidden — so from inside the open box it vanished and you saw straight out. The
+   `w-l` interior wall was added to plug that, but full-depth it lands on the spine plane and
+   its black front covered the real spine from OUTSIDE. Instead, let the spine itself paint
+   both ways while the box is open: from outside it's the scanned/printed spine, from inside
+   it closes the box — no black slab, no see-through. That makes w-l redundant, so drop it. */
+.sh-case.open .f-left { backface-visibility: visible; }
 .sh-case .f-front img { backface-visibility: hidden; }
 .sh-liner {
   position: absolute; inset: 0; border-radius: 2px;
@@ -4031,7 +4038,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    the comment above, three built. So the open box had a hole exactly where its spine is: you
    looked into it and straight back out through the spine (which, being backface-hidden, does
    not exist from in here) at the outside of the box. */
-.sh-wall.w-l { left: 0;  top: 0; width: var(--wd); height: 100%; transform-origin: left center;  transform: rotateY(-90deg); }
+/* w-l is the black inner face of the spine. Inset a couple px so the real spine (.f-left,
+   double-sided while open) shows on the OUTSIDE and w-l only lines the INSIDE — full depth so
+   there's no front seam. .f-left's now-visible backface closes the 2px sliver at the very edge. */
+.sh-wall.w-l { left: 2px; top: 0; width: var(--wd); height: 100%; transform-origin: left center;  transform: rotateY(-90deg); }
 .sh-wall.w-r { right: 0; top: 0; width: var(--wd); height: 100%; transform-origin: right center; transform: rotateY(90deg); }
 .sh-wall.w-t { left: 0; top: 0; width: 100%; height: var(--wd); transform-origin: center top; transform: rotateX(90deg); }
 .sh-wall.w-b { left: 0; bottom: 0; width: 100%; height: var(--wd); transform-origin: center bottom; transform: rotateX(-90deg); }
