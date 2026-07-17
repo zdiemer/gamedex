@@ -482,6 +482,7 @@ class IgdbClient:
                         pubs.append(nm)
                 crit, usr = g.get("aggregated_rating"), g.get("rating")
                 out[gid] = {
+                    "name": g.get("name"),
                     "cover": (g.get("cover") or {}).get("image_id"),
                     "video": (vids[0].get("video_id") if vids else None),
                     "year": year, "release": iso,
@@ -501,6 +502,29 @@ class IgdbClient:
                     "userRatingCount": g.get("rating_count"),
                     "summary": g.get("summary"),
                 }
+            # IGDB's own time-to-beat aggregate — a separate endpoint keyed by
+            # game_id. It's the same species of data as HowLongToBeat (aggregate
+            # player completion times, in seconds), so it feeds the same
+            # hltbMain/hltbBest fields the rest of the app reads — letting a
+            # wishlisted game, which has no sheet row and so no scraped HLTB, still
+            # carry an Estimated Time to sort on. Matches hltb.py's hour rounding.
+            try:
+                ttb = self._post(
+                    "game_time_to_beats",
+                    "fields game_id,normally,completely;"
+                    f" where game_id = ({','.join(map(str, chunk))}); limit {len(chunk)};")
+            except Exception as exc:
+                log.debug("games_light ttb chunk failed: %s", exc)
+                ttb = []
+            for t in ttb or []:
+                rec = out.get(t.get("game_id"))
+                if not rec:
+                    continue
+                normally, completely = t.get("normally"), t.get("completely")
+                main = round(normally / 3600, 2) if normally else None
+                rec["hltbMain"] = main
+                # Main-story preferred, mirroring hltb.py's `best = main or …`.
+                rec["hltbBest"] = main or (round(completely / 3600, 2) if completely else None)
         return out
 
     def detail_by_id(self, igdb_id) -> dict | None:

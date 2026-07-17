@@ -29,25 +29,42 @@ let _wlMetaBusy = false;
 // Pull the light IGDB metadata (video for hover-autoplay, release date,
 // platforms, genres) for every matched wishlist game we don't have yet, then
 // rebuild so the cards pick it up. Batched; only the ids we're missing.
-async function loadWishlistMeta() {
-  const need = [...new Set((WL || [])
-    .map((w) => w.igdbId).filter((id) => id && !(id in WL_META)))];
+// Ids whose HLTB completion-time lookup the server deferred (its per-request
+// budget) — re-requested each round until they resolve. Kept out of WL_META's
+// "already have it" test so a still-pending id keeps its card meta (no flicker)
+// while we poll for its time.
+let _wlPending = new Set();
+async function loadWishlistMeta(round = 0) {
+  const need = [...new Set([
+    ...(WL || []).map((w) => w.igdbId).filter((id) => id && !(id in WL_META)),
+    ..._wlPending,
+  ])];
   if (!need.length || _wlMetaBusy) return;
   _wlMetaBusy = true;
+  const pending = new Set();
   try {
     for (let i = 0; i < need.length; i += 200) {
       const batch = need.slice(i, i + 200);
       const r = await fetch("api/wishlist/meta?ids=" + batch.join(","));
       if (!r.ok) continue;
-      const items = (await r.json()).items || {};
+      const j = await r.json();
+      const items = j.items || {};
       for (const id of batch) WL_META[id] = items[id] || null;   // negative-cache
+      for (const id of j.pending || []) pending.add(+id);
     }
     buildWishlistSheet();
     if (activeTab === "wishlist") renderAll();
   } finally { _wlMetaBusy = false; }
+  // Poll again for the deferred HLTB lookups — bounded, and self-terminating the
+  // moment the server resolves each one (a hit or a definite miss both clear it).
+  _wlPending = pending;
+  if (pending.size && round < 12) {
+    setTimeout(() => loadWishlistMeta(round + 1), 1500);
+  }
 }
 
-const WL_SOURCE = { sheet: "Sheet", steam: "Steam", psn: "PlayStation", xbox: "Xbox", nintendo: "Nintendo" };
+const WL_SOURCE = { sheet: "Sheet", steam: "Steam", gog: "GOG", epic: "Epic Games",
+                    itch: "itch.io", psn: "PlayStation", xbox: "Xbox", nintendo: "Nintendo" };
 
 // The deal block for a wishlist drawer: the price line, a "View on Steam" chip
 // (always, when we know the appid), and a "Buy on <vendor>" chip for the lowest
@@ -309,7 +326,10 @@ function buildWishlistSheet() {
       for (const f of ["genres", "themes", "gameModes", "perspectives",
                        "developers", "publishers", "franchises", "keywords",
                        "engines", "criticRating", "criticCount",
-                       "userRating", "userRatingCount"]) {
+                       "userRating", "userRatingCount",
+                       // Completion time (IGDB time-to-beat, or an HLTB title-match
+                       // fallback) — what playtimeOf reads for the Estimated Time sort.
+                       "hltbMain", "hltbBest", "hltbUrl"]) {
         if (m[f] != null && rec[f] == null) rec[f] = m[f];
       }
     }

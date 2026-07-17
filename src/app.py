@@ -571,15 +571,30 @@ def api_shot(provider: str, id: str):
 
 
 _wishlist_meta_cache: dict = {}
+# HLTB fallback for wishlist Estimated Time, cached apart from the IGDB record:
+# {igdb_id: {"hltbMain","hltbBest","hltbUrl"} | None}. None = a title search that
+# came back empty (a definite miss, so we never re-scrape it).
+_wishlist_hltb_cache: dict = {}
+# HLTB is a ~1/sec scrape, so a single request only fills a handful; the client
+# re-polls the ids we report as `pending` until they resolve (see loadWishlistMeta).
+_WL_HLTB_BUDGET = 8
 
 
 @app.get("/api/wishlist/meta")
 def api_wishlist_meta(ids: str):
-    """{igdb_id: {cover, video, year, release, platforms}} for wishlist cards —
-    the light IGDB fields so a card gets a trailer, a release date and platforms,
-    not just a cover. Cached per id (a pure function of the crawl)."""
+    """{igdb_id: {name, cover, video, year, release, platforms, …predict fields}}
+    for wishlist cards — the IGDB light fields (trailer, date, platforms) plus the
+    subset the taste model regresses on, and a completion time for the Estimated
+    Time sort.
+
+    That time is IGDB's own game_time_to_beats where it has one (games_light adds
+    it); where it doesn't, we fall back to an HLTB title match — the same source
+    the sheet uses, just reached by name because a wishlisted game has no sheet
+    row to key on. HLTB is rate-limited, so each call resolves at most
+    `_WL_HLTB_BUDGET` new lookups and returns the rest under `pending` for the
+    client to ask about again."""
     if not enricher:
-        return {"items": {}}
+        return {"items": {}, "pending": []}
     want = [int(x) for x in ids.split(",") if x.strip().isdigit()]
     missing = [i for i in want if i not in _wishlist_meta_cache]
     if missing:
@@ -590,8 +605,41 @@ def api_wishlist_meta(ids: str):
             pass
         for i in missing:                       # negative-cache misses too
             _wishlist_meta_cache.setdefault(i, None)
-    return {"items": {str(i): _wishlist_meta_cache[i] for i in want
-                      if _wishlist_meta_cache.get(i)}}
+
+    # Fill the completion-time gap from HLTB, budget-limited. A record that
+    # already has hltbBest (IGDB had a time-to-beat) needs nothing.
+    hltb = _secondary.get("hltb")
+    pending: list[int] = []
+    spent = 0
+    for i in want:
+        rec = _wishlist_meta_cache.get(i)
+        if not rec or rec.get("hltbBest") is not None or i in _wishlist_hltb_cache:
+            continue
+        if not hltb or not rec.get("name"):
+            _wishlist_hltb_cache[i] = None      # nothing to search on → definite miss
+            continue
+        if spent >= _WL_HLTB_BUDGET:
+            pending.append(i)                   # deferred to a later poll
+            continue
+        spent += 1
+        try:
+            plats = rec.get("platforms") or []
+            d = hltb.match(rec["name"], plats[0] if plats else None, rec.get("year"))
+        except Exception:
+            d = None
+        _wishlist_hltb_cache[i] = (
+            {"hltbMain": d.get("main"), "hltbBest": d.get("best"), "hltbUrl": d.get("url")}
+            if d else None)
+
+    def merged(i):
+        rec = dict(_wishlist_meta_cache[i])
+        h = _wishlist_hltb_cache.get(i)
+        if h and rec.get("hltbBest") is None:
+            rec.update(h)
+        return rec
+
+    return {"items": {str(i): merged(i) for i in want if _wishlist_meta_cache.get(i)},
+            "pending": [str(i) for i in pending]}
 
 
 class WishlistMatch(BaseModel):

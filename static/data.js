@@ -48,9 +48,9 @@ function searchField(id, placeholder, value = "", cls = "") {
 // The tabs a computed sort is offered on. Wishlist rides the same table/grid
 // pipeline as All Games and, since 1.58.7, its unowned rows carry the IGDB
 // record these accessors read (predicted score, critic and user ratings all
-// resolve off it) — so the "what it's worth" cluster is worth offering there too.
-// Estimated Time is the exception: it needs HowLongToBeat, which the light
-// wishlist meta doesn't fetch, so it would be blank for every unowned game.
+// resolve off it), and since 1.58.9 a completion time too — IGDB's time-to-beat
+// or an HLTB title match — so the whole "what it's worth / how long" cluster is
+// worth offering there.
 const _worthSortOn = () => activeTab === "games" || activeTab === "wishlist";
 const VIRTUAL_SORTS = [
   { key: "__predicted", label: "Estimated Rating", type: "number", kind: "predicted",
@@ -68,7 +68,7 @@ const VIRTUAL_SORTS = [
     on: _worthSortOn },
   { key: "__esttime", label: "Estimated Time", type: "number", kind: "esttime",
     get: (row) => playtimeOf(row),          // HLTB → VNDB → the sheet's estimate
-    on: () => activeTab === "games" },
+    on: _worthSortOn },
 ];
 const sortMeta = (key) => VIRTUAL_SORTS.find((v) => v.key === key) || colByKey(key);
 
