@@ -38,13 +38,14 @@ CLIENT_ID = "54789befb391a838"                # Parental Controls app
 TOKEN_URL = "https://accounts.nintendo.com/connect/1.0.0/api/token"
 GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer-session-token"
 MOON = "https://app.lp1.znma.srv.nintendo.net"
-# The Moon (znma) app's real headers, matched to nxapi EXACTLY — Nintendo 403s
-# on a header/version mismatch, so these are nxapi's known-good values (older
-# than the current app, but what the API accepts) and the Model is left empty.
+# The current Moon (znma) app headers. Verified against a live token: the znma
+# v2 API accepts the ID token as a Bearer with these version strings (nxapi's
+# older 1.17.0 gets update_required; the access token gets 403). An empty Model
+# is what the app sends.
 _APP_PKG = "com.nintendo.znma"
-_APP_VERSION = "1.17.0"
-_APP_BUILD = "261"
-_OS_VERSION = "26"
+_APP_VERSION = "2.4.0"
+_APP_BUILD = "660"
+_OS_VERSION = "34"
 _UA = f"moon_ANDROID/{_APP_VERSION} ({_APP_PKG}; build:{_APP_BUILD}; ANDROID {_OS_VERSION})"
 
 
@@ -81,8 +82,9 @@ class NintendoUserClient:
                              " Parental Controls token (nxapi pctl auth) and current")
         r.raise_for_status()
         j = r.json()
-        # The Moon API authenticates with the ACCESS token as a Bearer (nxapi).
-        creds["_moonToken"] = j.get("access_token") or j.get("id_token")
+        # The znma v2 API authenticates with the ID token as a Bearer (verified
+        # against a live token — the access token 403s).
+        creds["_moonToken"] = j.get("id_token") or j.get("access_token")
         creds["_moonExp"] = time.time() + int(j.get("expires_in") or 900)
         return creds["_moonToken"]
 
@@ -105,18 +107,29 @@ class NintendoUserClient:
         return r.json()
 
     def _devices(self, creds: dict) -> list[dict]:
-        j = self._get(creds, "/v2/actions/user/fetchOwnedDevices")
-        # The payload wraps the list under json.devices in current Moon builds.
+        try:
+            j = self._get(creds, "/v2/actions/user/fetchOwnedDevices")
+        except requests.HTTPError as e:
+            # 404 resource_is_not_found = the token authenticated but the account
+            # has no Switch linked to Parental Controls, so there's nothing to
+            # read. Treat as an empty (not failed) library.
+            if e.response is not None and e.response.status_code == 404:
+                return []
+            raise
         return ((j.get("json") or {}).get("devices")) or j.get("devices") or []
 
     def validate(self, creds: dict) -> dict:
-        devices = self._devices(creds)     # also proves the token works
-        name = None
-        for d in devices:
-            name = d.get("label") or d.get("name")
-            if name:
-                break
-        return {"displayName": name}
+        # Exchanging the token proves the credential; fetching devices proves the
+        # account has Parental Controls set up.
+        self._access_token(creds)
+        devices = self._devices(creds)
+        if not devices:
+            raise ValueError("Nintendo authenticated, but no Switch is linked to"
+                             " Parental Controls — set up the Parental Controls app"
+                             " on your console (it's what reports playtime), then"
+                             " re-link")
+        return {"displayName": next((d.get("label") or d.get("name")
+                                     for d in devices if d.get("label") or d.get("name")), None)}
 
     def account_name(self, creds: dict) -> str | None:
         try:
