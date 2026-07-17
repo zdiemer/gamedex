@@ -429,6 +429,44 @@ class IgdbClient:
         res = self._post("games", f'{_FIELDS} where slug = "{safe}"; limit 1;')
         return res[0] if res else None
 
+    def games_light(self, igdb_ids) -> dict:
+        """{igdb_id: {cover, video, year, release, platforms}} for a batch of ids
+        — the light fields a wishlist card needs (cover, a trailer to autoplay,
+        the release date, the platforms) without a full detail fetch each."""
+        ids = [int(i) for i in igdb_ids if str(i).strip().isdigit()]
+        out: dict = {}
+        for i in range(0, len(ids), 400):
+            chunk = ids[i:i + 400]
+            try:
+                rows = self._post(
+                    "games",
+                    "fields id,name,cover.image_id,first_release_date,"
+                    "videos.video_id,platforms.name,genres.name,summary;"
+                    f" where id = ({','.join(map(str, chunk))}); limit {len(chunk)};")
+            except Exception as exc:
+                log.debug("games_light chunk failed: %s", exc)
+                continue
+            for g in rows:
+                gid = g.get("id")
+                if not gid:
+                    continue
+                rel = g.get("first_release_date")
+                iso = year = None
+                if rel:
+                    from datetime import datetime, timezone
+                    dt = datetime.fromtimestamp(rel, timezone.utc)
+                    iso, year = dt.strftime("%Y-%m-%d"), dt.year
+                vids = g.get("videos") or []
+                out[gid] = {
+                    "cover": (g.get("cover") or {}).get("image_id"),
+                    "video": (vids[0].get("video_id") if vids else None),
+                    "year": year, "release": iso,
+                    "platforms": [p.get("name") for p in (g.get("platforms") or []) if p.get("name")],
+                    "genres": [x.get("name") for x in (g.get("genres") or []) if x.get("name")],
+                    "summary": g.get("summary"),
+                }
+        return out
+
     def detail_by_id(self, igdb_id) -> dict | None:
         """The full enrichment record for a bare IGDB id — how a wishlisted game
         we don't own (so it has no match-key record) gets a real drawer:

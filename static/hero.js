@@ -226,8 +226,11 @@ function heroHtml(row, titleText) {
   // here, in plain text, next to the year it belongs to.
   const relISO = row.releaseDate || row.release;
   const region = row.releaseRegion || row.region;
+  // A wishlisted game may not be out yet — read the tense off the date so an
+  // unreleased title says "Releases", not "Released … " in the past.
+  const future = relISO && String(relISO).length > 4 && Date.parse(relISO) > Date.now();
   const relLine = relISO && String(relISO).length > 4
-    ? `<div class="hero-rel">Released ${escapeHtml(fmtDate(relISO))}${
+    ? `<div class="hero-rel">${future ? "Releases" : "Released"} ${escapeHtml(fmtDate(relISO))}${
         region ? ` <span class="muted">· ${escapeHtml(String(region))}</span>` : ""}</div>`
     : "";
   return `<div class="hero" id="drawerHero">

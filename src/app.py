@@ -553,6 +553,30 @@ def api_shot(provider: str, id: str):
     return JSONResponse({"error": "not available"}, status_code=404)
 
 
+_wishlist_meta_cache: dict = {}
+
+
+@app.get("/api/wishlist/meta")
+def api_wishlist_meta(ids: str):
+    """{igdb_id: {cover, video, year, release, platforms}} for wishlist cards —
+    the light IGDB fields so a card gets a trailer, a release date and platforms,
+    not just a cover. Cached per id (a pure function of the crawl)."""
+    if not enricher:
+        return {"items": {}}
+    want = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    missing = [i for i in want if i not in _wishlist_meta_cache]
+    if missing:
+        try:
+            for gid, meta in _igdb.games_light(missing).items():
+                _wishlist_meta_cache[gid] = meta
+        except Exception:
+            pass
+        for i in missing:                       # negative-cache misses too
+            _wishlist_meta_cache.setdefault(i, None)
+    return {"items": {str(i): _wishlist_meta_cache[i] for i in want
+                      if _wishlist_meta_cache.get(i)}}
+
+
 @app.get("/api/wishlist")
 def api_wishlist():
     """Every platform wishlist entry, with whatever identity matching found:

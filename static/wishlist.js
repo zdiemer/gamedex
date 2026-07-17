@@ -23,6 +23,29 @@
    then normalized name — one card per game however many places want it. */
 
 let WL = null;                     // /api/wishlist items; null before first load
+const WL_META = {};                // igdbId -> {cover, video, year, release, platforms, genres}
+let _wlMetaBusy = false;
+
+// Pull the light IGDB metadata (video for hover-autoplay, release date,
+// platforms, genres) for every matched wishlist game we don't have yet, then
+// rebuild so the cards pick it up. Batched; only the ids we're missing.
+async function loadWishlistMeta() {
+  const need = [...new Set((WL || [])
+    .map((w) => w.igdbId).filter((id) => id && !(id in WL_META)))];
+  if (!need.length || _wlMetaBusy) return;
+  _wlMetaBusy = true;
+  try {
+    for (let i = 0; i < need.length; i += 200) {
+      const batch = need.slice(i, i + 200);
+      const r = await fetch("api/wishlist/meta?ids=" + batch.join(","));
+      if (!r.ok) continue;
+      const items = (await r.json()).items || {};
+      for (const id of batch) WL_META[id] = items[id] || null;   // negative-cache
+    }
+    buildWishlistSheet();
+    if (activeTab === "wishlist") renderAll();
+  } finally { _wlMetaBusy = false; }
+}
 
 const WL_SOURCE = { sheet: "Sheet", steam: "Steam", psn: "PlayStation", xbox: "Xbox", nintendo: "Nintendo" };
 
@@ -42,6 +65,7 @@ async function loadWishlist() {
   } catch (_) { WL = []; }
   buildWishlistSheet();
   if (activeTab === "wishlist") renderAll();
+  loadWishlistMeta();               // fill in video / release date / platforms
 }
 
 const _wlNorm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -114,9 +138,23 @@ function buildWishlistSheet() {
     if (e.cover && !rec.cover) rec.cover = e.cover;
     if (e.appIds.steam && !rec.stores) rec.stores = { steam: { id: String(e.appIds.steam) } };
     if (e.igdbId && !rec.igdbId) rec.igdbId = e.igdbId;
+    // The IGDB light meta (video, release date, platforms, genres) is filled in
+    // asynchronously by loadWishlistMeta once the tab renders; the fields it
+    // sets on ENRICH[k] and on the row are read by the card + hover-preview.
+    const m = e.igdbId ? (WL_META[e.igdbId] || null) : null;
+    if (m) {
+      if (m.video && !rec.video) rec.video = m.video;
+      if (m.cover && !rec.cover) rec.cover = m.cover;
+    }
+    // Platform on a wishlist card is the storefront's platform (a Steam wish is
+    // a PC game); the release date and genre come from IGDB.
+    const plat = e.appIds.steam ? "PC" : (m && m.platforms && m.platforms[0]) || null;
     return {
-      title: e.name, wishlistedOn: on, _k: k, _wlOnly: true,
-      _igdbId: e.igdbId || null,   // lets the drawer fetch full IGDB detail by id
+      title: e.name, wishlistedOn: on, _k: k, _wlOnly: true, _igdbId: e.igdbId || null,
+      platform: plat,
+      releaseYear: m ? m.year : null,
+      release: m ? m.release : null,     // full ISO date; card + hero prefer it
+      genre: m && m.genres ? m.genres[0] : null,
       dateAdded: e.addedAt ? String(e.addedAt).slice(0, 10) : null,
     };
   });
