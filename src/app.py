@@ -15,6 +15,7 @@ IGDB credentials are configured.
 
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 import os
@@ -1016,19 +1017,40 @@ def enrichment_batch(batch: KeyBatch):
     return {"enabled": True, "items": items, "pending": pending, "stats": enricher.stats()}
 
 
+# Whole-library map: cached, and cached ALREADY GZIPPED. Building the dict is cheap now
+# (Enricher caches it), but serialising ~18 MB of JSON and gzipping it cost ~2s on EVERY
+# request, holding a worker thread and a connection that long. Cache the finished gzip bytes,
+# keyed on the same change-count + TTL the light map uses, so a steady library serves them
+# instantly and a live backfill re-serialises at most once every 20s.
+_enrich_all_cache: dict = {"ver": None, "ts": 0.0, "body": None}
+_ENRICH_ALL_TTL = 20.0
+
+
 @app.get("/api/enrichment/all")
 def enrichment_all():
     if not enricher:
         return {"enabled": False, "items": {}}
-    return {
-        "enabled": True,
-        "items": enricher.get_all_light(),
-        # Games we looked up and found nothing for. Without this the UI cannot
-        # distinguish "still resolving" from "resolved, no metadata", and shows a
-        # loading skeleton forever on anything unmatchable.
-        "noMatch": enricher.resolved_no_match(),
-        "stats": enricher.stats(),
-    }
+    now = time.monotonic()
+    ver = enricher.change_count()
+    c = _enrich_all_cache
+    if c["body"] is not None and (c["ver"] == ver or now - c["ts"] < _ENRICH_ALL_TTL):
+        body = c["body"]
+    else:
+        payload = {
+            "enabled": True,
+            "items": enricher.get_all_light(),
+            # Games we looked up and found nothing for. Without this the UI cannot
+            # distinguish "still resolving" from "resolved, no metadata", and shows a
+            # loading skeleton forever on anything unmatchable.
+            "noMatch": enricher.resolved_no_match(),
+            "stats": enricher.stats(),
+        }
+        body = gzip.compress(json.dumps(payload, separators=(",", ":")).encode("utf-8"), 6)
+        c.update(ver=ver, ts=now, body=body)
+    # Pre-gzipped: declare it so the gzip middleware leaves it alone and the browser inflates
+    # it transparently (every browser sends Accept-Encoding: gzip).
+    return Response(content=body, media_type="application/json",
+                    headers={"Content-Encoding": "gzip", "Content-Length": str(len(body))})
 
 
 # Full IGDB detail for a bare IGDB id (a wishlisted game we don't own has no

@@ -268,10 +268,12 @@ function cardBodyHtml(row) {
   // value, sales, sorted-by field, collection badge) unfurls on hover.
   const head = [row.platform, relDisp].filter((x) => x != null && x !== "").map((x) => escapeHtml(String(x)));
   const extra = parts.slice(head.length);
-  // Wishlist price (ITAD): a badge on the cover — current price, the cut %, and
-  // an all-time-low star — so it reads at a glance instead of buried in the
-  // platform/date line.
-  const priceBadge = typeof wishlistPriceBadge === "function" ? wishlistPriceBadge(row) : "";
+  // Wishlist price (ITAD): a badge on the cover — current price, the cut %, and an
+  // all-time-low star. ONLY on the Wishlist tab: a wishlisted-and-owned game shares one
+  // row object with All Games, so its stamped _wlPrice was leaking the price/discount onto
+  // the All Games card too. Price belongs to the wishlist view, not the library.
+  const priceBadge = (activeTab === "wishlist" && typeof wishlistPriceBadge === "function")
+    ? wishlistPriceBadge(row) : "";
   // Recommend cards carry a predicted-rating badge instead of a real/critic score.
   const predBadge = typeof recsPredictBadge === "function" ? recsPredictBadge(row) : "";
   return `${meta}${rating}${predBadge}${priceBadge}<div class="card-title" title="${title}">${title}</div>` +

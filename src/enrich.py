@@ -732,6 +732,13 @@ class Enricher:
             ).fetchall()
         return [r[0] for r in rows]
 
+    def change_count(self):
+        """The connection's total INSERT/UPDATE/DELETE count — a cheap monotonic version for
+        cache invalidation (the /api/enrichment/all response cache keys on it, same as the
+        light-map cache below)."""
+        with self._db_lock:
+            return self._db.total_changes
+
     def get_all_light(self):
         now = time.monotonic()
         # Cache check + a snapshot of the raw rows, both under the lock (the fetch is fast);
