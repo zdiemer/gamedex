@@ -166,6 +166,9 @@ function openDrawer(row, sheetKey, keepStack) {
   const body = $("#drawerBody");
   const titleText = escapeHtml(String(row[titleCol.key] ?? "Untitled"));
   let html = heroHtml(row, titleText);
+  // Wishlist deal block (price line + View-on-Steam / Buy-on-vendor chips) sits
+  // right under the hero — it IS the point of a wishlist drawer.
+  if (typeof wishlistDealHtml === "function") html += wishlistDealHtml(row);
   // A wishlist-only row has no match-key record, but if it matched an IGDB id we
   // can still load its full detail (summary, screenshots, tags) by that id.
   const wlDetail = row._wlOnly && row._igdbId;

@@ -598,14 +598,18 @@ class PlatformSync:
             if keys:
                 self._db.set_wishlist_match(provider, aid, keys[0], None)
                 continue
-            if norm and self._catalogue is not None:
-                hit = self._catalogue.lookup_norm(norm)
-                if hit:
-                    self._db.set_wishlist_match(provider, aid, None, hit["igdbId"],
-                                                cover=hit.get("cover"),
-                                                name=w["name"] or hit.get("name"))
-                    continue
-            # Last resort: ask IGDB directly by store id. Bounded per pass.
+            # The authoritative match is the store-id → IGDB lookup (a Steam
+            # wishlist entry carries its appid; external_games maps it straight
+            # to the game). It's one API call each, so it's the FIRST choice only
+            # when the free catalogue name-match would be a guess — i.e. the name
+            # is shared across distinct games ("Haunted House"). An unambiguous
+            # catalogue hit is trusted for free.
+            hit = self._catalogue.lookup_norm(norm) if (norm and self._catalogue) else None
+            if hit and not hit.get("ambiguous"):
+                self._db.set_wishlist_match(provider, aid, None, hit["igdbId"],
+                                            cover=hit.get("cover"),
+                                            name=w["name"] or hit.get("name"))
+                continue
             if igdb is not None and store and api_budget > 0:
                 api_budget -= 1
                 g = igdb.game_by_store_id(store, aid)
@@ -613,3 +617,10 @@ class PlatformSync:
                     self._db.set_wishlist_match(provider, aid, None, g["igdbId"],
                                                 cover=g.get("cover"),
                                                 name=w["name"] or g.get("name"))
+                    continue
+            # Ambiguous name and no store-id answer (budget spent, or IGDB miss)
+            # — fall back to the popularity guess rather than leave it unmatched.
+            if hit:
+                self._db.set_wishlist_match(provider, aid, None, hit["igdbId"],
+                                            cover=hit.get("cover"),
+                                            name=w["name"] or hit.get("name"))

@@ -318,6 +318,9 @@ function patchPlayButtons() {
 }
 
 function launchHtml(row) {
+  // A wishlist-only row's store links live in its own deal block (View on Steam +
+  // Buy on the best-deal vendor), so the hero doesn't add a duplicate here.
+  if (row._wlOnly) return "";
   const t = launchTarget(row);
   if (!t) return rommHtml(row);
   const external = /^https?:/.test(t.href);

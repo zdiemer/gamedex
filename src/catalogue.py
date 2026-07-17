@@ -407,16 +407,22 @@ class Catalogue:
     def lookup_norm(self, norm: str) -> dict | None:
         """The catalogue game for a normalized title — how a wishlisted game we
         don't own gets an IGDB identity (and a cover). Same-named games happen;
-        the most-rated one is overwhelmingly the one a wishlist means."""
+        the most-rated one is usually the one a wishlist means, but when the name
+        is genuinely shared across DISTINCT games (a PC "Haunted House" vs the
+        Dragon 32/64 one) the guess can be wrong — so `ambiguous` says whether
+        more than one game carries the name, and the caller can fall back to the
+        authoritative store-id lookup instead of trusting the popularity guess."""
         if not norm:
             return None
         with self._db_lock:
-            row = self._db.execute(
+            rows = self._db.execute(
                 "SELECT igdb_id, name, cover, year FROM catalogue WHERE norm_name=?"
-                " ORDER BY COALESCE(rating_count,0) DESC LIMIT 1", (norm,)).fetchone()
-        if row is None:
+                " ORDER BY COALESCE(rating_count,0) DESC LIMIT 5", (norm,)).fetchall()
+        if not rows:
             return None
-        return {"igdbId": row[0], "name": row[1], "cover": row[2], "year": row[3]}
+        r = rows[0]
+        return {"igdbId": r[0], "name": r[1], "cover": r[2], "year": r[3],
+                "ambiguous": len(rows) > 1}
 
     def payload(self):
         """The scoreable catalogue, interned and columnar. A pure function of the crawl:

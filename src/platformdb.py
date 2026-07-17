@@ -97,7 +97,8 @@ class PlatformDB:
             # and whether today's price is AT that low.
             " itad_id TEXT, price_current REAL, price_regular REAL, price_cut INTEGER,"
             " price_low REAL, price_currency TEXT, price_url TEXT, price_shop TEXT,"
-            " price_at_low INTEGER, price_updated TEXT,"
+            " price_at_low INTEGER, price_voucher TEXT, price_steam_url TEXT,"
+            " price_updated TEXT,"
             " PRIMARY KEY(provider, app_id))"
         )
         _wl_cols = {r[1] for r in c.execute("PRAGMA table_info(wishlist)")}
@@ -105,7 +106,8 @@ class PlatformDB:
                          ("price_regular", "REAL"), ("price_cut", "INTEGER"),
                          ("price_low", "REAL"), ("price_currency", "TEXT"),
                          ("price_url", "TEXT"), ("price_shop", "TEXT"),
-                         ("price_at_low", "INTEGER"), ("price_updated", "TEXT")):
+                         ("price_at_low", "INTEGER"), ("price_voucher", "TEXT"),
+                         ("price_steam_url", "TEXT"), ("price_updated", "TEXT")):
             if col not in _wl_cols:
                 c.execute(f"ALTER TABLE wishlist ADD COLUMN {col} {typ}")
         c.execute(
@@ -424,7 +426,7 @@ class PlatformDB:
     _WL_KEEP = ("match_key", "igdb_id", "cover", "name", "itad_id",
                 "price_current", "price_regular", "price_cut", "price_low",
                 "price_currency", "price_url", "price_shop", "price_at_low",
-                "price_updated")
+                "price_voucher", "price_steam_url", "price_updated")
 
     def replace_wishlist(self, provider: str, items: list[dict]) -> None:
         """Full refresh, but keep the prior match AND price columns for entries
@@ -441,8 +443,8 @@ class PlatformDB:
                     "INSERT INTO wishlist(provider,app_id,name,added_at,priority,extra,"
                     " match_key,igdb_id,cover,updated_at,itad_id,price_current,"
                     " price_regular,price_cut,price_low,price_currency,price_url,"
-                    " price_shop,price_at_low,price_updated)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " price_shop,price_at_low,price_voucher,price_steam_url,price_updated)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (provider, aid, w.get("name") or p.get("name"), w.get("addedAt"),
                      w.get("priority"),
                      json.dumps(w["extra"]) if w.get("extra") else None,
@@ -450,7 +452,7 @@ class PlatformDB:
                      p.get("itad_id"), p.get("price_current"), p.get("price_regular"),
                      p.get("price_cut"), p.get("price_low"), p.get("price_currency"),
                      p.get("price_url"), p.get("price_shop"), p.get("price_at_low"),
-                     p.get("price_updated")))
+                     p.get("price_voucher"), p.get("price_steam_url"), p.get("price_updated")))
             self._db.commit()
 
     def wishlist_for_pricing(self, provider: str, stale_before: str) -> list[dict]:
@@ -470,11 +472,13 @@ class PlatformDB:
             self._db.execute(
                 "UPDATE wishlist SET itad_id=COALESCE(?,itad_id), price_current=?,"
                 " price_regular=?, price_cut=?, price_low=?, price_currency=?,"
-                " price_url=?, price_shop=?, price_at_low=?, price_updated=?"
+                " price_url=?, price_shop=?, price_at_low=?, price_voucher=?,"
+                " price_steam_url=?, price_updated=?"
                 " WHERE provider=? AND app_id=?",
                 (itad_id, p.get("current"), p.get("regular"), p.get("cut"),
                  p.get("low"), p.get("currency"), p.get("url"), p.get("shop"),
-                 1 if p.get("atLow") else 0, _now(), provider, str(app_id)))
+                 1 if p.get("atLow") else 0, p.get("voucher"), p.get("steamUrl"),
+                 _now(), provider, str(app_id)))
             self._db.commit()
 
     def wishlist_unmatched(self, provider: str) -> list[dict]:
@@ -501,7 +505,8 @@ class PlatformDB:
             rows = self._db.execute(
                 "SELECT provider, app_id, name, added_at, priority, match_key,"
                 " igdb_id, cover, price_current, price_regular, price_cut, price_low,"
-                " price_currency, price_url, price_shop, price_at_low FROM wishlist").fetchall()
+                " price_currency, price_url, price_shop, price_at_low, price_voucher,"
+                " price_steam_url FROM wishlist").fetchall()
         out = []
         for r in rows:
             item = {"provider": r[0], "appId": r[1], "name": r[2], "addedAt": r[3],
@@ -509,7 +514,8 @@ class PlatformDB:
             if r[8] is not None or r[11] is not None:      # has price or a known low
                 item["price"] = {"current": r[8], "regular": r[9], "cut": r[10],
                                  "low": r[11], "currency": r[12], "url": r[13],
-                                 "shop": r[14], "atLow": bool(r[15])}
+                                 "shop": r[14], "atLow": bool(r[15]), "voucher": r[16],
+                                 "steamUrl": r[17]}
             out.append(item)
         return out
 

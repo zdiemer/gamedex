@@ -49,6 +49,35 @@ async function loadWishlistMeta() {
 
 const WL_SOURCE = { sheet: "Sheet", steam: "Steam", psn: "PlayStation", xbox: "Xbox", nintendo: "Nintendo" };
 
+// The deal block for a wishlist drawer: the price line, a "View on Steam" chip
+// (always, when we know the appid), and a "Buy on <vendor>" chip for the lowest
+// current deal (which may be a third-party seller, and may carry a coupon).
+function wishlistDealHtml(row) {
+  const steamId = row._wlAppIds && row._wlAppIds.steam;
+  const p = row._wlPrice;
+  if (!steamId && !p) return "";
+  const chips = [];
+  if (steamId) {
+    chips.push(`<a class="btn ghost" href="${escapeHtml(storeUrl("steam", steamId))}"
+      target="_blank" rel="noopener">View on Steam ↗</a>`);
+  }
+  // Buy on the best-deal vendor — only when it's a real, different link (not just
+  // the same Steam store we already linked, unless it's discounted there).
+  if (p && p.url && p.current != null && (p.shop !== "Steam" || p.cut > 0)) {
+    const label = p.shop ? `Buy on ${p.shop}` : "Buy";
+    const price = _money(p.current, p.currency);
+    chips.push(`<a class="btn buy" href="${escapeHtml(p.url)}" target="_blank" rel="noopener"
+      title="${escapeHtml(p.voucher ? "Coupon: " + p.voucher : "")}">${escapeHtml(label)} · ${escapeHtml(price)}${p.cut > 0 ? ` (−${p.cut}%)` : ""} ↗</a>`);
+  }
+  const line = wishlistPriceLine(row);
+  if (!chips.length && !line) return "";
+  return `<div class="hltb wl-deal">
+    <div class="hltb-head">${icon("i-star", 14)} Deal</div>
+    ${line}
+    ${chips.length ? `<div class="wl-deal-chips">${chips.join("")}</div>` : ""}
+  </div>`;
+}
+
 // Admin: map (or remap) a wishlist-only row to an IGDB game by pasting its URL.
 // Shows for EVERY wl-only row — the whole point is the ones that didn't match,
 // which otherwise have no IGDB section at all to hang a fix on.
@@ -133,18 +162,36 @@ const _money = (v, cur) => {
   return sym + Number(v).toFixed(2);
 };
 
-// The price chip on a card / in the drawer: current price, the regular slashed
-// through when it's cut, the discount %, and an all-time-low star. "" for a row
-// with no price (non-Steam wishlist, or ITAD had nothing).
-function wishlistPriceHtml(row) {
+// The price BADGE on a card cover: current price, the cut %, and an all-time-low
+// star. Positioned (CSS) over the bottom of the cover so it reads at a glance.
+// "" for a row with no price (non-Steam wishlist, or ITAD had nothing).
+function wishlistPriceBadge(row) {
   const p = row._wlPrice;
   if (!p || p.current == null) return "";
   const cur = _money(p.current, p.currency);
+  const cut = p.cut > 0 ? `<i class="wl-cut">−${p.cut}%</i>` : "";
+  const star = p.atLow ? ` ★` : "";
+  const cls = p.atLow ? " atlow" : (p.cut > 0 ? " sale" : "");
+  const tip = [p.regular != null && p.cut > 0 ? `was ${_money(p.regular, p.currency)}` : null,
+               p.shop ? `on ${p.shop}` : null,
+               p.low != null ? `all-time low ${_money(p.low, p.currency)}` : null,
+               p.voucher ? `coupon ${p.voucher}` : null].filter(Boolean).join(" · ");
+  return `<span class="card-price${cls}" title="${escapeHtml(tip)}">${cut}${escapeHtml(cur)}${star}</span>`;
+}
+
+// The fuller price line for the drawer: regular slashed, current, cut, store,
+// coupon, all-time low.
+function wishlistPriceLine(row) {
+  const p = row._wlPrice;
+  if (!p || p.current == null) return "";
   const onSale = p.cut > 0 && p.regular != null;
-  const reg = onSale ? `<s>${escapeHtml(_money(p.regular, p.currency))}</s>` : "";
-  const cut = onSale ? `<b class="wl-cut">−${p.cut}%</b>` : "";
-  const low = p.atLow ? `<span class="wl-low" title="At its lowest price ever">★ low</span>` : "";
-  return ` · <span class="wl-price${p.atLow ? " atlow" : ""}">${reg}<b>${escapeHtml(cur)}</b>${cut}${low}</span>`;
+  const reg = onSale ? `<s>${escapeHtml(_money(p.regular, p.currency))}</s> ` : "";
+  const cut = onSale ? ` <b class="wl-cut">−${p.cut}%</b>` : "";
+  const shop = p.shop ? ` <span class="muted">on ${escapeHtml(p.shop)}</span>` : "";
+  const low = p.atLow ? ` <span class="wl-low">★ all-time low</span>`
+    : (p.low != null ? ` <span class="muted">· low ${escapeHtml(_money(p.low, p.currency))}</span>` : "");
+  const coupon = p.voucher ? ` <span class="wl-coupon" title="Apply at checkout">🎟 ${escapeHtml(p.voucher)}</span>` : "";
+  return `<div class="wl-price-line">${reg}<b>${escapeHtml(_money(p.current, p.currency))}</b>${cut}${shop}${low}${coupon}</div>`;
 }
 
 /* Merge the three sources into row objects and install DATA.sheets.wishlist.

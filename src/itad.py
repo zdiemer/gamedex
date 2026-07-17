@@ -87,10 +87,11 @@ class ItadClient:
 
     # ---- prices (batched) -----------------------------------------------------
     def prices(self, itad_ids: list[str]) -> dict:
-        """{itad_id: {current, regular, cut, currency, url, low, atLow}} — the
-        Steam deal plus the all-time low. `atLow` is True when today's price is
-        at (or below) the historical low, which is what the "lowest ever" facet
-        keys off."""
+        """{itad_id: {current, regular, cut, currency, url, shop, voucher,
+        steamUrl, low, atLow}} — the LOWEST current deal across every store ITAD
+        tracks (third-party key sellers included), plus the coupon it needs
+        (`voucher`) and the all-time low. `atLow` is True when today's best price
+        is at (or below) the historical low."""
         out: dict = {}
         ids = [i for i in itad_ids if i]
         for i in range(0, len(ids), 200):
@@ -106,22 +107,28 @@ class ItadClient:
                     continue
                 low = ((row.get("historyLow") or {}).get("all") or {}).get("amount")
                 deals = row.get("deals") or []
+                # The Steam store URL rides along so the drawer can always link
+                # Steam even when the best deal is elsewhere.
                 steam = next((d for d in deals
                               if (d.get("shop") or {}).get("id") == STEAM_SHOP_ID), None)
-                deal = steam or (deals[0] if deals else None)
+                steam_url = steam.get("url") if steam else None
+                # The cheapest current deal wins the card — that's the point of
+                # sorting a wishlist by price.
+                priced = [d for d in deals if (d.get("price") or {}).get("amount") is not None]
+                deal = min(priced, key=lambda d: d["price"]["amount"]) if priced else None
                 if deal is None:
                     out[gid] = {"low": low, "currency": None, "current": None,
-                                "regular": None, "cut": 0, "url": None, "atLow": False}
+                                "regular": None, "cut": 0, "url": None, "shop": None,
+                                "voucher": None, "steamUrl": steam_url, "atLow": False}
                     continue
                 cur = (deal.get("price") or {}).get("amount")
                 reg = (deal.get("regular") or {}).get("amount")
-                currency = (deal.get("price") or {}).get("currency")
                 out[gid] = {
                     "current": cur, "regular": reg, "cut": deal.get("cut") or 0,
-                    "currency": currency, "url": deal.get("url"),
-                    "shop": (deal.get("shop") or {}).get("name"),
-                    "low": low,
-                    # A tiny epsilon so a rounding cent doesn't hide a real match.
+                    "currency": (deal.get("price") or {}).get("currency"),
+                    "url": deal.get("url"), "shop": (deal.get("shop") or {}).get("name"),
+                    "voucher": deal.get("voucher") or None,   # coupon code, if any
+                    "steamUrl": steam_url, "low": low,
                     "atLow": bool(cur is not None and low is not None and cur <= low + 0.01),
                 }
         return out

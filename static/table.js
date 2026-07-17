@@ -260,12 +260,12 @@ function cardBodyHtml(row) {
   // value, sales, sorted-by field, collection badge) unfurls on hover.
   const head = [row.platform, relDisp].filter((x) => x != null && x !== "").map((x) => escapeHtml(String(x)));
   const extra = parts.slice(head.length);
-  // Wishlist price (ITAD): current, the regular slashed through when discounted,
-  // the cut %, and an "all-time low" flag. Always visible (it's the point of the
-  // wishlist), so it goes on the scrim next to the platform line.
-  const price = typeof wishlistPriceHtml === "function" ? wishlistPriceHtml(row) : "";
-  return `${meta}${rating}<div class="card-title" title="${title}">${title}</div>` +
-    `<div class="card-sub">${head.join(" · ")}${price}</div>` +
+  // Wishlist price (ITAD): a badge on the cover — current price, the cut %, and
+  // an all-time-low star — so it reads at a glance instead of buried in the
+  // platform/date line.
+  const priceBadge = typeof wishlistPriceBadge === "function" ? wishlistPriceBadge(row) : "";
+  return `${meta}${rating}${priceBadge}<div class="card-title" title="${title}">${title}</div>` +
+    `<div class="card-sub">${head.join(" · ")}</div>` +
     `<div class="card-extra"><div>` +
       (extra.length ? `<div class="card-sub">${extra.join(" · ")}</div>` : "") +
       collectionBadgeHtml(row) + sortValueHtml(row) +
