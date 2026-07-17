@@ -7,6 +7,9 @@ src/
 static/
 tools/
 data/
+# ~220 MB of read-only lineage (GamePicker alone carries a 189 MB exclusives/
+# dump). Nothing here is deployed; leaving it in blows the 1 MB cap instantly.
+reference/
 Dockerfile
 build.sh
 upgrade.sh

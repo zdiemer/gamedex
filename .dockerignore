@@ -1,5 +1,9 @@
 **/__pycache__/
 **/*.pyc
+# Reference submodules — read-only lineage, never copied into the image. The
+# Dockerfile's COPYs are explicit, so this only keeps ~220 MB out of the build
+# context.
+reference/
 values.local.yaml
 values.local.yaml.example
 templates/

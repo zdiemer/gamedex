@@ -1,0 +1,8 @@
+[submodule "reference/GamesMaster"]
+	path = reference/GamesMaster
+	url = https://github.com/zdiemer/GamesMaster.git
+	branch = master
+[submodule "reference/GamePicker"]
+	path = reference/GamePicker
+	url = https://github.com/zdiemer/GamePicker.git
+	branch = main

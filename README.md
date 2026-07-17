@@ -25,6 +25,48 @@ This repo is self-contained: the app *and* its Helm chart live here together, an
 [zdiemer/selfhosted](https://github.com/zdiemer/selfhosted), which tracks this repo
 as a submodule at `games/gamedex/` pinned to the deployed commit.
 
+## Lineage
+
+Two earlier repos of mine solved most of these problems first, and much of the
+logic here is ported from them — in places near-verbatim. Both are pinned as
+read-only submodules under `reference/`, so the originals stay one `cd` away:
+
+- **[zdiemer/GamesMaster](https://github.com/zdiemer/GamesMaster)**
+  (`reference/GamesMaster`) — Python scripts that turned this same workbook into a
+  database. The **domain model and the title matcher** come straight from it:
+  `src/excel_game.py` copies its `ExcelPlatform` enum verbatim, `src/match_validator.py`
+  and `src/constants.py` port `MatchValidator` (normalization, roman numerals,
+  article/subtitle handling, platform aliases), `src/notes.py` ports
+  `ExcelGame.__process_notes` early-return order and all, and `src/parse.py`'s
+  coded-column labels mirror its enums. Its `src/clients/` tree — ~30 metadata
+  scrapers — is the ancestor of `src/igdb.py`, `src/metacritic.py`, `src/gameye.py`,
+  `src/vndb.py`, `src/vgchartz.py`, `src/cooptimus.py` and `src/arcadedb.py`.
+- **[zdiemer/GamePicker](https://github.com/zdiemer/GamePicker)**
+  (`reference/GamePicker`) — utilities for picking what to play next and dividing the
+  to-play list into groupings. Its `src/game_selectors/` tree is where the
+  **analytical** half of the UI comes from: `validations/` (`potential_duplicates`,
+  `missing_playtime`, `completed_ordering`, `misspellings`, …) became the Data health
+  tab in `static/health.js`, and `statistics/` (`longest_playthroughs`,
+  `most_concurrent_playthroughs`, `average_playtime_per_day`, …) became the pacing and
+  overlap sections of `static/stats.js`. The "one per X" challenges in
+  `static/challenges.js` are a port of its challenge selectors, `CHALLENGE_START` and
+  all.
+
+Where a file carries ported logic it says so at the top; this section is the map, not
+the attribution. Nothing under `reference/` is imported, built, or deployed — it is
+excluded from the image (`.dockerignore`) and from the chart (`.helmignore`, where
+GamePicker's 189 MB `exclusives/` dump would blow the 1 MB release-secret cap on its
+own). The submodules are **optional**: every checkout below works without them, and
+nothing in `src/` or `static/` reads from that directory.
+
+```sh
+# Clone with them:
+git clone --recurse-submodules git@github.com:zdiemer/gamedex.git
+
+# Or add them to a checkout that predates them:
+git submodule update --init reference/GamesMaster reference/GamePicker
+```
+
 ## How it works
 
 ```
