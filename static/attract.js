@@ -14,10 +14,12 @@
 
 const ATTRACT_DWELL = 16000;   // how long each game holds the screen
 const ATTRACT_FADE  = 900;     // cross-fade duration — MUST match the CSS transition
-// How far into a game's turn the NEXT one starts loading. The gap this leaves (~5.4s of a
+// How far into a game's turn the NEXT one starts loading. The gap this leaves (~7.2s of a
 // full dwell) is the whole budget for the next trailer to load, start, and burn off
-// YouTube's bezel — see attractPreload.
-const ATTRACT_PRELOAD_AT  = 0.66;
+// YouTube's bezel. Measured warm, that costs ~1s to reach PLAYING and ~2.5s of bezel — so
+// this is roughly double what it needs, and the slack is what buys a cold connection its
+// clean picture too. Earlier only costs a longer overlap with two players running.
+const ATTRACT_PRELOAD_AT  = 0.55;
 const ATTRACT_PRELOAD_MIN = 2500;   // don't bother with a run-up shorter than the bezel itself
 
 let attractOn = false;
