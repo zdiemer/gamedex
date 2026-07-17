@@ -45,20 +45,27 @@ function searchField(id, placeholder, value = "", cls = "") {
 /* Sort keys that aren't sheet columns. The estimated rating is computed in the
    browser (ridge regression over your own ratings), so there is no cell to sort
    on — cmpBy has to be told how to get the value instead of reading a[key]. */
+// The tabs a computed sort is offered on. Wishlist rides the same table/grid
+// pipeline as All Games and, since 1.58.7, its unowned rows carry the IGDB
+// record these accessors read (predicted score, critic and user ratings all
+// resolve off it) — so the "what it's worth" cluster is worth offering there too.
+// Estimated Time is the exception: it needs HowLongToBeat, which the light
+// wishlist meta doesn't fetch, so it would be blank for every unowned game.
+const _worthSortOn = () => activeTab === "games" || activeTab === "wishlist";
 const VIRTUAL_SORTS = [
   { key: "__predicted", label: "Estimated Rating", type: "number", kind: "predicted",
     get: (row) => (typeof predictedOf === "function" ? predictedOf(row) : null),
-    on: () => activeTab === "games" },
+    on: _worthSortOn },
   // These three have fallback chains, which is exactly why they can't be plain
   // columns: the best answer lives in a different source per game. The facets
   // already resolve them, so sorting reuses the same accessors rather than
   // inventing a second, divergent answer.
   { key: "__critic", label: "Critic Rating", type: "number", kind: "critic",
     get: (row) => metacriticOf(row),        // Metacritic scrape → sheet's column
-    on: () => activeTab === "games" },
+    on: _worthSortOn },
   { key: "__user", label: "User Rating", type: "number", kind: "user",
     get: (row) => userRatingOf(row),        // IGDB → VNDB → GameFAQs
-    on: () => activeTab === "games" },
+    on: _worthSortOn },
   { key: "__esttime", label: "Estimated Time", type: "number", kind: "esttime",
     get: (row) => playtimeOf(row),          // HLTB → VNDB → the sheet's estimate
     on: () => activeTab === "games" },
