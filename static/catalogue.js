@@ -124,6 +124,13 @@ function sheetIgdbIds() {
   if (_sheetIds && _sheetIdsEpoch === _enrichEpoch) return _sheetIds;
   const s = new Set();
   for (const k in ENRICH) {
+    // Synthetic catalogue-backed rows seed ENRICH under private keys (`wl:` for a
+    // wishlist-only game, `rec:` for a recommendation) so their card/drawer find a cover by
+    // igdb id — but they are NOT games you own. Counting them here marks every wishlisted /
+    // recommended game as "on the sheet", which empties the Recommend and Pick pools the
+    // instant those tabs seed them. Only real sheet rows (key = normalize|platform|year)
+    // and their relations count as owned.
+    if (k.startsWith("wl:") || k.startsWith("rec:")) continue;
     const e = ENRICH[k];
     if (e.igdbId != null) s.add(e.igdbId);
     const r = e.rel;
