@@ -156,19 +156,20 @@ function predictWhyHtml(row) {
   // Landing ON your average is not "better than your usual" — it's your usual.
   // Within a couple of points either way, the model is saying nothing much.
   let verdict;
+  const headline = gap > 0 ? "Better than your usual." : "Below your usual.";
   if (Math.abs(gap) <= 2) {
     verdict = `<b>About your usual.</b> Nothing here pulls it far from your ${pts(base)}% average.`;
   } else if (!names.length) {
     // Nothing but the critic score to go on — so say that, rather than inventing
     // a taste signal we don't have.
     verdict = critic
-      ? `<b>${gap > 0 ? "Better" : "Below"} than your usual.</b> Little to go on beyond the critics, who gave it ${pts(critic.value)}.`
-      : `<b>${gap > 0 ? "Better" : "Below"} than your usual.</b> Not much to go on for this one.`;
+      ? `<b>${headline}</b> Little to go on beyond the critics, who gave it ${pts(critic.value)}.`
+      : `<b>${headline}</b> Not much to go on for this one.`;
   } else {
     const list = names.join(" and ");
     verdict = gap > 0
-      ? `<b>Better than your usual.</b> You rate ${list} higher than most of what you own.`
-      : `<b>Below your usual.</b> You rate ${list} lower than most of what you own.`;
+      ? `<b>${headline}</b> You rate ${list} higher than most of what you own.`
+      : `<b>${headline}</b> You rate ${list} lower than most of what you own.`;
   }
 
   const rows = p.signals.map((sg) => {
