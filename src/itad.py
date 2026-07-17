@@ -27,6 +27,8 @@ import logging
 
 import requests
 
+from igdb import RateLimiter
+
 log = logging.getLogger("gamedex.itad")
 
 BASE = "https://api.isthereanydeal.com"
@@ -42,6 +44,8 @@ class ItadClient:
         self._key = (api_key or "").strip() or (client_id or "").strip()
         self._country = country
         self._auth_warned = False
+        # 1000 requests / 5 minutes = 3.3/s; stay a hair under.
+        self._limiter = RateLimiter(3)
 
     @property
     def configured(self) -> bool:
@@ -56,6 +60,7 @@ class ItadClient:
 
     def _get(self, path, params=None, timeout=20):
         params = dict(params or {}); params["key"] = self._key
+        self._limiter.wait()
         r = requests.get(f"{BASE}{path}", params=params, timeout=timeout)
         self._check_auth(r)
         r.raise_for_status()
@@ -63,6 +68,7 @@ class ItadClient:
 
     def _post(self, path, body, params=None, timeout=25):
         params = dict(params or {}); params["key"] = self._key
+        self._limiter.wait()
         r = requests.post(f"{BASE}{path}", params=params, json=body, timeout=timeout)
         self._check_auth(r)
         r.raise_for_status()

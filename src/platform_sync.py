@@ -318,8 +318,14 @@ class PlatformSync:
     def _price_wishlist(self, provider):
         """Refresh ITAD prices for wishlist entries whose price is stale (>12h)
         or never fetched. Steam only — ITAD keys off the Steam appid, and the
-        console networks have no store price to compare. Resolves the appid to
-        an ITAD id once (cached on the row), then batches the price call."""
+        console networks have no store price to compare.
+
+        Two kinds of work with very different costs: entries that already have a
+        resolved ITAD id just need a (batched, cheap) price refresh; entries
+        without one need a lookup EACH. The lookups are capped per pass
+        (ITAD_LOOKUP_PER_SYNC) so the first-time backfill of a few thousand
+        wishlist items spreads over a handful of syncs instead of blocking one
+        for 15 minutes — the ids cache once resolved, so it's a one-time cost."""
         if self._itad is None or not self._itad.configured or provider != "steam":
             return
         from datetime import datetime, timedelta, timezone
@@ -327,20 +333,27 @@ class PlatformSync:
         todo = self._db.wishlist_for_pricing(provider, stale)
         if not todo:
             return
-        # Resolve any missing ITAD ids first (one lookup each, cached forever).
-        resolved = {}
-        for w in todo:
-            iid = w["itadId"] or self._itad.lookup_appid(w["appId"])
+        resolved = {w["appId"]: w["itadId"] for w in todo if w["itadId"]}
+        need_lookup = [w["appId"] for w in todo if not w["itadId"]]
+        cap = int(getattr(self, "_itad_lookup_cap", 500))
+        for app_id in need_lookup[:cap]:
+            if self._stop.is_set():
+                break
+            iid = self._itad.lookup_appid(app_id)
             if iid:
-                resolved[w["appId"]] = iid
+                resolved[app_id] = iid
+            else:
+                # No ITAD match (delisted, bundle-only…) — stamp an empty price
+                # so it isn't re-looked-up every pass.
+                self._db.set_wishlist_price(provider, app_id, None, None)
         if not resolved:
             return
         prices = self._itad.prices(list(set(resolved.values())))
-        n = 0
         for app_id, iid in resolved.items():
             self._db.set_wishlist_price(provider, app_id, iid, prices.get(iid))
-            n += 1
-        log.info("steam wishlist prices: refreshed %d (ITAD)", n)
+        remaining = max(0, len(need_lookup) - cap)
+        log.info("steam wishlist prices: refreshed %d (ITAD)%s", len(resolved),
+                 f", {remaining} left to resolve" if remaining else "")
 
     def _sync_reviews(self, provider, client, creds) -> int:
         items = client.fetch_reviews(creds)
