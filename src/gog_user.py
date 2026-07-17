@@ -125,8 +125,9 @@ class GogUserClient:
 
     # ---- wishlist ------------------------------------------------------------
     def fetch_wishlist(self, creds: dict) -> list[dict]:
+        # GOG returns {"wishlist": {game_id: true}, "checksum": ...}.
         j = self._get(creds, "/user/wishlist.json")
-        ids = list((j.get("wishlistedItems") or {}).keys())
+        ids = [k for k, v in (j.get("wishlist") or {}).items() if v]
         out = []
         for i in range(0, len(ids), 50):
             batch = ids[i:i + 50]
@@ -140,9 +141,9 @@ class GogUserClient:
             by_id = {str(p.get("id")): p for p in (prods or [])}
             for gid in batch:
                 p = by_id.get(str(gid)) or {}
+                url = p.get("purchase_link") or (p.get("links") or {}).get("product_card")
                 out.append({"appId": str(gid), "name": p.get("title"),
-                            "addedAt": None,
-                            "extra": {"url": (p.get("links") or {}).get("product_card")}})
+                            "addedAt": None, "extra": {"url": url}})
         return out
 
     # ---- GOG gives none of these over the embed API --------------------------------

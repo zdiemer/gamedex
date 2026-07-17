@@ -125,6 +125,10 @@ function minePillsHtml(key) {
     const verb = MINE_PROVIDERS[p].verb;
     if (it.playtimeMin != null && it.playtimeMin > 0)
       pills.push(`<span class="mine-pill plat">${escapeHtml(fmtHours(it.playtimeMin / 60))} ${escapeHtml(verb)}</span>`);
+    else
+      // A store with no playtime (GOG, itch) still owns the game — say so, so the
+      // library ownership shows up at all.
+      pills.push(`<span class="mine-pill plat">Owned ${escapeHtml(verb)}</span>`);
     if (it.ach && it.ach.total)
       pills.push(`<span class="mine-pill plat">🏆 ${it.ach.unlocked}/${it.ach.total}</span>`);
     if (it.review)
