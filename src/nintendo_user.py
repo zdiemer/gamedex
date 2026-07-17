@@ -38,12 +38,13 @@ CLIENT_ID = "54789befb391a838"                # Parental Controls app
 TOKEN_URL = "https://accounts.nintendo.com/connect/1.0.0/api/token"
 GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer-session-token"
 MOON = "https://app.lp1.znma.srv.nintendo.net"
-# The Moon (znma) app's real headers — the API 401s without the full set, and
-# authenticates with the ID token as a Bearer, NOT the raw access token.
+# The Moon (znma) app's real headers, matched to nxapi EXACTLY — Nintendo 403s
+# on a header/version mismatch, so these are nxapi's known-good values (older
+# than the current app, but what the API accepts) and the Model is left empty.
 _APP_PKG = "com.nintendo.znma"
-_APP_VERSION = "2.4.0"
-_APP_BUILD = "660"
-_OS_VERSION = "34"
+_APP_VERSION = "1.17.0"
+_APP_BUILD = "261"
+_OS_VERSION = "26"
 _UA = f"moon_ANDROID/{_APP_VERSION} ({_APP_PKG}; build:{_APP_BUILD}; ANDROID {_OS_VERSION})"
 
 
@@ -89,9 +90,10 @@ class NintendoUserClient:
         self._limiter.wait()
         r = requests.get(f"{MOON}{path}",
                          headers={"Authorization": f"Bearer {self._access_token(creds)}",
+                                  "Content-Type": "application/json; charset=utf-8",
                                   "X-Moon-App-Id": _APP_PKG,
                                   "X-Moon-Os": "ANDROID", "X-Moon-Os-Version": _OS_VERSION,
-                                  "X-Moon-Model": "Pixel 4 XL",
+                                  "X-Moon-Model": "",
                                   "X-Moon-App-Display-Version": _APP_VERSION,
                                   "X-Moon-App-Internal-Version": _APP_BUILD,
                                   "X-Moon-TimeZone": "America/Los_Angeles",
