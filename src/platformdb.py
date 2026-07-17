@@ -60,8 +60,11 @@ class PlatformDB:
             " provider TEXT NOT NULL, app_id TEXT NOT NULL,"
             " name TEXT, playtime_min INTEGER, playtime_2wk_min INTEGER,"
             " last_played TEXT, icon_url TEXT, extra TEXT, updated_at TEXT,"
+            " platform TEXT,"           # the game's own platform, for exact matching
             " PRIMARY KEY(provider, app_id))"
         )
+        if "platform" not in {r[1] for r in c.execute("PRAGMA table_info(lib_games)")}:
+            c.execute("ALTER TABLE lib_games ADD COLUMN platform TEXT")
         c.execute(
             "CREATE TABLE IF NOT EXISTS lib_matches("
             " provider TEXT NOT NULL, app_id TEXT NOT NULL, match_key TEXT NOT NULL,"
@@ -211,26 +214,28 @@ class PlatformDB:
                         " VALUES(?,?,?,?)", (provider, aid, day, mins))
                 self._db.execute(
                     "INSERT INTO lib_games(provider,app_id,name,playtime_min,"
-                    " playtime_2wk_min,last_played,icon_url,extra,updated_at)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)"
+                    " playtime_2wk_min,last_played,icon_url,extra,platform,updated_at)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?)"
                     " ON CONFLICT(provider,app_id) DO UPDATE SET name=excluded.name,"
                     " playtime_min=excluded.playtime_min,"
                     " playtime_2wk_min=excluded.playtime_2wk_min,"
                     " last_played=excluded.last_played, icon_url=excluded.icon_url,"
-                    " extra=excluded.extra, updated_at=excluded.updated_at",
+                    " extra=excluded.extra, platform=excluded.platform,"
+                    " updated_at=excluded.updated_at",
                     (provider, aid, g.get("name"), mins, g.get("playtime2wkMin"),
                      g.get("lastPlayed"), g.get("iconUrl"),
-                     json.dumps(g["extra"]) if g.get("extra") else None, _now()))
+                     json.dumps(g["extra"]) if g.get("extra") else None,
+                     g.get("platform"), _now()))
             self._db.commit()
         return changed
 
     def lib_games(self, provider: str) -> list[dict]:
         with self._lock:
             rows = self._db.execute(
-                "SELECT app_id, name, playtime_min, playtime_2wk_min, last_played"
+                "SELECT app_id, name, playtime_min, playtime_2wk_min, last_played, platform"
                 " FROM lib_games WHERE provider=?", (provider,)).fetchall()
         return [{"appId": r[0], "name": r[1], "playtimeMin": r[2],
-                 "playtime2wkMin": r[3], "lastPlayed": r[4]} for r in rows]
+                 "playtime2wkMin": r[3], "lastPlayed": r[4], "platform": r[5]} for r in rows]
 
     # ---- matching ----------------------------------------------------------
     def replace_matches(self, provider: str, app_id: str,

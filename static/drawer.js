@@ -166,7 +166,10 @@ function openDrawer(row, sheetKey, keepStack) {
   const body = $("#drawerBody");
   const titleText = escapeHtml(String(row[titleCol.key] ?? "Untitled"));
   let html = heroHtml(row, titleText);
-  if (ENRICH_ENABLED && row._k && !row._wlOnly) html += `<div id="igdbDetail" class="igdb-detail"></div>`;
+  // A wishlist-only row has no match-key record, but if it matched an IGDB id we
+  // can still load its full detail (summary, screenshots, tags) by that id.
+  const wlDetail = row._wlOnly && row._igdbId;
+  if (ENRICH_ENABLED && row._k && (!row._wlOnly || wlDetail)) html += `<div id="igdbDetail" class="igdb-detail"></div>`;
 
   // Box art override — same manual upload as the shelf, so a game's cover can be fixed
   // (or supplied outright) from any detail card. Offered for every real sheet row, not
@@ -255,6 +258,7 @@ function openDrawer(row, sheetKey, keepStack) {
   drawerRow = row;
   syncScrollLock();                       // the page behind the drawer must not scroll
   if (ENRICH_ENABLED && row._k && !row._wlOnly) loadDetail(row._k, $("#igdbDetail"), 0, row);
+  else if (wlDetail) loadDetail(row._k, $("#igdbDetail"), 0, row, row._igdbId);
   if (row._k && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
 }
 function closeDrawer() {

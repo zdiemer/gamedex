@@ -38,14 +38,17 @@ BASE = "https://xbl.io"
 
 class XboxUserClient:
     name = "xbox"
-    # Free tier is 150 req/hr. Take a small achievements bite per 6h pass and
-    # never spin — the backlog drains over a few nights, under the ceiling.
-    ach_per_sync = 30
-    hot_drain = False
+    # Free tier is 150 req/hr. Rather than one tiny 30-app bite per 6-hour pass
+    # (which stalled a big library for days at a fraction of the budget), drain
+    # CONTINUOUSLY but paced to the ceiling: the rate limiter spaces every call
+    # ~26s apart (~138/hr, safely under 150), and hot_drain keeps the worker
+    # cycling so the whole backlog clears in a couple of hours, not a week.
+    ach_per_sync = 50
+    hot_drain = True
 
     def __init__(self):
-        self._limiter = RateLimiter(1)   # OpenXBL is fine with bursts; the
-        self._xuid = None                # hourly cap is the real limit
+        self._limiter = RateLimiter(1 / 26)   # ~138 requests/hour
+        self._xuid = None
 
     def _get(self, creds, path, params=None, timeout=25):
         self._limiter.wait()

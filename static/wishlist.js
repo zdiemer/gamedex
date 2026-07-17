@@ -116,6 +116,7 @@ function buildWishlistSheet() {
     if (e.igdbId && !rec.igdbId) rec.igdbId = e.igdbId;
     return {
       title: e.name, wishlistedOn: on, _k: k, _wlOnly: true,
+      _igdbId: e.igdbId || null,   // lets the drawer fetch full IGDB detail by id
       dateAdded: e.addedAt ? String(e.addedAt).slice(0, 10) : null,
     };
   });

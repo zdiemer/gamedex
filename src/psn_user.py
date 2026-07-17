@@ -174,30 +174,67 @@ class PsnUserClient:
         except Exception:
             return None
 
+    # A PSN "trophyTitlePlatform" (PS3 / PSVITA / PS4,PS5 …) -> the sheet's
+    # platform name, so a PS5 remake never lands on the PS3 original's row.
+    _PLATFORM = {"PS5": "PlayStation 5", "PS4": "PlayStation 4",
+                 "PS3": "PlayStation 3", "PSVITA": "PlayStation Vita",
+                 "PSPC": "PC", "PSP": "PlayStation Portable"}
+    _CATEGORY_PLATFORM = {"ps5_native_game": "PlayStation 5",
+                          "ps4_game": "PlayStation 4", "pspc_game": "PC"}
+
+    def _platform_of(self, raw: str | None) -> str | None:
+        """The most specific sheet platform for a trophyTitlePlatform string.
+        A "PS4,PS5" cross-gen set prefers PS5 (the newer copy is what a player
+        earning trophies today is on)."""
+        parts = [p.strip().upper() for p in (raw or "").split(",") if p.strip()]
+        for want in ("PS5", "PS4", "PS3", "PSVITA", "PSP"):
+            if want in parts:
+                return self._PLATFORM.get(want)
+        return None
+
     # ---- library ----------------------------------------------------------------
     def fetch_library(self, creds: dict) -> list[dict]:
         self._trophy_sets = None          # a fresh pass re-reads the trophy list
-        out, offset = [], 0
+        self._names = {}
+        gl, offset = {}, 0
         while True:
             j = self._get(creds, "/gamelist/v2/users/me/titles",
                           {"categories": "ps4_game,ps5_native_game,pspc_game",
                            "limit": 200, "offset": offset})
             titles = j.get("titles") or []
             for t in titles:
-                out.append({
-                    "appId": t.get("titleId"),
-                    "name": t.get("name"),
+                if not t.get("titleId"):
+                    continue
+                gl[self._validator.normalize(t.get("name") or "")] = {
+                    "appId": t.get("titleId"), "name": t.get("name"),
                     "playtimeMin": _duration_min(t.get("playDuration")),
                     "playtime2wkMin": None,
                     "lastPlayed": t.get("lastPlayedDateTime"),
                     "iconUrl": t.get("imageUrl"),
+                    "platform": self._CATEGORY_PLATFORM.get(t.get("category")),
                     "extra": {"playCount": t.get("playCount"),
                               "firstPlayed": t.get("firstPlayedDateTime")},
-                })
+                }
             offset += len(titles)
             if len(titles) < 200 or offset >= (j.get("totalItemCount") or 0):
                 break
-        return [g for g in out if g["appId"]]
+        out = list(gl.values())
+        # The gamelist is PS4/PS5 only. PS3, Vita and PSP games have TROPHY sets
+        # but never appear there — add them from the trophy list so their
+        # trophies get synced, keyed by the trophy set's own id. Note we do NOT
+        # skip on a name collision with a gamelist game: PS3 Demon's Souls and
+        # PS5 Demon's Souls share a name but are different games on different
+        # rows, and the platform filter already keeps PS4/PS5 out of here.
+        for s in self._sets(creds):
+            plat = self._platform_of(s.get("platform"))
+            if plat in ("PlayStation 4", "PlayStation 5", "PC", None):
+                continue                  # a gamelist game already carries these
+            out.append({"appId": s["id"], "name": s["name"], "playtimeMin": None,
+                        "playtime2wkMin": None, "lastPlayed": None, "iconUrl": s.get("icon"),
+                        "platform": plat, "extra": {"trophySet": s["id"]}})
+        self._names = {str(g["appId"]): g["name"] for g in out}
+        self._game_platform = {str(g["appId"]): g.get("platform") for g in out}
+        return out
 
     # ---- trophies ------------------------------------------------------------------
     def _sets(self, creds: dict) -> list[dict]:
@@ -211,6 +248,8 @@ class PsnUserClient:
                     sets.append({"id": s.get("npCommunicationId"),
                                  "name": s.get("trophyTitleName"),
                                  "service": s.get("npServiceName") or "trophy",
+                                 "platform": s.get("trophyTitlePlatform"),
+                                 "icon": s.get("trophyTitleIconUrl"),
                                  "norm": self._validator.normalize(
                                      s.get("trophyTitleName") or "")})
                 offset += len(batch)
@@ -219,31 +258,44 @@ class PsnUserClient:
             self._trophy_sets = sets
         return self._trophy_sets
 
-    def _set_for(self, creds: dict, game_name: str) -> dict | None:
-        """The trophy set for a game, joined on the normalized name — the only
-        join PSN offers. Ambiguity (two sets, one name) means no answer."""
+    def _set_for(self, creds: dict, app_id: str, game_name: str) -> dict | None:
+        """The trophy set for a library entry. A PS3/Vita entry is keyed by the
+        set's own id (exact). A PS4/PS5 entry is keyed by titleId, joined to a
+        set on the normalized name; when a name collides across generations
+        (Demon's Souls PS3 vs PS5), the game's own platform breaks the tie."""
+        sets = self._sets(creds)
+        direct = [s for s in sets if s["id"] == str(app_id)]
+        if direct:
+            return direct[0]
         norm = self._validator.normalize(game_name or "")
         if not norm:
             return None
-        hits = [s for s in self._sets(creds) if s["norm"] == norm]
+        want_plat = (self._game_platform or {}).get(str(app_id))
+        hits = [s for s in sets if s["norm"] == norm]
+        if len(hits) > 1 and want_plat:
+            # Prefer the set whose platform matches this game's copy.
+            same = [s for s in hits if self._platform_of(s.get("platform")) == want_plat]
+            if len(same) == 1:
+                return same[0]
         if len(hits) == 1:
             return hits[0]
-        # A trademark suffix or edition tag on either side is common; retry on
-        # the fuzzy comparison, still demanding a unique winner.
-        hits = [s for s in self._sets(creds)
+        if hits:
+            return None                   # still ambiguous — don't guess wrong
+        hits = [s for s in sets
                 if self._validator.titles_equal_fuzzy(game_name, s["name"] or "")]
         return hits[0] if len(hits) == 1 else None
 
-    # Engine hands us the titleId; we saved the names at library time.
+    _game_platform: dict = {}
+
+    # Engine hands us the titleId (or trophy-set id); names saved at library time.
     _names: dict = {}
 
     def fetch_achievements(self, creds: dict, app_id: str) -> list[dict] | None:
         name = self._names.get(str(app_id))
         if name is None:
-            for g in self.fetch_library(creds):
-                self._names[str(g["appId"])] = g["name"]
+            self.fetch_library(creds)
             name = self._names.get(str(app_id))
-        ts = self._set_for(creds, name or "")
+        ts = self._set_for(creds, app_id, name or "")
         if ts is None:
             return None                   # no trophy set we can safely claim
         params = {"npServiceName": ts["service"]}

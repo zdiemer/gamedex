@@ -539,12 +539,13 @@ async function submitOverride(key, url, source = "igdb", remove = false) {
   } catch (_) { return false; }
 }
 
-async function loadDetail(key, el, attempt = 0, row = null) {
+async function loadDetail(key, el, attempt = 0, row = null, igdbId = null) {
   if (row) drawerRow = row;
   if (DETAIL[key]) { renderIgdbSection(key, el, "matched", DETAIL[key]); return; }
   if (attempt === 0) renderIgdbSection(key, el, "loading", null);
   try {
-    const res = await fetch("api/enrichment/detail?key=" + encodeURIComponent(key));
+    const res = await fetch("api/enrichment/detail?key=" + encodeURIComponent(key)
+      + (igdbId ? "&igdb=" + encodeURIComponent(igdbId) : ""));
     const j = await res.json();
     if ("hltb" in j) HLTBC[key] = j.hltb;
     if ("metacritic" in j) MCC[key] = j.metacritic;
@@ -565,7 +566,7 @@ async function loadDetail(key, el, attempt = 0, row = null) {
     else if (j.status === "no_match") { renderIgdbSection(key, el, "no_match", null); }
     else if (j.status === "pending") {
       if (attempt >= 15) renderIgdbSection(key, el, "pending-final", null);
-      else setTimeout(() => loadDetail(key, el, attempt + 1), 2500);
+      else setTimeout(() => loadDetail(key, el, attempt + 1, null, igdbId), 2500);
     } else renderIgdbSection(key, el, "error", null);
   } catch (_) { renderIgdbSection(key, el, "error", null); }
 }

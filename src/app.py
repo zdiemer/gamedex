@@ -880,11 +880,29 @@ def enrichment_all():
     }
 
 
+# Full IGDB detail for a bare IGDB id (a wishlisted game we don't own has no
+# match-key record). A pure function of the crawl, so cache it; the map is small
+# — only games whose wishlist drawer someone actually opened.
+_igdb_detail_cache: dict = {}
+
+
 @app.get("/api/enrichment/detail")
-def enrichment_detail(key: str):
+def enrichment_detail(key: str, igdb: int | None = None):
     if not enricher:
         return {"enabled": False, "status": "disabled", "detail": None}
     status, detail = enricher.get_detail(key)
+    # No owned record, but the caller knows the IGDB id (a matched wishlist item)
+    # — fetch the full detail by id so the drawer gets a summary, screenshots and
+    # tags instead of just a cover.
+    if detail is None and igdb:
+        if igdb not in _igdb_detail_cache:
+            try:
+                _igdb_detail_cache[igdb] = _igdb.detail_by_id(igdb)
+            except Exception:
+                _igdb_detail_cache[igdb] = None
+        detail = _igdb_detail_cache[igdb]
+        if detail:
+            status = "matched"
     return {"enabled": True, "status": status, "detail": detail,
             "hltb": enricher.get_secondary("hltb", key),
             "metacritic": enricher.get_secondary("metacritic", key),

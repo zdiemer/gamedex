@@ -374,13 +374,27 @@ class PlatformSync:
         family = _PLATFORM_FAMILY.get(provider, set())
         by_norm: dict[str, list[str]] = {}
         frag_index: dict[str, set[str]] = {}   # fragment -> full norms carrying it
+        key_platform: dict[str, str] = {}      # match_key -> lowercased sheet platform
         for mk, m in meta.items():
-            if (m.get("platform") or "").lower() in family:
+            plat = (m.get("platform") or "").lower()
+            if plat in family:
                 title = m.get("title") or ""
                 n = self._validator.normalize(title)
                 by_norm.setdefault(n, []).append(mk)
+                key_platform[mk] = plat
                 for f in self._frags(title):
                     frag_index.setdefault(f, set()).add(n)
+
+        def by_platform(keys, game_platform):
+            """Narrow same-name matches to the game's OWN platform when it has
+            one (a PS5 game keeps off the PS3 row); if nothing on that platform
+            matches, fall back to the name match so a platform-naming mismatch
+            doesn't drop the game entirely."""
+            if not keys or not game_platform:
+                return keys
+            gp = game_platform.lower()
+            exact = [k for k in keys if key_platform.get(k) == gp]
+            return exact or keys
 
         games = self._db.lib_games(provider)
         matched = appid_hits = title_hits = fuzzy_hits = 0
@@ -402,8 +416,9 @@ class PlatformSync:
                 appid_hits += 1
                 owned_appid_keys += [(k, aid) for k in keys]
                 continue
+            gplat = g.get("platform")
             norm = self._validator.normalize(g["name"] or "")
-            keys = by_norm.get(norm)
+            keys = by_platform(by_norm.get(norm), gplat)
             if keys:
                 per_app[aid] = [(k, "title", None) for k in keys]
                 matched += 1
@@ -416,14 +431,14 @@ class PlatformSync:
             norms = set()
             for f in self._frags(g["name"]):
                 norms |= frag_index.get(f, set())
-            keys = by_norm.get(next(iter(norms))) if len(norms) == 1 else None
+            keys = by_platform(by_norm.get(next(iter(norms))), gplat) if len(norms) == 1 else None
             # Expensive tier (edit-distance typos, long-substring containment):
             # only for games with actual hours — the rest of a 5,000-app
             # library isn't worth a scan each, and the cheap tiers already
             # caught everything systematic.
             if not keys and (g["playtimeMin"] or 0) > 0:
                 hit = self._fuzzy_scan(g["name"], norm, by_norm, meta)
-                keys = [hit] if hit else None
+                keys = by_platform([hit], gplat) if hit else None
             if keys:
                 per_app[aid] = [(k, "fuzzy", None) for k in keys]
                 matched += 1

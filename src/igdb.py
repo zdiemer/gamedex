@@ -429,6 +429,17 @@ class IgdbClient:
         res = self._post("games", f'{_FIELDS} where slug = "{safe}"; limit 1;')
         return res[0] if res else None
 
+    def detail_by_id(self, igdb_id) -> dict | None:
+        """The full enrichment record for a bare IGDB id — how a wishlisted game
+        we don't own (so it has no match-key record) gets a real drawer:
+        summary, screenshots, tags, similar games."""
+        try:
+            iid = int(igdb_id)
+        except (TypeError, ValueError):
+            return None
+        res = self._post("games", f"{_FIELDS} where id = {iid}; limit 1;")
+        return self.enrichment_from_result(res[0]) if res else None
+
     def override_from_url(self, title, url):
         """Manual mapping: build an enrichment record from a pasted IGDB URL."""
         m = re.search(r"/games/([^/?#]+)", url)
