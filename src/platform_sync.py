@@ -119,8 +119,14 @@ class PlatformSync:
         # enricher's first matching pass at once.
         if self._stop.wait(20):
             return
+        # The in-memory `hot` flag is lost on restart, so a provider that synced
+        # <6h ago would be neither due nor hot and would nap until the 6h mark —
+        # stalling any half-drained achievement/price backfill across a deploy.
+        # Force ONE pass on boot to re-establish the drain state.
+        boot = True
         while not self._stop.is_set():
-            forced = wake.is_set()
+            forced = wake.is_set() or boot
+            boot = False
             wake.clear()
             acct = self._db.account(provider)
             if acct and acct["status"] != "disabled":
