@@ -4066,6 +4066,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   opacity: 0; transition: opacity 900ms ease;   /* MUST match ATTRACT_FADE in attract.js */
 }
 .attract-stage.attract-in { opacity: 1; }
+/* A stage built ahead of its turn (attractPreload): in the DOM and already playing, but
+   still at the base opacity:0 above — rendered, and so YouTube's start-up bezel plays out
+   where it can't be seen. Being the newest child it sits ON TOP of the stage on screen, so
+   it must not swallow that stage's clicks. Deliberately NOT display:none / visibility:hidden
+   / offscreen: any of those get the iframe render-throttled and it would never start. */
+.attract-stage.attract-pre { pointer-events: none; }
 
 .attract-bg { position: absolute; inset: 0; background: #06070b; }
 .attract-bg.attract-bg-empty { background: radial-gradient(circle at 50% 38%, #171b24, #05060a); }

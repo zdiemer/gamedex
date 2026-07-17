@@ -14,6 +14,11 @@
 
 const ATTRACT_DWELL = 16000;   // how long each game holds the screen
 const ATTRACT_FADE  = 900;     // cross-fade duration — MUST match the CSS transition
+// How far into a game's turn the NEXT one starts loading. The gap this leaves (~5.4s of a
+// full dwell) is the whole budget for the next trailer to load, start, and burn off
+// YouTube's bezel — see attractPreload.
+const ATTRACT_PRELOAD_AT  = 0.66;
+const ATTRACT_PRELOAD_MIN = 2500;   // don't bother with a run-up shorter than the bezel itself
 
 let attractOn = false;
 let attractPaused = false;      // true while a game's drawer is open over a paused run
@@ -24,6 +29,9 @@ let attractDwellStart = 0;     // Date.now() when the current game's countdown b
 let attractDwellLeft = 16000;  // ms budgeted for it — trimmed to what's LEFT on a resume
 let attractStartPct = 0;       // bar % the current countdown began at (nonzero after a resume)
 let attractStage = null;       // the stage currently on screen
+let attractPreStage = null;    // the NEXT game's stage, already built and playing invisibly
+let attractPreIdx = -1;        // pool index it was built for (-1 = nothing in preroll)
+let attractPreTimer = null;
 let attractMuted = true;       // start muted so autoplay is never blocked
 let attractWentFullscreen = false;   // we requested fullscreen and should undo it on exit
 let attractWakeLock = null;          // Screen Wake Lock sentinel — keeps the display awake
@@ -93,6 +101,7 @@ function closeAttract() {
   attractOn = false;
   attractPaused = false;
   clearTimeout(attractTimer); attractTimer = null;
+  attractDiscardPreload();
   document.removeEventListener("keydown", attractKey, true);
   const host = $("#attractStages");
   if (host) {
@@ -164,6 +173,10 @@ function attractPause() {
   attractDwellLeft = Math.max(1500, attractDwellLeft - elapsed);
   clearTimeout(attractTimer); attractTimer = null;
   clearTimeout(attractIdleTimer); attractIdleTimer = null;
+  // Drop any preroll outright rather than freezing it: it was aimed at a reveal time that
+  // no longer means anything, and a drawer can sit open for minutes. attractResume's
+  // attractNext re-schedules one against the turn that's actually left.
+  attractDiscardPreload();
   attractSetProgressStatic(attractStartPct);
   attractStopPlayer(attractStage);
   const ov = $("#attract-overlay");
@@ -214,17 +227,27 @@ function attractKey(e) {
 function attractNext(dir, dwellMs, startPct) {
   if (!attractOn) return;
   clearTimeout(attractTimer); attractTimer = null;
+  clearTimeout(attractPreTimer); attractPreTimer = null;
   const n = attractPool.length;
   attractIdx = ((attractIdx + dir) % n + n) % n;
   const entry = attractPool[attractIdx];
 
   const host = $("#attractStages");
-  // Rapid arrow-mashing can outrun the fade; keep at most the outgoing stage.
-  host.querySelectorAll(".attract-stage").forEach((s) => { if (s !== attractStage) attractTeardownStage(s); });
   const prev = attractStage;
 
-  const stage = attractBuildStage(entry);
-  host.appendChild(stage);
+  // The game we're going to may already BE here — built two thirds of the way through the
+  // last turn and playing silently at opacity 0 on top of it (attractPreload). Adopt it and
+  // its trailer is already past YouTube's start-up bezel. Anything else in preroll (an arrow
+  // key went somewhere the preload didn't expect) is just a stage nobody claimed; the sweep
+  // below collects it.
+  let stage = (attractPreStage && attractPreIdx === attractIdx) ? attractPreStage : null;
+  attractPreStage = null; attractPreIdx = -1;
+
+  // Rapid arrow-mashing can outrun the fade; keep at most the outgoing stage.
+  host.querySelectorAll(".attract-stage").forEach((s) => { if (s !== prev && s !== stage) attractTeardownStage(s); });
+
+  if (stage) attractRevealPre(stage);
+  else { stage = attractBuildStage(entry, 0); host.appendChild(stage); }
   void stage.offsetWidth;                 // commit initial opacity:0 before fading in
   stage.classList.add("attract-in");
   if (prev) {
@@ -247,6 +270,52 @@ function attractNext(dir, dwellMs, startPct) {
   attractStartPct = startPct || 0;
   attractSetProgress(attractStartPct, ms);
   attractTimer = setTimeout(() => attractNext(1), ms);
+  // Start the next game loading with enough of this turn left for it to come good. A
+  // resumed sliver of a turn hasn't got the run-up to be worth the second player.
+  const lead = ms * (1 - ATTRACT_PRELOAD_AT);
+  if (lead >= ATTRACT_PRELOAD_MIN) attractPreTimer = setTimeout(attractPreload, ms - lead);
+}
+
+// Load the next game's trailer while the current one still owns the screen.
+//
+// YouTube draws a centred play/pause bezel over the first ~2.5s of playback and nothing
+// suppresses it — not controls=0, not any player size, and it can't be styled (cross-origin)
+// or cropped (it's centred). startPreview has the full autopsy. But it only costs us anything
+// if it's on screen when it plays: a stage sits at opacity 0 until .attract-in, so a trailer
+// started EARLY burns the bezel off where nobody can see it, and the cross-fade brings in a
+// clean picture. It's the one way out that doesn't need YouTube's cooperation.
+//
+// Only worth it for a game that HAS a trailer. Without one there's nothing to get ahead of,
+// and a stage built early would arrive with its Ken-Burns pan already seconds along.
+function attractPreload() {
+  if (!attractOn || attractPaused) return;
+  const n = attractPool.length;
+  const idx = (attractIdx + 1) % n;
+  const entry = attractPool[idx];
+  if (!entry || !entry.row._k) return;
+  if (!(ENRICH[entry.row._k] || {}).video || YT_BLOCKED || !WANTS_MOTION) return;
+  if (attractPreStage) attractTeardownStage(attractPreStage);
+  // Built against the moment it will be revealed, so its trailer can aim for it.
+  const stage = attractBuildStage(entry, attractDwellStart + attractDwellLeft);
+  $("#attractStages").appendChild(stage);
+  attractPreStage = stage;
+  attractPreIdx = idx;
+}
+
+// A preloaded stage takes the screen: it can be clicked into again, and its trailer — kept
+// silent through the preroll so it couldn't be heard playing over the game you were actually
+// watching — comes up to volume. A trailer that hasn't started yet is handled by
+// attractPlayVideo's onPlay instead, which reads the _pre flag we're clearing here.
+function attractRevealPre(stage) {
+  stage._pre = false;
+  stage.classList.remove("attract-pre");
+  if (stage._videoLive && !attractMuted) attractRampVolume(stage, 100, ATTRACT_AUDIO_FADE);
+}
+
+function attractDiscardPreload() {
+  clearTimeout(attractPreTimer); attractPreTimer = null;
+  if (attractPreStage) attractTeardownStage(attractPreStage);
+  attractPreStage = null; attractPreIdx = -1;
 }
 
 // The countdown bar. Progress is tracked from TIME (not by measuring the animating
@@ -269,17 +338,20 @@ function attractSetProgressStatic(pct) {
 }
 function attractClearProgress() { attractSetProgressStatic(0); }
 
-function attractBuildStage(entry) {
+// revealAt: when this stage is due to take the screen (Date.now() ms), or 0 for "now". A
+// nonzero one marks a preroll — it stays silent and unclickable until attractRevealPre, and
+// its trailer uses the lead to get itself picture-clean before anyone sees it.
+function attractBuildStage(entry, revealAt) {
   const { row, sheetKey } = entry;
   const k = row._k;
   const e = ENRICH[k] || {};
   const cs = coverSrc(e, "cover_big");
 
   const stage = document.createElement("div");
-  stage.className = "attract-stage";
+  stage.className = "attract-stage" + (revealAt ? " attract-pre" : "");
   stage._loop = null; stage._watch = null; stage._frame = null; stage._shotLoop = null;
   stage._dead = false; stage._videoLive = false; stage._detail = null; stage._k = k;
-  stage._volRamp = null; stage._vol = 0;
+  stage._volRamp = null; stage._vol = 0; stage._pre = !!revealAt;
 
   const bg = document.createElement("div");
   bg.className = "attract-bg";
@@ -322,7 +394,7 @@ function attractBuildStage(entry) {
     if (!stage._videoLive) attractShowBackdrop(stage, d, cs);
   });
 
-  if (e.video && !YT_BLOCKED && WANTS_MOTION) attractPlayVideo(stage, e.video, cs);
+  if (e.video && !YT_BLOCKED && WANTS_MOTION) attractPlayVideo(stage, e.video, cs, revealAt);
 
   return stage;
 }
@@ -393,7 +465,7 @@ function attractRunShots(stage, bg, shots) {
 // so YouTube draws no chrome). It stays invisible until it truly starts, so a blocked
 // or dead trailer never shows — the screenshots behind it carry the screen. If it does
 // start, it stops the slideshow (no point cross-fading behind an opaque video).
-function attractPlayVideo(stage, vid, cs) {
+function attractPlayVideo(stage, vid, cs, revealAt) {
   const wrap = document.createElement("div");
   wrap.className = "attract-video";
   const frame = document.createElement("iframe");
@@ -418,14 +490,22 @@ function attractPlayVideo(stage, vid, cs) {
       // Start silent, then ease the audio up (only audible once unmuted). The visual
       // itself already cross-fades via CSS; this gives the sound the same soft entrance.
       ytCmd(frame, "setVolume", [0]); stage._vol = 0;
-      if (attractMuted) ytCmd(frame, "mute");
+      // A stage still in preroll stays silent whatever the mute setting says: it's playing
+      // invisibly over the game you're watching, and the point is that you can't tell.
+      // attractRevealPre brings it up when the stage actually takes the screen.
+      if (attractMuted || stage._pre) ytCmd(frame, "mute");
       else attractRampVolume(stage, 100, ATTRACT_AUDIO_FADE);
     },
     (info) => {
       if (info.duration) duration = info.duration;
       if (!clip && duration) {
         clip = previewClip(vid, duration);
-        ytCmd(frame, "seekTo", [clip.start, true]);
+        // Straight to the clip normally. In preroll, start it EARLIER by exactly the lead,
+        // so the playhead arrives AT clip.start just as the stage fades in: the reveal looks
+        // identical either way, and nothing has to seek at swap time — a seek there would be
+        // one more chance for the player to draw the bezel on a stage you can see.
+        const lead = revealAt ? Math.max(0, revealAt - Date.now()) / 1000 : 0;
+        ytCmd(frame, "seekTo", [Math.max(1, clip.start - lead), true]);
         stage._loop = setInterval(() => ytCmd(frame, "seekTo", [clip.start, true]), clip.len * 1000);
       }
     });
