@@ -234,20 +234,25 @@ function renderHome() {
     return row ? { row, rec } : null;
   }).filter(Boolean), 18, "recs");
 
+  // The lead section: a grid of big poster cards right under the hero. Rotate a dozen out
+  // of the top ~60 predicted so it's a fresh set daily but always from the strongest picks.
   const loved = dailyPick(hRows()
     .filter((r) => !r.completed && !r.playingStatus && (typeof isCandidate !== "function" || isCandidate(r)))
     .map((r) => ({ r, p: typeof predictedCached === "function" ? predictedCached(r) : null }))
     .filter((x) => x.p && x.p.confidence >= 0.75)
     .sort((a, b) => b.p.score - a.p.score)
-    .slice(0, 60), 18, "loved");   // rotate 18 out of the top ~60 predicted
+    .slice(0, 60), 12, "loved");
 
   host.innerHTML =
     `<div class="h-top"><button class="h-attract" id="hAttract">${icon("i-play", 15)} Attract mode</button></div>` +
     heroSection(playing) +
+    (loved.length ? `<section class="h-sect">
+      <div class="h-sect-head"><h2>${icon("i-trend", 17)} You'd probably love</h2></div>
+      <div class="h-picks">${loved.map(({ r, p }) =>
+        homeCard(r, "games", `<span class="h-why">~${Math.round(p.score * 100)}% predicted</span>`)).join("")}</div>
+    </section>` : "") +
     shelf("hRecs", `${icon("i-star", 16)} Because you liked…`, recRows.map(({ row, rec }) =>
       homeCard(row, "games", `<span class="h-why">Like ${escapeHtml(rec.because.slice(0, 2).join(" & "))}</span>`))) +
-    shelf("hLoved", `${icon("i-trend", 16)} You'd probably love`, loved.map(({ r, p }) =>
-      homeCard(r, "games", `<span class="h-why">~${Math.round(p.score * 100)}% predicted</span>`))) +
     shelf("hPlaying", `${icon("i-play", 16)} Now playing`, playing.map((r) => homeCard(r, "games",
       r.playingProgress != null ? `${Math.round(+r.playingProgress * 100)}% through` : ""))) +
     shelf("hNext", `${icon("i-play", 16)} Up next`, upNext.map((r) => homeCard(r, "games"))) +

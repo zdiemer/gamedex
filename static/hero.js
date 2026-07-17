@@ -19,6 +19,23 @@ function mediaOf(d) {
   ];
 }
 
+// The drawer's Tags row: one combined list of chips (genres, themes, perspectives, modes,
+// then IGDB's long keyword tail). Past TAG_CAP the overflow collapses behind a "+N more"
+// chip — a game with fifty keywords otherwise pushes the whole drawer down. The reveal is
+// wired by delegation in chrome.js; each chip is still its own facet-link.
+const TAG_CAP = 12;
+function tagChipsHtml(items) {
+  if (!items.length) return "";
+  const chip = (it) =>
+    `<span class="chip facet-link" data-fk="${it.fk}" data-fv="${escapeHtml(String(it.x))}">${escapeHtml(String(it.x))}</span>`;
+  if (items.length <= TAG_CAP) return `<div class="chips tag-chips">${items.map(chip).join("")}</div>`;
+  const shown = items.slice(0, TAG_CAP).map(chip).join("");
+  const rest = items.slice(TAG_CAP).map(chip).join("");
+  return `<div class="chips tag-chips collapsed">${shown}` +
+    `<span class="tag-rest">${rest}</span>` +
+    `<button class="chip tag-more" type="button">+${items.length - TAG_CAP} more</button></div>`;
+}
+
 function detailHtml(d) {
   if (!d) return "";
   const cs = coverSrc(d, "cover_big");

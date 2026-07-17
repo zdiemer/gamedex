@@ -29,17 +29,25 @@ and any decisions made along the way.
       facet on All Games is still public (it's spreadsheet data via `/api/data`) — left
       as-is since it isn't platform-sync data; revisit if that should be hidden too.
 
+## Shipped in 1.58.15
+
+- [x] **1. Redesigned the top-bar toggles** — the hover no longer tilts the square 45°;
+      it lifts (`translateY` + soft shadow) and picks up the accent. Refresh spins the
+      icon, not the whole button. `style.css`.
+- [x] **3b. Attract cursor fix** (follow-up) — dropped `cursor: pointer` from
+      `.attract-stage`; only `.attract-open` (cover/title) shows a pointer now, so the
+      trailer/backdrop reads as non-clickable on desktop. `style.css`.
+- [x] **7b. "You'd probably love" promoted** (follow-up) — now the lead section under the
+      hero, rendered in the larger `.h-picks` grid the old "Picked for you" used (12 daily
+      picks). `home.js`.
+- [x] **9. Collapse long tag lists** — the drawer's Tags row is now one combined, capped
+      list (`TAG_CAP=12`); the keyword tail folds behind a "+N more" chip that expands
+      in place. `hero.js`, `chrome.js`, `style.css`.
+- [x] **10. Equal cards per row** — `applyGridColumns` measures the natural (widest-fit)
+      column count live and reduces it to the one that best fills the last row, so every
+      row holds the same number of cards; re-balances on resize. `table.js`.
+
 ## Remaining
-
-- [ ] **1. Redesign the top-bar toggles** — dark/light, spreadsheet refresh and
-      account hover states look wonky; the square tilts diagonally on hover. Redesign
-      so the hover reads cleanly (no diagonal tilt). `chrome.js`, `style.css`.
-
-- [ ] **9. Collapse long tag lists** (drawer) — show the first N tags with an inline "see
-      all" button to expand the rest. `drawer.js`.
-
-- [ ] **10. Equal cards per row at every width** — currently 3×13 + 1×11 for 50 games on
-      1440p. Ensure the grid always fills rows evenly regardless of viewport.
 - [ ] **18. Screenshot-only games in carousel + hover** — games with only screenshots
       (no video) should join the autoplay carousel AND the hover state, fading between
       the game's screenshots (~1–2s each).

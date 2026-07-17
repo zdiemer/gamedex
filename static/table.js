@@ -338,4 +338,39 @@ function renderGrid(pageRows) {
   // A fresh set of cards: forget who went last and start the idle clock over.
   tourLast = null;
   tourKick();
+  applyGridColumns(grid);
 }
+
+// ---- balanced grid columns ----------------------------------------------
+// A plain auto-fill grid leaves the last row ragged — 13·3 + 11 for a 50-card page. Pick a
+// column count that divides the page as evenly as possible so every row holds the SAME
+// number of cards. The natural (widest-fit) count is read live off the computed grid, which
+// honours whatever min the CSS uses at this breakpoint; we only ever REDUCE it (fewer, wider
+// columns) and never below ~1.4× the natural card width, so a card can't balloon.
+function applyGridColumns(grid) {
+  if (!grid) return;
+  grid.style.gridTemplateColumns = "";                 // fall back to CSS auto-fill to measure
+  const count = grid.querySelectorAll(".card").length;
+  if (!count) return;                                  // empty state — nothing to balance
+  const natural = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
+  if (!natural || count <= natural) return;            // fits in one row — leave it left-aligned
+  const minCols = Math.max(1, Math.ceil(natural / 1.4));
+  let best = natural, bestScore = -Infinity;
+  for (let c = minCols; c <= natural; c++) {
+    const rem = count % c;
+    const score = (rem === 0 ? c : rem) / c;           // fraction of the last row filled; 1 = full
+    if (score > bestScore + 1e-9) { bestScore = score; best = c; }
+    else if (score > bestScore - 1e-9 && c > best) best = c;   // tie → keep more columns (closer to natural)
+  }
+  if (best !== natural) grid.style.gridTemplateColumns = `repeat(${best}, minmax(0, 1fr))`;
+}
+
+// Re-balance on resize (the natural column count changes with the viewport / open facets).
+let _gridColsTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(_gridColsTimer);
+  _gridColsTimer = setTimeout(() => {
+    const grid = $("#grid");
+    if (grid && !$("#gridwrap").hidden) applyGridColumns(grid);
+  }, 120);
+});

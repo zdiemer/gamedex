@@ -267,11 +267,25 @@ button .ico, a .ico { pointer-events: none; }
 .refreshbtn {
   background: var(--surface); color: var(--muted); border: 1px solid var(--border);
   border-radius: 10px; width: 38px; height: 38px; cursor: pointer; font-size: 17px;
-  flex-shrink: 0; line-height: 1; transition: all .16s var(--ease);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; line-height: 1;
+  transition: color .16s var(--ease), border-color .16s var(--ease),
+              background .16s var(--ease), transform .16s var(--ease), box-shadow .16s var(--ease);
 }
-.refreshbtn:hover { border-color: var(--accent-line); color: var(--accent); background: var(--surface-2); transform: rotate(45deg); }
-.refreshbtn:disabled { opacity: .55; cursor: default; }
-.refreshbtn.spinning { animation: spin .8s linear infinite; }
+/* A clean lift, not a diagonal tilt. Rotating the whole 10px-radius square 45° on hover
+   (the old behaviour) read as wonky across all three toggles — the icon does the talking,
+   the box just lifts and picks up the accent. */
+.refreshbtn:hover {
+  border-color: var(--accent-line); color: var(--accent); background: var(--surface-2);
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, .18);
+}
+.refreshbtn:active { transform: translateY(0); box-shadow: none; }
+.refreshbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.refreshbtn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
+/* Refreshing spins the ICON, not the whole button — a rotating square reads as a glitch;
+   a spinning refresh glyph reads as "working". */
+.refreshbtn.spinning { color: var(--accent); }
+.refreshbtn.spinning .ico { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Enrichment progress */
@@ -525,6 +539,16 @@ td.cover { width: 46px; padding: 5px 8px; }
    set, not three stacked bars. */
 .tag-row .v { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-row .chips { display: contents; }
+/* The Tags row caps at TAG_CAP chips (hero.js); the overflow lives in .tag-rest and stays
+   folded away until "+N more" is clicked. display:contents so the revealed chips flow into
+   the same wrapping row rather than forming a nested box. */
+.tag-chips .tag-rest { display: contents; }
+.tag-chips.collapsed .tag-rest { display: none; }
+.chip.tag-more {
+  cursor: pointer; font: inherit; font-size: 11.5px; line-height: 1;
+  background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); font-weight: 600;
+}
+.chip.tag-more:hover { background: var(--surface-2); }
 
 /* ---- the verdict (predicted rating) ------------------------------------
    Was a grid of tiny bars against an invisible hairline, with values like
@@ -4093,7 +4117,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .attract-stages { position: absolute; inset: 0; }
 
 .attract-stage {
-  position: absolute; inset: 0; cursor: pointer;
+  position: absolute; inset: 0;
+  /* No pointer cursor on the stage as a whole — only the cover and title are clickable
+     now (they carry .attract-open). The rest (the trailer, the backdrop) is inert, so the
+     cursor must stay the default arrow there. */
   opacity: 0; transition: opacity 900ms ease;   /* MUST match ATTRACT_FADE in attract.js */
 }
 .attract-stage.attract-in { opacity: 1; }

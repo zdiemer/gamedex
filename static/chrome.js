@@ -347,6 +347,16 @@ $("#drawerBack").addEventListener("click", drawerBack);
 $("#drawerClose").addEventListener("click", closeDrawer);
 $("#overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeDrawer(); });
 $("#drawerBody").addEventListener("click", (e) => {
+  // "+N more" on the Tags row reveals the collapsed tail in place. Handle it before the
+  // facet-link path — the button carries the .chip class but must not filter anything.
+  const more = e.target.closest(".tag-more");
+  if (more) {
+    e.preventDefault(); e.stopPropagation();
+    const wrap = more.closest(".tag-chips");
+    if (wrap) wrap.classList.remove("collapsed");
+    more.remove();
+    return;
+  }
   const a = e.target.closest(".facet-link");
   if (!a) return;
   e.preventDefault(); e.stopPropagation();
