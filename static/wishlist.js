@@ -26,44 +26,53 @@ let WL = null;                     // /api/wishlist items; null before first loa
 const WL_META = {};                // igdbId -> {cover, video, year, release, platforms, genres}
 let _wlMetaBusy = false;
 
-// Pull the light IGDB metadata (video for hover-autoplay, release date,
-// platforms, genres) for every matched wishlist game we don't have yet, then
-// rebuild so the cards pick it up. Batched; only the ids we're missing.
-// Ids whose HLTB completion-time lookup the server deferred (its per-request
-// budget) — re-requested each round until they resolve. Kept out of WL_META's
-// "already have it" test so a still-pending id keeps its card meta (no flicker)
-// while we poll for its time.
+// Ids still awaiting an HLTB completion time on the server (est-time backfill).
+// Held across poll rounds so the window below can advance through them; a game
+// stays in WL_META (its card keeps trailer/date) the whole time it's here.
 let _wlPending = new Set();
+// How many pending ids to re-check per poll round. HLTB resolves ~1/sec, so
+// there's no point refetching thousands each round — a small window drifts
+// through _wlPending (front first) as the server drains it, ~8 clearing a round.
+const _WL_REPOLL_WINDOW = 200;
+
+// Pull the IGDB metadata a card needs (trailer for hover-autoplay, release date,
+// platforms, genres, the predict fields) for wishlist games we don't have yet,
+// then rebuild so the cards pick it up. Round 0 fetches every missing id; later
+// rounds only nudge the est-time backfill through a bounded window, so a 3000-
+// game wishlist doesn't spray hundreds of requests a session at a 1/sec source.
 async function loadWishlistMeta(round = 0) {
-  const need = [...new Set([
-    ...(WL || []).map((w) => w.igdbId).filter((id) => id && !(id in WL_META)),
-    ..._wlPending,
-  ])];
+  const need = round === 0
+    ? [...new Set((WL || []).map((w) => w.igdbId).filter((id) => id && !(id in WL_META)))]
+    : [...(_wlPending || [])].slice(0, _WL_REPOLL_WINDOW);
   if (!need.length || _wlMetaBusy) return;
   _wlMetaBusy = true;
-  const pending = new Set();
   try {
-    for (let i = 0; i < need.length; i += 200) {
-      const batch = need.slice(i, i + 200);
+    // 400 per request matches games_light's internal chunk, so a cold load of a
+    // few-thousand-game wishlist is ~8 round-trips, not 16.
+    for (let i = 0; i < need.length; i += 400) {
+      const batch = need.slice(i, i + 400);
       const r = await fetch("api/wishlist/meta?ids=" + batch.join(","));
       if (!r.ok) continue;
       const j = await r.json();
       const items = j.items || {};
-      for (const id of batch) WL_META[id] = items[id] || null;   // negative-cache
-      for (const id of j.pending || []) pending.add(+id);
+      const stillPending = new Set((j.pending || []).map(Number));
+      for (const id of batch) {
+        WL_META[id] = items[id] || null;                 // negative-cache
+        // Track only genuinely-unresolved ids: resolved (or no-time-to-find)
+        // ones leave the set, so the window advances instead of re-checking them.
+        if (stillPending.has(id)) _wlPending.add(id);
+        else _wlPending.delete(id);
+      }
     }
     buildWishlistSheet();      // merge the new meta (incl. est-time) into the rows
     // Re-render only when it changes what's on screen: the first meta load
     // (trailers, dates, genres, predictions all arrive together), and once the
-    // deferred est-time backfill has fully drained. Rendering on every 1.5s poll
-    // round in between would call stopPreview()/rebuild the whole grid each time,
-    // which restarts the hover-autoplay tour so no trailer ever gets to play.
-    _wlPending = pending;
-    // The est-time backfill now resolves server-side in the background, so each
-    // poll is a cheap instant response — poll patiently until the queue drains.
-    const willRetry = pending.size && round < 40;
+    // est-time backfill has drained (or the poll gives up). Rendering on every
+    // intermediate round would stopPreview()/rebuild the grid each time, which
+    // restarts the hover-autoplay tour so no trailer ever gets to play.
+    const willRetry = _wlPending.size && round < 40;
     if ((round === 0 || !willRetry) && activeTab === "wishlist") renderAll();
-    if (willRetry) setTimeout(() => loadWishlistMeta(round + 1), 2000);
+    if (willRetry) setTimeout(() => loadWishlistMeta(round + 1), 3000);
   } finally { _wlMetaBusy = false; }
 }
 
