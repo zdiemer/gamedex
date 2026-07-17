@@ -38,7 +38,13 @@ CLIENT_ID = "54789befb391a838"                # Parental Controls app
 TOKEN_URL = "https://accounts.nintendo.com/connect/1.0.0/api/token"
 GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer-session-token"
 MOON = "https://app.lp1.znma.srv.nintendo.net"
-_UA = "Moon/2.0.0 (Android)"
+# The Moon (znma) app's real headers — the API 401s without the full set, and
+# authenticates with the ID token as a Bearer, NOT the raw access token.
+_APP_PKG = "com.nintendo.znma"
+_APP_VERSION = "2.4.0"
+_APP_BUILD = "660"
+_OS_VERSION = "34"
+_UA = f"moon_ANDROID/{_APP_VERSION} ({_APP_PKG}; build:{_APP_BUILD}; ANDROID {_OS_VERSION})"
 
 
 class NintendoUserClient:
@@ -71,17 +77,24 @@ class NintendoUserClient:
                              " and paste a fresh one")
         r.raise_for_status()
         j = r.json()
-        creds["_moonToken"] = j.get("access_token") or j.get("id_token")
+        # The Moon API authenticates with the ID token as a Bearer — NOT the
+        # access token (that path 401s).
+        creds["_moonToken"] = j.get("id_token") or j.get("access_token")
         creds["_moonExp"] = time.time() + int(j.get("expires_in") or 900)
         return creds["_moonToken"]
 
     def _get(self, creds: dict, path: str):
         self._limiter.wait()
         r = requests.get(f"{MOON}{path}",
-                         headers={"Authorization": self._access_token(creds),
+                         headers={"Authorization": f"Bearer {self._access_token(creds)}",
+                                  "X-Moon-App-Id": _APP_PKG,
+                                  "X-Moon-Os": "ANDROID", "X-Moon-Os-Version": _OS_VERSION,
                                   "X-Moon-Model": "Pixel 4 XL",
-                                  "X-Moon-OS": "ANDROID", "X-Moon-OS-Version": "31",
-                                  "X-Moon-App-Internal-Version": "301",
+                                  "X-Moon-App-Display-Version": _APP_VERSION,
+                                  "X-Moon-App-Internal-Version": _APP_BUILD,
+                                  "X-Moon-TimeZone": "America/Los_Angeles",
+                                  "X-Moon-Os-Language": "en-US",
+                                  "X-Moon-App-Language": "en-US",
                                   "User-Agent": _UA, "Accept": "application/json"},
                          timeout=25)
         r.raise_for_status()

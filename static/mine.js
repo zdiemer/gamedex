@@ -72,9 +72,9 @@ const PLAT_FORMS = {
   epic: {
     hintHtml: `Brings your Epic library + real playtime (+ wishlist where available).
       <ol class="plat-steps">
-        <li>Sign in to <a href="https://www.epicgames.com" target="_blank" rel="noopener">epicgames.com ↗</a>, then open
-          <a href="https://www.epicgames.com/id/api/redirect?clientId=34a02cf8f4414e29b15921876da36f9a&responseType=code" target="_blank" rel="noopener">this redirect link ↗</a>.</li>
-        <li>Copy the <code>authorizationCode</code> value from the JSON and paste it below.</li>
+        <li>Open <a href="https://legendary.gl/epiclogin" target="_blank" rel="noopener">legendary.gl/epiclogin ↗</a> and sign in
+          (it handles Epic's SSO; the raw redirect link returns a null code).</li>
+        <li>Copy the <code>authorizationCode</code> value from the JSON it shows and paste it below.</li>
       </ol><span class="muted">The code is single-use; grab a fresh one if it's rejected.</span>`,
     fields: [{ k: "code", label: "Authorization code", ph: "32-character code" }],
   },
