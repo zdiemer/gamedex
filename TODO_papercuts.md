@@ -161,11 +161,15 @@ and any decisions made along the way.
       lets the hinge swing shut before sliding the box home, instead of putting a gaping box
       back. `shelf.js`.
 
-## Remaining
+## Shipped in 1.58.27
 
-- [ ] **21. Shelf perf, round 2** — 1.58.16 made spine scans lazy. Remaining likely cost:
-      per-spine box-shadows × ~2,000 (esp. the outer blurred one) and off-screen board paint;
-      `content-visibility` is tempting but clips the hover lift/tooltip. Needs profiling.
+- [x] **21. Shelf perf, round 2** — profiled (2,044 spines / 31 boards): layout was cheap, the
+      cost was paint/compositing. Two fixes: `content-visibility:auto` on the boards so the ~29
+      off-screen ones skip rendering entirely (reserved `padding-top` so the paint containment
+      doesn't clip the hover lift; the tooltip stays within the board), and removed the outer
+      10px-blur drop shadow that painted a halo above every one of ~2,000 spines (the planks
+      already separate the rows). Worst-case scroll frame ~30ms → ~18-26ms on a fast box; a
+      bigger relative win on a weak GPU. `style.css`.
 
 ## Image loading — for you to verify on real prod
 

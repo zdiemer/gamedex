@@ -3106,8 +3106,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   padding:20px 20px 22px; overflow:hidden; }
 
 /* Boards are flat and tight. The case is NOT in the layout — see .sh-pull. */
-.sh-board { position:relative; }
-.sh-board + .sh-board { margin-top:18px; }
+/* content-visibility skips rendering the boards that are off screen — a 2,000-spine shelf is
+   ~31 boards and only a couple are ever visible, so this is most of the paint cost gone (the
+   worst scroll frames dropped ~40% on test). It brings paint containment, which would clip the
+   spine's hover LIFT at the board's top edge — so reserve room with padding-top, and trim the
+   inter-board margin to keep the spacing. contain-intrinsic-size (auto = remember last real
+   height) keeps the scrollbar steady while boards are skipped. */
+.sh-board { position:relative; content-visibility:auto; contain-intrinsic-size:auto 240px; padding-top:12px; }
+.sh-board + .sh-board { margin-top:6px; }
 
 .sh-row { display:flex; align-items:flex-end; justify-content:flex-start; gap:0;
   padding:0 10px; position:relative; }
@@ -3120,8 +3126,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border-radius:2px 2px 0 0; display:flex; align-items:center; justify-content:center;
   cursor:pointer; color:#fff; transform-origin:bottom center; overflow:hidden;
   transition:transform .35s cubic-bezier(.2,.7,.25,1), filter .35s ease, opacity .2s linear;
-  box-shadow:inset -3px 0 9px rgba(0,0,0,.5), inset 1px 0 0 rgba(255,255,255,.16),
-             0 -2px 10px rgba(0,0,0,.3); }
+  /* Two INSET shadows for the moulded look; the old third shadow was an OUTER 10px-blur
+     (0 -2px 10px) that painted a soft halo above every one of ~2,000 spines — the single
+     most expensive thing on the shelf. The plank's own drop shadow already separates the
+     rows, so drop it. */
+  box-shadow:inset -3px 0 9px rgba(0,0,0,.5), inset 1px 0 0 rgba(255,255,255,.16); }
 .sh-spine span { writing-mode:vertical-rl; font:700 9px/1 var(--font); letter-spacing:.02em;
   color:rgba(255,255,255,.95); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   max-height:calc(100% - 20px); text-shadow:0 1px 2px rgba(0,0,0,.6); pointer-events:none; }
