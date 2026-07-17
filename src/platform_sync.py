@@ -178,6 +178,15 @@ class PlatformSync:
             counts["reviews"] = stage(
                 "reviews", lambda: self._sync_reviews(provider, client, creds))
             self._db.mark_sync(provider)
+            # Backfill a display name a failed link left blank (PSN's profile
+            # call needs a token the link didn't have yet). Cheap, best-effort.
+            if not acct.get("displayName") and hasattr(client, "account_name"):
+                try:
+                    nm = client.account_name(creds)
+                    if nm:
+                        self._db.link(provider, creds, nm)
+                except Exception as exc:
+                    log.debug("%s display-name backfill failed: %s", provider, exc)
         # Tokens may have rotated during the pass (PSN's do) — the dict the
         # provider mutated is the only copy that still works next time.
         self._db.update_credentials(provider, creds)

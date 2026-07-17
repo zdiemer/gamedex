@@ -30,6 +30,7 @@ screenshots yet — the PS App cloud gallery is a later, separate effort.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import re
 import time
@@ -102,6 +103,19 @@ class PsnUserClient:
         creds["refreshToken"] = j.get("refresh_token") or creds.get("refreshToken")
         creds["accessExpires"] = time.time() + int(j.get("expires_in") or 3600)
 
+    @staticmethod
+    def _account_id(creds: dict) -> str | None:
+        """The numeric PSN account id, read out of the access token's JWT claims.
+        The userProfile endpoint needs it — unlike gamelist/trophy, it won't take
+        the `me` alias (400s)."""
+        tok = creds.get("accessToken") or ""
+        try:
+            payload = tok.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            return json.loads(base64.urlsafe_b64decode(payload)).get("account_id")
+        except Exception:
+            return None
+
     def _token(self, creds: dict) -> str:
         """A live access token, refreshing (or fully re-authing) as needed."""
         if creds.get("accessToken") and time.time() < (creds.get("accessExpires") or 0) - 60:
@@ -139,16 +153,26 @@ class PsnUserClient:
             log.warning("psn auth failed: %s", exc)
             raise ValueError(f"couldn't reach PSN auth ({exc})")
         name = None
-        for path in ("/userProfile/v1/internal/users/me/profiles",
-                     "/userProfile/v1/users/me/profile2"):
+        acct = self._account_id(creds)
+        if acct:
             try:
-                j = self._get(creds, path)
+                j = self._get(creds, f"/userProfile/v1/internal/users/{acct}/profiles")
                 name = j.get("onlineId") or ((j.get("profile") or {}).get("onlineId"))
-                if name:
-                    break
             except Exception as exc:
-                log.info("psn profile lookup via %s failed: %s", path, exc)
+                log.info("psn profile lookup failed: %s", exc)
         return {"displayName": name}
+
+    def account_name(self, creds: dict) -> str | None:
+        """The online ID, refreshed from a live token — the engine calls this to
+        backfill a display name a failed link left blank."""
+        acct = self._account_id(creds)
+        if not acct:
+            return None
+        try:
+            j = self._get(creds, f"/userProfile/v1/internal/users/{acct}/profiles")
+            return j.get("onlineId") or ((j.get("profile") or {}).get("onlineId"))
+        except Exception:
+            return None
 
     # ---- library ----------------------------------------------------------------
     def fetch_library(self, creds: dict) -> list[dict]:

@@ -53,10 +53,10 @@ const PLAT_FORMS = {
   },
   xbox: {
     hintHtml: `<ol class="plat-steps">
-      <li><a href="https://xbl.io/app/claim" target="_blank" rel="noopener">Sign in to OpenXBL ↗</a> with the Microsoft account whose Xbox library you want.</li>
-      <li>On <a href="https://xbl.io/profile" target="_blank" rel="noopener">your OpenXBL profile ↗</a>, generate an API key and paste it below.</li>
+      <li><a href="https://xbl.io/login" target="_blank" rel="noopener">Sign in to OpenXBL ↗</a> with the Microsoft account whose Xbox library you want.</li>
+      <li>Copy your key from <a href="https://xbl.io/dashboard/keys" target="_blank" rel="noopener">xbl.io/dashboard/keys ↗</a> and paste it below.</li>
     </ol><span class="muted">Free tier is 150 requests/hour — plenty for the nightly trickle this does.</span>`,
-    fields: [{ k: "apiKey", label: "OpenXBL API key", ph: "from xbl.io/profile" }],
+    fields: [{ k: "apiKey", label: "OpenXBL API key", ph: "from xbl.io/dashboard/keys" }],
   },
 };
 const mineEntries = (key) => Object.entries(MINE[key] || {})

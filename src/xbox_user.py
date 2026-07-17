@@ -57,6 +57,20 @@ class XboxUserClient:
         r.raise_for_status()
         return r.json()
 
+    @staticmethod
+    def _name_from_account(j: dict) -> tuple[str | None, str | None]:
+        """(xuid, gamertag) out of an /account response, tolerating the
+        profileUsers field being either a single object or a list of them."""
+        users = j.get("profileUsers")
+        if isinstance(users, dict):
+            users = [users]
+        if not users:
+            return None, None
+        u = users[0]
+        settings = {s.get("id"): s.get("value") for s in (u.get("settings") or [])}
+        return u.get("id"), (settings.get("Gamertag") or settings.get("GameDisplayName")
+                             or settings.get("ModernGamertag"))
+
     # ---- auth --------------------------------------------------------------
     def validate(self, creds: dict) -> dict:
         if not (creds.get("apiKey") or "").strip():
@@ -67,13 +81,25 @@ class XboxUserClient:
             code = e.response.status_code if e.response is not None else 0
             raise ValueError("OpenXBL rejected the API key" if code in (401, 403)
                              else f"OpenXBL error ({code})")
-        users = j.get("profileUsers") or []
-        if not users:
-            raise ValueError("OpenXBL returned no profile for that key")
-        self._xuid = users[0].get("id")
-        settings = {s.get("id"): s.get("value")
-                    for s in (users[0].get("settings") or [])}
-        return {"displayName": settings.get("Gamertag") or settings.get("GameDisplayName")}
+        self._xuid, name = self._name_from_account(j)
+        if name:
+            return {"displayName": name}
+        # The key authenticated but /account had no profile in the shape we read.
+        # Rather than block the link, confirm the key can actually read data and
+        # accept it with a blank name (the sync backfills the gamertag later).
+        try:
+            self._get(creds, "/api/v2/player/titleHistory")
+        except Exception:
+            raise ValueError("OpenXBL couldn't read your Xbox profile — make sure"
+                             " the key's Microsoft account is connected at xbl.io")
+        return {"displayName": name}
+
+    def account_name(self, creds: dict) -> str | None:
+        try:
+            _, name = self._name_from_account(self._get(creds, "/api/v2/account"))
+            return name
+        except Exception:
+            return None
 
     # ---- library -------------------------------------------------------------
     def fetch_library(self, creds: dict) -> list[dict]:
