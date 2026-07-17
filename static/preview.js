@@ -41,6 +41,17 @@ function ytCmd(frame, func, args) {
   } catch (_) { /* not loaded yet */ }
 }
 
+// Captions ride the VIEWER's YouTube preference into every embed, and there is no URL param
+// that turns them off. cc_load_policy=1 forces them ON, but 0 does NOT force them off — it
+// only means "don't force", which leaves a default-on track drawing over the picture.
+// Measured: with cc_load_policy=0 captions render exactly as often as with it forced on, so
+// the param buys nothing and startPreview's minimal-params rule says don't send it. The
+// captions MODULE is the only thing that works, and it doesn't exist until the player does —
+// which is why this can't live in ytSrc and has to wait for playback.
+// (setOption("captions","track",{}) works identically; unloadModule("cc") is the old Flash
+// module name and does nothing at all.)
+const ytNoCaptions = (frame) => ytCmd(frame, "unloadModule", ["captions"]);
+
 // onPlay fires once, when the player is genuinely PLAYING. onInfo gets every payload
 // (playerState, currentTime, duration) and keeps firing, so a caller can drive a loop.
 function ytWatch(frame, onFail, onPlay, onInfo) {
@@ -189,7 +200,10 @@ function startPreview(card) {
   let duration = 0, clip = null;
   previewWatch = ytWatch(frame,
     () => { if (previewCard === card) stopPreview(); },
-    () => setTimeout(() => { if (previewCard === card) card.classList.add("playing"); }, 150),
+    () => {
+      ytNoCaptions(frame);         // kill them before .playing fades the trailer up
+      setTimeout(() => { if (previewCard === card) card.classList.add("playing"); }, 150);
+    },
     (info) => {
       if (previewCard !== card) return;
       if (info.duration) duration = info.duration;

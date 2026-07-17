@@ -488,6 +488,7 @@ function attractPlayVideo(stage, vid, cs, revealAt) {
     () => {
       stage._videoLive = true;
       if (stage._shotLoop) { clearInterval(stage._shotLoop); stage._shotLoop = null; }
+      ytNoCaptions(frame);          // before the wrap fades in — nobody wants subtitles here
       wrap.classList.add("on");
       // Start silent, then ease the audio up (only audible once unmuted). The visual
       // itself already cross-fades via CSS; this gives the sound the same soft entrance.
