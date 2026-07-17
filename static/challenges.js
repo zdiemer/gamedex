@@ -5,15 +5,20 @@
 
    The rules, restated: each challenge slices the collection into buckets (one
    per platform, per genre, per letter of the alphabet, …). A bucket is CLEARED
-   the moment any game in it is completed after the challenge's start date, so
-   progress is derived entirely from the sheet's Date Completed column —
-   there's nothing to tick off by hand. What's left to do is every bucket in
-   the candidate pool that hasn't been cleared yet.
+   by any game in it you've finished, so progress is derived entirely from the
+   sheet's Completed columns — there's nothing to tick off by hand. What's left
+   to do is every bucket in the candidate pool that hasn't been cleared yet.
+
+   These run over the WHOLE completed library. There's no start date: instead of
+   a line drawn across your history, the history is replayed (see chReplay) —
+   every completion handed, in order, to the bucket it clears. Clear the last
+   bucket you can still reach and that PATH closes, the slate resets and the next
+   one opens. So a challenge is never over, `timesCompleted` is a count rather
+   than a number kept by hand, and every path you've already walked is a thing
+   you can go and look at.
 
    Loaded after app.js and shares its globals (DATA, ENRICH, openDrawer, …). */
 
-// GamePicker's CHALLENGE_START; individual challenges override it after a reset.
-const CH_DEFAULT_START = "2024-10-20";
 const chState = { open: null };
 
 const chRows = () => ((DATA.sheets.games || {}).rows || []).filter((r) => r.title);
@@ -23,13 +28,21 @@ const chMean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 // ExcelGame.combined_rating: the mean of my own score (falling back to
 // priority/5) and the mean of the external scores.
+// Memoised per row: the percentile bands rate every game in the library, and the
+// candidate sort rates them again on every comparison. Keyed off the row object,
+// so a reloaded sheet brings new rows and the old answers fall out on their own.
+const _chCR = new WeakMap();
 function combinedRating(r) {
+  const hit = _chCR.get(r);
+  if (hit !== undefined) return hit;          // a rated-at-null game is still an answer
   const others = [r.metacriticRating, r.gamefaqsUserRating].filter((v) => v != null);
   const mine = r.rating != null ? r.rating : (r.priority != null ? priorityRank(r.priority) / 5 : null);
   const parts = [];
   if (mine != null && !isNaN(mine)) parts.push(mine);
   if (others.length) parts.push(chMean(others));
-  return parts.length ? chMean(parts) : null;
+  const v = parts.length ? chMean(parts) : null;
+  _chCR.set(r, v);
+  return v;
 }
 
 // ExcelFilter.is_playable_by_language: an untranslated game in a text-heavy
@@ -182,10 +195,19 @@ function chPlaytimeBucket(r) {
   return `${h} Hour${h !== 1 ? "s" : ""}`;
 }
 
+// Memoised by date string: toLocaleDateString is expensive enough to dominate the
+// whole Challenges page when it runs over every purchase date in the library, and
+// fourteen thousand dates only land in a couple of hundred distinct months.
+const _chMonths = new Map();
 const chMonth = (iso) => {
   if (!iso) return null;
-  const d = new Date(iso + "T00:00:00");
-  return `${d.toLocaleDateString("en-US", { month: "long" })}, ${d.getFullYear()}`;
+  let m = _chMonths.get(iso);
+  if (m === undefined) {
+    const d = new Date(iso + "T00:00:00");
+    m = `${d.toLocaleDateString("en-US", { month: "long" })}, ${d.getFullYear()}`;
+    _chMonths.set(iso, m);
+  }
+  return m;
 };
 
 function chRatingBucket(r) {
@@ -237,7 +259,9 @@ function chTopDevelopers() {
   for (const r of chRows()) for (const d of unifiedDevVals(r)) counts.set(d, (counts.get(d) || 0) + 1);
   return (_chTopDevs = new Set([...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 50).map((e) => e[0])));
 }
-const chReset = () => { _chTopDevs = null; };
+// Called when the sheet reloads (app.js, panels.js): every cache here is derived from
+// rows that just changed underneath it.
+const chReset = () => { _chTopDevs = null; _chPct = null; _chHist = null; };
 
 const CH_FRANCHISE_CONTENDERS = new Set([
   "Final Fantasy", "Final Fantasy Tactics", "Chocobo", "Mana", "SaGa", "Dragon Quest",
@@ -303,14 +327,12 @@ const CHALLENGES = [
   {
     id: "rating", icon: "i-star", name: "One Per Rating",
     blurb: "Beat a game in every 10% band of combined rating — the great, the mediocre and the truly dire.",
-    start: "2026-01-09", timesCompleted: 2,
     group: chRatingBucket,
     keySort: (k) => -parseInt(k, 10),
   },
   {
     id: "percentile", icon: "i-trend", name: "One Per Percentile",
     blurb: "Beat a game from every percentile band of the collection's rating distribution, from the bottom 1% to the top.",
-    start: "2025-12-16", timesCompleted: 3,
     group: chPercentileBucket,
     keySort: (k) => -parseFloat(k),
   },
@@ -337,7 +359,6 @@ const CHALLENGES = [
   {
     id: "added", icon: "i-plus", name: "One Per Added Date",
     blurb: "Beat a game added to the sheet in every month it's been kept — clearing the backlog a vintage at a time.",
-    start: "2025-04-18", timesCompleted: 1,
     domain: (r) => !!r.dateAdded,
     group: (r) => chMonth(r.dateAdded),
     keySort: (k, rows) => rows[0].dateAdded, sortDesc: true,
@@ -384,63 +405,140 @@ const CHALLENGES = [
 
 // ---- computation ---------------------------------------------------------
 
+/* The completed library in the order it happened, shared by every challenge.
+
+   Undated completions come FIRST. Around a quarter of the finished games carry no
+   date, and dropping them would be the worst of the options: the app would tell you
+   to go and beat a PS1 game to clear a bucket you cleared in 2011 and can't prove.
+   They're games you know you finished but not when, so the one place they can
+   honestly go is before the record starts: prehistory. They clear their buckets
+   first, and everything with a date is measured after.
+
+   Their order WITHIN the batch is the sheet's, which is arbitrary — but they have
+   no order of their own to respect, so any stable one will do, and it only decides
+   which of two undated games gets the credit for a bucket they both sit in. */
+let _chHist = null;
+function chHistory() {
+  if (_chHist) return _chHist;
+  const done = chRows().filter((r) => r.completed);
+  const dated = done.filter((r) => r.dateCompleted)
+    .sort((a, b) => (a.dateCompleted < b.dateCompleted ? -1 : a.dateCompleted > b.dateCompleted ? 1 : 0));
+  return (_chHist = [...done.filter((r) => !r.dateCompleted), ...dated]);
+}
+
+/* A challenge groups a game into one bucket, EXCEPT where the facet is itself
+   multi-valued (IGDB themes, game modes): beating one game with three themes
+   legitimately clears three buckets.
+
+   Memoised per row for the life of one computeChallenge: finding the buckets is the
+   expensive half of the work (unifiedGenreVals normalises and folds every genre a
+   game carries) and each row is asked two or three times over — once to size the
+   universe, once for the candidate pool, once more in the replay if it's finished. */
+function chGroupsOf(c) {
+  const raw = c.groupMany
+    ? (r) => (c.groupMany(r) || []).filter((k) => k != null && k !== "").map(String)
+    : (r) => { const k = c.group(r); return k == null || k === "" ? [] : [String(k)]; };
+  const memo = new WeakMap();
+  return (r) => {
+    let g = memo.get(r);
+    if (!g) memo.set(r, (g = raw(r)));
+    return g;
+  };
+}
+
+const chNewPath = () => ({ cleared: new Map(), games: 0, hits: 0, first: null, closer: null });
+
+/* Replay the history into paths.
+
+   A path is one full lap of the challenge: clear every bucket you can still reach
+   and it closes, the slate wipes, the next one opens on your next completion. That
+   IS the reset that used to be done by hand — moving `start` forward and adding one
+   to `timesCompleted` — so replaying it recovers the same answer without anyone
+   having to remember. (It was checked against them: the derived paths landed on the
+   dates One Per Percentile had pinned by hand, and counted the laps it claimed.)
+
+   "Every bucket you can still REACH" is the load-bearing part, and it's `poolKeys`:
+   the buckets that still hold an unplayed candidate. A bucket whose games you have
+   all already finished can't be cleared again, so it must not be allowed to hold a
+   path open forever — and a path that can never close is a challenge that can never
+   be completed. This is judged against today's pool, which is a small anachronism
+   for a path walked in 2019 (a game bought since could have cleared a bucket that
+   was empty at the time), and the alternative — reconstructing what the library held
+   on every day of its life — buys precision nobody would ever see.
+
+   Closing is DEFERRED to the next completion, rather than done the instant the last
+   bucket falls: finish the challenge and it should read Complete!, not snap to 0% of
+   a lap you haven't started. The next game you beat is what opens the next path. */
+function chReplay(c, groupsOf, universeKeys, poolKeys) {
+  const clear = c.clear || c.domain || (() => true);
+  const paths = [];
+  let cur = chNewPath();
+
+  for (const r of chHistory()) {
+    if (cur.closer) { paths.push(cur); cur = chNewPath(); }
+    cur.games++;
+    if (!cur.first) cur.first = r;
+    if (clear(r)) {
+      for (const k of groupsOf(r)) {
+        if (!universeKeys.has(k)) continue;
+        const list = cur.cleared.get(k);
+        // Already cleared this path: the bucket doesn't fall twice, but the game was
+        // still beaten here, and the timeline says so ("31 more beaten in this bucket").
+        if (list) { list.push(r); continue; }
+        cur.cleared.set(k, [r]);
+        if (poolKeys.has(k)) cur.hits++;
+      }
+    }
+    // A challenge with nothing left to reach can't close a path — without this guard
+    // it would close one per completion, forever.
+    if (poolKeys.size && cur.hits === poolKeys.size) cur.closer = r;
+  }
+  return { paths, cur };
+}
+
 function computeChallenge(c) {
   const rows = chRows();
-  const start = c.start || CH_DEFAULT_START;
   const domain = c.domain || (() => true);
   const clear = c.clear || domain;
   const pool = c.pool || isCandidate;
   const universe = c.universe || clear;
+  const groupsOf = chGroupsOf(c);
 
   // The buckets this challenge is even about. Without this, a completion could
   // "clear" a bucket outside the challenge — beating a game on PC would count
   // toward the Unplayable challenge even though PC has no unplayable games.
-  // A challenge groups a game into one bucket, EXCEPT where the facet is itself
-  // multi-valued (IGDB themes, game modes): beating one game with three themes
-  // legitimately clears three buckets.
-  const groupsOf = c.groupMany
-    ? (r) => (c.groupMany(r) || []).filter((k) => k != null && k !== "").map(String)
-    : (r) => { const k = c.group(r); return k == null || k === "" ? [] : [String(k)]; };
-
   const universeKeys = new Set();
   for (const r of rows) {
     if (!universe(r)) continue;
     for (const k of groupsOf(r)) universeKeys.add(k);
   }
 
-  // Cleared: a bucket holding a game completed since the challenge began.
-  const cleared = new Map();     // key -> rows, earliest completion first
-  let completedSinceStart = 0;
-  for (const r of rows) {
-    if (!r.completed || !r.dateCompleted || r.dateCompleted <= start) continue;
-    completedSinceStart++;
-    if (!clear(r)) continue;
-    for (const ks of groupsOf(r)) {
-      if (!universeKeys.has(ks)) continue;
-      if (!cleared.has(ks)) cleared.set(ks, []);
-      cleared.get(ks).push(r);
-    }
-  }
-  for (const list of cleared.values()) list.sort((a, b) => (a.dateCompleted < b.dateCompleted ? -1 : 1));
-
-  // Remaining: every bucket in the pool that nothing has cleared yet.
-  const remaining = new Map();   // key -> candidate rows, best-rated first
+  // Every bucket still holding an unplayed candidate, and the candidates in it.
+  const candidates = new Map();  // key -> candidate rows, best-rated first
   for (const r of rows) {
     if (!domain(r) || !pool(r)) continue;
-    for (const ks of groupsOf(r)) {
-      if (cleared.has(ks)) continue;
-      if (!remaining.has(ks)) remaining.set(ks, []);
-      remaining.get(ks).push(r);
+    for (const k of groupsOf(r)) {
+      if (!candidates.has(k)) candidates.set(k, []);
+      candidates.get(k).push(r);
     }
   }
-  for (const list of remaining.values()) {
+  for (const list of candidates.values()) {
     list.sort((a, b) => (combinedRating(b) ?? 0) - (combinedRating(a) ?? 0));
   }
 
-  const total = cleared.size + remaining.size;
+  const { paths, cur } = chReplay(c, groupsOf, universeKeys, new Set(candidates.keys()));
+
+  // Remaining: every bucket in the pool this path hasn't cleared yet.
+  const remaining = new Map();
+  for (const [k, list] of candidates) if (!cur.cleared.has(k)) remaining.set(k, list);
+
+  const total = cur.cleared.size + remaining.size;
   return {
-    c, start, cleared, remaining, total, completedSinceStart,
-    pct: total ? cleared.size / total : 0,
+    c, paths, remaining, total,
+    cleared: cur.cleared,       // key -> rows, in the order the buckets fell
+    pathFrom: cur.first ? cur.first.dateCompleted || null : null,
+    completedThisPath: cur.games,
+    pct: total ? cur.cleared.size / total : 0,
   };
 }
 
@@ -470,11 +568,15 @@ function chRing(pct, size = 54) {
     <text x="50%" y="50%" class="ch-ring-txt">${Math.round(pct * 100)}%</text></svg>`;
 }
 
+// Which lap you're on. A challenge nobody has finished yet has no laps to count and
+// is simply running over the whole library, which is what "all time" says.
+const chPathLabel = (res) => (res.paths.length ? `path ${res.paths.length + 1}` : "all time");
+
 function chCardHtml(res) {
   const { c, cleared, remaining, total } = res;
   const done = total > 0 && remaining.size === 0;
-  const times = c.timesCompleted
-    ? `<span class="ch-badge">✓ cleared ${c.timesCompleted}×</span>` : "";
+  const times = res.paths.length
+    ? `<span class="ch-badge">✓ cleared ${res.paths.length}×</span>` : "";
   return `<button class="ch-card${done ? " ch-done" : ""}" data-ch="${c.id}">
     <div class="ch-card-top">
       <span class="ch-icon">${glyph(c.icon, 20)}</span>
@@ -485,7 +587,7 @@ function chCardHtml(res) {
     <div class="ch-bar"><span style="width:${(res.pct * 100).toFixed(1)}%"></span></div>
     <div class="ch-foot">
       <span>${remaining.size ? `${remaining.size} to go` : "Complete!"}</span>
-      <span class="muted">since ${escapeHtml(fmtDate(res.start))}</span>
+      <span class="muted">${escapeHtml(chPathLabel(res))}</span>
     </div>
     ${times}</button>`;
 }
@@ -526,39 +628,87 @@ function chShortDate(iso) {
   return `${CH_MONTHS[+m[2] - 1] || ""} ${m[1].slice(2)}`;
 }
 
-function chClearedTimeline(res) {
-  const nodes = [...res.cleared.entries()]
-    // cleared lists are already earliest-first, so [0] is the game that actually cleared it
-    .map(([key, rows]) => ({ key, row: rows[0], also: rows.length - 1 }))
-    .filter((n) => n.row && n.row.dateCompleted)
-    .sort((a, b) => (a.row.dateCompleted < b.row.dateCompleted ? -1
-                   : a.row.dateCompleted > b.row.dateCompleted ? 1 : 0));
-  if (!nodes.length) return `<div class="ch-empty">Nothing cleared yet.</div>`;
+// An undated completion has a place in the story but not a date to print. It gets said
+// out loud rather than left blank, because a blank reads as a bug.
+const CH_UNDATED = "undated";
+const chWhen = (row) => (row.dateCompleted ? chShortDate(row.dateCompleted) : CH_UNDATED);
+const chWhenLong = (row) => (row.dateCompleted ? fmtDate(row.dateCompleted) : "an unrecorded date");
 
-  const html = nodes.map(({ key, row, also }) => {
+// The cleared map is built by the replay in the order the buckets actually fell, so its
+// own insertion order IS the timeline — there's nothing to sort.
+function chTimelineHtml(cleared) {
+  const nodes = [...cleared.entries()]
+    // the clearing list is in path order, so [0] is the game that actually cleared it
+    .map(([key, rows]) => ({ key, row: rows[0], also: rows.length - 1 }))
+    .filter((n) => n.row);
+  if (!nodes.length) return "";
+
+  return `<div class="chtl">` + nodes.map(({ key, row, also }) => {
     // The SAME listing card as the grid and Home — a game is a game wherever you meet it.
     // The bucket it cleared and the date it fell are the note, because that is the one thing
     // that's true here and nowhere else. The rail, the dot and nothing else are ours.
     // The note is the bucket and the day it fell — nothing else. "+31 more" (the other games
     // beaten in that bucket since) ran the note to three lines and swallowed the cover it was
     // sitting on, for a number nobody came here to read. It lives in the tooltip.
-    const tip = `${row.title} — cleared ${key} on ${fmtDate(row.dateCompleted)}`
+    const tip = `${row.title} — cleared ${key} on ${chWhenLong(row)}`
       + (also ? ` (${also} more beaten in this bucket since)` : "");
     const card = posterCardHtml(row, {
       cls: "chtl-card",
-      note: `<b>${escapeHtml(String(key))}</b> · ${escapeHtml(chShortDate(row.dateCompleted))}`,
+      note: `<b>${escapeHtml(String(key))}</b> · ${escapeHtml(chWhen(row))}`,
       attrs: `title="${escapeHtml(tip)}"
               data-gk="${escapeHtml(String(row._k || ""))}"
               data-gt="${escapeHtml(String(row.title))}"
               data-gp="${escapeHtml(String(row.platform || ""))}"`,
     });
     return `<div class="chtl-node"><span class="chtl-dot"></span>${card}</div>`;
-  }).join("");
+  }).join("") + `</div>`;
+}
 
-  const first = chShortDate(nodes[0].row.dateCompleted);
-  const last = chShortDate(nodes[nodes.length - 1].row.dateCompleted);
-  return `<p class="ch-hint">Oldest first — ${escapeHtml(first)} to ${escapeHtml(last)}. Tap a cover for the game that cleared it.</p>
-    <div class="chtl">${html}</div>`;
+// "Oct 24 to Jul 26" — the stretch a path covers. The undated batch is prehistory, so a
+// path that opens in it opens "before records began".
+function chSpanText(nodes) {
+  if (!nodes.length) return "";
+  const from = nodes[0].dateCompleted ? chShortDate(nodes[0].dateCompleted) : "before records began";
+  const to = chWhen(nodes[nodes.length - 1]);
+  return to === CH_UNDATED ? from : `${from} to ${to}`;
+}
+
+function chClearedTimeline(res) {
+  const rail = chTimelineHtml(res.cleared);
+  if (!rail) return `<div class="ch-empty">Nothing cleared yet.</div>`;
+  const firsts = [...res.cleared.values()].map((rows) => rows[0]);
+  return `<p class="ch-hint">Oldest first — ${escapeHtml(chSpanText(firsts))}.
+    Tap a cover for the game that cleared it.</p>${rail}`;
+}
+
+/* The paths already walked.
+
+   `timesCompleted` used to be a number typed into the challenge and shown as a badge, and
+   a badge is where it ended: you cleared this thing three times and all you got was a 3.
+   The replay knows every game that cleared every bucket on every lap, so the count opens
+   up into the routes themselves — collapsed by default, because the live path is what you
+   came for and the history is what you go looking for. */
+function chPathsHtml(res) {
+  if (!res.paths.length) return "";
+  const html = res.paths.map((p, i) => {
+    const firsts = [...p.cleared.values()].map((rows) => rows[0]);
+    // No closing date here: a path ends the moment its last bucket falls, so the date
+    // would be the one chSpanText already printed on the end of the span.
+    return `<details class="ch-path">
+      <summary>
+        <span class="ch-path-n">Path ${i + 1}</span>
+        <span class="ch-path-span">${escapeHtml(chSpanText(firsts))}</span>
+        <span class="muted">${p.cleared.size} bucket${p.cleared.size !== 1 ? "s" : ""} ·
+          ${p.games.toLocaleString()} game${p.games !== 1 ? "s" : ""} beaten</span>
+        <span class="ch-path-done">✓ cleared</span>
+      </summary>
+      ${chTimelineHtml(p.cleared)}
+    </details>`;
+  }).reverse().join("");   // most recent first — Path 1 is the deepest history
+  return `<h2 class="ch-sec">Paths already walked <span class="muted">${res.paths.length}</span></h2>
+    <p class="ch-hint">Every time the last bucket fell the slate wiped and a new path opened.
+      These are the routes you took — open one for the games that cleared it.</p>
+    <div class="ch-paths">${html}</div>`;
 }
 
 const CH_BUCKETS_SHOWN = 40;   // buckets rendered before "show all"
@@ -605,15 +755,17 @@ function renderChallenges() {
     const totalCleared = results.reduce((a, r) => a + r.cleared.size, 0);
     const totalBuckets = results.reduce((a, r) => a + r.total, 0);
     const finished = results.filter((r) => r.total && !r.remaining.size).length;
+    const walked = results.reduce((a, r) => a + r.paths.length, 0);
     host.innerHTML =
       `<div class="ch-hero">
          <h1>Challenges</h1>
-         <p>One game per platform, per genre, per year, per letter… Progress is read straight from the sheet: a bucket clears the day you finish something in it.</p>
+         <p>One game per platform, per genre, per year, per letter… Progress is read straight from the sheet, over everything you've ever finished: a bucket clears the day you beat something in it, and clearing the last one you can reach starts the whole challenge over.</p>
          <div class="ch-hero-stats">
            <span><b>${all.length}</b> challenges</span>
            <span><b>${totalCleared.toLocaleString()}</b> buckets cleared</span>
            <span><b>${(totalBuckets - totalCleared).toLocaleString()}</b> to go</span>
            ${finished ? `<span><b>${finished}</b> finished</span>` : ""}
+           ${walked ? `<span><b>${walked.toLocaleString()}</b> paths walked</span>` : ""}
          </div>
        </div>
        <div class="ch-grid">${results.map(chCardHtml).join("")}
@@ -632,8 +784,13 @@ function renderChallenges() {
 
   const c = all.find((x) => x.id === chState.open) || all[0];
   const res = computeChallenge(c);
-  const times = c.timesCompleted
-    ? `<span class="ch-badge">✓ cleared ${c.timesCompleted}× already</span>` : "";
+  const times = res.paths.length
+    ? `<span class="ch-badge">✓ cleared ${res.paths.length}× already</span>` : "";
+  // When this path opened. One running from the undated prehistory hasn't got a date to
+  // show: on a challenge nobody has finished, that's every game you've ever beaten
+  // ("all time"); on a later path it means the batch it opened in.
+  const from = res.pathFrom ? fmtDate(res.pathFrom)
+    : (res.paths.length ? "Prehistory" : "All time");
   host.innerHTML =
     `<div class="ch-detail">
        <button class="ch-back" id="chBack">← All challenges</button>
@@ -652,14 +809,15 @@ function renderChallenges() {
          <div><b>${res.cleared.size}</b><span>cleared</span></div>
          <div><b>${res.remaining.size}</b><span>remaining</span></div>
          <div><b>${res.total}</b><span>total</span></div>
-         <div><b>${escapeHtml(fmtDate(res.start))}</b><span>started</span></div>
-         <div><b>${res.completedSinceStart.toLocaleString()}</b><span>games beaten since</span></div>
+         <div><b>${escapeHtml(from)}</b><span>${res.paths.length ? "path opened" : "counting from"}</span></div>
+         <div><b>${res.completedThisPath.toLocaleString()}</b><span>games beaten ${res.paths.length ? "this path" : "overall"}</span></div>
        </div>
        <h2 class="ch-sec">Still to do <span class="muted">${res.remaining.size}</span></h2>
        <p class="ch-hint">Top-rated candidates for each, five shown. Tap any game for details.</p>
        <div class="ch-buckets">${chBucketList(res, res.remaining)}</div>
        <h2 class="ch-sec">Cleared <span class="muted">${res.cleared.size}</span></h2>
        ${chClearedTimeline(res)}
+       ${chPathsHtml(res)}
      </div>`;
 
   $("#chBack").onclick = () => { chState.open = null; chState.showAll = null; renderChallenges(); nav(); };
@@ -668,11 +826,20 @@ function renderChallenges() {
   for (const el of host.querySelectorAll(".ch-showall")) {
     el.onclick = () => { chState.showAll = el.dataset.showall; renderChallenges(); };
   }
+  /* Indexed once, not scanned per card: the walked paths can put hundreds of covers on
+     this page, and a .find() apiece is that many passes over all 14k rows. The unit
+     separator joins the three fields because it can't occur inside any of them — a
+     space could, and _k "a b" + title "c" would collide with _k "a" + title "b c". */
+  const byCard = new Map();
+  for (const r of chRows()) {
+    // First one wins, exactly as the .find() this replaces did: two rows CAN agree on all
+    // three (the same game owned twice, physical and digital), and the second must not
+    // quietly displace the first.
+    const k = `${r._k || ""}\u001f${r.title}\u001f${r.platform || ""}`;
+    if (!byCard.has(k)) byCard.set(k, r);
+  }
   for (const el of host.querySelectorAll(".ch-chip, .chtl-card")) {
-    const row = chRows().find((r) =>
-      String(r._k || "") === el.dataset.gk &&
-      String(r.title) === el.dataset.gt &&
-      String(r.platform || "") === el.dataset.gp);
+    const row = byCard.get(`${el.dataset.gk}\u001f${el.dataset.gt}\u001f${el.dataset.gp}`);
     if (!row) continue;
     el.onclick = () => openDrawer(row, "games");
     // It's the grid's card, so it gets the grid's hover-to-play trailer too. Anything less
@@ -692,9 +859,9 @@ function renderChallenges() {
    the facet system already knows how to compute for any column, including the
    enrichment-derived ones (IGDB theme, game mode, Steam Deck status).
 
-   So a custom challenge is: group by a facet, optionally filter by other facets,
-   pick a start date. It then runs through exactly the same computeChallenge as
-   the built-ins — same clearing rules, same candidate pool, same progress.
+   So a custom challenge is: group by a facet, optionally filter by other facets.
+   It then runs through exactly the same computeChallenge as the built-ins — same
+   clearing rules, same candidate pool, same progress, same replayed paths.
 
    Stored in localStorage: gamedex has no accounts, and this is a personal goal
    rather than shared data. Same place the saved views live.
@@ -740,7 +907,6 @@ function chFromCustom(def) {
     icon: def.icon || "i-target",
     name: def.name || "Custom challenge",
     blurb: chCustomBlurb(def),
-    start: def.start || CH_DEFAULT_START,
     custom: def,
     // Every filter must match (AND across facets, OR within one).
     domain: (r) => filters.every((f) => chFacetVals(r, f.col).some((v) => f.values.has(v))),
@@ -770,7 +936,6 @@ const chEditor = { open: false, def: null };
 const chBlankDef = () => ({
   id: "custom-" + Math.random().toString(36).slice(2, 9),
   name: "", icon: "i-target", groupBy: "platform", filters: [],
-  start: new Date().toISOString().slice(0, 10),
 });
 
 function chEditorHtml() {
@@ -801,10 +966,8 @@ function chEditorHtml() {
     </label>
     <label class="chb-row"><span>One per…</span>
       <select id="chbGroup">${cols.map((c) => opt(c, d.groupBy)).join("")}</select>
-    </label>
-    <label class="chb-row"><span>Counting from</span>
-      <input id="chbStart" type="date" value="${escapeHtml(d.start)}">
-      <em>Completions before this date don't count — the same rule the built-ins use.</em>
+      <em>Every game you've ever finished counts, the same rule the built-ins use.
+        Clear the last bucket you can reach and the challenge starts over.</em>
     </label>
     <div class="chb-row chb-filters">
       <span>Only these games</span>
@@ -846,8 +1009,11 @@ function chPreview() {
   if (!host) return;
   try {
     const res = computeChallenge(chFromCustom(chEditor.def));
+    const walked = res.paths.length
+      ? ` · <b>${res.paths.length}</b> path${res.paths.length !== 1 ? "s" : ""} you've already walked`
+      : "";
     host.innerHTML = res.total
-      ? `<b>${res.total}</b> buckets · <b>${res.cleared.size}</b> already cleared by past completions · <b>${res.remaining.size}</b> to go`
+      ? `<b>${res.total}</b> buckets · <b>${res.cleared.size}</b> already cleared by past completions · <b>${res.remaining.size}</b> to go${walked}`
       : `<span class="muted">No buckets — that combination of facet and filters matches nothing.</span>`;
   } catch (e) {
     host.innerHTML = `<span class="muted">Can't evaluate that yet.</span>`;
@@ -862,7 +1028,6 @@ function wireEditor(host) {
   $("#chbName").oninput = (e) => { d.name = e.target.value; };
   $("#chbIcon").oninput = (e) => { d.icon = e.target.value; };
   $("#chbGroup").onchange = (e) => { d.groupBy = e.target.value; chPreview(); };
-  $("#chbStart").onchange = (e) => { d.start = e.target.value; chPreview(); };
 
   $("#chbAddFilter").onclick = () => {
     d.filters = d.filters || [];
@@ -892,7 +1057,7 @@ function wireEditor(host) {
     const list = chLoadCustom();
     const i = list.findIndex((x) => x.id === d.id);
     const clean = { id: d.id, name: d.name.trim(), icon: d.icon || "i-target",
-                    groupBy: d.groupBy, filters: d.filters || [], start: d.start };
+                    groupBy: d.groupBy, filters: d.filters || [] };
     if (i >= 0) list[i] = clean; else list.push(clean);
     chStoreCustom(list);
     chEditor.open = false; chEditor.def = null;

@@ -2661,6 +2661,31 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .chtl-node { width: calc(50% - var(--chtl-gap) / 2); }   /* two to a row on a phone */
 }
 
+/* ---- Paths already walked ----------------------------------------------- */
+/* Each finished lap, collapsed to a summary line. <details> rather than a click
+   handler: the open/closed state is the browser's to keep, and it survives the
+   re-render that a "show all" or a data reload would otherwise wipe. */
+.ch-paths { display: flex; flex-direction: column; gap: 8px; margin-bottom: 30px; }
+.ch-path {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0 14px;
+}
+.ch-path[open] { border-color: var(--accent-line); }
+.ch-path > summary {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 12px 0; cursor: pointer; font-size: 12.5px; list-style: none;
+}
+.ch-path > summary::-webkit-details-marker { display: none; }
+.ch-path > summary::before {
+  content: "▸"; color: var(--muted); font-size: 10px; transition: transform .12s;
+}
+.ch-path[open] > summary::before { transform: rotate(90deg); }
+.ch-path > summary:hover .ch-path-n { color: var(--accent); }
+.ch-path-n { font-family: var(--display); font-size: 14px; }
+.ch-path-span { color: var(--text-2); }
+.ch-path-done { margin-left: auto; color: var(--good); white-space: nowrap; }
+.ch-path .chtl { margin: 6px 0 16px; }
+
 .ch-bucket-done { border-color: rgba(52, 211, 153, .35); background: rgba(52, 211, 153, .04); }
 .ch-bucket-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
 .ch-bucket-head h4 { font-size: 13.5px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
