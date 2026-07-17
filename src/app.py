@@ -523,17 +523,23 @@ def api_platform_match(provider: str, body: PlatformMatch,
 
 
 @app.get("/api/mine/all")
-def api_mine_all():
+def api_mine_all(user: dict | None = Depends(current_user)):
     """The light per-game personal map, keyed by match key — playtime for the
     hero strip, achievement counts for the pills, the corrected Steam appid for
-    the launch button. Public like the rest of the personal history."""
+    the launch button. This is the account owner's own history (hours,
+    achievements, ownership), so it's hidden from the public — an anonymous
+    browser gets the disabled shell and shows none of it."""
+    if user is None:
+        return {"enabled": False, "items": {}}
     return {"enabled": bool(PLATDB.accounts()), "items": PLATDB.mine_light()}
 
 
 @app.get("/api/mine/detail")
-def api_mine_detail(key: str):
+def api_mine_detail(key: str, user: dict | None = Depends(current_user)):
     """Everything personal about one game, per provider: the full achievement
-    list, the screenshots, the review."""
+    list, the screenshots, the review. Owner-only, like /api/mine/all."""
+    if user is None:
+        return {"enabled": False, "items": {}}
     out = {}
     for p in platformdb_mod.PROVIDERS:
         app_id = PLATDB.app_for_key(p, key)
@@ -552,9 +558,12 @@ def api_mine_detail(key: str):
 
 
 @app.get("/api/shot")
-def api_shot(provider: str, id: str):
+def api_shot(provider: str, id: str, user: dict | None = Depends(current_user)):
     """One personal screenshot, served from the PVC. The path comes off the DB
-    row, never the query, so this can't be steered outside SHOTS_DIR."""
+    row, never the query, so this can't be steered outside SHOTS_DIR. Owner-only —
+    these are the account owner's own captures, so the public gets a 404."""
+    if user is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
     row = PLATDB.shot_row(provider, id)
     if row is None:
         return JSONResponse({"error": "no such screenshot"}, status_code=404)
@@ -692,11 +701,15 @@ def api_wishlist_match(body: WishlistMatch, user: dict = Depends(require_admin))
 
 
 @app.get("/api/wishlist")
-def api_wishlist():
+def api_wishlist(user: dict | None = Depends(current_user)):
     """Every platform wishlist entry, with whatever identity matching found:
     a match key (it's on the sheet), an IGDB id + cover (it's in the catalogue),
     or just the store's name. The sheet's own Wishlisted rows are merged
-    client-side — the browser already has them."""
+    client-side — the browser already has them. This is the account owner's own
+    platform wishlist (Steam/PSN/…), so it's owner-only — the public gets the
+    disabled shell and the merged sheet builds from its own Wishlisted rows."""
+    if user is None:
+        return {"enabled": False, "items": []}
     return {"enabled": bool(PLATDB.accounts()), "items": PLATDB.wishlist_all()}
 
 

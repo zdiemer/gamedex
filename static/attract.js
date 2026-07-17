@@ -379,9 +379,15 @@ function attractBuildStage(entry, revealAt) {
   stage.appendChild(info);
   stage._bg = bg; stage._scrim = scrim;
 
-  // Click anywhere on a game → step aside into its full drawer; closing the drawer
-  // resumes the slideshow (attractPause + closeDrawer's attractResume hook).
-  stage.addEventListener("click", () => { attractPause(); openDrawer(row, sheetKey); });
+  // Only the box art and the title open the game's drawer. The rest of the stage is left
+  // inert so a stray tap on the backdrop does nothing, and a horizontal drag is free to
+  // swipe to the next game (attractWireSwipe). Stepping into the drawer pauses the run;
+  // closeDrawer's attractResume hook picks it back up.
+  const openThis = (ev) => { ev.stopPropagation(); attractPause(); openDrawer(row, sheetKey); };
+  info.querySelectorAll(".attract-cover, .attract-txt h1").forEach((el) => {
+    el.classList.add("attract-open");
+    el.addEventListener("click", openThis);
+  });
 
   // The BACKDROP is always the game's own imagery — the cover right away, upgraded to
   // a cross-fading screenshot slideshow once the detail lands. A trailer, when we have
@@ -618,6 +624,28 @@ function attractApplyMuteBtn() {
   bind("attractMute", attractToggleMute);
   bind("attractPrev", () => attractNext(-1));
   bind("attractNext", () => attractNext(1));
+
+  // Touch: swipe left/right to page, the way a phone photo gallery does — the arrows
+  // are still there, but a swipe is the gesture you reach for. Only a deliberate
+  // horizontal drag counts; a vertical move or a plain tap (which opens the game via
+  // the cover/title handler) is left alone. Ignored while a game's drawer is open over
+  // a paused run — that swipe belongs to the drawer.
+  const stages = $("#attractStages");
+  if (stages) {
+    let x0 = null, y0 = null;
+    stages.addEventListener("touchstart", (e) => {
+      if (!attractOn || attractPaused) { x0 = null; return; }
+      x0 = e.changedTouches[0].clientX; y0 = e.changedTouches[0].clientY;
+    }, { passive: true });
+    stages.addEventListener("touchend", (e) => {
+      if (x0 == null || !attractOn || attractPaused) { x0 = null; return; }
+      const dx = e.changedTouches[0].clientX - x0;
+      const dy = e.changedTouches[0].clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;   // a tap or a vertical scroll
+      attractNext(dx < 0 ? 1 : -1);                                   // left → next, right → prev
+    }, { passive: true });
+  }
 
   // Leaving fullscreen (Esc / F11) while watching means "I'm done" — exit attract too,
   // so a single Esc gets you all the way out. Skipped while a game's drawer is open over

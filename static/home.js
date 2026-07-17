@@ -50,118 +50,6 @@ const agoText = (n) => (n <= 0 ? "today" : n === 1 ? "1 year ago" : `${n} years 
 // Newest first by whichever date field is meaningful for the row.
 const byDateDesc = (field) => (a, b) => String(b[field] || "").localeCompare(String(a[field] || ""));
 
-// ---- suggestions ---------------------------------------------------------
-// Each rule inspects a candidate and, if it applies, returns the reason it's
-// worth playing. The first rule that fires wins, so they're ordered by how
-// *interesting* the reason is, not by how common it is — "the last game you need
-// for a challenge" beats "it's short", even though both are true.
-
-let _homeFranchiseCount = null;
-function franchiseCounts() {
-  if (_homeFranchiseCount) return _homeFranchiseCount;
-  const m = new Map();
-  for (const r of hCompleted()) if (r.franchise) m.set(r.franchise, (m.get(r.franchise) || 0) + 1);
-  return (_homeFranchiseCount = m);
-}
-let _homeGenreAvg = null;
-function genreAffinity() {
-  if (_homeGenreAvg) return _homeGenreAvg;
-  const sum = new Map(), n = new Map();
-  for (const r of hCompleted()) {
-    if (!r.genre || r.rating == null) continue;
-    sum.set(r.genre, (sum.get(r.genre) || 0) + r.rating);
-    n.set(r.genre, (n.get(r.genre) || 0) + 1);
-  }
-  const out = new Map();
-  for (const [g, s] of sum) if (n.get(g) >= 5) out.set(g, s / n.get(g));
-  return (_homeGenreAvg = out);
-}
-
-const SUGGESTION_RULES = [
-  {
-    id: "franchise",
-    test: (r) => {
-      const n = franchiseCounts().get(r.franchise) || 0;
-      return n >= 3 ? `You’ve beaten ${n} ${r.franchise} games` : null;
-    },
-  },
-  {
-    id: "tonight",
-    test: (r) => {
-      const t = playtimeOf(r), m = metacriticOf(r);
-      return t != null && t <= 3 && m != null && m >= 0.8
-        ? `${fmtHours(t)} and rated ${Math.round(m * 100)} — finish it tonight` : null;
-    },
-  },
-  {
-    id: "shelved",
-    test: (r) => {
-      if (!r.datePurchased || r.dateStarted) return null;
-      const y = yearsAgo(r.datePurchased);
-      return y >= 3 ? `Bought ${agoText(y)} and never started` : null;
-    },
-  },
-  {
-    id: "acclaimed",
-    test: (r) => {
-      const m = metacriticOf(r);
-      return m != null && m >= 0.9 ? `Metacritic ${Math.round(m * 100)} — one of the best you own` : null;
-    },
-  },
-  {
-    id: "genre",
-    test: (r) => {
-      const a = genreAffinity().get(r.genre);
-      return a != null && a >= 0.8
-        ? `You rate ${r.genre} ${Math.round(a * 100)}% on average` : null;
-    },
-  },
-  {
-    id: "priority",
-    test: (r) => (priorityRank(r.priority) >= 4 ? `Flagged high priority` : null),
-  },
-  {
-    id: "wishlist",
-    test: (r) => (r.wishlisted ? `Still on your wishlist` : null),
-  },
-  {
-    id: "backlog",
-    test: (r) => {
-      const t = playtimeOf(r);
-      return t != null && t <= 8 ? `A short one — about ${fmtHours(t)}` : null;
-    },
-  },
-];
-
-function suggestions(n = 6) {
-  const pool = hRows().filter((r) => {
-    if (r.completed || r.playingStatus) return false;
-    return typeof isCandidate === "function" ? isCandidate(r) : !!r.owned;
-  });
-  // Keep the quality — take the best-rated candidates — then rotate WITHIN that pool
-  // daily, so it's a fresh eight each day but never a dud. Two per rule keeps the
-  // reasons varied.
-  const scored = pool
-    .map((r) => ({ r, s: combinedRating(r) ?? 0 }))
-    .sort((a, b) => b.s - a.s)
-    .slice(0, Math.max(n * 6, 48));
-  const rotated = dailyShuffle(scored.map((x) => x.r), "picks");
-  const used = new Map(), out = [];
-  for (const r of rotated) {
-    if (out.length >= n) break;
-    for (const rule of SUGGESTION_RULES) {
-      const why = rule.test(r);
-      if (!why) continue;
-      const k = used.get(rule.id) || 0;
-      if (k >= 2) break;                       // don't let one rule fill the row
-      used.set(rule.id, k + 1);
-      out.push({ row: r, why, rule: rule.id });
-      break;
-    }
-  }
-  return out;
-}
-
 // ---- pieces --------------------------------------------------------------
 
 // The shared listing card (posterCardHtml, table.js), with Home's own hooks on it. Home used
@@ -214,7 +102,9 @@ function heroSection(playing) {
     <div class="h-hero-bg${bg ? " on" : ""}"></div>
     ${pager}
     <div class="h-hero-inner">
-      ${cs ? `<img class="h-hero-cover" src="${escapeHtml(cs)}" alt="">` : `<div class="h-hero-cover ph">${icon("i-library", 34)}</div>`}
+      ${cs
+        ? `<img class="h-hero-cover" src="${escapeHtml(cs)}" alt="" role="button" tabindex="0" title="Open details" data-hk="${escapeHtml(String(row._k || ""))}" data-hs="games">`
+        : `<div class="h-hero-cover ph" role="button" tabindex="0" data-hk="${escapeHtml(String(row._k || ""))}" data-hs="games">${icon("i-library", 34)}</div>`}
       <div class="h-hero-txt">
         <span class="h-eyebrow">Continue playing</span>
         <h1>${escapeHtml(String(row.title))}</h1>
@@ -326,7 +216,6 @@ function patchHomeCovers() {
 function renderHome() {
   const host = $("#home");
   if (!DATA) return;
-  _homeFranchiseCount = null; _homeGenreAvg = null;
 
   const playing = byStatus("Playing").sort(byDateDesc("dateStarted"));
   const upNext = byStatus("Up Next");
@@ -336,7 +225,6 @@ function renderHome() {
   // Every order is estimatedRelease "N/A" / status "Pending" — neither says
   // anything. What's actually informative is when you ordered it and from whom.
   const orders = hOrders().slice().sort(byDateDesc("orderedDate")).slice(0, 18);
-  const picks = suggestions(8);
 
   // Recommendations come from the server (IGDB's similar-games, crossed with
   // your backlog); predictions are computed here from your own ratings. Both
@@ -356,12 +244,6 @@ function renderHome() {
   host.innerHTML =
     `<div class="h-top"><button class="h-attract" id="hAttract">${icon("i-play", 15)} Attract mode</button></div>` +
     heroSection(playing) +
-    (picks.length ? `<section class="h-sect">
-      <div class="h-sect-head"><h2>${icon("i-sparkle", 17)} Picked for you</h2>
-        <div class="h-sect-act"><button class="linkbtn" id="hPickMore">Roll one instead →</button></div></div>
-      <div class="h-picks">${picks.map((p) =>
-        homeCard(p.row, "games", `<span class="h-why">${escapeHtml(p.why)}</span>`)).join("")}</div>
-    </section>` : "") +
     shelf("hRecs", `${icon("i-star", 16)} Because you liked…`, recRows.map(({ row, rec }) =>
       homeCard(row, "games", `<span class="h-why">Like ${escapeHtml(rec.because.slice(0, 2).join(" & "))}</span>`))) +
     shelf("hLoved", `${icon("i-trend", 16)} You'd probably love`, loved.map(({ r, p }) =>
@@ -473,8 +355,6 @@ function wireHome(host, playing) {
   });
   const attract = $("#hAttract");
   if (attract) attract.onclick = () => openAttract();
-  const more = $("#hPickMore");
-  if (more) more.onclick = () => { switchTab("pick"); nav(); };
   const chalAll = $("#hChalAll");
   if (chalAll) chalAll.onclick = (e) => { e.stopPropagation(); chState.open = null; switchTab("challenges"); nav(); };
   host.querySelectorAll(".h-chal[data-chal]").forEach((el) => {

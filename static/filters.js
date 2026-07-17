@@ -126,6 +126,8 @@ function renderFacets() {
     if (col.buckets) {                                   // fixed bucket order
       const ord = new Map(col.buckets.map((b, i) => [b.label, i]));
       values.sort((a, b) => (ord.get(a.key) ?? 99) - (ord.get(b.key) ?? 99));
+    } else if (col.type === "bool") {
+      values.sort((a, b) => (a.key === "true" ? 0 : 1) - (b.key === "true" ? 0 : 1));   // Yes before No
     } else {
       const numeric = col.type === "year" || col.type === "int" || col.type === "number";
       // For year facets, non-numeric labels (e.g. "Early Access") sort as newest.

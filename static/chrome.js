@@ -176,7 +176,9 @@ const cmdk = { open: false, sel: 0, results: [] };
 // Read the tab list from the live header, so the palette can never go stale — adding
 // or removing a tab (Shelf in, Reviews out) updates it for free.
 function cmdkTabs() {
-  const tabs = [...document.querySelectorAll("#tabs button[data-tab]")].map((b) => ({
+  // Skip hidden tabs (e.g. Wishlist for the public) — the palette shouldn't reach what
+  // the nav deliberately doesn't show.
+  const tabs = [...document.querySelectorAll("#tabs button[data-tab]")].filter((b) => !b.hidden).map((b) => ({
     id: b.dataset.tab,
     label: (b.querySelector("span") || {}).textContent || b.dataset.tab,
     icon: ((b.querySelector("use") || {}).getAttribute?.("href") || "#i-home").slice(1),
@@ -397,6 +399,11 @@ async function loadMe() {
 function applyAdminUI() {
   const acct = $("#account");
   $("#refresh").hidden = !IS_ADMIN;          // the endpoint is gated too; hide the button
+  // The Wishlist tab lists the account owner's platform wishlist — owner-only, and the
+  // data endpoint is gated to match. Hidden in the markup by default (no flash for the
+  // public); revealed only once we know we're signed in.
+  const wl = $("#tabWishlist");
+  if (wl) wl.hidden = !IS_ADMIN;
   if (!acct) return;
   if (IS_ADMIN) {
     acct.title = `Signed in as ${ME.username} — account`;

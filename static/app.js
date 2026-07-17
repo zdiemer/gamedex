@@ -166,6 +166,9 @@ function applyStateFromURL() {
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
          "health", "shelf", "picross", "recs", "wishlist"].includes(tab) ? tab : "home";
+  // The Wishlist tab is account-owner-only (it lists the platform wishlist) — a public
+  // ?tab=wishlist link lands on Home rather than an empty, hidden tab.
+  if (tab === "wishlist" && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "pick") {
       const fb = p.get("fb");
@@ -280,8 +283,13 @@ async function load() {
   applyStateFromURL();          // restore tab/filters/sort/view from the URL
   loadAllEnrichment();          // global covers + IGDB facets (polls during backfill)
   loadRomm();                   // which games we can actually play in the browser
-  loadMine();                   // the linked platform accounts’ hours / achievements / appids
-  loadWishlist();               // platform wishlists merge into the Wishlist tab's synthetic sheet
+  // Hours, achievements, ownership and the platform wishlist are the account owner's
+  // own data — the server now returns an empty shell to the public, so only fetch them
+  // when signed in. An anonymous browser never sees them (and the Wishlist tab is hidden).
+  if (IS_ADMIN) {
+    loadMine();                 // the linked platform accounts’ hours / achievements / appids
+    loadWishlist();             // platform wishlists merge into the Wishlist tab's synthetic sheet
+  }
   loadNas();                    // which games are actually in the ROM library
   loadUploads();                // hand-uploaded box art becomes the cover everywhere
   loadGameRankings();           // frozen fallback critic score for pre-Metacritic games

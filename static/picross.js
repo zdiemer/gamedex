@@ -65,6 +65,22 @@ async function pxLoadPrefs() {
   } catch (_) { /* offline: the local mirror stands in */ }
 }
 
+// The CURRENT streak as of today. The stored `streak` is only recomputed when you SOLVE a
+// puzzle (pxBumpStreak), so a missed day leaves the old number frozen — a streak of 12 keeps
+// showing 12 for weeks after it actually lapsed. A run is only live if the last solve was
+// today or yesterday; otherwise it's broken and reads 0. `best`/`solved` are untouched — the
+// record still stands even though the current run doesn't. pxBumpStreak agrees: it restarts
+// at 1 whenever `last` isn't yesterday, so a solve today makes the two consistent again.
+function pxCurrentStreak() {
+  const s = pxStreak();
+  if (!s.last || !PX.date) return s.streak || 0;   // no date context yet → show what we have
+  if (s.last === PX.date) return s.streak || 0;    // already solved today
+  const y = new Date(PX.date + "T00:00:00Z");
+  y.setUTCDate(y.getUTCDate() - 1);
+  const yesterday = y.toISOString().slice(0, 10);
+  return s.last === yesterday ? (s.streak || 0) : 0;   // else the chain has lapsed
+}
+
 async function pxBumpStreak() {
   const s = { ...pxStreak() };
   if (s.last === PX.date) return s;                 // already counted today
@@ -210,7 +226,7 @@ function renderPicross() {
           or name it early for the bonus.</p>
       </div>
       <div class="px-streak">
-        <b>${st.streak || 0}</b><span>day streak</span>
+        <b>${pxCurrentStreak()}</b><span>day streak</span>
         <em>best ${st.best || 0} · ${st.solved || 0} solved</em>
       </div>
     </div>
@@ -555,7 +571,6 @@ function pxFillTitles() {
    as far as I've got, the streak, and whether it's already done. Also in the command palette,
    and at ?tab=picross for a direct link. */
 function picrossHomeCardHtml() {
-  const st = pxStreak();
   const done = PX.solved;
   const started = PX.cells.some((c) => c === 1);
   const mini = PX.w
@@ -575,7 +590,7 @@ function picrossHomeCardHtml() {
         <span class="muted">${line}</span>
       </span>
       <span class="px-home-s">
-        <b>${st.streak || 0}</b><i>day streak</i>
+        <b>${pxCurrentStreak()}</b><i>day streak</i>
       </span>
       <span class="gr-go">→</span>
     </button>

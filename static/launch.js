@@ -479,10 +479,20 @@ const gamesFacetCols = () => {
   return sh ? [...sh.columns.filter((c) => c.facet).map(unifiedFacetCol), ...igdbFacetCols(), ...extraFacetCols("games")] : [];
 };
 
+// Bool facets where a MISSING value means "No", not "unknown". The sheet only stores these
+// flags when they're set (parse.py drops blank cells), so without this a non-VR / non-DLC /
+// un-wishlisted row produces no facet item at all and the facet only ever offers "Yes". For
+// these three, absence genuinely means the negative — a game with no VR flag is not-VR — so
+// every row resolves to exactly Yes or No, giving the sidebar a real "No" option to click.
+const BOOL_NEGATABLE = new Set(["vr", "dlc", "wishlisted"]);
+
 // A row's facet values as [{key, raw}] — scalar → one, arrays → many, bucket → one label.
 function rowFacetItems(row, col) {
   if (col.kind === "fn") {                    // computed, possibly multi-valued
     return (col.getVals(row) || []).map((x) => ({ key: String(x), raw: x }));
+  }
+  if (col.type === "bool" && BOOL_NEGATABLE.has(col.key)) {
+    return [row[col.key] ? { key: "true", raw: true } : { key: "false", raw: false }];
   }
   if (col.kind === "bucket") {
     const v = col.getVal(row);

@@ -1691,7 +1691,10 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   width: 156px; flex: none; aspect-ratio: 3 / 4; object-fit: cover;
   border-radius: var(--r); border: 1px solid var(--border);
   box-shadow: 0 18px 44px rgba(0, 0, 0, .55); background: var(--surface-2);
+  cursor: pointer; transition: transform .18s var(--ease), box-shadow .18s var(--ease);
 }
+.h-hero-cover:hover { transform: translateY(-2px); box-shadow: 0 22px 50px rgba(0, 0, 0, .6); }
+.h-hero-cover:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .h-hero-cover.ph { display: flex; align-items: center; justify-content: center; font-size: 34px; opacity: .4; }
 .h-hero-txt { flex: 1; min-width: 0; }
 .h-eyebrow {
@@ -1801,7 +1804,10 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
      beside the title and squeezing the text column to nothing. */
   /* The tallest slide here is taller than the desktop one — the text column is narrow, so
      titles wrap far more often. This is where the 88px lurch was. */
-  .h-hero-inner { gap: 14px; align-items: flex-start; flex-wrap: wrap; min-height: 268px; }
+  /* The pager arrows are always visible on touch (opacity:1) and sit in the side
+     gutters at left/right:2px — reserve room so they don't overlap the cover or the
+     text. 24px clears the 30px-wide arrow (2px + 30px) with a small gap. */
+  .h-hero-inner { gap: 14px; align-items: flex-start; flex-wrap: wrap; min-height: 268px; padding-inline: 24px; }
   .h-hero-cover { width: 92px; }
   .h-hero-txt { flex: 1 1 190px; }
   .h-hero-txt h1 { font-size: 20px; }
@@ -4187,7 +4193,17 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border: none; border-radius: 999px; cursor: pointer; font-size: 22px; line-height: 1;
   color: #fff; background: rgba(0,0,0,.4); backdrop-filter: blur(6px); transition: background .14s;
 }
-.attract-btn:hover { background: var(--accent); }
+/* Only real hover pointers get the accent fill. On touch, :hover sticks after a tap and
+   the Next/Prev button stayed lit purple long after it had paged — gate it behind
+   (hover: hover) and give touch a brief :active flash instead. */
+@media (hover: hover) { .attract-btn:hover { background: var(--accent); } }
+.attract-btn:active { background: var(--accent); }
+/* Only the cover and title open a game — mark them so. */
+.attract-open { cursor: pointer; }
+@media (hover: hover) {
+  .attract-cover.attract-open:hover { filter: brightness(1.06); }
+  .attract-txt h1.attract-open:hover { text-decoration: underline; text-underline-offset: 4px; }
+}
 .attract-hint {
   position: absolute; top: 20px; left: 22px; z-index: 5; pointer-events: none;
   color: rgba(255,255,255,.9); font-size: 12.5px;
