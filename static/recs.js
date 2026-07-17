@@ -12,7 +12,7 @@
  * facet sidebar, search, grid/table, sort, pager, in-app drawers and hover/autoplay
  * previews all work unchanged. A catalogue game has no owned record, so — exactly like a
  * wishlist-only row — it opens its drawer by IGDB id (`_wlOnly` + `_igdbId`) and pulls its
- * trailer / HowLongToBeat from /api/wishlist/meta on demand (that endpoint is keyed on the
+ * trailer / HowLongToBeat from /api/games/meta on demand (that endpoint is keyed on the
  * igdb id, not on anything wishlist-specific).
  *
  * TWO VOICES behind the ranking, unchanged from before:
@@ -26,7 +26,7 @@
 const recsState = { page: 1 };          // legacy holder; the real row state is tabState.recs
 let _recsBusy = false;                   // catalogue fetch in flight
 let _recsSheetEpoch = -1;                // the enrichment epoch DATA.sheets.recs was built for
-const RECS_META = {};                    // igdbId -> per-game meta (video/hltb/platforms) from /api/wishlist/meta
+const RECS_META = {};                    // igdbId -> per-game meta (video/hltb/platforms) from /api/games/meta
 const _recsMetaFetched = new Set();      // igdbIds we've already requested meta for
 let _recsMetaBusy = false;
 
@@ -170,7 +170,7 @@ function mergeRecsMeta() {
 
 // Fetch per-game meta for the rows on screen (called from renderTable after paint). The
 // catalogue payload has covers + tags but no trailer / HLTB / platform — those come from the
-// same /api/wishlist/meta the Wishlist tab uses, one page's worth at a time (25k games can't
+// same /api/games/meta the Wishlist tab uses, one page's worth at a time (25k games can't
 // all be fetched). One repaint per page's first meta load, then it's cached.
 async function loadRecsMeta(pageRows) {
   const need = pageRows.map((r) => r && r._igdbId).filter((id) => id && !_recsMetaFetched.has(id));
@@ -181,7 +181,7 @@ async function loadRecsMeta(pageRows) {
     for (let i = 0; i < need.length; i += 200) {
       const batch = need.slice(i, i + 200);
       let j = null;
-      try { const r = await fetch("api/wishlist/meta?ids=" + batch.join(",")); if (r.ok) j = await r.json(); } catch (_) {}
+      try { const r = await fetch("api/games/meta?ids=" + batch.join(",")); if (r.ok) j = await r.json(); } catch (_) {}
       if (!j) continue;
       const items = j.items || {};
       for (const id of batch) RECS_META[id] = items[id] || null;

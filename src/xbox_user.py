@@ -29,7 +29,7 @@ import logging
 
 import requests
 
-from igdb import RateLimiter
+from ratelimiter import RateLimiter
 
 log = logging.getLogger("gamedex.xbox_user")
 

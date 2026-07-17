@@ -23,6 +23,7 @@ import requests
 
 from excel_game import ExcelGame, ExcelPlatform
 from match_validator import MatchValidator
+from ratelimiter import RateLimiter
 
 log = logging.getLogger("gamedex.igdb")
 
@@ -122,23 +123,6 @@ def platform_from_str(value):
         return ExcelPlatform(value)
     except ValueError:
         return None
-
-
-class RateLimiter:
-    """Allow at most `rate` calls per second (monotonic spacing)."""
-
-    def __init__(self, rate: int = 4):
-        self._min_gap = 1.0 / rate
-        self._lock = threading.Lock()
-        self._next = 0.0
-
-    def wait(self):
-        with self._lock:
-            now = time.monotonic()
-            if now < self._next:
-                time.sleep(self._next - now)
-                now = time.monotonic()
-            self._next = now + self._min_gap
 
 
 class IgdbClient:

@@ -37,7 +37,7 @@ import time
 
 import requests
 
-from igdb import RateLimiter
+from ratelimiter import RateLimiter
 from match_validator import MatchValidator
 
 log = logging.getLogger("gamedex.psn_user")

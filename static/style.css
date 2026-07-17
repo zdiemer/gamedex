@@ -2292,29 +2292,35 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 .tl-year-head .muted { font-size: 12.5px; }
 
 /* Jump-nav: a FLOATING vertical rail pinned to the right of the viewport, so it's always
-   reachable mid-scroll (bounce between buckets from anywhere). Scrolls internally when there
-   are more buckets than fit; the active chip is kept centred as you scroll. */
+   reachable mid-scroll (bounce between buckets from anywhere). Deliberately quiet — no panel
+   chrome, just a faint blur behind muted labels — so it reads as a guide, not a widget.
+   Scrolls internally when there are more buckets than fit; the active chip stays centred. */
 .tl-rail {
-  position: fixed; right: 8px; top: 50%; transform: translateY(-50%); z-index: 15;
-  max-height: 82vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
-  display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 14px;
-  background: color-mix(in srgb, var(--surface) 84%, transparent); backdrop-filter: blur(8px);
-  border: 1px solid var(--border); box-shadow: var(--sh-2);
+  position: fixed; right: 10px; z-index: 15;
+  /* Live in the band BELOW the sticky toolbar (view toggle + sort) so it never overlaps it;
+     `top` clears topbar + tabs + tools, and margin:auto centres a short list within the band. */
+  top: 160px; bottom: 24px; height: fit-content; max-height: calc(100vh - 184px);
+  margin-block: auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 52%, transparent); backdrop-filter: blur(6px);
 }
 .tl-rail::-webkit-scrollbar { display: none; }
 .tl-rail-chip {
   flex: 0 0 auto; font: 600 11px/1 var(--font); color: var(--muted); white-space: nowrap;
-  background: transparent; border: 0; border-radius: 8px; padding: 6px 9px; cursor: pointer;
-  text-align: right; max-width: 148px; overflow: hidden; text-overflow: ellipsis;
-  transition: color .12s, background .12s;
+  background: transparent; border: 0; border-radius: 7px; padding: 5px 10px; cursor: pointer;
+  /* Centre, not right-align: the numeric years then form a tidy column instead of being shoved
+     over by the wider "Undated" chip. */
+  text-align: center; min-width: 42px; max-width: 132px; overflow: hidden; text-overflow: ellipsis;
+  opacity: .7; transition: color .12s, background .12s, opacity .12s;
 }
-.tl-rail-chip:hover { color: var(--text); background: var(--surface-2); }
-.tl-rail-chip.on { color: var(--on-accent); background: var(--accent); }
+.tl-rail-chip:hover { color: var(--text); opacity: 1; }
+.tl-rail-chip.on { color: var(--accent); opacity: 1; background: var(--accent-soft); }
 @media (max-width: 760px) {
-  /* Reserve enough on the right that the rail never sits over an entry's text/score. */
-  .timeline .tl { padding-right: 70px; }
-  .tl-rail { right: 4px; max-width: 60px; padding: 5px 4px; gap: 1px; }
-  .tl-rail-chip { max-width: 52px; padding: 6px 6px; font-size: 10px; }
+  /* Reserve enough on the right that the rail never sits over an entry's text/score. The mobile
+     header scrolls away, so the rail just floats in a viewport band. */
+  .timeline .tl { padding-right: 64px; }
+  .tl-rail { top: 72px; right: 4px; max-width: 58px; max-height: calc(100vh - 96px); padding: 4px 3px; }
+  .tl-rail-chip { min-width: 0; max-width: 50px; padding: 5px 6px; font-size: 10px; }
 }
 .tl-entry {
   display: grid; grid-template-columns: 76px 20px 1fr; align-items: start;

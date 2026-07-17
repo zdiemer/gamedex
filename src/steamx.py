@@ -22,7 +22,7 @@ import statistics
 
 import requests
 
-from igdb import RateLimiter
+from ratelimiter import RateLimiter
 
 log = logging.getLogger("gamedex.steamx")
 

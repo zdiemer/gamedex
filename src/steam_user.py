@@ -30,7 +30,7 @@ import requests
 from bs4 import BeautifulSoup
 from curl_cffi import requests as crequests
 
-from igdb import RateLimiter
+from ratelimiter import RateLimiter
 
 log = logging.getLogger("gamedex.steam_user")
 

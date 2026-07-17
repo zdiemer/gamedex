@@ -20,7 +20,6 @@ import json
 import logging
 import os
 import re
-import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -59,6 +58,7 @@ from pcgamingwiki import PcGamingWiki
 from wikidata import Wikidata
 from hltb import HltbClient
 from manuals import ManualClient
+from game_meta import GameMetaService
 from igdb import IgdbClient
 from metacritic import MetacriticClient
 from poller import DataStore
@@ -154,6 +154,11 @@ enricher = (
     Enricher(_igdb, ENRICH_DB, backfill=ENRICH_BACKFILL, secondary=_secondary, fallback=_fallback)
     if _igdb.configured else None
 )
+
+# Per-game light meta (cover/trailer/date/platforms + completion time) by IGDB id, shared by
+# the Wishlist and Recommend tabs — both list catalogue games that aren't in your library and
+# need the same lookup (see game_meta.py). The HLTB fallback is optional.
+_game_meta = GameMetaService(_igdb, _secondary.get("hltb"))
 
 # The whole IGDB games table, mirrored on the PVC (see catalogue.py). Independent of the
 # enricher: it asks "what games are there?", not "what is this row?". Off by default —
@@ -581,93 +586,27 @@ def api_shot(provider: str, id: str, user: dict | None = Depends(current_user)):
     return JSONResponse({"error": "not available"}, status_code=404)
 
 
-_wishlist_meta_cache: dict = {}
-# HLTB fallback for wishlist Estimated Time, cached apart from the IGDB record:
-# {igdb_id: {"hltbMain","hltbBest","hltbUrl"} | None}. None = a title search that
-# came back empty (a definite miss, so we never re-scrape it).
-_wishlist_hltb_cache: dict = {}
-# HLTB is a ~1/sec scrape (and can stall on rate-limit retries), so it must NEVER
-# block the response — the IGDB meta a card needs (trailer, date, genres) is
-# ready immediately and can't wait behind it. One background worker drains the
-# queue; the endpoint returns at once and reports still-missing ids as `pending`
-# for the client to re-poll (see loadWishlistMeta).
-_wishlist_hltb_busy = threading.Event()
-_WL_HLTB_BATCH = 8
-
-
-def _scrape_hltb_bg(jobs):
-    """Fill _wishlist_hltb_cache for a batch of (igdb_id, name, platform, year)."""
-    try:
-        hltb = _secondary.get("hltb")
-        for gid, name, plat, year in jobs:
-            if gid in _wishlist_hltb_cache:
-                continue
-            try:
-                d = hltb.match(name, plat, year) if hltb else None
-            except Exception:
-                d = None
-            _wishlist_hltb_cache[gid] = (
-                {"hltbMain": d.get("main"), "hltbBest": d.get("best"), "hltbUrl": d.get("url")}
-                if d else None)
-    finally:
-        _wishlist_hltb_busy.clear()
-
-
-@app.get("/api/wishlist/meta")
-def api_wishlist_meta(ids: str):
-    """{igdb_id: {name, cover, video, year, release, platforms, …predict fields}}
-    for wishlist cards — the IGDB light fields (trailer, date, platforms) plus the
-    subset the taste model regresses on, and a completion time for the Estimated
-    Time sort.
-
-    That time is IGDB's own game_time_to_beats where it has one (games_light adds
-    it); where it doesn't, an HLTB title match fills it — but HLTB is slow, so it
-    runs in a background thread and this returns the IGDB meta right away, listing
-    the ids whose time is still resolving under `pending` for the client to
-    re-poll. The IGDB meta never waits on HLTB."""
+def _games_meta(ids: str):
+    """{igdb_id: {name, cover, video, year, release, platforms, …predict fields}} for
+    catalogue-game cards — the IGDB light fields (trailer, date, platforms) plus the
+    subset the taste model regresses on, and a completion time for the Estimated Time
+    sort. Shared by the Wishlist and Recommend tabs (see game_meta.GameMetaService)."""
     if not enricher:
         return {"items": {}, "pending": []}
     want = [int(x) for x in ids.split(",") if x.strip().isdigit()]
-    missing = [i for i in want if i not in _wishlist_meta_cache]
-    if missing:
-        try:
-            for gid, meta in _igdb.games_light(missing).items():
-                _wishlist_meta_cache[gid] = meta
-        except Exception:
-            pass
-        for i in missing:                       # negative-cache misses too
-            _wishlist_meta_cache.setdefault(i, None)
+    return _game_meta.fetch(want)
 
-    # Which records still need a completion time (IGDB had none, HLTB not yet
-    # tried). Queue them for the background worker; report them as pending.
-    hltb = _secondary.get("hltb")
-    jobs, pending = [], []
-    for i in want:
-        rec = _wishlist_meta_cache.get(i)
-        if not rec or rec.get("hltbBest") is not None or i in _wishlist_hltb_cache:
-            continue
-        if not hltb or not rec.get("name"):
-            _wishlist_hltb_cache[i] = None      # nothing to search on → definite miss
-            continue
-        pending.append(i)
-        plats = rec.get("platforms") or []
-        jobs.append((i, rec["name"], plats[0] if plats else None, rec.get("year")))
-    # Kick the worker if it's idle. One at a time — HLTB's own rate limiter would
-    # serialise concurrent scrapes anyway, and this keeps the queue orderly.
-    if jobs and not _wishlist_hltb_busy.is_set():
-        _wishlist_hltb_busy.set()
-        threading.Thread(target=_scrape_hltb_bg, args=(jobs[:_WL_HLTB_BATCH],),
-                         daemon=True).start()
 
-    def merged(i):
-        rec = dict(_wishlist_meta_cache[i])
-        h = _wishlist_hltb_cache.get(i)
-        if h and rec.get("hltbBest") is None:
-            rec.update(h)
-        return rec
+@app.get("/api/games/meta")
+def api_games_meta(ids: str):
+    return _games_meta(ids)
 
-    return {"items": {str(i): merged(i) for i in want if _wishlist_meta_cache.get(i)},
-            "pending": [str(i) for i in pending]}
+
+# Legacy path — the Wishlist and Recommend tabs both used to fetch through here before the
+# service was generalised. Kept as an alias so an in-flight (cached) client still resolves.
+@app.get("/api/wishlist/meta")
+def api_wishlist_meta(ids: str):
+    return _games_meta(ids)
 
 
 class WishlistMatch(BaseModel):
@@ -695,7 +634,7 @@ def api_wishlist_match(body: WishlistMatch, user: dict = Depends(require_admin))
         raise HTTPException(status_code=404, detail="no IGDB game at that URL")
     igdb_id = rec["id"]
     light = _igdb.games_light([igdb_id]).get(igdb_id) or {}
-    _wishlist_meta_cache[igdb_id] = light
+    _game_meta.prime(igdb_id, light)
     PLATDB.set_wishlist_match(body.provider, body.appId, None, igdb_id,
                               cover=light.get("cover"), name=rec.get("name"))
     return {"status": "matched", "igdbId": igdb_id, "name": rec.get("name")}

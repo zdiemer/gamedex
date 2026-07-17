@@ -136,13 +136,26 @@ and any decisions made along the way.
       `renderAll()`'d; the covers are stable catalogue art and the hover reads video/shots live,
       so both now `patchEnrichedCells()` in place. `recs.js`, `panels.js`.
 
-## Code-health cleanups (tracked, NOT started — do not work on these yet)
+## Code-health cleanups — shipped in 1.58.32
 
-- [ ] **Extract the rate limiter out of `igdb.py`** into its own module — it's a general
-      concern, not IGDB-specific.
-- [ ] **Extract the IGDB API out of `/api/wishlist`** into a general-purpose service used by
-      BOTH Wishlist and Recommend (`games_light` / `/api/wishlist/meta` are currently
-      wishlist-named but recs reuses them). Rectify this coupling in general.
+- [x] **Extract the rate limiter out of `igdb.py`** — the monotonic-spacing `RateLimiter` was
+      a general concern living in `igdb.py` that 22 unrelated modules imported `from igdb`
+      (HLTB, Metacritic, every storefront/achievement scraper, every platform-account client).
+      Moved it to its own `ratelimiter.py`; `igdb.py` now imports it like everyone else, and all
+      22 importers point at the new module. No behaviour change (verified: identical class, all
+      modules compile + import clean, fractional rates still work). `src/ratelimiter.py` (new),
+      `src/igdb.py`, + 22 client modules.
+- [x] **Extract the IGDB meta API out of `/api/wishlist`** — the per-id light-meta fetch
+      (IGDB `games_light` + HLTB completion-time fallback + the two process-wide caches + the
+      background HLTB worker + pending/re-poll) lived inline in `api_wishlist_meta`, but it's not
+      wishlist-specific — Recommend hit the exact same endpoint. Extracted it into
+      `game_meta.GameMetaService` (owns the caches, `fetch()`/`prime()`), instantiated once and
+      shared, so a game looked up for one tab is warm for the other. New general `/api/games/meta`
+      endpoint; `/api/wishlist/meta` kept as a thin alias for in-flight cached clients; the
+      wishlist match-by-hand seeds the shared cache via `prime()`. Frontend (`recs.js`,
+      `wishlist.js`) now calls `/api/games/meta`. Verified locally against real IGDB ids: both
+      endpoints return the same shape, HLTB pending/re-poll intact. `src/game_meta.py` (new),
+      `src/app.py`, `static/recs.js`, `static/wishlist.js`.
 
 ## Shipped in 1.58.25 (shelf, verified with local screenshots)
 

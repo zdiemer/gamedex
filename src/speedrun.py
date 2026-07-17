@@ -15,7 +15,8 @@ import logging
 import requests
 
 from excel_game import ExcelGame
-from igdb import RateLimiter, platform_from_str
+from igdb import platform_from_str
+from ratelimiter import RateLimiter
 from match_validator import MatchValidator
 
 log = logging.getLogger("gamedex.speedrun")

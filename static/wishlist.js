@@ -51,7 +51,7 @@ async function loadWishlistMeta(round = 0) {
     // few-thousand-game wishlist is ~8 round-trips, not 16.
     for (let i = 0; i < need.length; i += 400) {
       const batch = need.slice(i, i + 400);
-      const r = await fetch("api/wishlist/meta?ids=" + batch.join(","));
+      const r = await fetch("api/games/meta?ids=" + batch.join(","));
       if (!r.ok) continue;
       const j = await r.json();
       const items = j.items || {};
