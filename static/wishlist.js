@@ -299,12 +299,33 @@ function buildWishlistSheet() {
     if (m) {
       if (m.video && !rec.video) rec.video = m.video;
       if (m.cover && !rec.cover) rec.cover = m.cover;
+      // The taste model's catalogue scope (predict.js SCOPES.igdb) regresses on
+      // exactly these IGDB fields. Merging them onto the record — the same one
+      // igdbRecOf(row) returns — gives a wishlist card the features a
+      // Recommendations card has, so the Predicted score varies by game instead
+      // of resting on "platform = PC" alone. Fields the model reads off the
+      // record: the tag arrays, the companies/franchises, and the two outside
+      // opinions with their vote counts.
+      for (const f of ["genres", "themes", "gameModes", "perspectives",
+                       "developers", "publishers", "franchises", "keywords",
+                       "engines", "criticRating", "criticCount",
+                       "userRating", "userRatingCount"]) {
+        if (m[f] != null && rec[f] == null) rec[f] = m[f];
+      }
     }
     // Platform on a wishlist card is the storefront's platform (a Steam wish is
     // a PC game); the release date and genre come from IGDB.
     const plat = e.appIds.steam ? "PC" : (m && m.platforms && m.platforms[0]) || null;
     return stampPrice({
       title: e.name, wishlistedOn: on, _k: k, _wlOnly: true, _igdbId: e.igdbId || null,
+      // A wishlisted game isn't on the sheet — it's a catalogue game, so it
+      // predicts through the catalogue scope. `_igdb` both flips predict.js's
+      // scopeFor to SCOPES.igdb and is the record igdbRecOf reads its tags and
+      // opinions from; `rec` is a superset (card cover/stores + predict fields),
+      // and the model ignores the fields it doesn't want. Empty until the async
+      // meta merge above fills it, at which point loadWishlistMeta rebuilds this
+      // sheet and the prediction recomputes off real features.
+      _igdb: rec,
       _wlAppIds: e.appIds,     // {provider: appId} — lets the drawer remap this item
       platform: plat,
       releaseYear: m ? m.year : null,

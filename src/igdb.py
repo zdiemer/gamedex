@@ -430,9 +430,18 @@ class IgdbClient:
         return res[0] if res else None
 
     def games_light(self, igdb_ids) -> dict:
-        """{igdb_id: {cover, video, year, release, platforms}} for a batch of ids
-        — the light fields a wishlist card needs (cover, a trailer to autoplay,
-        the release date, the platforms) without a full detail fetch each."""
+        """{igdb_id: {cover, video, year, release, platforms, genres, summary, …}}
+        for a batch of ids — the light card fields (cover, a trailer to autoplay,
+        the release date, the platforms) without a full detail fetch each, PLUS
+        the fields the taste model's catalogue scope regresses on: the tag arrays
+        (themes/modes/perspectives/keywords/engines), the companies and
+        franchises, and IGDB's two outside opinions with their vote counts.
+
+        That predict subset is why a wishlist card can carry a Predicted score
+        that varies by game: a wishlisted game isn't on the sheet, so its only
+        features are the ones IGDB knows — exactly what `predict.js`'s `igdb`
+        scope is fitted on. Ratings are divided by 100 to the 0-1 scale the model
+        (and the catalogue) uses; everything else mirrors enrichment_from_result."""
         ids = [int(i) for i in igdb_ids if str(i).strip().isdigit()]
         out: dict = {}
         for i in range(0, len(ids), 400):
@@ -441,7 +450,12 @@ class IgdbClient:
                 rows = self._post(
                     "games",
                     "fields id,name,cover.image_id,first_release_date,"
-                    "videos.video_id,platforms.name,genres.name,summary;"
+                    "videos.video_id,platforms.name,summary,"
+                    "genres.name,themes.name,game_modes.name,player_perspectives.name,"
+                    "keywords.name,game_engines.name,franchises.name,franchise.name,"
+                    "involved_companies.company.name,involved_companies.developer,"
+                    "involved_companies.publisher,"
+                    "aggregated_rating,aggregated_rating_count,rating,rating_count;"
                     f" where id = ({','.join(map(str, chunk))}); limit {len(chunk)};")
             except Exception as exc:
                 log.debug("games_light chunk failed: %s", exc)
@@ -457,12 +471,34 @@ class IgdbClient:
                     dt = datetime.fromtimestamp(rel, timezone.utc)
                     iso, year = dt.strftime("%Y-%m-%d"), dt.year
                 vids = g.get("videos") or []
+                devs, pubs = [], []
+                for ic in g.get("involved_companies") or []:
+                    nm = (ic.get("company") or {}).get("name")
+                    if not nm:
+                        continue
+                    if ic.get("developer"):
+                        devs.append(nm)
+                    if ic.get("publisher"):
+                        pubs.append(nm)
+                crit, usr = g.get("aggregated_rating"), g.get("rating")
                 out[gid] = {
                     "cover": (g.get("cover") or {}).get("image_id"),
                     "video": (vids[0].get("video_id") if vids else None),
                     "year": year, "release": iso,
                     "platforms": [p.get("name") for p in (g.get("platforms") or []) if p.get("name")],
                     "genres": [x.get("name") for x in (g.get("genres") or []) if x.get("name")],
+                    "themes": [x.get("name") for x in (g.get("themes") or []) if x.get("name")],
+                    "gameModes": [x.get("name") for x in (g.get("game_modes") or []) if x.get("name")],
+                    "perspectives": [x.get("name") for x in (g.get("player_perspectives") or []) if x.get("name")],
+                    "keywords": self._keywords_of(g),
+                    "engines": self._engines_of(g),
+                    "developers": sorted(set(devs)),
+                    "publishers": sorted(set(pubs)),
+                    "franchises": self._franchises_of(g),
+                    "criticRating": round(crit / 100, 4) if crit is not None else None,
+                    "criticCount": g.get("aggregated_rating_count"),
+                    "userRating": round(usr / 100, 4) if usr is not None else None,
+                    "userRatingCount": g.get("rating_count"),
                     "summary": g.get("summary"),
                 }
         return out
