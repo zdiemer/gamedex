@@ -15,14 +15,15 @@ const NUMERIC_TYPES = ["rating", "hours", "number", "money", "int", "year"];
 // (Playing→On Hold→Up Next→none), then uncompleted before completed, then
 // newest release year, with newest release date (Early Access = newest) as the
 // final tiebreaker.
+// Per-tab default sort. Every default key is a real, selectable sort column, so the sort
+// menu names the actual order (no vague "Default" entry) — recs.js adds a `recScore` column
+// ("Best match") so its "best of both" default has a menu entry too.
 const DEFAULT_SORT = {
   games: [{ key: "releaseDate", kind: "releaseDateDesc", dir: "desc" }],
   completed: [{ key: "date", dir: "desc", type: "date" }],
   onOrder: [{ key: "orderedDate", dir: "desc", type: "date" }],
-  // Recommend defaults to "best of both" (the model's score lifted by the similar-games
-  // vote — recsBoth); recScore is a hidden per-row field, not a column, and "Default" in the
-  // sort menu restores it.
-  recs: [{ key: "recScore", dir: "desc", type: "number" }],
+  wishlist: [{ key: "dateAdded", dir: "desc", type: "date" }],   // newest wish first, per buildWishlistSheet
+  recs: [{ key: "recScore", dir: "desc", type: "number" }],      // "best of both" (recsBoth)
 };
 
 const PLAYING_RANK = { "Playing": 0, "On Hold": 1, "Up Next": 2 };

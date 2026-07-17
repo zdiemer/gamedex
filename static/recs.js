@@ -42,6 +42,9 @@ const REC_COLUMNS = [
   { key: "releaseYear", label: "Release Year",      type: "year",   facet: true,  search: false, sort: true,  primary: false },
   { key: "voters",      label: "Voters",            type: "int",    facet: false, search: false, sort: true,  primary: false },
   { key: "because",     label: "Because you liked", type: "text",   facet: false, search: false, sort: false, primary: false },
+  // The default sort ("best of both" — recsBoth). A sort-only column so the sort menu can name
+  // it and select it as the default, rather than a vague "Default" entry. Not shown on cards.
+  { key: "recScore",    label: "Best match",        type: "number", facet: false, search: false, sort: true,  primary: false },
 ];
 
 const recsDismissed = () => new Set(prefsLocal("dismissed"));

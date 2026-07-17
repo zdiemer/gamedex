@@ -473,13 +473,13 @@ function populateGridSort() {
     ? GAMES_SORT_MENU.map(sortMeta).filter(Boolean)
     : columns().filter((c) => c.sort).concat(VIRTUAL_SORTS.filter((v) => v.on()));
   const eff = effectiveSort();
-  const usingDefault = !(tabState[activeTab].sort && tabState[activeTab].sort.length);
-  // No "Default" entry on All Games: the default IS Release Date, so say so and
-  // select it. A menu item called "Default" tells you nothing about what you get.
-  const cur = usingDefault ? (games ? "releaseDate" : "__default") : eff[0].key;
-  sel.innerHTML = (games ? "" : `<option value="__default">Default</option>`) +
-    cols.map((c) => `<option value="${c.key}">${escapeHtml(sortLabel(c))}</option>`).join("");
-  sel.value = cols.some((c) => c.key === cur) ? cur : (games ? "releaseDate" : "__default");
+  // No "Default" entry on ANY tab: the default is always a real sort (Release Date, Completion
+  // Date, Best match…), so name it and select it. A menu item called "Default" tells you
+  // nothing about the order you'd get. effectiveSort() returns the active or the default sort,
+  // so eff[0].key is exactly what's showing.
+  const cur = eff[0].key;
+  sel.innerHTML = cols.map((c) => `<option value="${c.key}">${escapeHtml(sortLabel(c))}</option>`).join("");
+  sel.value = cols.some((c) => c.key === cur) ? cur : (cols[0] ? cols[0].key : "");
   $("#gridsortdir").textContent = eff[0].dir === "asc" ? "▲" : "▼";
   $("#gridsortdir").disabled = false;      // Release Date can be flipped like anything else
 }

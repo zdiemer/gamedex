@@ -323,8 +323,10 @@ $("#facetBackdrop").addEventListener("click", () => setFacets(false));
 $("#gridsort").addEventListener("change", (e) => {
   const st = tabState[activeTab];
   const k = e.target.value;
-  if (k === "__default" || (activeTab === "games" && k === "releaseDate")) {
-    st.sort = null;          // the default: releaseDateDesc, which ranks "Early Access" newest
+  const def = DEFAULT_SORT[activeTab];
+  if (def && def[0].key === k) {
+    st.sort = null;          // picking the tab's default column just restores the default
+                             // (e.g. games' releaseDateDesc, which ranks "Early Access" newest)
   } else {
     const c = sortMeta(k);
     st.sort = [{ key: k, dir: c && c.type === "text" ? "asc" : "desc",

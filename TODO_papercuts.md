@@ -161,6 +161,17 @@ and any decisions made along the way.
       lets the hinge swing shut before sliding the box home, instead of putting a gaping box
       back. `shelf.js`.
 
+## Shipped in 1.58.28
+
+- [x] **Drop the "Default" sort option everywhere** (new) — All Games already named its default
+      (Release Date); Completed / On Order / Wishlist / Recommend still had a vague "Default"
+      menu item. Removed it — the menu now selects the tab's real default (Completed → Date,
+      On Order → Ordered Date, Wishlist → Added Date, Recommend → "Best match"). Added a
+      `recScore` sort-only column so Recommend's "best of both" default has a menu entry, a
+      `DEFAULT_SORT.wishlist` (newest wish first), and picking a tab's default column restores
+      the default (keeping special comparators like Release Date's). `preview.js`, `chrome.js`,
+      `table.js`, `recs.js`.
+
 ## Shipped in 1.58.27
 
 - [x] **21. Shelf perf, round 2** — profiled (2,044 spines / 31 boards): layout was cheap, the
