@@ -161,6 +161,22 @@ and any decisions made along the way.
       lets the hinge swing shut before sliding the box home, instead of putting a gaping box
       back. `shelf.js`.
 
+## Shipped in 1.58.31
+
+- [x] **Deep-linkable game drawers + browser navigation** (new) — an open game now lives in the
+      URL as `?…&game=<matchkey>` (+ `&gs=<sheet>` when it's the Completed drawer, not the default
+      games sheet), so a detail view is shareable and part of history. Opening a game pushes an
+      entry (browser Back closes it, Forward reopens); navigating within the drawer (a related
+      game, a collection member) replaces in place, so the whole drawer stays one history entry
+      and Back returns to the list. A `?game=` link opened cold restores the drawer on load
+      (recs load after boot, so a rec deep-link re-resolves once its sheet is built). Esc still
+      unwinds the in-drawer stack one step at a time. popstate tells a drawer-only change from a
+      real tab change (compares the tab-level query) and skips the re-render, so Back/Forward on a
+      drawer doesn't flash or reset the list's scroll. `app.js` (syncURL/applyDrawerFromURL/
+      findRowByKey/popstate), `drawer.js` (openDrawer push-vs-replace, closeDrawer→history.back +
+      silent mode), `chrome.js`, `recs.js`. Verified locally: open→Back→Forward, ✕/Esc close,
+      cold deep-link load (grid + timeline/`gs=completed`), no dead-ends.
+
 ## Shipped in 1.58.30
 
 - [x] **Timeline: floating jump-rail** (your follow-up) — you wanted the jump-nav "always

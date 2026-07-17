@@ -346,7 +346,7 @@ $("#gridsortdir").addEventListener("click", () => {
   }
 });
 $("#drawerBack").addEventListener("click", drawerBack);
-$("#drawerClose").addEventListener("click", closeDrawer);
+$("#drawerClose").addEventListener("click", () => closeDrawer());
 $("#overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeDrawer(); });
 $("#drawerBody").addEventListener("click", (e) => {
   // "+N more" on the Tags row reveals the collapsed tail in place. Handle it before the

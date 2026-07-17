@@ -160,6 +160,10 @@ function switchTab(tab, reset) {
 
 // ---- URL state: back/forward + shareable/refreshable links ---------------
 let applyingState = false;
+let restoringDrawer = false;    // true while a drawer open/close is DRIVEN BY the URL (popstate /
+                                // first load) — openDrawer/closeDrawer then don't write history back
+let lastNavKey = "";            // the last tab-level query (sans ?game=), to tell a drawer-only
+                                // back/forward from a real tab change
 function syncURL(push) {
   if (applyingState) return;
   const p = new URLSearchParams();
@@ -190,8 +194,17 @@ function syncURL(push) {
     if (st.sort && st.sort.length) p.set("sort", st.sort.map((s) => `${s.key}:${s.dir}`).join(","));
     for (const [k, set] of Object.entries(st.facets)) if (set && set.size) p.set("f." + k, [...set].join("~"));
   }
+  // The tab-level query (everything but the open game) — remembered so a drawer-only
+  // back/forward can be told apart from a real tab change and skip the re-render.
+  lastNavKey = p.toString();
+  // An open game rides on top as ?game=<matchkey> (+ &gs=<sheet> when it isn't the default games
+  // sheet), so a detail view is shareable and lives in browser history.
+  if (typeof drawerRow !== "undefined" && drawerRow && drawerRow._k && !$("#overlay").hidden) {
+    p.set("game", drawerRow._k);
+    if (typeof drawerSheet === "string" && drawerSheet && drawerSheet !== "games") p.set("gs", drawerSheet);
+  }
   const qs = p.toString();
-  history[push ? "pushState" : "replaceState"]({}, "", qs ? "?" + qs : location.pathname);
+  history[push ? "pushState" : "replaceState"]({ drawer: p.has("game") }, "", qs ? "?" + qs : location.pathname);
 }
 function applyStateFromURL() {
   applyingState = true;
@@ -262,8 +275,52 @@ function applyStateFromURL() {
   applyingState = false;
   switchTab(tab);
 }
+// Which sheet row a ?game=<matchkey> refers to. Prefer the hinted sheet (the tab it was opened
+// from), then fall back across the rest — the same match key can live in more than one sheet.
+function findRowByKey(k, sheetHint) {
+  if (!k || !DATA || !DATA.sheets) return null;
+  const order = ["games", "completed", "wishlist", "recs"];
+  const hi = order.indexOf(sheetHint);
+  if (hi > 0) { order.splice(hi, 1); order.unshift(sheetHint); }
+  for (const s of order) {
+    const sh = DATA.sheets[s];
+    const row = sh && sh.rows && sh.rows.find((r) => r._k === k);
+    if (row) return row;
+  }
+  return null;
+}
+// The query without the open game — so popstate can tell a drawer-only change from a tab change.
+function tabQueryKey() {
+  const p = new URLSearchParams(location.search);
+  p.delete("game"); p.delete("gs");
+  return p.toString();
+}
+// Open/close/switch the drawer to match ?game= WITHOUT re-rendering the tab. restoringDrawer
+// keeps openDrawer/closeDrawer from writing history back — the URL is already the truth.
+function applyDrawerFromURL() {
+  const p = new URLSearchParams(location.search);
+  const g = p.get("game");
+  const cur = (typeof drawerRow !== "undefined" && drawerRow && !$("#overlay").hidden) ? drawerRow._k : null;
+  if (g === cur || (!g && !cur)) return;            // already matches — nothing to do
+  restoringDrawer = true;
+  try {
+    if (!g) closeDrawer();
+    else {
+      const row = findRowByKey(g, p.get("gs"));
+      if (row) openDrawer(row, p.get("gs") || undefined, false);
+      else if (cur) closeDrawer();                  // linked game not loaded (yet) — don't strand an old one
+    }
+  } finally { restoringDrawer = false; }
+  setDocTitle();
+}
+function restoreFromURL() { applyStateFromURL(); lastNavKey = tabQueryKey(); applyDrawerFromURL(); }
 const nav = () => { syncURL(true); setDocTitle(); };
-window.addEventListener("popstate", () => { applyStateFromURL(); setDocTitle(); });
+window.addEventListener("popstate", () => {
+  // A drawer-only back/forward (same tab-level query) just opens/closes the drawer — no full
+  // re-render, so the list doesn't flash or lose its scroll. A real tab change re-applies all.
+  if (tabQueryKey() === lastNavKey) applyDrawerFromURL();
+  else restoreFromURL();
+});
 
 // Reflect the current view in the browser tab / address bar — an open game reads as
 // "Chrono Trigger · Gamedex", a tab as "All Games · Gamedex", Home as just "Gamedex" —
@@ -325,7 +382,7 @@ async function load() {
   ENRICH_SOURCES = en && en.sources ? Object.keys(en.sources) : [];
   if (ENRICH_ENABLED) updateEnrichStatus(en);
   setFreshness();
-  applyStateFromURL();          // restore tab/filters/sort/view from the URL
+  restoreFromURL();             // restore tab/filters/sort/view + any deep-linked game drawer
   loadAllEnrichment();          // global covers + IGDB facets (polls during backfill)
   loadRomm();                   // which games we can actually play in the browser
   // Hours, achievements, ownership and the platform wishlist are the account owner's

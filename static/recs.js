@@ -145,6 +145,9 @@ function buildRecsSheet(force) {
   DATA.sheets.recs = { columns: REC_COLUMNS, rows };
   _recsSheetEpoch = _enrichEpoch;
   resetSearchCache();               // the rows array changed identity (see filters.js memo)
+  // Recs load after boot, so a ?game=<rec> deep link can't resolve until the sheet exists.
+  // No-op unless the URL still names a game with no drawer open (i.e. exactly that case).
+  if (typeof applyDrawerFromURL === "function") applyDrawerFromURL();
 }
 
 // Merge freshly-fetched meta into the EXISTING rows + ENRICH in place — the trailer id (for

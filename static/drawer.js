@@ -267,13 +267,31 @@ function openDrawer(row, sheetKey, keepStack) {
   $("#drawer").scrollTop = 0;
   drawerRow = row;
   if (typeof setDocTitle === "function") setDocTitle();   // "<game> · Gamedex" in the address bar
+  // Put the open game in the URL so it's shareable and part of browser history: a fresh open
+  // pushes a new entry (Back closes it); navigating within the drawer (a related game, a
+  // collection member) replaces in place, so the whole drawer stays one history entry. Skipped
+  // when the open was itself DRIVEN BY the URL (popstate / deep link) — the URL is already right.
+  if (!restoringDrawer && row._k && typeof syncURL === "function") syncURL(!keepStack);
   syncScrollLock();                       // the page behind the drawer must not scroll
   if (ENRICH_ENABLED && row._k && !row._wlOnly) loadDetail(row._k, $("#igdbDetail"), 0, row);
   else if (wlDetail) loadDetail(row._k, $("#igdbDetail"), 0, row, row._igdbId);
   if (row._k && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
 }
-function closeDrawer() {
+// silent=true just tears down the DOM without touching history — for callers that immediately
+// drive their own navigation (a facet-link jump), so we don't fight them for the URL.
+function closeDrawer(silent) {
+  // A user close (Esc / ✕ / scrim) with a drawer history entry steps Back instead, so the
+  // address bar returns to the list and Forward can reopen. The popstate then runs the real
+  // teardown (restoringDrawer). Deep-link opens have no drawer entry to pop — fall through and
+  // strip ?game= in place.
+  if (silent !== true && !restoringDrawer && !$("#overlay").hidden
+      && history.state && history.state.drawer) {
+    history.back();
+    return;
+  }
+  const wasOpen = !$("#overlay").hidden;
   $("#overlay").hidden = true; drawerStack = [];
+  if (silent !== true && !restoringDrawer && wasOpen && typeof syncURL === "function") syncURL(false);
   if (typeof setDocTitle === "function") setDocTitle();   // back to the tab's title
   // If this drawer was opened FROM attract mode, closing it hands the screen straight
   // back to the slideshow (which re-locks scroll itself) — don't also kick the tour.
@@ -320,7 +338,7 @@ function applyDrawerFacet(key, val) {
   if (!st) return;
   st.facets = { [key]: new Set([String(val)]) };
   st.search = ""; st.page = 1;
-  closeDrawer();
+  closeDrawer(true);            // silent — nav() below writes the (drawer-free) URL for this jump
   switchTab(drawerSheet);
   nav();
 }
