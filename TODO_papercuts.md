@@ -240,8 +240,10 @@ fetch on a first-ever view.
 
 ## Recommend page (`recs.js`)
 
-- [ ] **17. Bring in-line with other listing pages** — synthetic sheet, full game detail
-      drawers, IGDB metadata on cards, autoplay carousel, maybe HLTB.
+- [x] **17. Bring in-line with other listing pages** — shipped as the full sheet-backed
+      Recommend tab (see 1.58.19 / 1.58.22–24): synthetic `DATA.sheets.recs`, shared listing
+      (search / grid / table / sort / pager), full game-detail drawers with IGDB metadata,
+      hover/tour previews (video + screenshot fade), HLTB, and a predicted-score badge.
 
 ## Shelf (`shelf.js`)
 
@@ -249,10 +251,11 @@ fetch on a first-ever view.
       IntersectionObserver as they near the viewport, not ~2,000 decodes up front.
 - [x] **16. Mobile tap-then-bounce** (1.58.16) — a height-only resize (URL bar) no longer
       rebuilds the shelf and closes the just-opened box.
-- [ ] **14. Invisible inner hinge** — opening a box exposes the outside view through the
-      hinge. NEEDS VISUAL DIAGNOSIS (3D CSS).
-- [ ] **15. Black outline on box fronts/backs** — likely the model bleeding through
-      behind the art. NEEDS VISUAL DIAGNOSIS (3D CSS).
+- [x] **14. Invisible inner hinge** — fixed in 1.58.25/1.58.26 (see "Shipped in 1.58.25"):
+      full-depth interior walls + `.sh-case.open .f-left { backface-visibility: visible }` so the
+      spine survives when the box opens.
+- [x] **15. Black outline on box fronts/backs** — fixed in 1.58.25 (the model bleeding through
+      behind the art; see the shelf section above).
 
 ## Notes
 
