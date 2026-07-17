@@ -207,7 +207,12 @@ function yearInReview(rows, games) {
     switchTab("completed");
     nav();
   };
-  const top = rated.slice().sort((a, b) => b.rating - a.rating).slice(0, 10);
+  // Best and worst come off the same ranking, and the worst row only gets what
+  // the best row didn't take: a thin year has no worst, rather than the same
+  // games standing under both headings.
+  const ranked = rated.slice().sort((a, b) => b.rating - a.rating);
+  const top = ranked.slice(0, 10);
+  const bottom = ranked.slice(Math.max(top.length, ranked.length - 10)).reverse();
 
   return `<section class="yr">
     <div class="yr-head">
@@ -232,6 +237,7 @@ function yearInReview(rows, games) {
     </div>
     ${statPanel(`Every day of ${y}`, heatmap(byDay, y, { onDay: showDay, tipFor: dayTip }), "wide")}
     ${statPanel(`The best of ${y}`, posterRow(top, { note: (r) => `${Math.round(r.rating * 100)}%` }), "wide")}
+    ${bottom.length ? statPanel(`The worst of ${y}`, posterRow(bottom, { note: (r) => `${Math.round(r.rating * 100)}%` }), "wide") : ""}
     ${statPanel(`What you played in ${y}`, barsH(topCounts(mine.map((r) => r.genre), 7)))}
     ${statPanel(`Where you played in ${y}`, barsH(topCounts(mine.map((r) => r.platform), 8)))}
   </section>`;
