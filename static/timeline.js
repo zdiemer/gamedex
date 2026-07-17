@@ -113,7 +113,10 @@ function patchTimelineCovers() {
     const cs = coverSrc(ENRICH[el.dataset.tk], "cover_big");
     if (!cs) return;
     const img = document.createElement("img");
-    img.className = "tl-cover"; img.loading = "lazy"; img.alt = ""; img.src = cs;
+    // Keep .tl-open — this img REPLACES a placeholder, and without the class the delegated
+    // click handler wouldn't open the drawer, so a cover that filled in after first paint
+    // silently stopped being clickable. (That's the "sometimes not clickable" bug.)
+    img.className = "tl-cover tl-open"; img.loading = "lazy"; img.alt = ""; img.src = cs;
     ph.replaceWith(img);
   });
 }
@@ -160,42 +163,54 @@ function renderTimeline(rows) {
     </section>`;
   }).join("");
 
-  // Jump-nav: a sticky, horizontally-scrollable strip of the bucket labels — a 1,700-item
-  // scroll is a long way to drag, and now that the buckets change with the sort it's the only
-  // quick way around. Only when there's more than one bucket to jump between.
-  const nav = buckets.length > 1
-    ? `<nav class="tl-nav" aria-label="Jump to a section">${buckets.map((bk, bi) =>
-        `<button class="tl-nav-chip" type="button" data-tlb="${bi}">${escapeHtml(String(bk.label))}</button>`).join("")}</nav>`
+  // Jump-nav: a FLOATING vertical rail pinned to the right of the viewport, so it's always
+  // there — you can bounce between buckets from anywhere in a 1,700-item scroll, not just from
+  // the top. Only when there's more than one bucket to jump between.
+  const rail = buckets.length > 1
+    ? `<nav class="tl-rail" aria-label="Jump to a section">${buckets.map((bk, bi) =>
+        `<button class="tl-rail-chip" type="button" data-tlb="${bi}" title="${escapeHtml(String(bk.label))} · ${bk.games.length}">${escapeHtml(String(bk.label))}</button>`).join("")}</nav>`
     : "";
 
-  host.innerHTML = nav + `<div class="tl">${sections}</div>`;
+  host.innerHTML = rail + `<div class="tl">${sections}</div>`;
 
-  host.querySelectorAll(".tl-entry").forEach((el) => {
-    const row = flat[+el.dataset.ti];
-    // Cover and title open the drawer; the review expands in place.
-    el.querySelectorAll(".tl-open").forEach((o) => o.onclick = () => { if (row) openDrawer(row, "completed"); });
-    const more = el.querySelector(".tl-more");
-    if (more) more.onclick = () => {
-      const q = el.querySelector(".tl-quote");
-      const open = el.classList.toggle("tl-expanded");
+  // Delegate clicks on the host instead of wiring each entry: covers fill in AFTER first paint
+  // (patchTimelineCovers swaps placeholder→img), and a freshly-created img never had a per-node
+  // handler — so those covers went dead. Delegation keys off the .tl-open class, which the
+  // patched img keeps, so every cover stays clickable no matter when it arrived.
+  host.onclick = (e) => {
+    const openEl = e.target.closest(".tl-open");
+    if (openEl) {
+      const entry = openEl.closest(".tl-entry");
+      const row = entry && flat[+entry.dataset.ti];
+      if (row) openDrawer(row, "completed");
+      return;
+    }
+    const moreEl = e.target.closest(".tl-more");
+    if (moreEl) {
+      const entry = moreEl.closest(".tl-entry");
+      const row = entry && flat[+entry.dataset.ti];
+      if (!row) return;
+      const q = entry.querySelector(".tl-quote");
+      const open = entry.classList.toggle("tl-expanded");
       q.textContent = open ? tlFull(row.notes) : tlSnippet(row.notes);
-      more.textContent = open ? "Show less" : "Read more";
-    };
-  });
+      moreEl.textContent = open ? "Show less" : "Read more";
+    }
+  };
 
-  // Click a chip → scroll its section under the sticky nav (scroll-margin handles the offset).
-  const chips = [...host.querySelectorAll(".tl-nav-chip")];
+  // Click a rail chip → scroll to that section (scroll-margin clears the sticky heading).
+  const chips = [...host.querySelectorAll(".tl-rail-chip")];
   chips.forEach((chip) => chip.onclick = () => {
     const sec = host.querySelector(`#tlb-${chip.dataset.tlb}`);
     if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
   });
-  // …and light the chip for whichever section is currently under the nav, keeping it in view.
+  // …and light the chip for whichever section is at the top right now, scrolling the RAIL so
+  // the active one stays in view (the rail scrolls internally when there are many buckets).
   if (chips.length) {
     // The timeline scrolls INSIDE #timeline on desktop (overflow-y:auto) but the PAGE scrolls
     // on mobile (overflow:visible) — observe against whichever is actually the scroller, or the
     // ratios are wrong (that's why the active chip stuck on the first bucket).
     const root = (getComputedStyle(host).overflowY !== "visible" && host.scrollHeight > host.clientHeight + 4) ? host : null;
-    const nav = host.querySelector(".tl-nav");
+    const rail = host.querySelector(".tl-rail");
     const visible = new Set();
     let activeBi = -1;
     const spy = new IntersectionObserver((es) => {
@@ -204,13 +219,13 @@ function renderTimeline(rows) {
         if (e.isIntersecting) visible.add(bi); else visible.delete(bi);
       }
       if (!visible.size) return;
-      const bi = Math.min(...visible);              // the topmost section under the nav
+      const bi = Math.min(...visible);              // the topmost section on screen
       if (bi === activeBi) return;
       activeBi = bi;
       chips.forEach((c) => c.classList.toggle("on", +c.dataset.tlb === bi));
       const chip = chips[bi];
-      if (chip && nav) nav.scrollTo({ left: chip.offsetLeft - nav.clientWidth / 2 + chip.offsetWidth / 2, behavior: "smooth" });
-    }, { root, rootMargin: "-88px 0px -72% 0px", threshold: 0 });   // band below the nav + sticky heading
+      if (chip && rail) rail.scrollTo({ top: chip.offsetTop - rail.clientHeight / 2 + chip.offsetHeight / 2, behavior: "smooth" });
+    }, { root, rootMargin: "-8% 0px -80% 0px", threshold: 0 });
     host.querySelectorAll(".tl-year").forEach((s) => spy.observe(s));
   }
 

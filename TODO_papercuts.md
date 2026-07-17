@@ -161,6 +161,22 @@ and any decisions made along the way.
       lets the hinge swing shut before sliding the box home, instead of putting a gaping box
       back. `shelf.js`.
 
+## Shipped in 1.58.30
+
+- [x] **Timeline: floating jump-rail** (your follow-up) — you wanted the jump-nav "always
+      available (floating menu) so that during scroll it's possible to bounce," not a strip that
+      scrolls away. Rebuilt it as a `position:fixed` vertical rail pinned to the right edge of
+      the viewport, vertically centred, always on screen. Click a chip to jump; the active bucket
+      lights up and the rail scrolls internally to keep it in view. `position:fixed` sidesteps the
+      mobile-sticky problem (body `overflow:auto` but html actually scrolls). Mobile rail narrowed
+      to 60px with the timeline padded clear of it (verified no overlap). `timeline.js`, `style.css`.
+- [x] **Timeline: covers sometimes not clickable** (bug) — a cover that filled in AFTER first
+      paint went dead: `patchTimelineCovers` swapped the placeholder for a fresh `<img>` that had
+      neither the `.tl-open` class nor a click handler. Fixed by (a) keeping `.tl-open` on the
+      patched img and (b) switching entry clicks to event delegation on the host, so clickability
+      keys off the class and survives any later DOM swap. Verified locally (cover click opens the
+      drawer). `timeline.js`.
+
 ## Shipped in 1.58.29
 
 - [x] **Timeline: sort → buckets** (new) — the timeline was hardcoded to date→year and ignored
