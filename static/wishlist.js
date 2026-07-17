@@ -59,9 +59,11 @@ async function loadWishlistMeta(round = 0) {
     // round in between would call stopPreview()/rebuild the whole grid each time,
     // which restarts the hover-autoplay tour so no trailer ever gets to play.
     _wlPending = pending;
-    const willRetry = pending.size && round < 12;
+    // The est-time backfill now resolves server-side in the background, so each
+    // poll is a cheap instant response — poll patiently until the queue drains.
+    const willRetry = pending.size && round < 40;
     if ((round === 0 || !willRetry) && activeTab === "wishlist") renderAll();
-    if (willRetry) setTimeout(() => loadWishlistMeta(round + 1), 1500);
+    if (willRetry) setTimeout(() => loadWishlistMeta(round + 1), 2000);
   } finally { _wlMetaBusy = false; }
 }
 

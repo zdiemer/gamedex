@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -575,9 +576,31 @@ _wishlist_meta_cache: dict = {}
 # {igdb_id: {"hltbMain","hltbBest","hltbUrl"} | None}. None = a title search that
 # came back empty (a definite miss, so we never re-scrape it).
 _wishlist_hltb_cache: dict = {}
-# HLTB is a ~1/sec scrape, so a single request only fills a handful; the client
-# re-polls the ids we report as `pending` until they resolve (see loadWishlistMeta).
-_WL_HLTB_BUDGET = 8
+# HLTB is a ~1/sec scrape (and can stall on rate-limit retries), so it must NEVER
+# block the response — the IGDB meta a card needs (trailer, date, genres) is
+# ready immediately and can't wait behind it. One background worker drains the
+# queue; the endpoint returns at once and reports still-missing ids as `pending`
+# for the client to re-poll (see loadWishlistMeta).
+_wishlist_hltb_busy = threading.Event()
+_WL_HLTB_BATCH = 8
+
+
+def _scrape_hltb_bg(jobs):
+    """Fill _wishlist_hltb_cache for a batch of (igdb_id, name, platform, year)."""
+    try:
+        hltb = _secondary.get("hltb")
+        for gid, name, plat, year in jobs:
+            if gid in _wishlist_hltb_cache:
+                continue
+            try:
+                d = hltb.match(name, plat, year) if hltb else None
+            except Exception:
+                d = None
+            _wishlist_hltb_cache[gid] = (
+                {"hltbMain": d.get("main"), "hltbBest": d.get("best"), "hltbUrl": d.get("url")}
+                if d else None)
+    finally:
+        _wishlist_hltb_busy.clear()
 
 
 @app.get("/api/wishlist/meta")
@@ -588,11 +611,10 @@ def api_wishlist_meta(ids: str):
     Time sort.
 
     That time is IGDB's own game_time_to_beats where it has one (games_light adds
-    it); where it doesn't, we fall back to an HLTB title match — the same source
-    the sheet uses, just reached by name because a wishlisted game has no sheet
-    row to key on. HLTB is rate-limited, so each call resolves at most
-    `_WL_HLTB_BUDGET` new lookups and returns the rest under `pending` for the
-    client to ask about again."""
+    it); where it doesn't, an HLTB title match fills it — but HLTB is slow, so it
+    runs in a background thread and this returns the IGDB meta right away, listing
+    the ids whose time is still resolving under `pending` for the client to
+    re-poll. The IGDB meta never waits on HLTB."""
     if not enricher:
         return {"items": {}, "pending": []}
     want = [int(x) for x in ids.split(",") if x.strip().isdigit()]
@@ -606,11 +628,10 @@ def api_wishlist_meta(ids: str):
         for i in missing:                       # negative-cache misses too
             _wishlist_meta_cache.setdefault(i, None)
 
-    # Fill the completion-time gap from HLTB, budget-limited. A record that
-    # already has hltbBest (IGDB had a time-to-beat) needs nothing.
+    # Which records still need a completion time (IGDB had none, HLTB not yet
+    # tried). Queue them for the background worker; report them as pending.
     hltb = _secondary.get("hltb")
-    pending: list[int] = []
-    spent = 0
+    jobs, pending = [], []
     for i in want:
         rec = _wishlist_meta_cache.get(i)
         if not rec or rec.get("hltbBest") is not None or i in _wishlist_hltb_cache:
@@ -618,18 +639,15 @@ def api_wishlist_meta(ids: str):
         if not hltb or not rec.get("name"):
             _wishlist_hltb_cache[i] = None      # nothing to search on → definite miss
             continue
-        if spent >= _WL_HLTB_BUDGET:
-            pending.append(i)                   # deferred to a later poll
-            continue
-        spent += 1
-        try:
-            plats = rec.get("platforms") or []
-            d = hltb.match(rec["name"], plats[0] if plats else None, rec.get("year"))
-        except Exception:
-            d = None
-        _wishlist_hltb_cache[i] = (
-            {"hltbMain": d.get("main"), "hltbBest": d.get("best"), "hltbUrl": d.get("url")}
-            if d else None)
+        pending.append(i)
+        plats = rec.get("platforms") or []
+        jobs.append((i, rec["name"], plats[0] if plats else None, rec.get("year")))
+    # Kick the worker if it's idle. One at a time — HLTB's own rate limiter would
+    # serialise concurrent scrapes anyway, and this keeps the queue orderly.
+    if jobs and not _wishlist_hltb_busy.is_set():
+        _wishlist_hltb_busy.set()
+        threading.Thread(target=_scrape_hltb_bg, args=(jobs[:_WL_HLTB_BATCH],),
+                         daemon=True).start()
 
     def merged(i):
         rec = dict(_wishlist_meta_cache[i])
