@@ -105,6 +105,11 @@ const WL_COLUMNS = [
   { key: "platform", label: "Platform", type: "text", facet: true, search: false, sort: true, primary: true },
   { key: "wishlistedOn", label: "Wishlisted On", type: "text", facet: true, search: false, sort: true, primary: true },
   { key: "genre", label: "Genre", type: "text", facet: true, search: true, sort: true, primary: true },
+  // ITAD price columns (Steam wishlist). `price` sorts cheapest-first; `discount`
+  // sorts biggest-cut-first; `deal` facets on sale / at-all-time-low / full price.
+  { key: "price", label: "Price", type: "money", facet: false, search: false, sort: true, primary: true },
+  { key: "discount", label: "Discount", type: "text", facet: false, search: false, sort: true, primary: false },
+  { key: "deal", label: "Deal", type: "text", facet: true, search: false, sort: true, primary: false },
   { key: "releaseYear", label: "Release Year", type: "year", facet: true, search: false, sort: true, primary: false },
   { key: "dateAdded", label: "Date Added", type: "date", facet: false, search: false, sort: true, primary: true },
 ];
@@ -120,6 +125,27 @@ async function loadWishlist() {
 }
 
 const _wlNorm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const _money = (v, cur) => {
+  if (v == null) return "";
+  if (v === 0) return "Free";
+  const sym = { USD: "$", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[cur] || "$";
+  return sym + Number(v).toFixed(2);
+};
+
+// The price chip on a card / in the drawer: current price, the regular slashed
+// through when it's cut, the discount %, and an all-time-low star. "" for a row
+// with no price (non-Steam wishlist, or ITAD had nothing).
+function wishlistPriceHtml(row) {
+  const p = row._wlPrice;
+  if (!p || p.current == null) return "";
+  const cur = _money(p.current, p.currency);
+  const onSale = p.cut > 0 && p.regular != null;
+  const reg = onSale ? `<s>${escapeHtml(_money(p.regular, p.currency))}</s>` : "";
+  const cut = onSale ? `<b class="wl-cut">−${p.cut}%</b>` : "";
+  const low = p.atLow ? `<span class="wl-low" title="At its lowest price ever">★ low</span>` : "";
+  return ` · <span class="wl-price${p.atLow ? " atlow" : ""}">${reg}<b>${escapeHtml(cur)}</b>${cut}${low}</span>`;
+}
 
 /* Merge the three sources into row objects and install DATA.sheets.wishlist.
    Cheap (hundreds of rows), so it just re-runs whenever either input changes:
@@ -169,7 +195,27 @@ function buildWishlistSheet() {
     e.appIds[w.provider] = w.appId;
     if (w.addedAt && (!e.addedAt || w.addedAt > e.addedAt)) e.addedAt = w.addedAt;
     if (!e.name || /^App \d+$/.test(e.name)) e.name = w.name || e.name;
+    // ITAD price rides along on the Steam entry (the console networks have none).
+    if (w.price && (w.price.current != null || w.price.low != null)) e.price = w.price;
   }
+
+  // Stamp the price/discount/deal columns (and _wlPrice for the card) from an
+  // entry's ITAD data. Sortable + faceted through the normal pipeline.
+  const stampPrice = (row, e) => {
+    const p = e.price;
+    row._wlPrice = p || null;
+    row.price = p && p.current != null ? p.current : null;
+    row.discount = p && p.cut ? `-${p.cut}%` : null;
+    const deal = [];
+    if (p) {
+      if (p.atLow) deal.push("At all-time low");
+      if (p.cut > 0) deal.push("On sale");
+      else if (p.current != null) deal.push("Full price");
+      if (p.current === 0) deal.push("Free");
+    }
+    row.deal = deal;
+    return row;
+  };
 
   const rows = entries.map((e) => {
     const on = e.sources.map((s) => WL_SOURCE[s] || s);
@@ -177,7 +223,7 @@ function buildWishlistSheet() {
       // The shared sheet row IS the wishlist row — stamp the source column on
       // it (harmless on other tabs: their column lists never name it).
       e.row.wishlistedOn = on;
-      return e.row;
+      return stampPrice(e.row, e);
     }
     // A game I don't own anywhere: a synthetic row under a private `wl:` key.
     // Seeding ENRICH under that key does two jobs — the grid/hero find the
@@ -200,7 +246,7 @@ function buildWishlistSheet() {
     // Platform on a wishlist card is the storefront's platform (a Steam wish is
     // a PC game); the release date and genre come from IGDB.
     const plat = e.appIds.steam ? "PC" : (m && m.platforms && m.platforms[0]) || null;
-    return {
+    return stampPrice({
       title: e.name, wishlistedOn: on, _k: k, _wlOnly: true, _igdbId: e.igdbId || null,
       _wlAppIds: e.appIds,     // {provider: appId} — lets the drawer remap this item
       platform: plat,
@@ -208,7 +254,7 @@ function buildWishlistSheet() {
       release: m ? m.release : null,     // full ISO date; card + hero prefer it
       genre: m && m.genres ? m.genres[0] : null,
       dateAdded: e.addedAt ? String(e.addedAt).slice(0, 10) : null,
-    };
+    }, e);
   });
 
   // Newest wish first by default; undated sheet stragglers last, A→Z.

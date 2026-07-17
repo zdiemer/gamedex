@@ -61,12 +61,13 @@ _STORE_SLOT = {"steam": "steam", "psn": "playstation", "xbox": "xbox"}
 class PlatformSync:
     def __init__(self, db, providers: dict, enricher=None, catalogue=None,
                  store=None, shots_dir: Path = Path("/data/platshots"),
-                 interval: int = 21600, ach_backfill: int = 150):
+                 interval: int = 21600, ach_backfill: int = 150, itad=None):
         self._db = db
         self._providers = providers
         self._enricher = enricher
         self._catalogue = catalogue
         self._store = store
+        self._itad = itad          # ItadClient (prices), or None if no key
         self._shots_dir = shots_dir
         self._interval = interval
         self._ach_backfill = ach_backfill
@@ -311,7 +312,35 @@ class PlatformSync:
         items = client.fetch_wishlist(creds)
         self._db.replace_wishlist(provider, items)
         self._match_wishlist(provider)
+        self._price_wishlist(provider)
         return len(items)
+
+    def _price_wishlist(self, provider):
+        """Refresh ITAD prices for wishlist entries whose price is stale (>12h)
+        or never fetched. Steam only — ITAD keys off the Steam appid, and the
+        console networks have no store price to compare. Resolves the appid to
+        an ITAD id once (cached on the row), then batches the price call."""
+        if self._itad is None or not self._itad.configured or provider != "steam":
+            return
+        from datetime import datetime, timedelta, timezone
+        stale = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat(timespec="seconds")
+        todo = self._db.wishlist_for_pricing(provider, stale)
+        if not todo:
+            return
+        # Resolve any missing ITAD ids first (one lookup each, cached forever).
+        resolved = {}
+        for w in todo:
+            iid = w["itadId"] or self._itad.lookup_appid(w["appId"])
+            if iid:
+                resolved[w["appId"]] = iid
+        if not resolved:
+            return
+        prices = self._itad.prices(list(set(resolved.values())))
+        n = 0
+        for app_id, iid in resolved.items():
+            self._db.set_wishlist_price(provider, app_id, iid, prices.get(iid))
+            n += 1
+        log.info("steam wishlist prices: refreshed %d (ITAD)", n)
 
     def _sync_reviews(self, provider, client, creds) -> int:
         items = client.fetch_reviews(creds)

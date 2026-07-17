@@ -93,8 +93,21 @@ class PlatformDB:
             " provider TEXT NOT NULL, app_id TEXT NOT NULL,"
             " name TEXT, added_at TEXT, priority INTEGER, extra TEXT,"
             " match_key TEXT, igdb_id INTEGER, cover TEXT, updated_at TEXT,"
+            # ITAD price data (see itad.py): current/regular/cut, all-time low,
+            # and whether today's price is AT that low.
+            " itad_id TEXT, price_current REAL, price_regular REAL, price_cut INTEGER,"
+            " price_low REAL, price_currency TEXT, price_url TEXT, price_shop TEXT,"
+            " price_at_low INTEGER, price_updated TEXT,"
             " PRIMARY KEY(provider, app_id))"
         )
+        _wl_cols = {r[1] for r in c.execute("PRAGMA table_info(wishlist)")}
+        for col, typ in (("itad_id", "TEXT"), ("price_current", "REAL"),
+                         ("price_regular", "REAL"), ("price_cut", "INTEGER"),
+                         ("price_low", "REAL"), ("price_currency", "TEXT"),
+                         ("price_url", "TEXT"), ("price_shop", "TEXT"),
+                         ("price_at_low", "INTEGER"), ("price_updated", "TEXT")):
+            if col not in _wl_cols:
+                c.execute(f"ALTER TABLE wishlist ADD COLUMN {col} {typ}")
         c.execute(
             "CREATE TABLE IF NOT EXISTS reviews("
             " provider TEXT NOT NULL, app_id TEXT NOT NULL,"
@@ -406,24 +419,62 @@ class PlatformDB:
         return {"filePath": row[0], "sourceUrl": row[1]}
 
     # ---- wishlist --------------------------------------------------------------
+    # The match + price columns to carry across a full wishlist refresh (both
+    # are filled by separate passes and mustn't be wiped every sync).
+    _WL_KEEP = ("match_key", "igdb_id", "cover", "name", "itad_id",
+                "price_current", "price_regular", "price_cut", "price_low",
+                "price_currency", "price_url", "price_shop", "price_at_low",
+                "price_updated")
+
     def replace_wishlist(self, provider: str, items: list[dict]) -> None:
-        """Full refresh, but keep prior match columns for entries that persist —
-        matching is a separate pass and shouldn't be undone by every sync."""
+        """Full refresh, but keep the prior match AND price columns for entries
+        that persist — those come from separate passes."""
+        cols = ",".join(self._WL_KEEP)
         with self._lock:
-            old = {r[0]: r[1:] for r in self._db.execute(
-                "SELECT app_id, match_key, igdb_id, cover, name FROM wishlist"
-                " WHERE provider=?", (provider,))}
+            old = {r[0]: dict(zip(self._WL_KEEP, r[1:])) for r in self._db.execute(
+                f"SELECT app_id, {cols} FROM wishlist WHERE provider=?", (provider,))}
             self._db.execute("DELETE FROM wishlist WHERE provider=?", (provider,))
             for w in items:
                 aid = str(w["appId"])
-                prior = old.get(aid, (None, None, None, None))
+                p = old.get(aid, {})
                 self._db.execute(
                     "INSERT INTO wishlist(provider,app_id,name,added_at,priority,extra,"
-                    " match_key,igdb_id,cover,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (provider, aid, w.get("name") or prior[3], w.get("addedAt"),
+                    " match_key,igdb_id,cover,updated_at,itad_id,price_current,"
+                    " price_regular,price_cut,price_low,price_currency,price_url,"
+                    " price_shop,price_at_low,price_updated)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (provider, aid, w.get("name") or p.get("name"), w.get("addedAt"),
                      w.get("priority"),
                      json.dumps(w["extra"]) if w.get("extra") else None,
-                     prior[0], prior[1], prior[2], _now()))
+                     p.get("match_key"), p.get("igdb_id"), p.get("cover"), _now(),
+                     p.get("itad_id"), p.get("price_current"), p.get("price_regular"),
+                     p.get("price_cut"), p.get("price_low"), p.get("price_currency"),
+                     p.get("price_url"), p.get("price_shop"), p.get("price_at_low"),
+                     p.get("price_updated")))
+            self._db.commit()
+
+    def wishlist_for_pricing(self, provider: str, stale_before: str) -> list[dict]:
+        """Steam wishlist entries whose price is missing or older than
+        `stale_before` (an ISO timestamp) — the ones a price pass should refresh."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT app_id, itad_id FROM wishlist WHERE provider=?"
+                " AND (price_updated IS NULL OR price_updated < ?)",
+                (provider, stale_before)).fetchall()
+        return [{"appId": r[0], "itadId": r[1]} for r in rows]
+
+    def set_wishlist_price(self, provider: str, app_id: str, itad_id: str | None,
+                           price: dict | None) -> None:
+        p = price or {}
+        with self._lock:
+            self._db.execute(
+                "UPDATE wishlist SET itad_id=COALESCE(?,itad_id), price_current=?,"
+                " price_regular=?, price_cut=?, price_low=?, price_currency=?,"
+                " price_url=?, price_shop=?, price_at_low=?, price_updated=?"
+                " WHERE provider=? AND app_id=?",
+                (itad_id, p.get("current"), p.get("regular"), p.get("cut"),
+                 p.get("low"), p.get("currency"), p.get("url"), p.get("shop"),
+                 1 if p.get("atLow") else 0, _now(), provider, str(app_id)))
             self._db.commit()
 
     def wishlist_unmatched(self, provider: str) -> list[dict]:
@@ -449,10 +500,18 @@ class PlatformDB:
         with self._lock:
             rows = self._db.execute(
                 "SELECT provider, app_id, name, added_at, priority, match_key,"
-                " igdb_id, cover FROM wishlist").fetchall()
-        return [{"provider": r[0], "appId": r[1], "name": r[2], "addedAt": r[3],
-                 "priority": r[4], "matchKey": r[5], "igdbId": r[6], "cover": r[7]}
-                for r in rows]
+                " igdb_id, cover, price_current, price_regular, price_cut, price_low,"
+                " price_currency, price_url, price_shop, price_at_low FROM wishlist").fetchall()
+        out = []
+        for r in rows:
+            item = {"provider": r[0], "appId": r[1], "name": r[2], "addedAt": r[3],
+                    "priority": r[4], "matchKey": r[5], "igdbId": r[6], "cover": r[7]}
+            if r[8] is not None or r[11] is not None:      # has price or a known low
+                item["price"] = {"current": r[8], "regular": r[9], "cut": r[10],
+                                 "low": r[11], "currency": r[12], "url": r[13],
+                                 "shop": r[14], "atLow": bool(r[15])}
+            out.append(item)
+        return out
 
     # ---- reviews ----------------------------------------------------------------
     def replace_reviews(self, provider: str, items: list[dict]) -> None:

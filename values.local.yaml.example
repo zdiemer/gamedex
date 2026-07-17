@@ -23,6 +23,13 @@ igdb:
 gamespot:
   apiKey: ""
 
+# Optional — IsThereAnyDeal API key (free, register an app at
+# https://isthereanydeal.com/apps/) for wishlist prices, discounts and all-time
+# lows on the Wishlist tab. Off unless a key is set.
+itad:
+  apiKey: ""
+  country: "US"
+
 # Single-admin login. Seeds ONE account on first boot (when the accounts DB is
 # empty). Set a strong initial password, log in, then change it in-app — changing
 # it here afterward does nothing. Blank initialPassword = login disabled.

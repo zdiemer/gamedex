@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 import accounts as accounts_mod
 import assetcache as assetcache_mod
+import itad as itad_mod
 import picross as picross_mod
 import platformdb as platformdb_mod
 import platform_sync as platform_sync_mod
@@ -170,6 +171,10 @@ store = DataStore(
 PLATFORMS_DB = os.environ.get("PLATFORMS_DB", "/data/platforms.sqlite")
 SHOTS_DIR = Path(os.environ.get("PLATFORM_SHOTS_DIR", "/data/platshots"))
 PLATDB = platformdb_mod.PlatformDB(PLATFORMS_DB)
+# IsThereAnyDeal (see itad.py): wishlist prices + all-time lows. Service-wide
+# API key, like IGDB/GameSpot — off unless ITAD_API_KEY is set.
+_itad = itad_mod.ItadClient(os.environ.get("ITAD_API_KEY", ""),
+                            country=os.environ.get("ITAD_COUNTRY", "US"))
 PSYNC = platform_sync_mod.PlatformSync(
     PLATDB,
     providers={"steam": steam_user_mod.SteamUserClient(),
@@ -179,6 +184,7 @@ PSYNC = platform_sync_mod.PlatformSync(
     enricher=enricher, catalogue=catalogue, store=store, shots_dir=SHOTS_DIR,
     interval=int(os.environ.get("PLATFORM_SYNC_INTERVAL", "21600")),
     ach_backfill=int(os.environ.get("ACH_BACKFILL_PER_SYNC", "150")),
+    itad=(_itad if _itad.configured else None),
 )
 if enricher:
     # The appid of the copy I actually own beats IGDB's external_games guess —

@@ -2,7 +2,7 @@ image:
   # Built + pushed to GHCR by build.sh; the package is public so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: ghcr.io/zdiemer/gamedex
-  tag: "1.55.3"
+  tag: "1.56.0"
   pullPolicy: IfNotPresent
 
 service:
@@ -87,6 +87,12 @@ igdb:
 gamespot:
   apiKey: ""
   enabled: false
+
+# IsThereAnyDeal for wishlist prices + all-time lows (apiKey in values.local.yaml).
+# Free key from https://isthereanydeal.com/apps/ . Off unless a key is set.
+itad:
+  apiKey: ""
+  country: "US"
 
 # Third-party asset cache on the PVC. The UI hotlinks a large number of covers,
 # screenshots and artwork from external CDNs (IGDB, GameTDB, VNDB, ArcadeDB, the
