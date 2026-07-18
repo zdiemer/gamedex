@@ -314,9 +314,10 @@ gzip on enrichment/all). What's left:
       make it the generator with a build step; today it's a trap.
 - [ ] **Remove `/api/wishlist/meta` alias** — `app.py:610`, self-described
       one-release grace shim dated 2026-07-17; no caller left.
-- [ ] **index.html hardcodes "14,752 games catalogued, 1,707 beaten"** in the
-      meta descriptions (`index.html:20,24,32`) — will drift; template it or
-      round it.
+- [ ] **Re-run `tools/resolve_covers.py` when many new physical games land** —
+      `data/covers-resolved.json` is baked into the image and drifts slowly
+      with the library (new boxes get no real-scan wrap until it's re-run).
+      Deliberate low-churn manual step; noted here so it isn't forgotten.
 - [ ] **Split `enrich.py` (1,100-line god class)** — Enricher mixes SQLite
       persistence, queue/worker orchestration, the value-history loop, and
       ~410 lines of version-stamped one-shot backfills. Mechanical split:

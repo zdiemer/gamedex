@@ -46,6 +46,7 @@ import romm
 import steam_user as steam_user_mod
 import xbox_user as xbox_user_mod
 import gamerankings as gr_mod
+import og as og_mod
 import shelf as shelf_mod
 
 from arcadedb import ArcadeDbClient
@@ -1229,6 +1230,60 @@ def refresh(user: dict = Depends(require_admin)):
     meta = dict(store.snapshot()["meta"])
     meta["enrichment"] = enricher.stats() if enricher else {"enabled": False}
     return {"changed": changed, "meta": meta}
+
+
+# ---- the shell + social card, served with live numbers ---------------------
+# index.html's meta description bakes in "14,752 games catalogued, 1,707
+# beaten" — stats, and stats drift. Crawlers are the only readers of those
+# strings (the SPA never displays them), and crawlers fetch "/" — so serve the
+# shell through a route that substitutes the live counts, and leave the
+# checked-in numbers as the fallback for a not-yet-ready store. App users are
+# unaffected either way: the service worker precaches its own copy.
+_index_cache = {"key": None, "html": None}
+
+
+@app.get("/")
+@app.get("/index.html")
+def index_html():
+    raw = (STATIC_DIR / "index.html").read_bytes()
+    snap = store.snapshot()
+    counts = (snap.get("meta") or {}).get("counts") or {}
+    g, c = counts.get("games"), counts.get("completed")
+    if g and c:
+        key = (g, c)
+        if _index_cache["key"] != key:
+            html = re.sub(rb"[\d,]+ games catalogued",
+                          f"{g:,} games catalogued".encode(), raw)
+            html = re.sub(rb"[\d,]+ beaten", f"{c:,} beaten".encode(), html)
+            _index_cache.update(key=key, html=html)
+        raw = _index_cache["html"]
+    return Response(content=raw, media_type="text/html",
+                    headers={"Cache-Control": "no-cache"})
+
+
+# The social card itself, drawn live (src/og.py): same URL the meta tags have
+# always pointed at, so nothing else changes — this route simply outranks the
+# static file below. Rendered at most once per day per sheet revision; any
+# failure serves the checked-in card, which is a stale answer but never a
+# broken unfurl.
+_og_cache = {"key": None, "png": None}
+
+
+@app.get("/og.png")
+def og_png():
+    try:
+        snap = store.snapshot()
+        key = (snap["meta"].get("sourceHash"), time.strftime("%Y-%m-%d"))
+        if _og_cache["key"] != key:
+            light = enricher.get_all_light() if enricher else {}
+            _og_cache.update(key=key, png=og_mod.render_og(snap, light, IMG_CACHE))
+        return Response(content=_og_cache["png"], media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+    except Exception:
+        logging.getLogger("gamedex").exception("og: render failed, serving the static card")
+        return Response(content=(STATIC_DIR / "og.png").read_bytes(),
+                        media_type="image/png",
+                        headers={"Cache-Control": "no-cache"})
 
 
 class RevalidatingStatic(StaticFiles):
