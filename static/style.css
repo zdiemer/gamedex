@@ -2162,6 +2162,22 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 .hm-l4 { fill: var(--accent); }
 .hm-cell.linked { cursor: pointer; }
 .hm-cell.linked:hover { stroke: var(--text); stroke-width: 1.2; }
+/* Touch has no hover, so the only feedback a tap gets is this. */
+.hm-cell.linked:active { stroke: var(--text); stroke-width: 1.4; }
+
+/* On a phone the year was ~8px per day — a 365-cell grid squeezed into 560px, which is
+   under half a fingertip and mostly un-tappable. The wrap already scrolls horizontally
+   (a year of days does not fit a phone at any honest size, which is why GitHub's
+   contribution graph pans too), so give it the room: ~15px per day.
+
+   The text has to be pulled back by hand. The note above is right that upscaling the SVG
+   upscales its labels with it — font-size inside a viewBox is in USER units, so a 1.35x
+   blow-up made the month names bigger than the panel heading. Dividing the declared size
+   by that same 1.35 lands them back at their intended ~10px on screen. */
+@media (max-width: 760px) {
+  .heatmap { min-width: 1000px; max-width: none; }
+  .heatmap .s-axis { font-size: 7.4px; }
+}
 .hm-key { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 10.5px; color: var(--dim); }
 .hm-key .hm-cell { display: inline-block; width: 11px; height: 11px; border-radius: 2px; opacity: 1; }
 .hm-key .hm-l0 { background: var(--surface-3); }
