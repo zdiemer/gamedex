@@ -249,6 +249,9 @@ async function loadUploads() {
     if (changed) {
       _enrichEpoch++;
       if (typeof patchEnrichedCells === "function") patchEnrichedCells();
+      // patchEnrichedCells only touches the listing grid/table — the site search draws its own
+      // cards (with status chips), so refresh it in place too when its cover just changed.
+      if (activeTab === "search" && typeof renderSearch === "function") renderSearch();
       refreshDrawerCover();
     }
   } catch (_) { /* uploads are a nicety; never break the app */ }

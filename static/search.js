@@ -28,6 +28,8 @@ function searchSheetRows(sheetKey, terms) {
 // typing — the first keystrokes included — renders once, when you pause, instead of building (and
 // hover-wiring) a huge, immediately-stale set on every letter. That was the lag + flash.
 let _searchTimer = null;
+let _searchPage = 1;        // current page of results
+let _searchPageQ = "";      // the query that page belongs to — a new query resets to page 1
 function renderSearch() {
   const host = $("#searchpage");
   $("#search").value = GLOBAL_SEARCH.q;         // keep the box in sync on deep-link / back-forward
@@ -91,15 +93,18 @@ function renderSearchResults(q) {
     return;
   }
 
-  // Even after grouping, a 1–2 character query can match hundreds; render only the top slice
-  // (owned-first, so the cap keeps the answers that matter) and let a longer query narrow it.
-  const CAP = 120;
-  const shown = results.slice(0, CAP);
-  const more = results.length - shown.length;
+  // Paginate rather than capping — every match is reachable now. A new query resets to page 1;
+  // paging (or an enrichment re-render) keeps the page you were on.
+  if (q !== _searchPageQ) { _searchPage = 1; _searchPageQ = q; }
+  const per = PAGE_SIZE;
+  const pages = Math.max(1, Math.ceil(results.length / per));
+  if (_searchPage > pages) _searchPage = pages;
+  const start = (_searchPage - 1) * per;
+  const shown = results.slice(start, start + per);
   host.innerHTML =
     `<div class="search-head">
        <h2>${results.length.toLocaleString()} ${results.length === 1 ? "match" : "matches"} for “${escapeHtml(q)}”</h2>
-       <p class="muted">Across your games and open orders.${more > 0 ? ` Showing the first ${CAP} — type more to narrow.` : ""}</p>
+       <p class="muted">Across your games and open orders.</p>
      </div>`;
   const grid = document.createElement("div");
   grid.className = "grid search-grid";
@@ -140,4 +145,41 @@ function renderSearchResults(q) {
   // exactly why a 2-result search rendered narrower cards than a full one. Plain auto-fill keeps
   // every card the same width no matter how many match.
   maybeEnrich(shown.map((h) => h.row));         // warm any cover that isn't in the map yet
+  if (pages > 1) host.appendChild(searchPager(pages, q));
+}
+
+// A self-contained pager for the search page (the shared #pager is tied to the listing pipeline).
+// Reuses the .pager / .page-jump styles so it looks like the rest of the app.
+function searchPager(pages, q) {
+  const el = document.createElement("div");
+  el.className = "pager";
+  const go = (n) => {
+    _searchPage = Math.min(pages, Math.max(1, n));
+    renderSearchResults(q);
+    $("#searchpage").scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const mk = (label, page, disabled, title) => {
+    const btn = document.createElement("button");
+    btn.textContent = label; btn.disabled = disabled;
+    if (title) btn.title = title;
+    btn.onclick = () => go(page);
+    return btn;
+  };
+  el.appendChild(mk("«", 1, _searchPage <= 1, "First page"));
+  el.appendChild(mk("‹ Prev", _searchPage - 1, _searchPage <= 1));
+  const jump = document.createElement("span");
+  jump.className = "page-jump";
+  jump.innerHTML = `Page <input type="number" min="1" max="${pages}" value="${_searchPage}" aria-label="Page number"> of ${pages.toLocaleString()}`;
+  const input = jump.querySelector("input");
+  const commit = () => {
+    const n = parseInt(input.value, 10);
+    if (isFinite(n) && n !== _searchPage) go(n); else input.value = String(_searchPage);
+  };
+  input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
+  input.onblur = commit;
+  el.appendChild(jump);
+  el.appendChild(mk("Next ›", _searchPage + 1, _searchPage >= pages));
+  el.appendChild(mk("»", pages, _searchPage >= pages, "Last page"));
+  return el;
 }
