@@ -4601,3 +4601,21 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* Wishlist bundle chip/line. */
 .wl-bundle-line { font-size: 12.5px; margin-bottom: 8px; color: var(--dim); }
 .wl-bundle-chip { border-color: var(--accent-line); }
+
+/* ---- Mobile: stop iOS auto-zoom on field focus --------------------------
+   iOS Safari zooms the whole page in whenever you focus a form control whose text is under
+   16px — and every field here is, by desktop design. Bump them to the 16px threshold on small
+   screens: that alone stops the zoom, and unlike `maximum-scale=1` in the viewport tag it leaves
+   pinch-zoom (an accessibility need) working. Desktop keeps its tighter sizing.
+
+   Kept at the end of the file and matching each field's own selector so it wins purely on source
+   order — no !important, no specificity games. The bare tag catch-all covers anything unstyled. */
+@media (max-width: 760px) {
+  input, select, textarea,
+  .field input, .facet-filter,
+  .chb-row input[type="text"], .chb-row input[type="date"], .chb-row select,
+  .map-row input, .page-jump input, .auth-form input, .px-guess input,
+  .rec-bar select {
+    font-size: 16px;
+  }
+}
