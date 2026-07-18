@@ -31,6 +31,25 @@ const PRIORITY_RANK = {
 };
 const priorityRank = (v) => PRIORITY_RANK[v] ?? 0;
 
+/* Some facet values are a SCALE, not a set: listing them by count (or alphabetically)
+   throws away the only order they have. A bucketed column carries its ladder in
+   col.buckets and both the sidebar and the picker already honour it — this is the same
+   idea for the columns that are a scale without being bucketed.
+
+   orderBy turns a list into a rank function; unlisted values sort after the listed ones,
+   so a value nobody anticipated still appears rather than vanishing. */
+const orderBy = (list) => {
+  const m = new Map(list.map((v, i) => [v, i]));
+  return (k) => (m.has(k) ? m.get(k) : 1e6);
+};
+const FACET_VALUE_ORDER = {
+  // The comment on PRIORITY_RANK says alphabetical would be meaningless; count order is
+  // no better. It is a scale, so it lists as one.
+  priority: orderBy(["Must Play", "Will Play", "Want to Play", "Might Play", "Will Not Play"]),
+};
+// The rank function for a column, or null when its values have no inherent order.
+const valueOrderOf = (col) => (col && (col.vorder || FACET_VALUE_ORDER[col.key])) || null;
+
 /* One search field. There were three — the top bar, Groupings and Reviews — each
    styled separately and drifting apart. Same markup everywhere now, so the icon,
    the height, the radius and the focus ring can't disagree. */

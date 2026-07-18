@@ -276,6 +276,11 @@ function renderFacets() {
       values.sort((a, b) => (ord.get(a.key) ?? 99) - (ord.get(b.key) ?? 99));
     } else if (col.type === "bool") {
       values.sort((a, b) => (a.key === "true" ? 0 : 1) - (b.key === "true" ? 0 : 1));   // Yes before No
+    } else if (valueOrderOf(col)) {
+      // A scale rather than a set (Priority) — list it in its own order. Count would put
+      // "Might Play" above "Must Play" for no reason other than there being more of them.
+      const rank = valueOrderOf(col);
+      values.sort((a, b) => rank(a.key) - rank(b.key) || a.label.localeCompare(b.label));
     } else {
       const numeric = col.type === "year" || col.type === "int" || col.type === "number";
       // For year facets, non-numeric labels (e.g. "Early Access") sort as newest.

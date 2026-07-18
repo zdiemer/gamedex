@@ -252,12 +252,29 @@ function pickExtraFields() {
        values are literally "true"/"false" (and which chip rendering special-cases). */
     { key: "__pk_sheet", label: "In the sheet", group: "Status", kind: "fn",
       getVals: (r) => [r._cat ? PICK_NOT_SHEET : PICK_ON_SHEET] },
-    { key: "__pk_backlog", label: "Backlog status", kind: "fn", getVals: backlogTags },
-    { key: "__pk_budget", label: "Finishable in", kind: "fn", getVals: budgetTags },
-    { key: "__pk_era", label: "Era", kind: "fn", getVals: eraTags },
-    { key: "__pk_coop", label: "Co-op (Co-Optimus)", kind: "fn", getVals: coopTags },
-    { key: "__pk_added", label: "Added", group: "Ownership & price", kind: "fn", getVals: (r) => recencyTags(r.dateAdded) },
-    { key: "__pk_bought", label: "Purchased", group: "Ownership & price", kind: "fn", getVals: (r) => recencyTags(r.datePurchased) },
+    { key: "__pk_backlog", label: "Backlog status", kind: "fn", getVals: backlogTags,
+      vorder: orderBy(["Never started", "Started but unfinished"]) },
+    { key: "__pk_budget", label: "Finishable in", kind: "fn", getVals: budgetTags,
+      vorder: orderBy(TIME_BUDGETS.map((b) => b.label)) },
+    /* Recency first, then decades newest to oldest, then the two catch-alls. eraTags
+       makes decade labels on the fly ("1990s"), so they can't be listed — they're ranked
+       by the number in them, which lands them between the head and the tail. */
+    { key: "__pk_era", label: "Era", kind: "fn", getVals: eraTags,
+      vorder: (k) => {
+        if (k === "This year") return 0;
+        if (k === "Last 3 years") return 1;
+        const d = /^(\d{4})s$/.exec(k);
+        if (d) return 500 - Number(d[1]) / 10;
+        if (k === "Retro (pre-2000)") return 900;
+        if (k === "Pre-1980") return 901;
+        return 1e6;
+      } },
+    { key: "__pk_coop", label: "Co-op (Co-Optimus)", kind: "fn", getVals: coopTags,
+      vorder: orderBy(["Local / couch", "Split screen", "Online", "Drop-in / drop-out", "Full campaign"]) },
+    { key: "__pk_added", label: "Added", group: "Ownership & price", kind: "fn",
+      getVals: (r) => recencyTags(r.dateAdded), vorder: orderBy(["Last 30 days", "Last 3 months", "Last year", "Over a year ago", "Over 3 years ago"]) },
+    { key: "__pk_bought", label: "Purchased", group: "Ownership & price", kind: "fn",
+      getVals: (r) => recencyTags(r.datePurchased), vorder: orderBy(["Last 30 days", "Last 3 months", "Last year", "Over a year ago", "Over 3 years ago"]) },
     { key: "__pk_price", label: "Purchase price", group: "Ownership & price", kind: "bucket",
       buckets: autoBuckets(rows.map((r) => r.purchasePrice), usd), getVal: (r) => r.purchasePrice },
     { key: "__pk_value", label: "Market value", group: "Ownership & price", kind: "bucket",
@@ -525,13 +542,22 @@ function pickFieldValues(field, except) {
     }
   }
   const vals = [...counts.entries()].map(([key, v]) => ({ key, label: v.label, n: v.n }));
+  const rank = typeof valueOrderOf === "function" ? valueOrderOf(field) : null;
   if (field.buckets) {                       // ladders have a meaning-order, not a count-order
     const ord = new Map(field.buckets.map((b, i) => [b.label, i]));
     vals.sort((a, b) => (ord.get(a.key) ?? 99) - (ord.get(b.key) ?? 99));
+  } else if (rank) {                         // a scale without a bucket list (era, recency…)
+    vals.sort((a, b) => rank(a.key) - rank(b.key) || a.label.localeCompare(b.label));
   } else if (field.type === "year") {
-    vals.sort((a, b) => Number(b.key) - Number(a.key));
+    vals.sort((a, b) => Number(b.key) - Number(a.key));   // newest first, as everywhere else
   } else {
-    vals.sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+    /* Alphabetical, where the sidebar uses count. The sidebar is a survey — "what IS my
+       collection" — so the biggest bucket leading is the answer to the question. The
+       picker is the opposite: you arrive knowing the value you want and need to find it,
+       and hunting for "Saturn" down a list ordered by how many Saturn games you own is
+       work. The counts stay on the rows; they just stop deciding the order. */
+    vals.sort((a, b) => String(a.label).localeCompare(String(b.label), undefined,
+                                                      { numeric: true, sensitivity: "base" }));
   }
   return vals;
 }
@@ -875,8 +901,15 @@ function pickPopHtml(path) {
   if (pickPop.mode === "field") {
     const q = pickPop.q.toLowerCase();
     const hits = pickFields().filter((f) => !q || f.label.toLowerCase().includes(q));
+    /* Groups keep their hand-written order (PICK_GROUP_ORDER is a rough "how likely are
+       you to reach for this"), but WITHIN a group the fields were in catalogue order —
+       whatever sequence the sheet's columns, then IGDB's, then the computed ones happened
+       to arrive in. That's insertion order pretending to be a ranking. Alphabetical: the
+       list is for finding a field you already have in mind. Counts order the VALUES, where
+       "how many games" is real information; a field name has no such thing. */
     const groups = PICK_GROUP_ORDER
-      .map((g) => [g, hits.filter((f) => f.group === g)])
+      .map((g) => [g, hits.filter((f) => f.group === g)
+        .sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: "base" }))])
       .filter(([, fs]) => fs.length);
     return `<div class="pk-pop" tabindex="-1" data-path="${path.join(".")}">
       ${searchField("pkPopSearch", "Find a field…", pickPop.q, "field-facet")}

@@ -1021,7 +1021,11 @@ function chGroupFields() {
   const dated = ((DATA.sheets.games || {}).columns || []).filter((c) => c.type === "date" || c.type === "money");
   const named = CH_NAMED_GROUPERS.map((g) => ({ ...g, facet: true, virtual: true, enriched: false, kind: "fn" }));
   const seen = new Set();
-  return [...named, ...cols, ...dated, ...igdb, ...extra].filter((c) => !seen.has(c.key) && seen.add(c.key));
+  const all = [...named, ...cols, ...dated, ...igdb, ...extra].filter((c) => !seen.has(c.key) && seen.add(c.key));
+  /* Alphabetical. This is a flat select of forty-odd fields and the order it had was the
+     order the four sources were concatenated in — meaningless to anyone reading it, and
+     unsearchable in a <select> where you can only type-ahead by first letter. */
+  return all.sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: "base" }));
 }
 const chGroupFieldByKey = (k) => chGroupFields().find((c) => c.key === k);
 // Which reshapings make sense for a field — what the builder's second select offers.
