@@ -132,6 +132,12 @@ function renderTable(rows) {
   // (Date → years, Title → A–Z, Rating → bands …), which is why sorting there used to do nothing.
   $("#gridsortwrap").hidden = false;
   populateGridSort();
+  /* Above the timeline's early return, not below it. These describe the tab's FILTER
+     state, which every view shares — left at the bottom, the Completed timeline never
+     showed "Clear filters" for any facet at all, so a filter you arrived at by link had
+     no visible way out. That is worse now that a heatmap day can put you there. */
+  $("#clear").hidden = !(st.search || Object.keys(st.facets).length);
+  $("#resetsort").hidden = !(st.sort && st.sort.length);
   if (view === "timeline") {
     renderTimeline(rows);
     $("#count").textContent = `${rows.length.toLocaleString()} of ${sheet().rows.length.toLocaleString()} games`;
@@ -158,8 +164,6 @@ function renderTable(rows) {
   kbReset();
   renderViews();
   $("#count").textContent = `${sorted.length.toLocaleString()} of ${sheet().rows.length.toLocaleString()} games`;
-  $("#clear").hidden = !(st.search || Object.keys(st.facets).length);
-  $("#resetsort").hidden = !(st.sort && st.sort.length);
   renderPager(pages);
 }
 

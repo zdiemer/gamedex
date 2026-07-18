@@ -201,10 +201,8 @@ function yearInReview(rows, games) {
   });
   // A count tells you a day was busy; the names tell you what the day WAS.
   const dayTip = (iso, n) => tipList(`${fmtDate(iso)} — ${n} finished`, gamesByDay[iso] || []);
-  // FIXME: `iso` is ignored — clicking a day lands you on the whole Completed list rather
-  // than that day's games. It has been this way since the heatmap landed; noted here
-  // rather than guessed at, because Completed has no date facet to filter on.
-  const showDay = (iso) => goTab("completed");
+  // Land on that day in the Completed timeline, neighbours intact (timeline.js).
+  const showDay = (iso) => timelineJumpToDay(iso);
   // Best and worst come off the same ranking, and the worst row only gets what
   // the best row didn't take: a thin year has no worst, rather than the same
   // games standing under both headings.

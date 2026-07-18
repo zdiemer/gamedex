@@ -16,6 +16,27 @@ const TL_SNIPPET = 190;                     // characters of review shown inline
 // inline filter, and each run was leaving behind a scroll-spy observing ~40 year headers
 // and a fade-in observer over up to 1,700 entries, all still firing against detached nodes.
 let _tlSpy = null, _tlFade = null;
+// Set by timelineJumpToDay() and consumed by the next render — the entries don't exist
+// until renderTimeline has painted, so the request has to outlive the navigation.
+let _tlPendingDay = null;
+
+/* Jump the Completed timeline to one day (the Stats heatmap's day cells).
+
+   Filtering to the day was the other option and it's worse: you'd lose the run of games
+   around it, which is the thing a timeline is for. This lands you on the date with its
+   neighbours still there.
+
+   Forces the timeline view and the default date sort, because neither a grid nor an
+   A–Z bucketing has a place to land. Both are part of the tab's landing state anyway, so
+   a deliberate navigation was going to reset them. */
+function timelineJumpToDay(iso) {
+  _tlPendingDay = iso;
+  goTab("completed", () => {
+    const st = tabState.completed;
+    st.view = "timeline";
+    st.sort = null;              // → DEFAULT_SORT.completed, date desc (table.js)
+  });
+}
 
 function tlYearOf(r) {
   const y = String(r.date || "").slice(0, 4);
@@ -89,6 +110,7 @@ function tlEntry(r, i) {
        </div>`
     : "";
   return `<article class="tl-entry" data-tk="${escapeHtml(String(r._k || ""))}" data-ti="${i}"
+      data-td="${escapeHtml(String(r.date || "").slice(0, 10))}"
       style="--d:${Math.min(i, 12) * 45}ms">
     <div class="tl-when">
       <b>${escapeHtml(r.date ? fmtDate(r.date).replace(/,? \d{4}$/, "") : "—")}</b>
@@ -214,6 +236,21 @@ function renderTimeline(rows) {
     const sec = host.querySelector(`#tlb-${chip.dataset.tlb}`);
     if (sec) sec.scrollIntoView({ behavior: jump, block: "start" });
   });
+  // A day asked for from elsewhere (the Stats heatmap) — scroll to it once the entries exist.
+  // Same instant-on-mobile rule as the rail: this is the 1,700-entry list the comment above
+  // is about, and a smooth glide to a date three years down is exactly what crashes Safari.
+  if (_tlPendingDay) {
+    const iso = _tlPendingDay;
+    _tlPendingDay = null;
+    const hit = host.querySelector(`.tl-entry[data-td="${CSS.escape(iso)}"]`);
+    if (hit) {
+      // The fade-in observer below starts entries at opacity 0; mark it visible up front so
+      // the thing you jumped to is actually on screen when you land.
+      hit.classList.add("in", "tl-hit");
+      hit.scrollIntoView({ behavior: jump, block: "center" });
+      setTimeout(() => hit.classList.remove("tl-hit"), 2200);
+    }
+  }
   // …and light the chip for whichever section is at the top right now, scrolling the RAIL so
   // the active one stays in view (the rail scrolls internally when there are many buckets).
   if (chips.length) {

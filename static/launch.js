@@ -464,6 +464,7 @@ function extraFacetCols(tab = activeTab) {
   ];
 }
 const facetCols = () => [...columns().filter((c) => c.facet).map(unifiedFacetCol), ...igdbFacetCols(), ...extraFacetCols()];
+
 const facetColByKey = (key) => facetCols().find((c) => c.key === key);
 /* Does this facet read the enrichment map — i.e. can it be answered at boot, or only
    once that map lands? Every virtual facet reads it except the ROM library, which says
