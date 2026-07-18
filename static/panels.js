@@ -470,8 +470,10 @@ function renderIgdbSection(key, el, status, detail) {
   }
   el.innerHTML = content + hltbHtml(HLTBC[key]) + speedrunHtml(key) + metacriticHtml(key)
     + coopHtml(key) + steamxHtml(key) + arcadeHtml(key) + vndbHtml(key) + thumbyHtml(key) + guidesHtml(key)
-    + pcgwHtml(key) + salesHtml(key) + physicalHtml(key) + wikidataHtml(key)
+    + soundtrackHtml(key) + pcgwHtml(key) + salesHtml(key) + physicalHtml(key) + wikidataHtml(key)
     + gameyeHtml(key) + (IS_ADMIN ? mapControlHtml(key) : "");   // "Fix mapping" is a write — admin only
+
+  wireSoundtrack(key, el);   // collapse/expand the tracklist, drive the docked player
 
   // The Shelf's manual reader, reached from the drawer too — you shouldn't have to go and
   // find the box on the shelf to read the booklet that came in it.
@@ -562,6 +564,7 @@ async function loadDetail(key, el, attempt = 0, row = null, igdbId = null) {
     if ("gametdb" in j) GTDBC[key] = j.gametdb;
     if ("pcgw" in j) PCGWC[key] = j.pcgw;
     if ("wikidata" in j) WDC[key] = j.wikidata;
+    if ("khinsider" in j) KHC[key] = j.khinsider;
     if (j.status === "matched" && j.detail) { DETAIL[key] = j.detail; renderIgdbSection(key, el, "matched", j.detail); }
     else if (j.status === "no_match") { renderIgdbSection(key, el, "no_match", null); }
     else if (j.status === "pending") {

@@ -1275,6 +1275,62 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 
 /* Score / playtime / value blocks */
 .hltb { margin: 14px 0; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); }
+
+/* ---- Soundtrack panel + docked player (soundtrack.js) ---- */
+/* The panel stays a single bar until the tracklist is asked for, so a 90-track OST adds no
+   height to an already-tall drawer. Playback moves to the dock below. */
+.ost-bar { display: flex; align-items: center; gap: 10px; }
+.ost-cover { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: 0 0 auto; background: var(--surface-3, var(--surface)); }
+.ost-cover-blank { display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--dim); }
+.ost-play {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+}
+.ost-play:hover { filter: brightness(1.08); }
+.ost-play .ico { margin-left: 1px; }              /* optically centre the play triangle */
+.ost-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ost-title { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ost-sub { font-size: 11.5px; }
+.ost-toggle { flex: 0 0 auto; font-size: 12px; }
+.ost-alts {
+  margin-top: 10px; width: 100%; max-width: 100%; font-size: 12px; padding: 5px 8px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+}
+.ost-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.ost-trk {
+  display: flex; align-items: center; gap: 10px; padding: 6px 6px; border-radius: 6px;
+  cursor: pointer; font-size: 12.5px; border-bottom: 1px solid var(--border-soft);
+}
+.ost-trk:last-child { border-bottom: none; }
+.ost-trk:hover { background: var(--surface); }
+.ost-trk .ost-n { flex: 0 0 22px; text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ost-trk .ost-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ost-trk .ost-dur { flex: 0 0 auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ost-trk.playing { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.ost-trk.playing .ost-name { color: var(--accent-2); font-weight: 600; }
+
+/* The dock: sticky to the bottom of the drawer's own scroll area, bled to its edges. */
+#ostDock {
+  position: sticky; bottom: -28px; z-index: 6;
+  margin: 16px -28px -28px; padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px -12px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(6px);
+}
+.ost-dk-btn {
+  flex: 0 0 auto; background: none; border: none; cursor: pointer; color: var(--text);
+  font-size: 15px; line-height: 1; padding: 5px; border-radius: 6px; display: flex; align-items: center;
+}
+.ost-dk-btn:hover { background: var(--surface); }
+.ost-dk-btn:disabled { opacity: .35; cursor: default; }
+.ost-dk-play { color: var(--accent-2); font-size: 13px; }
+.ost-dk-close { margin-left: 2px; color: var(--dim); }
+.ost-dk-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ost-dk-title { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ost-dk-seekrow { display: flex; align-items: center; gap: 7px; }
+.ost-dk-cur, .ost-dk-tot { flex: 0 0 auto; font-size: 10.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ost-dk-seek { flex: 1 1 auto; min-width: 0; height: 4px; cursor: pointer; accent-color: var(--accent); }
 .hltb-head { font: 600 12.5px/1 var(--display); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 9px; }
 .hltb-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
 .hltb-row:last-of-type { border-bottom: none; }

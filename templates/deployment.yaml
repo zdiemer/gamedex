@@ -127,6 +127,8 @@ spec:
               value: {{ .Values.igdb.guides | quote }}
             - name: COOPTIMUS_ENABLED
               value: {{ .Values.igdb.cooptimus | quote }}
+            - name: KHINSIDER_ENABLED
+              value: {{ .Values.igdb.khinsider | quote }}
             - name: GAMESPOT_API_KEY
               valueFrom:
                 secretKeyRef:

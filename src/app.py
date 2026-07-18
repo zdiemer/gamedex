@@ -65,6 +65,7 @@ from poller import DataStore
 import recommend
 from cooptimus import CooptimusClient
 from guides import GuideClient
+from khinsider import KhinsiderClient
 from speedrun import SpeedrunClient
 from steamx import SteamExtraClient
 from thumby import ThumbyClient
@@ -144,6 +145,10 @@ if _on("WIKIDATA_ENABLED"):
     # The bridge: a MobyGames id, a Wikipedia article, the composer, the director. Joined on
     # the IGDB slug — also exact, also bulk, also free.
     _secondary["wikidata"] = Wikidata(os.environ.get("WIKIDATA_DIR", "/data/wikidata"))
+if _on("KHINSIDER_ENABLED"):
+    # The actual music: the game's soundtrack album, its tracklist, and — via the lazy
+    # /api/khinsider/audio resolver — streamable mp3s the drawer plays.
+    _secondary["khinsider"] = KhinsiderClient()
 # Fallback metadata (IGN → Steam) for games IGDB doesn't match. GameSpot is
 # off by default — its API is Cloudflare-blocked (see fallback.py).
 _fallback = (
@@ -1033,7 +1038,50 @@ def enrichment_detail(key: str, igdb: int | None = None):
             "manuals": enricher.get_secondary("manuals", key),
             "gametdb": enricher.get_secondary("gametdb", key),
             "pcgw": enricher.get_secondary("pcgw", key),
-            "wikidata": enricher.get_secondary("wikidata", key)}
+            "wikidata": enricher.get_secondary("wikidata", key),
+            "khinsider": enricher.get_secondary("khinsider", key)}
+
+
+# The drawer's soundtrack player. Two lazy hops KHInsider forces on us, each cached process-
+# wide so a second play is instant: an album's full tracklist (only fetched when you open a
+# release that isn't the matched one), and a track's real CDN mp3 URL (the album page lists
+# song pages, not audio files, so the direct url is one page deep — resolved only for tracks
+# actually played). The audio itself the browser streams straight off the CDN, which serves
+# range requests with no Referer check, so we redirect rather than proxy the bytes.
+_khi_album_cache: dict = {}
+_khi_audio_cache: dict = {}
+
+
+@app.get("/api/khinsider/album")
+def khinsider_album(slug: str):
+    khi = _secondary.get("khinsider")
+    if not khi:
+        return JSONResponse(status_code=404, content={"error": "khinsider disabled"})
+    if slug not in _khi_album_cache:
+        try:
+            _khi_album_cache[slug] = khi.album(slug)
+        except Exception:
+            _khi_album_cache[slug] = None
+    rec = _khi_album_cache[slug]
+    if not rec:
+        return JSONResponse(status_code=404, content={"error": "no such album"})
+    return rec
+
+
+@app.get("/api/khinsider/audio")
+def khinsider_audio(song: str):
+    khi = _secondary.get("khinsider")
+    if not khi:
+        raise HTTPException(status_code=404, detail="khinsider disabled")
+    if song not in _khi_audio_cache:
+        try:
+            _khi_audio_cache[song] = khi.resolve_audio(song)
+        except Exception:
+            _khi_audio_cache[song] = None
+    url = _khi_audio_cache[song]
+    if not url:
+        raise HTTPException(status_code=404, detail="track unavailable")
+    return RedirectResponse(url, status_code=302)
 
 
 @app.get("/api/enrichment/stats")

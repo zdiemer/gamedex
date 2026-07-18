@@ -352,6 +352,7 @@ function mapControlHtml(key) {
     steamx: (SXC[key] || {}).url || "",
     speedrun: (SRC[key] || {}).url || "",
     guides: (GDC[key] || {}).url || "",
+    khinsider: (KHC[key] || {}).url || "",
   };
   // IGDB / Steam / IGN all fill the same "primary metadata" slot.
   const rows = [
@@ -380,6 +381,7 @@ function mapControlHtml(key) {
   if (ENRICH_SOURCES.includes("speedrun")) rows.push({ id: "speedrun", label: "speedrun.com", ph: "speedrun.com/<game>" });
   if (ENRICH_SOURCES.includes("cooptimus")) rows.push({ id: "cooptimus", label: "Co-Optimus", ph: "co-optimus.com/game/<id>/..." });
   if (ENRICH_SOURCES.includes("guides")) rows.push({ id: "guides", label: "StrategyWiki guide", ph: "strategywiki.org/wiki/<Page>" });
+  if (ENRICH_SOURCES.includes("khinsider")) rows.push({ id: "khinsider", label: "KHInsider soundtrack", ph: "downloads.khinsider.com/game-soundtracks/album/<slug>" });
   // These two join on an id rather than a title (the Steam appid, the IGDB slug), so they
   // can't strictly be MIS-matched — but the id itself can be missing or point at the wrong
   // entry, so the escape hatch still earns its place.

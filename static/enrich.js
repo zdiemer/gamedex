@@ -101,6 +101,7 @@ const MANC = {};                   // matchKey -> Internet Archive manual (pages
 const GTDBC = {};                  // matchKey -> GameTDB disc face + box wrap
 const PCGWC = {};                  // matchKey -> PCGamingWiki PC tech (exact, by appid)
 const WDC = {};                    // matchKey -> Wikidata bridge (composer, Wikipedia, Moby)
+const KHC = {};                    // matchKey -> KHInsider soundtrack (album, tracklist, alternates)
 const ENRICH_REQUESTED = new Set();
 const UPLOADS = {};                // matchKey -> {url, v} : hand-uploaded box art
 const GR = {};                     // matchKey -> {score, n, url} : GameRankings archive

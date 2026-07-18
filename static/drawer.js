@@ -157,6 +157,10 @@ function mineSectionHtml(row) {
 function openDrawer(row, sheetKey, keepStack) {
   tourStop();                 // not just stopPreview: leave the tour armed and it would
   stopPreview();              // start a video behind the open drawer 12s later
+  // A new game (or navigation within the drawer) retires the previous game's soundtrack
+  // player — the dock lives on #drawer, which survives the body rebuild, so it must be
+  // torn down explicitly or it would play on over the wrong game.
+  if (typeof stopSoundtrack === "function") stopSoundtrack();
   tourLast = null;
   if (!keepStack) drawerStack = [];       // a fresh open starts a fresh history
   applyCoverAccent(row);
@@ -290,6 +294,7 @@ function closeDrawer(silent) {
     return;
   }
   const wasOpen = !$("#overlay").hidden;
+  if (typeof stopSoundtrack === "function") stopSoundtrack();   // silence the player on close
   $("#overlay").hidden = true; drawerStack = [];
   if (silent !== true && !restoringDrawer && wasOpen && typeof syncURL === "function") syncURL(false);
   if (typeof setDocTitle === "function") setDocTitle();   // back to the tab's title

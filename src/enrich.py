@@ -163,6 +163,11 @@ _SECONDARY_LIGHT = {
     # And the composer is a facet too — filtering a collection by who scored it is the kind
     # of thing you can only do once someone hands you the data. Nothing else here has it.
     "wikidata": lambda d: {"composers": d.get("composers") or None},
+    # "Which of my games can I actually listen to" is a facet — a ♫ marker on the card and a
+    # filter. The album name + track count is enough for that; the tracklist and the player
+    # ride the detail record, since nothing on a grid plays audio.
+    "khinsider": lambda d: {"ostName": d.get("name"), "ostType": d.get("type"),
+                            "ostTracks": d.get("trackCount"), "ostUrl": d.get("url")},
 }
 
 # Not every source applies to every game. These gates keep the queues honest:
