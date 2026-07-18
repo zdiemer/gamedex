@@ -1846,6 +1846,77 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 .pick-open { background: var(--surface-3); color: var(--text); }
 .pick-open:hover { border-color: var(--accent-line); color: var(--accent); }
 
+/* The roll-animation toggle, sat with the other controls. Small and quiet — a setting you
+   set once, not a thing you read every visit. */
+.pick-anim {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  color: var(--muted); font-size: 12.5px;
+}
+.pick-anim input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+
+/* ---- the dice-roll reveal ------------------------------------------------
+   A slot-reel of covers under a tumbling die, both easing to a stop on the winner. Lives in
+   #pickResult in place of the card until the die lands; the box is sized so nothing below it
+   jumps when the card takes over. */
+.pick-roll {
+  display: flex; flex-direction: column; align-items: center; gap: 22px;
+  min-height: 264px; justify-content: center; padding: 8px 0;
+}
+.roll-reel-mask {
+  position: relative; width: min(440px, 86vw); height: 132px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.roll-reel { position: absolute; top: 0; left: 0; display: flex; gap: 10px; height: 132px; will-change: transform, filter; }
+.roll-tile {
+  flex: none; width: 92px; height: 132px; border-radius: var(--r-sm); overflow: hidden;
+  background: var(--surface-3); box-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+  display: grid; place-items: center;
+}
+.roll-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.roll-tile img.pixel { object-fit: contain; background: #05070b; }
+.roll-tile .roll-ph { color: var(--dim); }
+.roll-reel-hi {
+  position: absolute; top: -5px; bottom: -5px; left: 50%; width: 100px; transform: translateX(-50%);
+  border: 2px solid var(--accent); border-radius: 10px; box-shadow: var(--glow);
+  opacity: 0; transition: opacity .25s var(--ease); pointer-events: none;
+}
+.roll-reel-hi.lit { opacity: 1; }
+/* A CSS 3D cube; each face is a 3x3 pip grid, empty cells hidden. Pips take the accent so the
+   die reads as ours, not a board-game prop. */
+.roll-die-scene { perspective: 560px; width: 62px; height: 62px; }
+.roll-die { position: relative; width: 62px; height: 62px; transform-style: preserve-3d; transform: translateZ(-31px); }
+.roll-face {
+  position: absolute; width: 62px; height: 62px; border-radius: 13px;
+  background: linear-gradient(150deg, #ffffff, #d7d9e6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6), inset 0 -7px 16px rgba(80, 60, 160, .18);
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+  padding: 10px; gap: 2px;
+}
+.roll-face i {
+  width: 11px; height: 11px; border-radius: 50%; align-self: center; justify-self: center;
+  background: radial-gradient(circle at 35% 30%, #8a6bff, #5a3ce0);
+  box-shadow: inset 0 -1px 2px rgba(0, 0, 0, .35);
+}
+.roll-face i.off { visibility: hidden; }
+.rf1 { transform: rotateY(0deg) translateZ(31px); }
+.rf2 { transform: rotateY(90deg) translateZ(31px); }
+.rf3 { transform: rotateY(180deg) translateZ(31px); }
+.rf4 { transform: rotateY(-90deg) translateZ(31px); }
+.rf5 { transform: rotateX(90deg) translateZ(31px); }
+.rf6 { transform: rotateX(-90deg) translateZ(31px); }
+.roll-word {
+  font: 800 13px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+/* One-shot glow as the card lands — set on the freshly-rendered card, so it fires only after
+   a roll and never on an ordinary re-render. */
+.pick-card.rolled-in { animation: popin .24s var(--ease), pickLanded .5s var(--ease); }
+@keyframes pickLanded {
+  0% { box-shadow: var(--sh-2), 0 0 0 rgba(124, 92, 255, 0); }
+  35% { box-shadow: var(--sh-2), 0 0 46px rgba(124, 92, 255, .5); }
+  100% { box-shadow: var(--sh-2), 0 0 0 rgba(124, 92, 255, 0); }
+}
+
 /* ---- Home (landing) ------------------------------------------------------ */
 .home { flex: 1; overflow-y: auto; padding: 0 0 40px; }
 

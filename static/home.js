@@ -371,7 +371,7 @@ function wireHome(host, playing) {
   const pickMore = $("#hPickMore");
   // Land on an already-rolled game, not the empty builder — switchTab paints the picker (which
   // seeds the default backlog filter), then pickGame() rolls one and re-renders with the result.
-  if (pickMore) pickMore.onclick = () => { switchTab("pick"); pickGame(); nav(); };
+  if (pickMore) pickMore.onclick = () => { switchTab("pick"); pickGame(true); nav(); };
   const chalAll = $("#hChalAll");
   if (chalAll) chalAll.onclick = (e) => { e.stopPropagation(); chState.open = null; switchTab("challenges"); nav(); };
   host.querySelectorAll(".h-chal[data-chal]").forEach((el) => {

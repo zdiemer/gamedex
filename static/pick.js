@@ -22,6 +22,13 @@ const pickYear = () => new Date().getFullYear();
 const BIRTHDAY_KEY = "gamedex.birthday";
 const birthday = () => localStorage.getItem(BIRTHDAY_KEY) || "";     // "MM-DD"
 
+// The dice-roll reveal between "Pick for me" and the card. On by default; the
+// checkbox in the controls row writes "0" to turn it off, per browser — same
+// shape as the birthday and theme settings. Reduced-motion always wins.
+const PICK_ANIM_KEY = "gamedex.pickAnim";
+const pickAnimOn = () => localStorage.getItem(PICK_ANIM_KEY) !== "0";
+const pickReduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 const alphaOnly = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const isPalindrome = (t) => {
   const a = alphaOnly(t);
@@ -369,10 +376,96 @@ function pickSetBudget(m) {
 function pickAdoptMinutes(m) {
   if (m && TIME_BUDGETS.some((b) => b.m === m) && pickBudgetMinutes() !== m) pickSetBudget(m);
 }
-function pickGame() {
+function pickGame(roll) {
   const pool = pickPool();
   pickState.picked = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
-  renderPicker();
+  // The roll is a reveal, not a re-render: play it into the result slot and let it
+  // call renderPicker() when the die lands. Anything that makes it not worth the wait —
+  // an empty pool, the toggle off, a reduced-motion preference — falls straight through
+  // to the instant card, which is also what every non-user caller of pickGame() gets.
+  if (roll && pickState.picked && pickAnimOn() && !pickReduced()) playPickRoll(pickState.picked, pool);
+  else renderPicker();
+}
+
+/* ---- the dice-roll reveal -----------------------------------------------
+   A tumbling die over a slot-reel of covers that decelerates onto the winner, then
+   hands off to renderPicker() so the real card pops in exactly as it does without the
+   animation. It draws into #pickResult and touches nothing else, so the controls above
+   it stay live; a roll token guards against a second click (or a preset change) landing
+   an old roll on top of a new state. Covers are the real cover_small art — usually
+   already cached from the grid — with a placeholder tile where a game has none. */
+const PICK_PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+// The rotation that brings each face to the camera, so the die lands showing a real value.
+const PICK_FACE_ROT = { 1: [0, 0], 2: [0, -90], 3: [0, 180], 4: [0, 90], 5: [-90, 0], 6: [90, 0] };
+let _pickRollN = 0;
+
+function pickRollTile(row, win) {
+  const rec = igdbRecOf(row);
+  const cs = coverSrc(rec, "cover_small");
+  const pixel = coverIsPixelArt(rec, cs) ? " pixel" : "";
+  const inner = cs
+    ? `<img src="${escapeHtml(cs)}" alt=""${pixel ? ` class="pixel"` : ""}>`
+    : `<span class="roll-ph">${icon("i-library", 22)}</span>`;
+  return `<div class="roll-tile${win ? " win" : ""}">${inner}</div>`;
+}
+
+function playPickRoll(picked, pool) {
+  const host = $("#pickResult");
+  if (!host) { renderPicker(); return; }
+  const my = ++_pickRollN;
+  const dur = 2100;
+
+  // A strip that lands the winner near (not at) the end, so it scrolls IN rather than
+  // starting under the frame. Everything else is drawn from the pool for real covers.
+  const N = 44, LAND = 38;
+  const others = pool.filter((r) => r !== picked);
+  const draw = () => others.length ? others[Math.floor(Math.random() * others.length)] : picked;
+  const seq = Array.from({ length: N }, (_, i) => (i === LAND ? picked : draw()));
+
+  const die = [1, 2, 3, 4, 5, 6].map((f) => {
+    const on = new Set(PICK_PIPS[f]);
+    const pips = Array.from({ length: 9 }, (_, i) => `<i${on.has(i) ? "" : ' class="off"'}></i>`).join("");
+    return `<div class="roll-face rf${f}">${pips}</div>`;
+  }).join("");
+
+  host.innerHTML = `<div class="pick-roll">
+    <div class="roll-reel-mask">
+      <div class="roll-reel" id="pickRollReel">${seq.map((r, i) => pickRollTile(r, i === LAND)).join("")}</div>
+      <div class="roll-reel-hi" id="pickRollHi"></div>
+    </div>
+    <div class="roll-die-scene"><div class="roll-die" id="pickRollDie">${die}</div></div>
+    <div class="roll-word" id="pickRollWord">Rolling…</div>
+  </div>`;
+
+  const reel = $("#pickRollReel");
+  const winTile = reel.children[LAND];
+  // offsetLeft folds in the gaps, so this centres the winner without hard-coding a tile width.
+  const target = winTile.offsetLeft - reel.parentElement.clientWidth / 2 + winTile.offsetWidth / 2;
+  reel.animate([
+    { transform: "translateX(0)", filter: "blur(0)" },
+    { transform: `translateX(${-target * 0.34}px)`, filter: "blur(7px)", offset: .4 },
+    { transform: `translateX(${-target}px)`, filter: "blur(0)" },
+  ], { duration: dur, easing: "cubic-bezier(.16,.8,.18,1)", fill: "forwards" });
+
+  const [ex, ey] = PICK_FACE_ROT[1 + Math.floor(Math.random() * 6)];
+  const spins = 4;
+  $("#pickRollDie").animate([
+    { transform: "translateZ(-31px) rotateX(0) rotateY(0)" },
+    { transform: `translateZ(-31px) rotateX(${ex + 360 * spins}deg) rotateY(${ey + 360 * spins + 180}deg)` },
+  ], { duration: dur, easing: "cubic-bezier(.15,.72,.2,1)", fill: "forwards" });
+
+  // Light the frame just before the stop, then swap in the real card.
+  setTimeout(() => {
+    if (_pickRollN !== my) return;
+    const hi = $("#pickRollHi"); if (hi) hi.classList.add("lit");
+    const w = $("#pickRollWord"); if (w) w.textContent = "Locked in";
+  }, dur * 0.82);
+  setTimeout(() => {
+    if (_pickRollN !== my || activeTab !== "pick") return;
+    renderPicker();                          // rebuilds #picker wholesale, so the card is a fresh
+    const card = $("#pickResult .pick-card");  // node — reach for it, not the detached host.
+    if (card) card.classList.add("rolled-in");
+  }, dur + 160);
 }
 
 // Values for a field, counted against the pool as it would be WITHOUT this
@@ -875,6 +968,9 @@ function renderPicker() {
       <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
       <span class="pick-count">${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"} in pool</span>
       ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
+      <label class="pick-anim" title="Play a dice-roll animation when picking a game">
+        <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation
+      </label>
     </div>
     ${saved.length || saveable ? `<div class="pick-saved">
       ${saved.map((p, i) => `<button class="view-chip" data-pi="${i}" title="${escapeHtml(p.desc || "")}">
@@ -897,7 +993,12 @@ function renderPicker() {
   // can negate, widen, or drag into an OR, and the dropdown says "Custom filter" because
   // by then that is exactly what it is.
   $("#pickTime").onchange = (e) => { closePickPop(); pickSetBudget(+e.target.value); renderPicker(); nav(); };
-  $("#pickBtn").onclick = () => { pickGame(); nav(); };
+  $("#pickBtn").onclick = () => { pickGame(true); nav(); };
+  const anim = $("#pickAnim");
+  if (anim) anim.onchange = (e) => {
+    if (e.target.checked) localStorage.removeItem(PICK_ANIM_KEY);
+    else localStorage.setItem(PICK_ANIM_KEY, "0");
+  };
   const reset = $("#pickReset");
   if (reset) reset.onclick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); renderPicker(); nav(); };
   wirePickSaved();
@@ -911,7 +1012,7 @@ function renderPicker() {
     // A catalogue game has no drawer (no match key, nothing to fetch) — its card is a
     // link to IGDB instead, so leave the click alone rather than open an empty panel.
     if (!pickState.picked._cat) game.onclick = () => openDrawer(pickState.picked, "games");
-    $("#pickReroll").onclick = (e) => { e.stopPropagation(); pickGame(); nav(); };
+    $("#pickReroll").onclick = (e) => { e.stopPropagation(); pickGame(true); nav(); };
     const open = $("#pickOpen");
     if (open && open.tagName === "BUTTON") open.onclick = () => openDrawer(pickState.picked, "games");
   }
