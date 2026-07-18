@@ -20,8 +20,11 @@
 
 // ---- who owns what -------------------------------------------------------
 // igdbId -> the rows in your collection that matched it.
-let _byIgdb = null, _completedSet = null;
-const resetRelations = () => { _byIgdb = null; _completedSet = null; _relById = null; _bySlug = null; _byName = null; };
+let _byIgdb = null, _completedSet = null, _gamesByGid = null;
+const resetRelations = () => {
+  _byIgdb = null; _completedSet = null; _relById = null; _bySlug = null; _byName = null;
+  _gamesByGid = null; _gidCache = new WeakMap();
+};
 
 // The completed sheet's rows, by object identity — for telling a beaten episode apart
 // from a backlog one. A row here IS finished; that's the whole point of the sheet.
@@ -138,6 +141,32 @@ function canonicalGameId(row) {
   return id;
 }
 
+// row → canonical id, memoised — the facet counter asks per column per row, which
+// is 20+ sweeps of the sheet per render. Reset with the rest (resetRelations).
+let _gidCache = new WeakMap();
+function cachedGameId(row) {
+  if (_gidCache.has(row)) return _gidCache.get(row);
+  const id = canonicalGameId(row);
+  _gidCache.set(row, id);
+  return id;
+}
+
+// canonical id → every GAMES-sheet copy of that game, regardless of any active
+// filter. This is how a plain platform-copy drawer (a Pick roll, a challenge
+// card, a Home poster) finds its siblings, and how a filtered group's drawer
+// still routes to the copies the filter hid.
+function gamesByGid() {
+  if (_gamesByGid) return _gamesByGid;
+  const m = new Map();
+  for (const r of ((DATA.sheets.games || {}).rows || [])) {
+    const id = cachedGameId(r);
+    if (!id) continue;
+    if (!m.has(id)) m.set(id, []);
+    m.get(id).push(r);
+  }
+  return (_gamesByGid = m);
+}
+
 // The relation summary for an IGDB id, from whichever of our rows matched it.
 let _relById = null;
 function relById(id) {
@@ -150,23 +179,45 @@ function relById(id) {
   return _relById.get(id);
 }
 
-function groupByGame(rows) {
+function groupByGame(rows, allRows) {
   const out = [], seen = new Map();
   for (const r of rows) {
-    const id = canonicalGameId(r);
+    const id = cachedGameId(r);
     if (!id) { out.push(r); continue; }          // no IGDB match: can't claim it's the same game
     if (seen.has(id)) { seen.get(id).push(r); continue; }
     const members = [r];
     seen.set(id, members);
     out.push({ _group: id, _members: members });
   }
-  // A "group" of one is just the row itself; don't wrap it in ceremony.
+  /* Full sibling sets, when the caller can name the unfiltered universe (the
+     listing passes its whole sheet): the CARD describes the copies that matched
+     the filter, but the drawer's "Your copies" routes to every copy — a PS4
+     filter shouldn't make the PC copy unreachable, just unfeatured. */
+  let full = null;
+  if (allRows && allRows !== rows) {
+    full = new Map();
+    for (const r of allRows) {
+      const id = cachedGameId(r);
+      if (!id) continue;
+      if (!full.has(id)) full.set(id, []);
+      full.get(id).push(r);
+    }
+  }
+  // A "group" of one is just the row itself; don't wrap it in ceremony. (Its
+  // hidden siblings still surface in the drawer — editionsHtml looks them up.)
   return out.map((x) => (x._group && x._members.length === 1 ? x._members[0] : x))
-    .map((x) => (x._group ? groupRow(x) : x));
+    .map((x) => (x._group ? groupRow(x, full && full.get(x._group)) : x));
 }
 
+// Value fields a group AVERAGES across the copies that have one — a null is
+// "not filled in", not a zero, so it's excluded rather than dragging the mean.
+// The lead's number alone misrepresented the group (and sorting by rating in
+// combine mode sorted by whichever copy happened to lead).
+const GROUP_AVG_KEYS = ["rating", "metacriticRating", "gamefaqsUserRating", "playingProgress",
+  "completionTime", "estimatedTime", "purchasePrice", "playTime", "price"];
+
 // The synthetic row standing in for a group of editions.
-function groupRow(g) {
+function groupRow(g, fullMs) {
   const ms = g._members;
   // The card should be titled after the GAME, so prefer a row that matched the
   // canonical id itself (the original) over one of its ports. Then prefer the
@@ -176,11 +227,18 @@ function groupRow(g) {
   const lead = pool.find((r) => r.completed) || pool.find((r) => r.owned) ||
     pool.slice().sort((a, b) => String(b.releaseDate || "").localeCompare(String(a.releaseDate || "")))[0];
   const platforms = [...new Set(ms.map((r) => r.platform).filter(Boolean))];
+  const avg = {};
+  for (const key of GROUP_AVG_KEYS) {
+    const real = ms.map((r) => r[key]).filter((v) => v != null && v !== "" && !isNaN(Number(v)));
+    if (real.length) avg[key] = real.reduce((s, v) => s + Number(v), 0) / real.length;
+  }
   return {
     ...lead,
+    ...avg,
     _k: lead._k,
     _groupId: g._group,
-    _members: ms,
+    // Every copy when the caller told us the universe; the filtered ones otherwise.
+    _members: fullMs && fullMs.length > ms.length ? fullMs : ms,
     _platforms: platforms,
     completed: ms.some((r) => r.completed),
     owned: ms.some((r) => r.owned),
@@ -313,8 +371,20 @@ function wireRelations(scope) {
 // platform-account meta (Steam hours, trophy counts, store reviews): the group
 // drawer deliberately doesn't show these — they are one copy's story, and this
 // list is where that copy gets to tell it (click through for the full grid).
+//
+// A PLAIN platform-copy drawer routes here too: a Pick roll, a challenge card
+// or a Home poster is deliberately one copy, but its siblings shouldn't be a
+// dead end — same list, with the copy you're viewing marked. The click handler
+// (drawer.js) reads DRAWER_EDITIONS because a plain row has no _members.
+let DRAWER_EDITIONS = null;
 function editionsHtml(row) {
-  const ms = row._members;
+  let ms = row._members;
+  if ((!ms || ms.length < 2) && row._k && !row._collection && !row._wlOnly
+      && (typeof drawerSheet === "undefined" || drawerSheet === "games")) {
+    const sibs = gamesByGid().get(cachedGameId(row)) || [];
+    if (sibs.length >= 2 && sibs.includes(row)) ms = sibs;
+  }
+  DRAWER_EDITIONS = ms || null;
   if (!ms || ms.length < 2) return "";
   return `<div class="rl">
     <div class="rl-head"><h3>${icon("i-combine", 16)} Your copies <span class="muted">${ms.length}</span></h3></div>
@@ -323,10 +393,12 @@ function editionsHtml(row) {
       const kind = e.rel && e.rel.type && e.rel.type !== "Main game" ? e.rel.type : "";
       const bits = [m.platform, m.releaseRegion, m.releaseYear].filter(Boolean)
         .map((x) => escapeHtml(String(x))).join(" · ");
-      const mark = m.completed ? `<span class="rl-b-done">✓ Beaten</span>`
+      const cur = m === row;
+      const mark = cur ? `<span class="rl-b-cur">Viewing</span>`
+        : m.completed ? `<span class="rl-b-done">✓ Beaten</span>`
         : m.owned ? `<span class="rl-b-owned">● Owned</span>` : "";
       const mine = typeof minePillsHtml === "function" ? minePillsHtml(m._k) : "";
-      return `<button class="rl-copy" data-rlc="${i}">
+      return `<button class="rl-copy${cur ? " cur" : ""}" data-rlc="${i}">
         <span class="rl-copy-t">${bits}${kind ? ` <span class="rl-tag">${escapeHtml(kind)}</span>` : ""}</span>${mark}${
         mine ? `<span class="rl-copy-mine mine-pills">${mine}</span>` : ""}</button>`;
     }).join("")}</div>

@@ -270,8 +270,11 @@ function openDrawer(row, sheetKey, keepStack) {
   // A grouped card's members open individually — with a way back to the group.
   body.querySelectorAll("[data-rlc]").forEach((el) => {
     el.onclick = () => {
-      const m = (row._members || [])[+el.dataset.rlc];
-      if (m) openDrawerFrom(m, "games");
+      // Group rows carry their copies; a plain platform-copy drawer's sibling
+      // list lives in DRAWER_EDITIONS (set by editionsHtml during this render).
+      const list = row._members || (typeof DRAWER_EDITIONS !== "undefined" && DRAWER_EDITIONS) || [];
+      const m = list[+el.dataset.rlc];
+      if (m && m !== row) openDrawerFrom(m, "games");
     };
   });
   $("#overlay").hidden = false;

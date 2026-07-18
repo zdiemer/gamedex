@@ -108,7 +108,9 @@ function renderTable(rows) {
   const st = tabState[activeTab];
   // Combining: rows sharing an IGDB id ARE the same game, so collapse them before
   // sorting and paging — otherwise the counts and page numbers would lie.
-  const base = st.combine ? groupByGame(rows) : rows;
+  // The sheet is the "universe" argument: the group card describes the filtered
+  // copies, but its drawer routes to every copy (see groupByGame).
+  const base = st.combine ? groupByGame(rows, sheet().rows) : rows;
   const sorted = sortRows(base);
   const per = pageSizeOf();
   const pages = Math.max(1, Math.ceil(sorted.length / per));

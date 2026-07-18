@@ -354,6 +354,12 @@ const _COND_KEY = { complete: "geCib", cib: "geCib", loose: "geLoose", new: "geN
 const r0 = (v) => typeof v === "number" && v > 0;   // a real price, not free/blank
 
 function collectionValueOf(row) {
+  // A group card averages its copies' values, nulls excluded — same aggregation
+  // as the group row's other value fields (GROUP_AVG_KEYS, relations.js).
+  if (row._members && row._members.length > 1) {
+    const vs = row._members.map(collectionValueOf).filter((v) => v != null);
+    return vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null;
+  }
   const e = ENRICH[row._k];
   if (!e) return null;
   const price = e[_COND_KEY[(row.condition || "").toLowerCase()] || "geLoose"];

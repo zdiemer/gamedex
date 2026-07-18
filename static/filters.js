@@ -278,12 +278,26 @@ function renderFacets() {
   closeBtn.onclick = () => setFacets(false);
   host.appendChild(closeBtn);
 
+  // With combine on, the list shows grouped cards — so the sidebar must count
+  // grouped cards too, or "PC 450" sits beside a list of 380. A value counts
+  // once per GROUP (any copy carrying it), not once per copy; ungrouped rows
+  // (no IGDB match) each count as their own group, same as the listing shows them.
+  const grouping = typeof combineOn === "function" && combineOn()
+    && typeof cachedGameId === "function";
   for (const col of facetCols()) {
     // Count values across rows filtered by the OTHER facets + search.
     const base = filterRows(col.key);
     const counts = new Map();
+    const seenGV = grouping ? new Set() : null;
+    let solo = 0;
     for (const row of base) {
+      const gid = grouping ? (cachedGameId(row) || `r${solo++}`) : null;
       for (const it of rowFacetItems(row, col)) {
+        if (grouping) {
+          const gv = gid + "|" + it.key;
+          if (seenGV.has(gv)) continue;
+          seenGV.add(gv);
+        }
         counts.set(it.key, (counts.get(it.key) || 0) + 1);
       }
     }

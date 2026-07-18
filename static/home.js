@@ -206,7 +206,10 @@ function patchHomeCovers() {
   // the pager/swipe/click. Guarded on the CURRENT hero game actually having a cover now, so a
   // genuinely cover-less game doesn't re-render the hero on every enrichment poll.
   if (host.querySelector(".h-hero-cover.ph")) {
-    const playing = byStatus("Playing").sort(byDateDesc("dateStarted"));
+    // Same grouping as renderHome, or the hero pager and dots count differently
+    // here than they did at render time.
+    const grp = (rows) => (typeof groupByGame === "function" ? groupByGame(rows) : rows);
+    const playing = grp(byStatus("Playing")).sort(byDateDesc("dateStarted"));
     const cur = playing.length ? playing[homeState.heroIdx % playing.length] : null;
     if (cur && coverSrc(ENRICH[cur._k], "cover_big")) renderHero(playing);
   }
@@ -227,14 +230,20 @@ function renderHome() {
   const host = $("#home");
   if (!DATA) return;
 
-  const playing = byStatus("Playing").sort(byDateDesc("dateStarted"));
-  const upNext = byStatus("Up Next");
-  const onHold = byStatus("On Hold");
-  const added = hRows().filter((r) => r.dateAdded && !r.completed).sort(byDateDesc("dateAdded")).slice(0, 18);
+  // Home shelves use the same grouped cards as the listings (a game bought on
+  // two platforms is one card, platforms named on it) — filter first, group the
+  // survivors, exactly like the grid does. "Recently finished" stays UNGROUPED
+  // on purpose, like the timeline: finishing a game on two platforms is two
+  // finishes, and this shelf is a record of finishes, not of games.
+  const grp = (rows) => (typeof groupByGame === "function" ? groupByGame(rows) : rows);
+  const playing = grp(byStatus("Playing")).sort(byDateDesc("dateStarted"));
+  const upNext = grp(byStatus("Up Next"));
+  const onHold = grp(byStatus("On Hold"));
+  const added = grp(hRows().filter((r) => r.dateAdded && !r.completed)).sort(byDateDesc("dateAdded")).slice(0, 18);
   const recent = hCompleted().slice().sort(byDateDesc("date")).slice(0, 18);
   // Every order is estimatedRelease "N/A" / status "Pending" — neither says
   // anything. What's actually informative is when you ordered it and from whom.
-  const orders = hOrders().slice().sort(byDateDesc("orderedDate")).slice(0, 18);
+  const orders = grp(hOrders().slice()).sort(byDateDesc("orderedDate")).slice(0, 18);
 
   // Recommendations come from the server (IGDB's similar-games, crossed with
   // your backlog); predictions are computed here from your own ratings. Both
@@ -252,6 +261,19 @@ function renderHome() {
     .filter((x) => x.p && x.p.confidence >= 0.75)
     .sort((a, b) => b.p.score - a.p.score)
     .slice(0, 60), 6, "loved");
+
+  /* What each card's click should open, keyed by sheet + match key. The shelves
+     above render GROUP rows whose _k is the lead's — resolving a click by _k
+     against the raw sheet (as wireHome used to) would open the lone lead and
+     lose the group. Raw-row shelves register first, grouped shelves after, so
+     a key on both opens the grouped drawer. */
+  homeState.cardRows = new Map();
+  const reg = (rows, sheet) => { for (const r of rows) homeState.cardRows.set(sheet + ":" + String(r._k || ""), r); };
+  reg(recRows.map((x) => x.row), "games");
+  reg(loved.map((x) => x.r), "games");
+  reg([...playing, ...upNext, ...onHold, ...added], "games");
+  reg(orders, "onOrder");
+  reg(recent, "completed");
 
   host.innerHTML =
     heroSection(playing) +
@@ -356,7 +378,10 @@ function wireHome(host, playing) {
   host.querySelectorAll("[data-hk]").forEach((el) => {
     const k = el.dataset.hk, sheetKey = el.dataset.hs;
     const src = sheetKey === "completed" ? hCompleted() : sheetKey === "onOrder" ? hOrders() : hRows();
-    const row = src.find((r) => String(r._k || "") === k);
+    // Prefer the row the shelf actually rendered (possibly a group row) over a
+    // raw-sheet lookup by key — see the registry note in renderHome.
+    const row = (homeState.cardRows && homeState.cardRows.get(sheetKey + ":" + k))
+      || src.find((r) => String(r._k || "") === k);
     el.onclick = () => { if (row) openDrawer(row, sheetKey); };
     // Hover-to-play trailers, same as the grid. Home is the tab you land on, so
     // leaving it out meant the feature looked broken to anyone who never left it.
