@@ -2959,6 +2959,37 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   background: var(--surface-2); border: 1px solid var(--border); font: 500 10px/1.5 var(--display);
 }
 
+/* In-app prompt (name a view / picker) — a native modal in place of window.prompt,
+   so it matches the site and keeps a 16px input (iOS won't zoom the page on focus).
+   Mirrors the command palette above. */
+.np-scrim {
+  position: fixed; inset: 0; z-index: 95; background: var(--overlay);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 16vh 16px 16px; animation: fadein .14s;
+}
+.np-box {
+  width: min(420px, 100%); display: flex; flex-direction: column; gap: 14px;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--sh-3); padding: 20px; animation: popin .18s var(--ease);
+}
+.np-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.np-input {
+  width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font: 400 16px/1.2 "Inter", sans-serif; padding: 11px 13px; border-radius: var(--r-sm);
+  outline: none;
+}
+.np-input:focus { border-color: var(--accent); }
+.np-input::placeholder { color: var(--dim); }
+.np-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.np-btn {
+  font: 500 13px/1 "Inter", sans-serif; padding: 9px 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+}
+.np-btn:hover { background: var(--surface-2); }
+.np-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.np-ok:hover { background: var(--accent); filter: brightness(1.08); }
+
 /* ---- Empty state -------------------------------------------------------- */
 .empty {
   grid-column: 1 / -1; text-align: center; padding: 64px 20px; color: var(--muted);

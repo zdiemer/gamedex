@@ -335,6 +335,49 @@ $("#cmdkInput").addEventListener("keydown", (e) => {
   else if (e.key === "Enter") { e.preventDefault(); cmdkRun(cmdk.sel); }
 });
 
+// A native, in-app replacement for window.prompt — used for "name this view/picker".
+// It looks like the rest of the site instead of the OS chrome, and its input is 16px
+// so iOS doesn't zoom the page on focus. Returns a Promise of the trimmed name, or
+// null if cancelled/empty. Registers as an overlay (.np-scrim) for the scroll lock.
+function uiPrompt({ title, value = "", placeholder = "", ok = "Save", maxlength = 40 } = {}) {
+  return new Promise((resolve) => {
+    const host = document.createElement("div");
+    host.className = "np-scrim";
+    host.innerHTML = `
+      <div class="np-box" role="dialog" aria-modal="true">
+        <label class="np-title" for="npInput">${escapeHtml(title || "")}</label>
+        <input id="npInput" class="np-input" type="text" autocomplete="off" spellcheck="false"
+               maxlength="${maxlength}" placeholder="${escapeHtml(placeholder)}" />
+        <div class="np-actions">
+          <button type="button" class="np-btn" data-np="cancel">Cancel</button>
+          <button type="button" class="np-btn np-ok" data-np="ok">${escapeHtml(ok)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    const input = host.querySelector("#npInput");
+    input.value = value;
+    if (typeof syncScrollLock === "function") syncScrollLock();
+    let done = false;
+    const close = (result) => {
+      if (done) return;
+      done = true;
+      host.remove();
+      if (typeof syncScrollLock === "function") syncScrollLock();
+      resolve(result);
+    };
+    const commit = () => close(input.value.trim() || null);
+    host.querySelector('[data-np="cancel"]').onclick = () => close(null);
+    host.querySelector('[data-np="ok"]').onclick = commit;
+    host.addEventListener("click", (e) => { if (e.target === host) close(null); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); commit(); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(null); }
+    });
+    // Focus + select so a suggested name can just be overtyped.
+    requestAnimationFrame(() => { input.focus(); input.select(); });
+  });
+}
+
 // Wordmark = home: back to the landing page with nothing filtered/sorted.
 $("#brand").addEventListener("click", () => {
   for (const t of TABS) tabState[t] = { ...freshState(), view: tabState[t].view, combine: tabState[t].combine };

@@ -28,17 +28,24 @@ function describeView() {
   return bits.join(" · ");
 }
 
+// The tab a view belongs to. New views record it; older ones (saved before this
+// existed) fall back to the tab encoded in their query — the URL always carries it.
+const viewTab = (v) => v.tab || new URLSearchParams(v.query || "").get("tab") || "games";
+
 function renderViews() {
   const bar = $("#views");
   if (!bar) return;
-  const views = loadViews();
+  // A saved view belongs to the tab it was captured on, so each listing page only
+  // shows its own — but keep the ORIGINAL index so the chip/✕ still map into the
+  // full stored list.
+  const mine = loadViews().map((v, i) => ({ v, i })).filter(({ v }) => viewTab(v) === activeTab);
   const st = tabState[activeTab];
   const filtered = st && (st.search || Object.keys(st.facets || {}).length);
-  bar.hidden = SPECIAL_TABS.includes(activeTab) || (!views.length && !filtered);
+  bar.hidden = SPECIAL_TABS.includes(activeTab) || (!mine.length && !filtered);
   if (bar.hidden) return;
 
   bar.innerHTML =
-    views.map((v, i) => `<button class="view-chip" data-vi="${i}" title="${escapeHtml(v.desc || "")}">
+    mine.map(({ v, i }) => `<button class="view-chip" data-vi="${i}" title="${escapeHtml(v.desc || "")}">
         ${escapeHtml(v.name)}<span class="view-x" data-vx="${i}" title="Forget this view">✕</span>
       </button>`).join("") +
     (filtered ? `<button class="view-save" id="viewSave">＋ Save this view</button>` : "");
@@ -63,12 +70,12 @@ function renderViews() {
   });
   const save = $("#viewSave");
   if (save) {
-    save.onclick = () => {
+    save.onclick = async () => {
       const suggested = describeView().slice(0, 40) || "My view";
-      const name = window.prompt("Name this view", suggested);
+      const name = await uiPrompt({ title: "Name this view", value: suggested, placeholder: "My view" });
       if (!name) return;
       const views2 = loadViews();
-      views2.unshift({ name: name.slice(0, 40), query: location.search || "", desc: describeView() });
+      views2.unshift({ name: name.slice(0, 40), tab: activeTab, query: location.search || "", desc: describeView() });
       storeViews(views2);
       renderViews();
     };

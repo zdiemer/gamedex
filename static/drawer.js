@@ -317,6 +317,7 @@ function anyOverlayOpen() {
     || (typeof cmdk !== "undefined" && cmdk.open)
     || $("#facets").classList.contains("open")
     || !!document.querySelector(".ce-scrim")                        // cover editor
+    || !!document.querySelector(".np-scrim")                        // name-a-view/picker prompt
     || (typeof shCur !== "undefined" && shCur >= 0);               // shelf 3D pull
 }
 function syncScrollLock() {

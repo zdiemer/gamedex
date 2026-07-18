@@ -940,8 +940,8 @@ function wirePickSaved() {
     };
   });
   const save = $("#pickSave");
-  if (save) save.onclick = () => {
-    const name = window.prompt("Name this picker", describePicker().slice(0, 40) || "My picker");
+  if (save) save.onclick = async () => {
+    const name = await uiPrompt({ title: "Name this picker", value: describePicker().slice(0, 40) || "My picker", placeholder: "My picker" });
     if (!name) return;
     const list = savedPickers();
     list.unshift({ name: name.slice(0, 40), fb: pickEncode(pickPruned(pickState.filter)), desc: describePicker() });
