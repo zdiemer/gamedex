@@ -95,9 +95,10 @@ function placeControls() {
   const home = MOBILE.matches ? $("#sheetBody") : $(".resultbar");
   if (ctrls.parentElement !== home) home.appendChild(ctrls);
   if (!MOBILE.matches) setSheet(false);
-  // The full hint clips in the narrower mobile top bar — a shorter placeholder reads cleanly.
+  // The magnifying-glass icon already says "search", so the placeholder doesn't repeat the word —
+  // it just names WHAT you're searching. Shorter on mobile, where the bar is tight.
   const s = $("#search");
-  if (s) s.placeholder = MOBILE.matches ? "Search your games…" : "Search everything you own or have on order…";
+  if (s) s.placeholder = MOBILE.matches ? "Owned or on order…" : "Everything you own or have on order…";
 }
 function setSheet(open) {
   $("#sheet").hidden = !open;
