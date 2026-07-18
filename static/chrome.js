@@ -48,8 +48,18 @@ $("#tabsearch").addEventListener("keydown", (e) => {
 // broke navigation when the emoji became icons.
 $("#tabs").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-tab]");
-  if (btn) { switchTab(btn.dataset.tab, true); nav(); }
+  if (btn) { switchTab(btn.dataset.tab, true); nav(); setNav(false); }
 });
+
+// ---- nav drawer (the tab strip, now behind the ☰) ------------------------
+function setNav(open) {
+  $("#navdrawer").hidden = !open;
+  $("#navToggle").setAttribute("aria-expanded", open ? "true" : "false");
+  syncScrollLock();                 // lock the page behind the drawer (it's a full overlay)
+}
+$("#navToggle").addEventListener("click", () => setNav(true));
+$("#navClose").addEventListener("click", () => setNav(false));
+$("#navBackdrop").addEventListener("click", () => setNav(false));
 $("#clear").addEventListener("click", () => {
   const st = tabState[activeTab];
   st.search = ""; st.facets = {}; st.page = 1;
@@ -157,9 +167,10 @@ function currentTheme() {
 }
 function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
-  // Show the mode you'd switch TO, so the control says what it does.
-  $("#theme").innerHTML = icon(t === "dark" ? "i-sun" : "i-moon", 16);
-  $("#theme").title = t === "dark" ? "Switch to light" : "Switch to dark";
+  // Light the segment for the mode you're IN (sun = light, moon = dark) — the control shows
+  // your current theme rather than making you decode a lone glyph.
+  document.querySelectorAll("#themeToggle .th-opt").forEach((b) =>
+    b.classList.toggle("on", b.dataset.setTheme === t));
 }
 applyTheme(currentTheme());
 // The shortcut differs by platform, so the keycap should too.
@@ -167,12 +178,12 @@ applyTheme(currentTheme());
   const mod = $("#cmdkMod");
   if (mod && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)) mod.textContent = "\u2318";
 }
-$("#theme").addEventListener("click", () => {
-  const next = currentTheme() === "dark" ? "light" : "dark";
-  localStorage.setItem(THEME_KEY, next);
-  applyTheme(next);
+document.querySelectorAll("#themeToggle .th-opt").forEach((b) => b.addEventListener("click", () => {
+  const t = b.dataset.setTheme;
+  localStorage.setItem(THEME_KEY, t);
+  applyTheme(t);
   if (activeTab === "stats") renderStats();     // recolour the charts' text
-});
+}));
 
 // ---- command palette (⌘K / Ctrl-K) ---------------------------------------
 // 14.7k games is too many to browse to. Type a few letters, hit enter.
@@ -191,6 +202,8 @@ function cmdkTabs() {
   // Picross has no nav button on purpose — it's a once-a-day thing, and the nav is already
   // ten deep. It lives on Home. But it must still be REACHABLE, so the palette knows it.
   tabs.push({ id: "picross", label: "Daily Picross", icon: "i-target" });
+  // Home lost its nav button (the logo goes there now), but the palette should still reach it.
+  tabs.unshift({ id: "home", label: "Home", icon: "i-home" });
   return tabs;
 }
 
@@ -395,6 +408,7 @@ document.addEventListener("keydown", (e) => {
   }
   if (e.key !== "Escape") return;
   if (cmdk.open) setCmdk(false);
+  else if (!$("#navdrawer").hidden) setNav(false);
   else if (!$("#sheet").hidden) setSheet(false);
   // Esc unwinds the drawer history one step at a time, then closes.
   else if (drawerStack.length && !$("#overlay").hidden) drawerBack();
@@ -429,18 +443,24 @@ function applyAdminUI() {
   // public); revealed only once we know we're signed in.
   const wl = $("#tabWishlist");
   if (wl) wl.hidden = !IS_ADMIN;
-  // Health (the data-quality dashboard over the collection) is owner-only too.
+  // Health (the data-quality dashboard over the collection) is owner-only too. Its whole
+  // "Admin" group in the menu hides for the public, so there's no empty section header.
   const health = $("#tabHealth");
   if (health) health.hidden = !IS_ADMIN;
+  const adminGrp = $("#navAdmin");
+  if (adminGrp) adminGrp.hidden = !IS_ADMIN;
   if (!acct) return;
   if (IS_ADMIN) {
     acct.title = `Signed in as ${ME.username} — account`;
     acct.setAttribute("aria-label", "Account");
     acct.classList.add("signed-in");
+    // Your initial in the accent coin — the signed-in state you can see at a glance.
+    acct.textContent = String(ME.username || "?").trim().charAt(0).toUpperCase() || "?";
   } else {
     acct.title = "Sign in";
     acct.setAttribute("aria-label", "Sign in");
     acct.classList.remove("signed-in");
+    acct.innerHTML = icon("i-user", 16);
   }
 }
 

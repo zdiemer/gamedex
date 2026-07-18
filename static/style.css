@@ -317,31 +317,80 @@ button .ico, a .ico { pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ---- Tabs --------------------------------------------------------------- */
-.tabs {
-  display: flex; gap: 2px; padding: 0 14px;
-  background: var(--bar-bg-2);
-  border-bottom: 1px solid var(--border-soft);
-  overflow-x: auto; scrollbar-width: none;
+/* ---- Top bar: menu toggle, section label, control cluster --------------- */
+.nav-toggle { font-size: 18px; }
+/* Where you are, now that the tabs live behind the ☰. Sits between the wordmark and search. */
+.nav-here {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  color: var(--muted); font: 600 13px var(--display); white-space: nowrap;
+  padding-left: 13px; border-left: 1px solid var(--border);
 }
-.tabs::-webkit-scrollbar { display: none; }
-.tabs button {
-  position: relative; background: transparent; border: none;
-  display: inline-flex; align-items: center; gap: 8px;
-  color: var(--muted); padding: 13px 16px; cursor: pointer;
-  font: 600 13.5px/1 var(--display); white-space: nowrap;
-  transition: color .16s;
+.nav-here .ico { color: var(--accent); }
+.topctl { display: flex; align-items: center; gap: 10px; flex: none; }
+
+/* Theme as a sun | moon segment — it SHOWS the mode you're in instead of a lone
+   glyph you have to decode. The lit half is the current theme. */
+.thseg {
+  display: inline-flex; background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 3px; gap: 2px;
 }
-/* The icon takes the accent when the tab is active — the thing emoji could never
-   do, and the whole reason for the swap. */
-.tabs button.active .ico { color: var(--accent); }
-.tabs button::after {
-  content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px;
-  border-radius: 2px 2px 0 0; background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transform: scaleX(0); transform-origin: center; transition: transform .22s var(--ease);
+.th-opt {
+  width: 32px; height: 30px; border: 0; background: none; border-radius: 7px;
+  color: var(--dim); display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: color .14s, background .14s;
 }
-.tabs button:hover { color: var(--text); }
-.tabs button.active { color: var(--text); }
-.tabs button.active::after { transform: scaleX(1); }
+.th-opt:hover { color: var(--text); }
+.th-opt.on { background: var(--accent-soft); color: var(--accent); }
+
+/* Account as a monogram avatar. A generic user glyph while signed out; your initial
+   in an accent coin with a ring once you're in — the signed-in state you can see. */
+.avatar {
+  width: 38px; height: 38px; flex: none; border: 1px solid var(--border); border-radius: 50%;
+  background: var(--surface); color: var(--muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 800 14px var(--display); line-height: 1; overflow: hidden;
+  transition: color .16s var(--ease), border-color .16s var(--ease), transform .16s var(--ease), box-shadow .16s var(--ease);
+}
+.avatar:hover { border-color: var(--accent-line); color: var(--text); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, .18); }
+.avatar:active { transform: translateY(0); box-shadow: none; }
+.avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.avatar.signed-in {
+  border: 0; color: var(--on-accent); background: linear-gradient(135deg, var(--accent), #4f2fe0);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent-line);
+}
+.avatar.signed-in:hover { transform: translateY(-1px); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent-line), 0 4px 12px rgba(0, 0, 0, .2); }
+
+/* ---- Nav drawer (grouped) — the tab strip, now behind the ☰ ------------- */
+.navdrawer { position: fixed; inset: 0; z-index: 60; }
+.navdrawer[hidden] { display: none; }
+.navdrawer-backdrop { position: absolute; inset: 0; background: var(--overlay); backdrop-filter: blur(3px); animation: fadein .18s; }
+.navdrawer-panel {
+  position: absolute; top: 0; left: 0; bottom: 0; width: min(292px, 86vw);
+  background: var(--bg-2); border-right: 1px solid var(--border); box-shadow: var(--sh-3);
+  display: flex; flex-direction: column; padding: 12px 12px 18px; overflow-y: auto;
+  animation: navslide .24s var(--ease);
+}
+@keyframes navslide { from { transform: translateX(-102%); } to { transform: none; } }
+.nav-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 12px; }
+.nav-head .brand-word { font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
+.nav-head .brand-word span { color: var(--muted); }
+.nav-x { width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.nav-x:hover { background: var(--surface-2); color: var(--text); }
+.nav-list { display: flex; flex-direction: column; gap: 12px; }
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-group[hidden] { display: none; }
+.nav-grp-h { font: 700 10px/1 var(--font); letter-spacing: .11em; text-transform: uppercase; color: var(--dim); padding: 8px 12px 5px; }
+#tabs button {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  color: var(--muted); font: 600 14px/1 var(--display); position: relative;
+  transition: background .14s, color .14s;
+}
+#tabs button .ico { color: var(--dim); transition: color .14s; }
+#tabs button:hover { background: var(--surface-2); color: var(--text); }
+#tabs button:hover .ico { color: var(--muted); }
+#tabs button.active { background: var(--accent-soft); color: var(--accent); }
+#tabs button.active .ico { color: var(--accent); }
 
 /* ---- Layout ------------------------------------------------------------- */
 .layout { display: flex; flex: 1; min-height: 0; }
@@ -2927,16 +2976,17 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   html, body { height: auto; max-width: 100%; overflow-x: hidden; }
   .layout { display: block; min-height: 0; max-width: 100%; }
   .results { display: block; min-width: 0; max-width: 100%; }
-  /* Search gets its own row — brand + refresh can't squeeze it into overflow. */
+  /* Search gets its own row — the ☰, brand and controls fill row one. */
   .topbar { flex-wrap: wrap; row-gap: 10px; }
-  /* Every item in the bar needs an explicit order once ANY of them has one —
-     an unordered item defaults to 0 and jumps to the front (⌘K did exactly
-     that). The palette itself is redundant here: the search box is right below. */
+  /* Every DIRECT flex child needs an explicit order once ANY of them has one — an
+     unordered item defaults to 0 and jumps to the front. Row 1: [☰][logo]…[controls];
+     row 2: the search field, full width. The section label is dropped for space. */
+  #navToggle { order: 0; }
   .brand { order: 1; }
-  .kbdbtn { display: none; }
-  #theme { order: 2; margin-left: auto; }
-  #refresh { order: 3; margin-left: 0; }
-  #search { order: 4; flex: 1 1 100%; max-width: none; }
+  .nav-here { display: none; }
+  .topctl { order: 2; margin-left: auto; }
+  .kbdbtn { display: none; }               /* the search box below is the redundant twin */
+  .field-top { order: 3; flex: 1 1 100%; max-width: none; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
   /* Shorthand, not overflow-y: a `visible` on one axis next to `auto` on the
      other computes back to `auto`, which would keep the nested scroller. */
@@ -3429,7 +3479,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .auth-err { color:var(--bad); font-size:12.5px; margin:0; line-height:1.4; }
 .auth-menu { display:flex; flex-direction:column; gap:8px; }
 .auth-menu .sh-btn { text-align:center; padding:11px; }
-#account.signed-in { color:var(--accent); }
 .ce-drop { display:block; border:1.5px dashed var(--border); border-radius:12px;
   min-height:220px; cursor:pointer; overflow:hidden; position:relative;
   background:var(--surface-2); transition:border-color .15s; }

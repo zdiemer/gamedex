@@ -311,6 +311,7 @@ function closeDrawer(silent) {
 let _scrollLockY = 0;
 function anyOverlayOpen() {
   return !$("#overlay").hidden
+    || !$("#navdrawer").hidden                                    // the main nav menu
     || !$("#lightbox").hidden
     || !$("#attract-overlay").hidden                             // full-screen attract mode
     || (typeof cmdk !== "undefined" && cmdk.open)

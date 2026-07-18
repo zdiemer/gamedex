@@ -162,6 +162,7 @@ function switchTab(tab, reset) {
   else $("#search").value = GLOBAL_SEARCH.q;
   const ts = $("#tabsearch");
   if (ts && tabState[tab]) ts.value = tabState[tab].search;
+  updateNavHere();
   renderAll();
   setDocTitle();
 }
@@ -349,6 +350,21 @@ function setDocTitle() {
     if (label && label !== "Home") lead = label;
   }
   document.title = lead ? `${lead} · Gamedex` : "Gamedex";
+}
+
+// The "you are here" label in the top bar, now that the tabs live behind the ☰. Blank on
+// Home (the logo already says Gamedex) — it reappears the moment you're anywhere else.
+function updateNavHere() {
+  const el = $("#navHere");
+  if (!el) return;
+  const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"]`);
+  const label = btn ? (btn.querySelector("span") || {}).textContent
+    : (activeTab === "picross" ? "Daily Picross" : activeTab === "search" ? "Search" : "");
+  const iconHref = btn ? (btn.querySelector("use") || {}).getAttribute("href")
+    : (activeTab === "search" ? "#i-search" : null);
+  const show = label && activeTab !== "home";
+  el.hidden = !show;
+  if (show) el.innerHTML = (iconHref ? `<svg class="ico" width="15" height="15" aria-hidden="true"><use href="${iconHref}"/></svg>` : "") + escapeHtml(label);
 }
 
 function setFreshness() {
