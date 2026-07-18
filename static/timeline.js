@@ -236,6 +236,18 @@ function renderTimeline(rows) {
       if (chip && rail) rail.scrollTo({ top: chip.offsetTop - rail.clientHeight / 2 + chip.offsetHeight / 2, behavior: jump });
     }, { root, rootMargin: "-8% 0px -80% 0px", threshold: 0 });
     host.querySelectorAll(".tl-year").forEach((s) => spy.observe(s));
+
+    // The rail hides its scrollbar, so when there are more buckets than fit (a Release Year sort
+    // can be 40+ years) the overflow was invisible — the extra buckets just ran off the bottom of
+    // the screen with no hint they were there. Fade whichever edge has more beyond it.
+    if (rail) {
+      const updateFade = () => {
+        rail.classList.toggle("fade-top", rail.scrollTop > 2);
+        rail.classList.toggle("fade-bot", rail.scrollTop + rail.clientHeight < rail.scrollHeight - 2);
+      };
+      rail.addEventListener("scroll", updateFade, { passive: true });
+      requestAnimationFrame(updateFade);        // after layout, so the heights are real
+    }
   }
 
   // Entries fade in as they arrive, so a 1,700-item scroll doesn't just appear.

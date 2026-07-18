@@ -425,6 +425,12 @@ function attractShowBackdrop(stage, d, cs) {
 function attractArtImg(src, motion) {
   const img = document.createElement("img");
   img.className = "attract-art" + (motion && WANTS_MOTION ? " kb" : "");
+  // DS / 3DS dual-screen shots (and any portrait image) are TALLER than they are wide, so
+  // cover-fit crops them to a horizontal band and the landscape zoom barely reveals them.
+  // Tag them so the CSS pans VERTICALLY instead — sweeping the top screen down to the bottom.
+  img.addEventListener("load", () => {
+    if (img.naturalHeight > img.naturalWidth * 1.05) img.classList.add("tall");
+  });
   img.src = src;
   if (motion && WANTS_MOTION) {
     // Desktop/landscape: zoom + drift toward a random point.

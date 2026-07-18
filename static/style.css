@@ -2399,6 +2399,14 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   background: color-mix(in srgb, var(--bg) 52%, transparent); backdrop-filter: blur(6px);
 }
 .tl-rail::-webkit-scrollbar { display: none; }
+/* Scroll hint: with the scrollbar hidden, a 40-bucket rail's overflow was invisible. Fade the
+   edge that has more beyond it (toggled in timeline.js) so it reads as scrollable, not cut off. */
+.tl-rail.fade-top { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px); mask-image: linear-gradient(to bottom, transparent 0, #000 26px); }
+.tl-rail.fade-bot { -webkit-mask-image: linear-gradient(to top, transparent 0, #000 26px); mask-image: linear-gradient(to top, transparent 0, #000 26px); }
+.tl-rail.fade-top.fade-bot {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+}
 .tl-rail-chip {
   flex: 0 0 auto; font: 600 11px/1 var(--font); color: var(--muted); white-space: nowrap;
   background: transparent; border: 0; border-radius: 7px; padding: 5px 10px; cursor: pointer;
@@ -4336,6 +4344,19 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     animation-timing-function: linear;
     transform: scale(1.04);
   }
+}
+/* Tall images (DS/3DS dual-screen shots, portrait art) cover-fit to the WIDTH and overflow
+   top/bottom, so sweep them vertically — top screen down to the bottom — in any orientation.
+   More specific than the rules above, so it wins for a tall shot on desktop and on phones. */
+@keyframes attract-pan-y {
+  from { object-position: center var(--pan-from, 12%); }
+  to   { object-position: center var(--pan-to, 88%); }
+}
+.attract-art.kb.tall {
+  animation-name: attract-pan-y;
+  animation-duration: var(--pan-dur, 26s);
+  animation-timing-function: linear;
+  transform: scale(1.02);
 }
 /* The trailer, fading in over the art only once it truly starts. */
 .attract-video { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; }
