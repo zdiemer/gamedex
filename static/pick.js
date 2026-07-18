@@ -1272,3 +1272,7 @@ document.addEventListener("click", () => {
   if (!pickPop.path || activeTab !== "pick" || _pkClickedInside) return;
   dismissPickPop();
 });
+
+// Landing state (core.js). applyPreset rebuilds filter+preset together and clears the
+// rolled game — hand-assigning either one leaves the two disagreeing about what's shown.
+TAB_RESET.pick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); };

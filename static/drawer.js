@@ -296,6 +296,11 @@ function closeDrawer(silent) {
   const wasOpen = !$("#overlay").hidden;
   if (typeof stopSoundtrack === "function") stopSoundtrack();   // silence the player on close
   $("#overlay").hidden = true; drawerStack = [];
+  // Nulled, not just hidden: most readers guard on !$("#overlay").hidden but several don't
+  // (panels.js, hero.js), and openDrawerFrom pushes drawerRow onto the back-stack — a stale
+  // one renders a "← back to <game you already closed>" button. It also pinned the last
+  // row's _members/_igdb alive for the session.
+  drawerRow = null; drawerSheet = null;
   if (silent !== true && !restoringDrawer && wasOpen && typeof syncURL === "function") syncURL(false);
   if (typeof setDocTitle === "function") setDocTitle();   // back to the tab's title
   // If this drawer was opened FROM attract mode, closing it hands the screen straight
@@ -341,11 +346,8 @@ function syncScrollLock() {
 
 // Clicking a facet-link (in the drawer) filters that field on its sheet's tab.
 function applyDrawerFacet(key, val) {
-  const st = tabState[drawerSheet];
-  if (!st) return;
-  st.facets = { [key]: new Set([String(val)]) };
-  st.search = ""; st.page = 1;
-  closeDrawer(true);            // silent — nav() below writes the (drawer-free) URL for this jump
-  switchTab(drawerSheet);
-  nav();
+  const tab = drawerSheet;
+  if (!tabState[tab]) return;
+  closeDrawer(true);            // silent — goTab's nav() writes the (drawer-free) URL for this jump
+  goTab(tab, () => { tabState[tab].facets = { [key]: new Set([String(val)]) }; });
 }

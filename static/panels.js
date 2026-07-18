@@ -605,34 +605,30 @@ async function loadAllEnrichment() {
     // the render this releases would look at the flag and hold out all over again.
     ENRICH_READY = true;
     if (changed) {
-      _enrichEpoch++; resetSearchCache();     // IGDB genres just became searchable
-      // Several health checks read the enrichment map (missing metadata, HLTB
-      // mismatches), and its results are cached — so they must be recomputed
-      // once enrichment lands, or "no metadata" reads as "all 14,747 games".
-      resetHealth();
-      // Groupings and Challenges group on the UNIFIED (sheet + IGDB) values, so their
-      // membership changes as enrichment lands — drop the cached indexes.
-      resetGroups(); _completedFranchises = null;
-      if (typeof chReset === "function") chReset();
-      /* And the prediction model, which was fitted from THIS MAP and cached before it
-         existed. Landing on Home — the default — paints the "You'd probably love" shelf at
-         once, that calls tasteModel(), and the model it builds and keeps for the rest of
-         the session has learned exactly zero IGDB tags: no genres, no themes, no
-         developers, no keywords. Nine of its vocabularies, silently empty. Measured on the
-         live site before this line existed: land on Home and the model knows 0 tags; land
-         on Stats (whose panel happens to ask for it late) and it knows 3,722.
-         It hid for so long because the sheet's own columns cover for the missing tags on a
-         backlog game — 8.93 against 8.88, which is nothing. It is not nothing for a game
-         that ISN'T on the sheet: the catalogue model has no columns to fall back to, so
-         tagless it scores every game at your global mean and the Recommendations tab
-         becomes 25,000 rows of 64%. */
-      resetTaste();
-      // The catalogue's whole job is answering "do I already own this?", and it answers it
-      // out of the map that just changed: a game becomes yours the moment its sheet row
-      // matches, which can happen minutes after boot or while you are looking at the list.
-      // Without this it would keep offering you a game you own, and Pick would show it
-      // TWICE — once as a sheet row and once as a catalogue row.
-      if (typeof resetCatalogue === "function") resetCatalogue();
+      /* Everything downstream of the map just went stale. One call rather than the list
+         that used to be here, because the same list also lives at boot and behind the ✱
+         Refresh button, and hand-copying it into three files is how two of them ended up
+         missing entries (see resetDerived, app.js).
+
+         Why it matters, concretely — several health checks read the map and cache their
+         results, so "no metadata" reads as "all 14,747 games" without this. Groupings and
+         Challenges group on UNIFIED (sheet + IGDB) values, so their membership shifts as
+         enrichment lands. And the prediction model was fitted from THIS MAP and cached
+         before it existed: landing on Home paints the "You'd probably love" shelf at once,
+         that calls tasteModel(), and the model it keeps for the rest of the session has
+         learned exactly zero IGDB tags. Measured on the live site before this existed:
+         land on Home and the model knows 0 tags; land on Stats (whose panel happens to ask
+         late) and it knows 3,722. It hid for so long because the sheet's own columns cover
+         for missing tags on a backlog game — 8.93 against 8.88, which is nothing. It is
+         not nothing for a game that ISN'T on the sheet: the catalogue model has no columns
+         to fall back to, so tagless it scores every game at your global mean and the
+         Recommendations tab becomes 25,000 rows of 64%.
+
+         The catalogue likewise answers "do I already own this?" out of the map that just
+         changed — without dropping it, Pick shows a game you own TWICE, once as a sheet
+         row and once as a catalogue row. */
+      _enrichEpoch++;
+      resetDerived();
       // Patch in place rather than re-rendering (which would flicker every image).
       if (activeTab === "stats") renderStats();
       else if (activeTab === "home") patchHomeCovers();   // in place: a full re-render flickers

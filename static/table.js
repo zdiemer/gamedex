@@ -110,10 +110,11 @@ function renderTable(rows) {
   // sorting and paging — otherwise the counts and page numbers would lie.
   const base = st.combine ? groupByGame(rows) : rows;
   const sorted = sortRows(base);
-  const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const per = pageSizeOf();
+  const pages = Math.max(1, Math.ceil(sorted.length / per));
   if (st.page > pages) st.page = pages;
-  const start = (st.page - 1) * PAGE_SIZE;
-  const pageRows = sorted.slice(start, start + PAGE_SIZE);
+  const start = (st.page - 1) * per;
+  const pageRows = sorted.slice(start, start + per);
 
   // The timeline is a view of the Completed rows — same filters, same search.
   const canTimeline = activeTab === "completed";

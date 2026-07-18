@@ -201,12 +201,10 @@ function yearInReview(rows, games) {
   });
   // A count tells you a day was busy; the names tell you what the day WAS.
   const dayTip = (iso, n) => tipList(`${fmtDate(iso)} — ${n} finished`, gamesByDay[iso] || []);
-  const showDay = (iso) => {
-    const st = tabState.completed;
-    st.facets = {}; st.search = ""; st.sort = null; st.page = 1;
-    switchTab("completed");
-    nav();
-  };
+  // FIXME: `iso` is ignored — clicking a day lands you on the whole Completed list rather
+  // than that day's games. It has been this way since the heatmap landed; noted here
+  // rather than guessed at, because Completed has no date facet to filter on.
+  const showDay = (iso) => goTab("completed");
   // Best and worst come off the same ranking, and the worst row only gets what
   // the best row didn't take: a thin year has no worst, rather than the same
   // games standing under both headings.
@@ -670,3 +668,6 @@ function renderStatsPurchases(rows, games) {
 function renderStatsReviews(rows) {
   return (typeof reviewStats === "function" ? reviewStats(rows) : "") + predictionPanel();
 }
+
+// Landing state (core.js). renderStats re-derives the newest year when it's null.
+TAB_RESET.stats = () => { statsState.section = "overview"; statsState.year = null; };

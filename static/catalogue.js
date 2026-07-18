@@ -37,7 +37,7 @@ let CAT_ERROR = false;
 let _catPromise = null;
 let _catRows = null, _catRowsEpoch = -1;
 let _sheetIds = null, _sheetIdsEpoch = -1;
-let _unmatchedNames = null;
+let _unmatchedNames = null, _unmatchedEpoch = -1;
 
 const catMeta = () => (DATA && DATA.meta && DATA.meta.catalogue) || {};
 const catEnabled = () => !!(catMeta().enabled && catMeta().generation);
@@ -149,7 +149,13 @@ function sheetIgdbIds() {
    only to rows with no igdbId, that collision cost is bounded to the games that have no
    other way of being recognised. */
 function unmatchedNames() {
-  if (_unmatchedNames && _sheetIdsEpoch === _enrichEpoch) return _unmatchedNames;
+  // Its OWN epoch, not _sheetIdsEpoch. That one is written by sheetIgdbIds(), which
+  // catInSheet() always calls first — so by the time this guard ran the epoch had already
+  // been refreshed and the stale set sailed through it for the rest of the session. Every
+  // backfill silently poisoned "do I already own this?", which is what Recommend and Pick
+  // are built on.
+  if (_unmatchedNames && _unmatchedEpoch === _enrichEpoch) return _unmatchedNames;
+  _unmatchedEpoch = _enrichEpoch;
   const s = new Set();
   for (const k of NO_MATCH) {
     const norm = String(k).split("|")[0];
@@ -212,6 +218,6 @@ function catFresh() {
 function resetCatalogue() {
   _catRows = null; _catRowsEpoch = -1;
   _sheetIds = null; _sheetIdsEpoch = -1;
-  _unmatchedNames = null;
+  _unmatchedNames = null; _unmatchedEpoch = -1;
   if (typeof resetRecs === "function") resetRecs();
 }

@@ -730,6 +730,27 @@ function shelfClose() {
   shKick();
 }
 
+/* Leaving the tab entirely. shelfClose() is the animated path and needs the shelf on
+   screen to run — it can't put a box back onto a host that's about to be hidden, and its
+   560ms "let the lid finish" re-entry would land after the DOM is gone.
+
+   The part that actually bit: shCur >= 0 is one of the things anyOverlayOpen() counts
+   (drawer.js), so a box left out held the body scroll lock onto whatever tab you went to
+   next — the whole app unscrollable until you came back and closed it. Snap, don't
+   animate; the host is going away regardless. Called from setSpecialMode, so it runs on
+   back/forward too (which deliberately never resets). */
+function shelfTeardown() {
+  if (shCur < 0 && !shRaf) return;
+  if (shRaf) { cancelAnimationFrame(shRaf); shRaf = 0; }
+  shCur = -1; shPending = -1; shTarget = 0; shDrag = null; shEl = null;
+  document.getElementById("shPull")?.classList.remove("open");
+  syncScrollLock?.();
+}
+
+// Landing state (core.js). The filters only — SHELF.games/loaded is the /api/shelf
+// payload, and dropping it would re-fetch and flash "Reading the shelf…" every visit.
+TAB_RESET.shelf = () => { SHELF.filter = ""; SHELF.plat = ""; };
+
 /* ---------- turning it, once it's out ---------- */
 
 function shBindCase(el) {

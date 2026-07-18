@@ -19,7 +19,10 @@
 
    Loaded after app.js and shares its globals (DATA, ENRICH, openDrawer, …). */
 
-const chState = { open: null };
+// showAll: which bucket ("todo"/"done") is expanded past its cap, or null for none. It
+// was only ever an undeclared property assigned from three places — the object's shape
+// should be readable from its declaration.
+const chState = { open: null, showAll: null };
 
 const chRows = () => ((DATA.sheets.games || {}).rows || []).filter((r) => r.title);
 const chMean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -1079,3 +1082,11 @@ function chOpenEditor(def) {
   chEditor.def = def ? { ...def, _editing: true } : chBlankDef();
   renderChallenges();
 }
+
+// Landing state (core.js). chEditor especially: the builder used to survive EVERY
+// navigation, so any return to the tab — even a ?ch= deep link — reopened the half-filled
+// form instead of the challenge you asked for (renderChallenges early-returns on it).
+TAB_RESET.challenges = () => {
+  chState.open = null; chState.showAll = null;
+  chEditor.open = false; chEditor.def = null;
+};

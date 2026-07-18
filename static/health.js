@@ -363,7 +363,9 @@ function healthResults() {
   if (_healthResults) return _healthResults;
   return (_healthResults = HEALTH_CHECKS.map((c) => ({ c, rows: c.find() })));
 }
-const resetHealth = () => { _healthResults = null; };
+// The page indices go too: they belong to a result set that no longer exists, and only
+// the clamp in the renderer stood between a stale one and an out-of-range slice.
+const resetHealth = () => { _healthResults = null; healthState.page = {}; };
 
 function healthRowHtml(check, r, i) {
   const title = String(r.title || r.game || "");
@@ -474,3 +476,6 @@ function renderHealth() {
     };
   });
 }
+
+// Landing state (core.js): every check collapsed, back on its first page.
+TAB_RESET.health = () => { healthState.open = null; healthState.page = {}; };

@@ -11,7 +11,11 @@
 
    Loaded after app.js; shares its globals (DATA, ENRICH, openDrawer, …). */
 
-const TL_SNIPPET = 190;          // characters of review shown inline
+const TL_SNIPPET = 190;                     // characters of review shown inline
+// Held so the next render can drop them. renderTimeline runs on every keystroke of the
+// inline filter, and each run was leaving behind a scroll-spy observing ~40 year headers
+// and a fade-in observer over up to 1,700 entries, all still firing against detached nodes.
+let _tlSpy = null, _tlFade = null;
 
 function tlYearOf(r) {
   const y = String(r.date || "").slice(0, 4);
@@ -220,7 +224,8 @@ function renderTimeline(rows) {
     const rail = host.querySelector(".tl-rail");
     const visible = new Set();
     let activeBi = -1;
-    const spy = new IntersectionObserver((es) => {
+    _tlSpy?.disconnect();
+    const spy = _tlSpy = new IntersectionObserver((es) => {
       for (const e of es) {
         const bi = +e.target.id.slice(4);
         if (e.isIntersecting) visible.add(bi); else visible.delete(bi);
@@ -252,7 +257,8 @@ function renderTimeline(rows) {
 
   // Entries fade in as they arrive, so a 1,700-item scroll doesn't just appear.
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const io = new IntersectionObserver((es) => {
+    _tlFade?.disconnect();
+    const io = _tlFade = new IntersectionObserver((es) => {
       for (const e of es) {
         if (!e.isIntersecting) continue;
         io.unobserve(e.target);

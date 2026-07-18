@@ -48,7 +48,7 @@ $("#tabsearch").addEventListener("keydown", (e) => {
 // broke navigation when the emoji became icons.
 $("#tabs").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-tab]");
-  if (btn) { switchTab(btn.dataset.tab, true); nav(); setNav(false); }
+  if (btn) { goTab(btn.dataset.tab); setNav(false); }
 });
 
 // ---- nav drawer (the tab strip, now behind the ☰) ------------------------
@@ -76,7 +76,8 @@ $("#resetsort").addEventListener("click", () => {
   nav();
 });
 $("#pagesize").addEventListener("change", (e) => {
-  PAGE_SIZE = parseInt(e.target.value, 10) || 50;
+  const st = tabState[activeTab];
+  if (st) st.pageSize = parseInt(e.target.value, 10) || PAGE_SIZE_DEFAULT;
   tabState[activeTab].page = 1;
   renderTable(currentFiltered);
   nav();
@@ -208,7 +209,8 @@ function cmdkTabs() {
     icon: ((b.querySelector("use") || {}).getAttribute?.("href") || "#i-home").slice(1),
   }));
   // Picross has no nav button on purpose — it's a once-a-day thing, and the nav is already
-  // ten deep. It lives on Home. But it must still be REACHABLE, so the palette knows it.
+  // ten deep. It lives on Home. But it must still be REACHABLE, so the palette knows it,
+  // and goTab gives it a real ?tab=picross URL you can link, reload and go Back out of.
   tabs.push({ id: "picross", label: "Daily Picross", icon: "i-target" });
   // Home lost its nav button (the logo goes there now), but the palette should still reach it.
   tabs.unshift({ id: "home", label: "Home", icon: "i-home" });
@@ -230,14 +232,14 @@ function cmdkCandidates(q) {
   const needle = q.toLowerCase().trim();
   if (!needle) {
     return [
-      ...cmdkTabs().map((t) => ({ kind: "Tab", label: t.label, icon: t.icon, run: () => switchTab(t.id) })),
+      ...cmdkTabs().map((t) => ({ kind: "Tab", label: t.label, icon: t.icon, run: () => goTab(t.id) })),
       ...cmdkActions(),
     ];
   }
   // Tabs
   for (const t of cmdkTabs()) {
     if (t.label.toLowerCase().includes(needle))
-      out.push({ kind: "Tab", label: t.label, icon: t.icon, run: () => switchTab(t.id) });
+      out.push({ kind: "Tab", label: t.label, icon: t.icon, run: () => goTab(t.id) });
   }
   // Actions (Attract mode, …)
   for (const a of cmdkActions()) {
@@ -257,7 +259,9 @@ function cmdkCandidates(q) {
   for (const r of [...pre, ...sub].slice(0, 24)) {
     out.push({
       kind: "Game", label: String(r.title), sub: [r.platform, r.releaseYear].filter(Boolean).join(" · "),
-      row: r, run: () => { switchTab("games"); openDrawer(r, "games"); },
+      // No nav() — openDrawer calls syncURL itself, and it writes the freshly-reset
+      // tab along with ?game=. A nav() here would push a duplicate history entry.
+      row: r, run: () => { resetTab("games"); switchTab("games"); openDrawer(r, "games"); },
     });
   }
   // Facet values on the current tab (platform / genre / franchise / …)
@@ -434,8 +438,11 @@ function uiConfirm({ title = "", body = "", ok = "OK", cancel = "Cancel", danger
 
 // Wordmark = home: back to the landing page with nothing filtered/sorted.
 $("#brand").addEventListener("click", () => {
-  for (const t of TABS) tabState[t] = { ...freshState(), view: tabState[t].view, combine: tabState[t].combine };
-  closePickPop(); applyPreset(PICK_DEFAULT_PRESET);
+  // Every tab, not just Home: the wordmark is the "put it all back" affordance. resetTab
+  // covers the special tabs' own state too (TAB_RESET, core.js), so the picker/challenge/
+  // shelf state this used to clear by hand is now cleared by the tabs that own it.
+  for (const t of TABS) resetTab(t);
+  for (const t of Object.keys(TAB_RESET)) resetTab(t);
   $("#search").value = "";
   setFacets(false);
   switchTab("home");
@@ -691,8 +698,7 @@ $("#refresh").addEventListener("click", async () => {
       const dres = await fetch("api/data", { cache: "no-store" });
       if (dres.ok) {
         DATA = await dres.json();
-        resetCollections();
-        resetSearchCache();
+        resetDerived();
         buildWishlistSheet();
         const en = DATA.meta && DATA.meta.enrichment;
         ENRICH_ENABLED = !!(en && en.enabled !== false);

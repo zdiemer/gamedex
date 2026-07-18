@@ -599,7 +599,7 @@ function picrossHomeCardHtml() {
 
 function wirePicrossHome() {
   const b = document.getElementById("hPicross");
-  if (b) b.onclick = () => switchTab("picross");
+  if (b) b.onclick = () => goTab("picross");
 }
 
 // Home needs today's state before it can draw the card, and it's a small payload.
@@ -631,3 +631,8 @@ async function loadPicross() {
     PX.date = "—"; PX.w = 0; renderPicross();
   }
 }
+
+/* Landing state (core.js) — deliberately empty, and here to say so. PX is today's puzzle
+   PROGRESS, persisted to localStorage and prefs: clicking Picross twice must not delete
+   the grid you're halfway through. The empty entry is the documentation. */
+TAB_RESET.picross = () => {};

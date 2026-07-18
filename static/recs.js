@@ -23,7 +23,6 @@
  *
  * Loaded after predict.js and catalogue.js; shares their globals. */
 
-const recsState = { page: 1 };          // legacy holder; the real row state is tabState.recs
 let _recsBusy = false;                   // catalogue fetch in flight
 let _recsSheetEpoch = -1;                // the enrichment epoch DATA.sheets.recs was built for
 const RECS_META = {};                    // igdbId -> per-game meta (video/hltb/platforms) from /api/games/meta

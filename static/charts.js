@@ -239,12 +239,10 @@ function wireCharts(host) {
 const gameLink = (row, sheet) => () => openDrawer(row, sheet);
 // A bar that filters a tab by one facet value.
 const facetLink = (tab, key, val) => () => {
-  const st = tabState[tab];
-  if (!st) return;
-  st.facets = { [key]: new Set([String(val)]) };
-  st.search = ""; st.page = 1;
-  switchTab(tab);
-  nav();
+  if (!tabState[tab]) return;
+  // goTab clears the search/sort/page this used to clear by hand, then this one facet
+  // goes on top of the clean state — the whole point of the link.
+  goTab(tab, () => { tabState[tab].facets = { [key]: new Set([String(val)]) }; });
 };
 
 /* ==========================================================================

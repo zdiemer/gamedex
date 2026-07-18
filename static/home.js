@@ -371,11 +371,11 @@ function wireHome(host, playing) {
   const pickMore = $("#hPickMore");
   // Land on an already-rolled game, not the empty builder — switchTab paints the picker (which
   // seeds the default backlog filter), then pickGame() rolls one and re-renders with the result.
-  if (pickMore) pickMore.onclick = () => { switchTab("pick"); pickGame(true); nav(); };
+  if (pickMore) pickMore.onclick = () => { resetTab("pick"); switchTab("pick"); pickGame(true); nav(); };
   const chalAll = $("#hChalAll");
-  if (chalAll) chalAll.onclick = (e) => { e.stopPropagation(); chState.open = null; switchTab("challenges"); nav(); };
+  if (chalAll) chalAll.onclick = (e) => { e.stopPropagation(); goTab("challenges"); };
   host.querySelectorAll(".h-chal[data-chal]").forEach((el) => {
-    el.onclick = () => { chState.open = el.dataset.chal; switchTab("challenges"); nav(); };
+    el.onclick = () => goTab("challenges", () => { chState.open = el.dataset.chal; });
   });
 
   loadHeroShot(playing);
@@ -404,3 +404,7 @@ function scheduleHero(playing) {
     }
   }, HERO_MS);
 }
+
+// Landing state (core.js): the hero goes back to the first slide. NOT _homeTimer —
+// scheduleHero self-guards on activeTab and re-arms, so clearing it kills the rotation.
+TAB_RESET.home = () => { homeState.heroIdx = 0; };

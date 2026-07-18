@@ -24,6 +24,12 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#shelfview").hidden = mode !== "shelf";
   $("#picross").hidden = mode !== "picross";
   $("#recs").hidden = mode !== "recs";
+  // The Shelf's 3D pull can't animate itself shut onto a host that's about to be hidden,
+  // and shCur >= 0 is one of the things anyOverlayOpen() counts (drawer.js) — so a box
+  // left out kept the whole PAGE scroll-locked on every tab you visited afterwards. Here
+  // rather than in TAB_RESET.shelf because back/forward deliberately doesn't reset, and
+  // the lock has to be released either way.
+  if (mode !== "shelf" && typeof shelfTeardown === "function") shelfTeardown();
   $(".resultbar").hidden = special;
   $("#pager").style.display = special ? "none" : "";
   document.querySelector(".facets").style.display = special ? "none" : "";
@@ -125,8 +131,9 @@ function enrichListChanged() {
   const enrichedSort = !!(st.sort && st.sort.some((s) => VIRTUAL_SORTS.some((v) => v.key === s.key)));
   let sig = String(rows.length);
   if (enrichedSort) {                              // count can hold while the order shifts
-    const start = (st.page - 1) * PAGE_SIZE;
-    sig += "|" + sortRows(rows).slice(start, start + PAGE_SIZE).map((r) => r._k || r.title).join(",");
+    const per = pageSizeOf();
+    const start = (st.page - 1) * per;
+    sig += "|" + sortRows(rows).slice(start, start + per).map((r) => r._k || r.title).join(",");
   }
   if (sig === _enrichListSig) return false;
   _enrichListSig = sig;
@@ -144,15 +151,31 @@ function renderEnrichWait() {
   showSkeletons();
 }
 
+// The landing state of one tab: the filters/search/sort/page of a sheet-backed tab, plus
+// whatever private singleton a special tab keeps in its own file (TAB_RESET, core.js).
+// View, combine and pageSize are display PREFERENCES, not filters — they survive.
+function resetTab(tab) {
+  if (tabState[tab]) {
+    const keep = tabState[tab];
+    tabState[tab] = { ...freshState(), view: keep.view, combine: keep.combine, pageSize: keep.pageSize };
+  }
+  const fn = TAB_RESET[tab];
+  if (typeof fn === "function") fn();
+}
+
 // reset: a deliberate navigation to a tab (clicking it) starts clean. Filters you
 // set on All Games shouldn't still be there when you come back to it later — the
 // only state that should survive is what's in the URL, which is how back/forward
 // and shared links restore a view on purpose.
+//
+// Which is why applyStateFromURL() calls this with NO second argument, on both of its
+// exits: popstate must restore what the URL says and nothing else. Anything that starts
+// passing `reset` from there breaks the Back button.
 function switchTab(tab, reset) {
-  if (reset && tabState[tab]) {
-    const keep = tabState[tab];
-    tabState[tab] = { ...freshState(), view: keep.view, combine: keep.combine };
-  }
+  if (reset) resetTab(tab);
+  // A render-dedup counter, not user state — a stale count from the tab you just left
+  // would suppress the one repaint the enrichment poll exists to trigger (panels.js).
+  lastGroupedCount = -1;
   activeTab = tab;
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("active", b.dataset.tab === tab);
   // The top-bar box is the GLOBAL search: it shows the query only on the search page, and
@@ -188,8 +211,16 @@ function syncURL(push) {
   } else if (activeTab === "groups") {
     if (groupState.kind) p.set("g", groupState.kind);
     if (groupState.open) p.set("gk", groupState.open);
+    // grq, not gq — that one is the GLOBAL query on the search tab. The two can't coexist
+    // (different tabs), but a param that means two things is a trap for the next reader.
+    if (groupState.q) p.set("grq", groupState.q);
+    if (groupState.sort && groupState.sort !== "size") p.set("gsort", groupState.sort);
+  } else if (activeTab === "shelf") {
+    if (SHELF.filter) p.set("shf", SHELF.filter);
+    if (SHELF.plat) p.set("shp", SHELF.plat);
   } else if (activeTab === "challenges") {
     if (chState.open) p.set("ch", chState.open);
+    if (chState.showAll) p.set("chall", chState.showAll);
   } else if (activeTab === "stats") {
     if (statsState.section && statsState.section !== "overview") p.set("s", statsState.section);
     if (statsState.year) p.set("sy", String(statsState.year));
@@ -199,7 +230,7 @@ function syncURL(push) {
     // blow up on tabState["health"].view.
     const st = tabState[activeTab];
     if (st.view !== VIEW_DEFAULT[activeTab]) p.set("view", st.view);
-    if (PAGE_SIZE !== 50) p.set("ps", String(PAGE_SIZE));
+    if (st.pageSize !== PAGE_SIZE_DEFAULT) p.set("ps", String(st.pageSize));
     if (st.search) p.set("q", st.search);
     if (st.page > 1) p.set("page", String(st.page));
     if (st.sort && st.sort.length) p.set("sort", st.sort.map((s) => `${s.key}:${s.dir}`).join(","));
@@ -239,7 +270,14 @@ function applyStateFromURL() {
       // After the tree exists, never before: this writes a criterion into it.
       pickAdoptMinutes(+(p.get("mins") || 0));
     }
-    if (tab === "challenges") { chState.open = p.get("ch") || null; chState.showAll = null; }
+    if (tab === "challenges") {
+      chState.open = p.get("ch") || null;
+      chState.showAll = p.get("chall") || null;
+      // A URL never encodes a half-filled builder, so arriving by one must close it.
+      // Without this the editor outranked the ?ch= you actually asked for.
+      chEditor.open = false; chEditor.def = null;
+    }
+    if (tab === "shelf") { SHELF.filter = p.get("shf") || ""; SHELF.plat = p.get("shp") || ""; }
     if (tab === "stats") {
       const s = p.get("s");
       statsState.section = STATS_SECTIONS.some((x) => x.id === s) ? s : "overview";
@@ -251,14 +289,15 @@ function applyStateFromURL() {
       const legacy = p.get("fr");
       groupState.kind = legacy ? "series" : (p.get("g") || null);
       groupState.open = legacy || p.get("gk") || null;
-      groupState.q = "";
+      groupState.q = p.get("grq") || "";
+      groupState.sort = p.get("gsort") || "size";
     }
     applyingState = false; switchTab(tab); return;
   }
   const st = tabState[tab];
   st.view = ["table", "grid", "timeline"].includes(p.get("view")) ? p.get("view") : VIEW_DEFAULT[tab];
   st.combine = COMBINE_DEFAULT[tab];
-  PAGE_SIZE = parseInt(p.get("ps"), 10) || 50;
+  st.pageSize = parseInt(p.get("ps"), 10) || PAGE_SIZE_DEFAULT;
   st.search = p.get("q") || "";
   st.page = parseInt(p.get("page"), 10) || 1;
   /* A sort spec is {key, dir, type?, kind?}, but the URL carries only "key:dir" — so the
@@ -283,7 +322,7 @@ function applyStateFromURL() {
   }) : null;
   st.facets = {};
   for (const [k, v] of p.entries()) if (k.startsWith("f.")) st.facets[k.slice(2)] = new Set(v.split("~"));
-  $("#pagesize").value = String(PAGE_SIZE);
+  $("#pagesize").value = String(st.pageSize);
   applyingState = false;
   switchTab(tab);
 }
@@ -327,6 +366,15 @@ function applyDrawerFromURL() {
 }
 function restoreFromURL() { applyStateFromURL(); lastNavKey = tabQueryKey(); applyDrawerFromURL(); }
 const nav = () => { syncURL(true); setDocTitle(); };
+// Deliberate navigation: land on `tab` clean, optionally open one thing on top of it,
+// then write the URL. `then` runs AFTER the reset and BEFORE the render — the only order
+// that works, since resetting after would wipe exactly what the caller just asked for.
+function goTab(tab, then) {
+  resetTab(tab);
+  if (then) then();
+  switchTab(tab);
+  nav();
+}
 window.addEventListener("popstate", () => {
   // A drawer-only back/forward (same tab-level query) just opens/closes the drawer — no full
   // re-render, so the list doesn't flash or lose its scroll. A real tab change re-applies all.
@@ -380,6 +428,30 @@ function setFreshness() {
   }
 }
 
+/* Everything derived from DATA and the enrichment map, dropped in one place.
+
+   This list used to be hand-copied into three files — boot (here), enrichment-landed
+   (panels.js) and the ✱ Refresh button (chrome.js) — and the three had drifted apart.
+   Refresh reset three of the nine, so it left Health, Challenges, Groupings and the taste
+   model answering out of pre-refresh caches; and resetRelations only ever ran down one
+   conditional branch, so landing on Home when enrichment arrived cached an EMPTY relations
+   index for the session and every "you own it / you've beaten it" marker read wrong.
+
+   The typeof guards are load order, not optionality: load() runs from chrome.js before
+   challenges.js and catalogue.js have parsed (see the note at the top of chrome.js). */
+function resetDerived() {
+  resetCollections();
+  resetHealth();
+  resetSearchCache();
+  resetGroups();
+  resetTaste();
+  resetRelations();
+  _completedFranchises = null;
+  if (typeof chReset === "function") chReset();
+  if (typeof resetCatalogue === "function") resetCatalogue();
+  for (const k of Object.keys(_cmdkFacets)) delete _cmdkFacets[k];
+}
+
 // ---- boot ---------------------------------------------------------------
 async function load() {
   showSkeletons();
@@ -393,17 +465,8 @@ async function load() {
   }
   if (!payload) { $("#count").textContent = "Could not load data — is the Dropbox link set?"; return; }
   DATA = payload;
-  resetCollections();
-  resetHealth();
-  resetSearchCache();
-  resetGroups();
-  _completedFranchises = null;
-  if (typeof chReset === "function") chReset();
-  resetTaste();
-  resetRelations();
-  if (typeof resetCatalogue === "function") resetCatalogue();
+  resetDerived();
   buildWishlistSheet();         // the synthetic Wishlist sheet joins the real ones (wishlist.js)
-  for (const k of Object.keys(_cmdkFacets)) delete _cmdkFacets[k];
   const en = DATA.meta && DATA.meta.enrichment;
   ENRICH_ENABLED = !!(en && en.enabled !== false);
   ENRICH_SOURCES = en && en.sources ? Object.keys(en.sources) : [];

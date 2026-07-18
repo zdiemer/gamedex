@@ -401,9 +401,14 @@ function patchGroupCovers() {
 
 // Open a grouping from anywhere (a chip in the drawer, the command palette).
 function openGroup(kind, name) {
-  groupState.kind = kind;
-  groupState.open = name || null;
-  groupState.q = "";
-  switchTab("groups");
-  nav();
+  goTab("groups", () => {
+    groupState.kind = kind;
+    groupState.open = name || null;
+  });
 }
+
+// Landing state (core.js): back to the axis menu, with the find box and sort as found.
+TAB_RESET.groups = () => {
+  groupState.kind = null; groupState.open = null;
+  groupState.q = ""; groupState.sort = "size";
+};

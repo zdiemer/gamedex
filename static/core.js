@@ -8,7 +8,7 @@
    so this is the one file whose position in index.html is not negotiable. */
 
 // ---- config -------------------------------------------------------------
-let PAGE_SIZE = 50;
+const PAGE_SIZE_DEFAULT = 50;
 // How each tab presents its rows. This is PER TAB: one shared global meant the
 // Completed tab's timeline followed you onto other tabs and rendered there.
 //   view    — "table" | "grid" | "timeline" (Completed only)
@@ -31,12 +31,37 @@ const TABS = ["games", "completed", "onOrder", "wishlist", "recs"];
 const tabState = {};
 // Filters/search/sort/page — wiped when you navigate to a tab afresh.
 const freshState = () => ({ search: "", facets: {}, expanded: {}, sort: null, page: 1 });
-// View/combine are display PREFERENCES, not filters: they survive a tab switch.
+// View/combine/pageSize are display PREFERENCES, not filters: they survive a tab switch.
+// pageSize was a single global until it followed you between tabs — the same bug that
+// made view per-tab above. It is still serialised per tab as ?ps=, so the global form
+// meant a link to one tab silently repaged every other one.
 for (const t of TABS) {
-  tabState[t] = { ...freshState(), view: VIEW_DEFAULT[t], combine: COMBINE_DEFAULT[t] };
+  tabState[t] = { ...freshState(), view: VIEW_DEFAULT[t], combine: COMBINE_DEFAULT[t], pageSize: PAGE_SIZE_DEFAULT };
 }
 const viewOf = () => tabState[activeTab].view;
 const combineOn = () => tabState[activeTab].combine;
+// Guarded on the tab having row state at all: the search pseudo-tab pages its own
+// results (search.js) and has no tabState entry of its own.
+const pageSizeOf = (tab) => {
+  const st = tabState[tab || activeTab];
+  return (st && st.pageSize) || PAGE_SIZE_DEFAULT;
+};
+
+/* Landing state, per tab.
+
+   Navigating to a tab ON PURPOSE — the nav menu, the palette, the wordmark — puts it
+   back the way you first found it. Back/forward does NOT: it restores exactly what the
+   URL says, which is the whole point of a shared link.
+
+   The five sheet-backed tabs above are covered by freshState(). The nine special tabs
+   each keep their state in a private singleton in their own file, so each of those files
+   registers its own wiper here (TAB_RESET.challenges = () => {…}, at the bottom of
+   challenges.js). app.js only dispatches — nothing in the spine has to know what a
+   challenge or a shelf is.
+
+   VIEW state only. A tab's loaded data (SHELF.games, CAT) and its display preferences
+   are not view state and must survive. */
+const TAB_RESET = {};
 
 // The top-bar search is GLOBAL now — it answers "do I already own or have this on order?"
 // across every real sheet at once (the "search" pseudo-tab, search.js), separate from each

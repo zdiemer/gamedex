@@ -96,7 +96,7 @@ function renderSearchResults(q) {
   // Paginate rather than capping — every match is reachable now. A new query resets to page 1;
   // paging (or an enrichment re-render) keeps the page you were on.
   if (q !== _searchPageQ) { _searchPage = 1; _searchPageQ = q; }
-  const per = PAGE_SIZE;
+  const per = PAGE_SIZE_DEFAULT;   // the search page has no tabState of its own
   const pages = Math.max(1, Math.ceil(results.length / per));
   if (_searchPage > pages) _searchPage = pages;
   const start = (_searchPage - 1) * per;
@@ -183,3 +183,7 @@ function searchPager(pages, q) {
   el.appendChild(mk("»", pages, _searchPage >= pages, "Last page"));
   return el;
 }
+
+// Landing state (core.js): back to page 1. NOT GLOBAL_SEARCH.q — on this tab the query
+// IS the page, and switchTab already drops it when you leave for anywhere else.
+TAB_RESET.search = () => { _searchPage = 1; _searchPageQ = ""; };
