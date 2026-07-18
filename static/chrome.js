@@ -215,16 +215,33 @@ function cmdkTabs() {
   return tabs;
 }
 
+// Menu entries that aren't tabs — they DO something rather than switch a section.
+// Attract mode lives in the nav foot, so the tab scan misses it; list it here so the
+// palette still reaches every corner of the menu.
+function cmdkActions() {
+  const acts = [];
+  if (typeof openAttract === "function")
+    acts.push({ kind: "Action", label: "Attract mode", run: () => openAttract() });
+  return acts;
+}
+
 function cmdkCandidates(q) {
   const out = [];
   const needle = q.toLowerCase().trim();
   if (!needle) {
-    return cmdkTabs().map((t) => ({ kind: "Tab", label: t.label, icon: t.icon, run: () => switchTab(t.id) }));
+    return [
+      ...cmdkTabs().map((t) => ({ kind: "Tab", label: t.label, icon: t.icon, run: () => switchTab(t.id) })),
+      ...cmdkActions(),
+    ];
   }
   // Tabs
   for (const t of cmdkTabs()) {
     if (t.label.toLowerCase().includes(needle))
       out.push({ kind: "Tab", label: t.label, icon: t.icon, run: () => switchTab(t.id) });
+  }
+  // Actions (Attract mode, …)
+  for (const a of cmdkActions()) {
+    if (a.label.toLowerCase().includes(needle)) out.push(a);
   }
   // Games — prefix matches first, then substring. Capped, so typing stays fast.
   const rows = (DATA.sheets.games || {}).rows || [];
