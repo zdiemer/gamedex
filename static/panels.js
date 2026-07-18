@@ -646,6 +646,10 @@ async function loadAllEnrichment() {
       // restarted the tour). Newly-owned games drop out on the next visit to the tab, when the
       // gate rebuilds the sheet.
       else if (activeTab === "recs") patchEnrichedCells();
+      // The global search groups copies and derives its owned/tracked chips FROM this map, so the
+      // first render before it lands can't dedupe (Hollow Knight shows once per platform). Re-run
+      // when the map arrives (and as a backfill refines it); renderSearch debounces the rebuild.
+      else if (activeTab === "search") renderSearch();
       else if (activeTab !== "pick") {
         /* If a filter or a sort on screen reads this map, the row list itself may be wrong —
            not just the covers in it. It was computed against whatever the map held at the

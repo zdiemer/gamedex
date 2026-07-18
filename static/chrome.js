@@ -10,14 +10,13 @@
 
 // The top-bar box is the GLOBAL search: it lands on the cross-sheet "search" page (search.js)
 // and answers "do I already own this / is it on order?" — separate from each listing's own
-// inline filter (#tabsearch, below). First keystroke opens the page (one history entry);
-// typing there just refilters (replaceState, so it doesn't flood history).
-let searchTimer = null;
+// inline filter (#tabsearch, below). First keystroke opens the page (one history entry); typing
+// there just refilters (replaceState, so it doesn't flood history). renderSearch() debounces the
+// heavy result build itself, so every keystroke coalesces.
 $("#search").addEventListener("input", (e) => {
   GLOBAL_SEARCH.q = e.target.value;
-  if (activeTab !== "search") { switchTab("search"); syncURL(true); return; }
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => { renderSearch(); syncURL(false); }, 140);
+  if (activeTab !== "search") { switchTab("search"); syncURL(true); }
+  else { renderSearch(); syncURL(false); }
 });
 $("#search").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }   // results are already live

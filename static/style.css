@@ -405,21 +405,23 @@ button .ico, a .ico { pointer-events: none; }
 .enrichstatus { color: var(--dim); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
 /* ---- Global search landing (search.js) --------------------------------- */
-.searchpage { padding: 4px 0 8px; }
-.search-head { padding: 6px 2px 14px; }
+.searchpage { flex: 1; overflow-y: auto; padding: 12px 20px 28px; }
+.search-head { padding: 6px 2px 16px; }
 .search-head h2 { font-family: var(--display); font-size: 22px; letter-spacing: -.02em; }
 .search-head p { margin-top: 3px; font-size: 13px; }
-.search-grid { /* inherits .grid; no extra rules needed beyond spacing above */ }
-/* Status chips under a result's title — the whole point of the page: is it Owned, have you
-   finished it, is it On order. Small, quiet, colour-coded. */
+/* No applyGridColumns balancing here (search.js), so card width stays uniform however many match. */
+/* Status chips under a result's title — the whole point of the page: do you already own it, is it
+   merely tracked (subscription/emulated/sold), have you finished it, is it on order. */
 .s-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .s-chip {
   font: 600 10px/1 var(--font); letter-spacing: .02em; text-transform: uppercase;
   padding: 3px 7px; border-radius: 999px; white-space: nowrap;
 }
-.s-chip.owned { color: var(--accent); background: var(--accent-soft); }
-.s-chip.done  { color: var(--good); background: var(--good-soft); }
-.s-chip.order { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.s-chip.owned   { color: var(--accent); background: var(--accent-soft); }
+.s-chip.tracked { color: var(--muted); background: var(--surface-2); }
+.s-chip.done    { color: var(--good); background: var(--good-soft); }
+.s-chip.order   { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+@media (max-width: 760px) { .searchpage { padding: 10px 12px 24px; } }
 .linkbtn { background: none; border: none; color: var(--accent-2); cursor: pointer; font-size: 12.5px; font-family: inherit; }
 .linkbtn:hover { text-decoration: underline; }
 .linkbtn.danger { color: var(--bad); }

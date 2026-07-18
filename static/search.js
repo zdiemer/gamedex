@@ -23,52 +23,60 @@ function searchSheetRows(sheetKey, terms) {
   return sh.rows.filter((row) => matchesSearch(row, terms, cols));
 }
 
-// The IGDB game a row IS, so the same title on two platforms — or a game you own AND have on
-// order — collapses to a single result. Falls back to the match key, then the folded title, so
-// an unmatched row still dedupes against itself.
-function searchDedupeKey(row) {
-  const e = ENRICH[row._k];
-  if (e && e.igdbId != null) return "g" + e.igdbId;
-  if (row._k) return "k" + row._k;
-  return "t" + foldText(String(row.title || row.game || ""));
-}
-
+// The entry the app calls (renderAll on tab-switch / deep-link / back-forward, AND the top-bar
+// input handler). It shows the page shell at once but DEBOUNCES the heavy result build, so rapid
+// typing — the first keystrokes included — renders once, when you pause, instead of building (and
+// hover-wiring) a huge, immediately-stale set on every letter. That was the lag + flash.
+let _searchTimer = null;
 function renderSearch() {
   const host = $("#searchpage");
   $("#search").value = GLOBAL_SEARCH.q;         // keep the box in sync on deep-link / back-forward
   const q = (GLOBAL_SEARCH.q || "").trim();
+  clearTimeout(_searchTimer);
   if (!q) {
     host.innerHTML = emptyState("Search your collection",
       "Type a title above to check whether you already own it or have it on order.", null);
     return;
   }
+  // Don't blank an existing list while you keep typing — rebuild it after the pause. A short
+  // placeholder only when there's nothing on screen yet (first entry).
+  if (!host.querySelector(".search-head")) host.innerHTML = `<div class="search-head"><h2>Searching…</h2></div>`;
+  _searchTimer = setTimeout(() => renderSearchResults(q), 170);
+}
+
+function renderSearchResults(q) {
+  const host = $("#searchpage");
+  if ((GLOBAL_SEARCH.q || "").trim() !== q) return;   // superseded by a newer keystroke
   const terms = foldText(q).split(/\s+/).filter(Boolean);
+  const orderHits = searchSheetRows("onOrder", terms);
+  const orderSet = new Set(orderHits);
 
-  // Two real sources: your games (owned; some flagged completed) and your open orders. "My
-  // Games" already subsumes Completed — a finished game you own is a Games row with
-  // completed=true — so Completed isn't a separate source here, it's a chip on the owned card.
-  const hits = new Map();                       // dedupeKey -> {row, sheet, owned, completed, onorder}
-  const add = (row, sheet) => {
-    const k = searchDedupeKey(row);
-    let h = hits.get(k);
-    if (!h) { h = { row, sheet, owned: false, completed: false, onorder: false }; hits.set(k, h); }
-    if (sheet === "games") {
-      h.owned = true;
-      if (row.completed) h.completed = true;
-      h.row = row; h.sheet = "games";           // an owned row is the richest thing to open
-    } else if (sheet === "onOrder") {
-      h.onorder = true;
-      if (!h.owned) { h.row = row; h.sheet = "onOrder"; }
-    }
-  };
-  for (const r of searchSheetRows("games", terms)) add(r, "games");
-  for (const r of searchSheetRows("onOrder", terms)) add(r, "onOrder");
+  // Combine editions/ports exactly the way the listings do — one card per game, merged by
+  // CANONICAL IGDB id (so Borderlands 2 on PC + Xbox 360 is a single "2 platforms" card that opens
+  // the combined collection drawer, not two rows). On-order copies join the same game. This is the
+  // same groupByGame the grid uses with combine on, so search and the listing agree.
+  const grouped = groupByGame([...searchSheetRows("games", terms), ...orderHits]);
 
-  const results = [...hits.values()];
-  // Owned before on-order, completed before not, then alphabetical — a title you own is usually
-  // the answer you came for.
+  const results = grouped.map((row) => {
+    const members = row._members || [row];
+    const lib = members.filter((m) => !orderSet.has(m));      // copies logged in My Games
+    return {
+      row, members,
+      // "My Games" is NOT "owned" — it includes subscriptions, emulation, and games finished and
+      // sold. Trust the sheet's own `owned` flag; everything else in My Games is merely tracked.
+      owned: lib.some((m) => m.owned === true),
+      tracked: lib.length > 0,
+      completed: members.some((m) => m.completed),
+      onorder: members.some((m) => orderSet.has(m)),
+      // Open the combined drawer against games (its schema) when there's a library copy or it's a
+      // merged group; a game that's ONLY on order opens against the onOrder sheet.
+      sheet: (lib.length || members.length > 1) ? "games" : "onOrder",
+    };
+  });
+  // Owned first, then completed, then merely-tracked, then alphabetical — an owned title is
+  // usually the answer you came for.
   results.sort((a, b) =>
-    (b.owned - a.owned) || (b.completed - a.completed) ||
+    (b.owned - a.owned) || (b.completed - a.completed) || (b.tracked - a.tracked) ||
     String(a.row.title || a.row.game || "").localeCompare(String(b.row.title || b.row.game || "")));
 
   if (!results.length) {
@@ -78,17 +86,22 @@ function renderSearch() {
     return;
   }
 
+  // Even after grouping, a 1–2 character query can match hundreds; render only the top slice
+  // (owned-first, so the cap keeps the answers that matter) and let a longer query narrow it.
+  const CAP = 120;
+  const shown = results.slice(0, CAP);
+  const more = results.length - shown.length;
   host.innerHTML =
     `<div class="search-head">
        <h2>${results.length.toLocaleString()} ${results.length === 1 ? "match" : "matches"} for “${escapeHtml(q)}”</h2>
-       <p class="muted">Across your games and open orders.</p>
+       <p class="muted">Across your games and open orders.${more > 0 ? ` Showing the first ${CAP} — type more to narrow.` : ""}</p>
      </div>`;
   const grid = document.createElement("div");
   grid.className = "grid search-grid";
   host.appendChild(grid);
 
   stopPreview();                                // any card the tour was on is gone
-  results.forEach((h, i) => {
+  shown.forEach((h, i) => {
     const row = h.row;
     const cs = coverSrc(ENRICH[row._k], "cover_big");
     const pixel = coverIsPixelArt(ENRICH[row._k], cs) ? " pixel" : "";
@@ -97,9 +110,11 @@ function renderSearch() {
       : `<div class="card-cover ph">${icon("i-library", 26)}</div>`;
     const chips = [];
     if (h.owned) chips.push(`<span class="s-chip owned">Owned</span>`);
+    else if (h.tracked) chips.push(`<span class="s-chip tracked">Tracked</span>`);
     if (h.completed) chips.push(`<span class="s-chip done">Completed</span>`);
     if (h.onorder) chips.push(`<span class="s-chip order">On order</span>`);
     const title = escapeHtml(String(row.title || row.game || "Untitled"));
+    // row.platform reads "2 platforms" for a merged group (groupRow), the real platform otherwise.
     const sub = [row.platform, row.releaseYear].filter((x) => x != null && x !== "")
       .map((x) => escapeHtml(String(x))).join(" · ");
     const card = document.createElement("div");
@@ -111,13 +126,13 @@ function renderSearch() {
         <div class="card-sub">${sub}</div>
         <div class="s-chips">${chips.join("")}</div>
       </div>`;
-    // Open the drawer against the sheet the card came from, so a Completed/On-order row shows
-    // its own fields (deep-linkable via ?gs=<sheet>).
     card.onclick = () => openDrawer(row, h.sheet);
     CARD_ROW.set(card, row);
     wirePreview(card);                          // hover previews, but don't arm the idle tour here
     grid.appendChild(card);
   });
-  applyGridColumns(grid);
-  maybeEnrich(results.map((h) => h.row));       // warm any cover that isn't in the map yet
+  // Deliberately NO applyGridColumns: its column re-balancing only engages past one row, which is
+  // exactly why a 2-result search rendered narrower cards than a full one. Plain auto-fill keeps
+  // every card the same width no matter how many match.
+  maybeEnrich(shown.map((h) => h.row));         // warm any cover that isn't in the map yet
 }
