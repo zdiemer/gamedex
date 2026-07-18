@@ -408,6 +408,10 @@ button .ico, a .ico { pointer-events: none; }
 #tabs button:hover .ico { color: var(--muted); }
 #tabs button.active { background: var(--accent-soft); color: var(--accent); }
 #tabs button.active .ico { color: var(--accent); }
+/* Attract mode lives at the foot of the menu now (it used to sit on Home). margin-top:auto
+   drops it to the bottom of the panel; the hairline reads it as a footer action. */
+.nav-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.nav-attract { width: 100%; justify-content: center; padding: 11px; font-size: 13.5px; }
 
 /* ---- Layout ------------------------------------------------------------- */
 .layout { display: flex; flex: 1; min-height: 0; }

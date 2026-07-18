@@ -254,7 +254,6 @@ function renderHome() {
     .slice(0, 60), 12, "loved");
 
   host.innerHTML =
-    `<div class="h-top"><button class="h-attract" id="hAttract">${icon("i-play", 15)} Attract mode</button></div>` +
     heroSection(playing) +
     (loved.length ? `<section class="h-sect">
       <div class="h-sect-head"><h2>${icon("i-trend", 17)} You'd probably love</h2></div>
@@ -368,8 +367,6 @@ function wireHome(host, playing) {
       if (shelfEl) shelfEl.scrollBy({ left: +el.dataset.dir * shelfEl.clientWidth * 0.8, behavior: "smooth" });
     };
   });
-  const attract = $("#hAttract");
-  if (attract) attract.onclick = () => openAttract();
   const chalAll = $("#hChalAll");
   if (chalAll) chalAll.onclick = (e) => { e.stopPropagation(); chState.open = null; switchTab("challenges"); nav(); };
   host.querySelectorAll(".h-chal[data-chal]").forEach((el) => {
