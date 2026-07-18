@@ -102,7 +102,9 @@ const SORT_MENUS = {
   completed: [
     "game", "platform", "release",
     "rating", "__critic", "__user",
-    "date", "started", "playTime", "__esttime",
+    // No Estimated Time here: these games are finished, and Play Time is the
+    // real number the estimate only guesses at.
+    "date", "started", "playTime",
   ],
   onOrder: [
     "title", "platform", "estimatedRelease",
