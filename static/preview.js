@@ -468,16 +468,22 @@ function patchEnrichedCells() {
 // Grid has no clickable headers — a Sort dropdown + direction toggle stand in.
 function populateGridSort() {
   const sel = $("#gridsort");
-  const games = activeTab === "games";
-  const cols = games
-    ? GAMES_SORT_MENU.map(sortMeta).filter(Boolean)
-    : columns().filter((c) => c.sort).concat(VIRTUAL_SORTS.filter((v) => v.on()));
+  // One curated menu per tab (SORT_MENUS, data.js). A tab without one — there
+  // isn't such a listing tab today — falls back to its sortable columns.
+  const menu = SORT_MENUS[activeTab];
+  const cols = menu ? menu.map(sortMeta).filter(Boolean) : columns().filter((c) => c.sort);
   const eff = effectiveSort();
   // No "Default" entry on ANY tab: the default is always a real sort (Release Date, Completion
   // Date, Best match…), so name it and select it. A menu item called "Default" tells you
   // nothing about the order you'd get. effectiveSort() returns the active or the default sort,
   // so eff[0].key is exactly what's showing.
   const cur = eff[0].key;
+  // A table-header click can sort by a column the curated menu doesn't carry (Vendor,
+  // Genre, Emulated…). Append it rather than showing some other option as selected.
+  if (!cols.some((c) => c.key === cur)) {
+    const c = sortMeta(cur);
+    if (c) cols.push(c);
+  }
   sel.innerHTML = cols.map((c) => `<option value="${c.key}">${escapeHtml(sortLabel(c))}</option>`).join("");
   sel.value = cols.some((c) => c.key === cur) ? cur : (cols[0] ? cols[0].key : "");
   $("#gridsortdir").textContent = eff[0].dir === "asc" ? "▲" : "▼";

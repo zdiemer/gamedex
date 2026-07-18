@@ -63,53 +63,77 @@ function searchField(id, placeholder, value = "", cls = "") {
 
 /* Sort keys that aren't sheet columns. The estimated rating is computed in the
    browser (ridge regression over your own ratings), so there is no cell to sort
-   on — cmpBy has to be told how to get the value instead of reading a[key]. */
-// The tabs a computed sort is offered on. Wishlist rides the same table/grid
-// pipeline as All Games and, since 1.58.7, its unowned rows carry the IGDB
-// record these accessors read (predicted score, critic and user ratings all
-// resolve off it), and since 1.58.9 a completion time too — IGDB's time-to-beat
-// or an HLTB title match — so the whole "what it's worth / how long" cluster is
-// worth offering there.
-const _worthSortOn = () => activeTab === "games" || activeTab === "wishlist";
+   on — cmpBy has to be told how to get the value instead of reading a[key].
+   Which tabs offer one is SORT_MENUS' decision, not theirs: the accessors join on
+   row._k, and every sheet's rows carry one (the backend stamps games/completed/
+   onOrder in enrich.reindex; wishlist and recs stamp their own). */
 const VIRTUAL_SORTS = [
   { key: "__predicted", label: "Estimated Rating", type: "number", kind: "predicted",
-    get: (row) => (typeof predictedOf === "function" ? predictedOf(row) : null),
-    on: _worthSortOn },
+    get: (row) => (typeof predictedOf === "function" ? predictedOf(row) : null) },
   // These three have fallback chains, which is exactly why they can't be plain
   // columns: the best answer lives in a different source per game. The facets
   // already resolve them, so sorting reuses the same accessors rather than
   // inventing a second, divergent answer.
   { key: "__critic", label: "Critic Rating", type: "number", kind: "critic",
-    get: (row) => metacriticOf(row),        // Metacritic scrape → sheet's column
-    on: _worthSortOn },
+    get: (row) => metacriticOf(row) },      // Metacritic scrape → sheet's column
   { key: "__user", label: "User Rating", type: "number", kind: "user",
-    get: (row) => userRatingOf(row),        // IGDB → VNDB → GameFAQs
-    on: _worthSortOn },
+    get: (row) => userRatingOf(row) },      // IGDB → VNDB → GameFAQs
   { key: "__esttime", label: "Estimated Time", type: "number", kind: "esttime",
-    get: (row) => playtimeOf(row),          // HLTB → VNDB → the sheet's estimate
-    on: _worthSortOn },
+    get: (row) => playtimeOf(row) },        // HLTB → VNDB → the sheet's estimate
 ];
 const sortMeta = (key) => VIRTUAL_SORTS.find((v) => v.key === key) || colByKey(key);
 
-/* The sort menu on All Games. Every sortable column used to be offered — thirty-odd
-   options, most of which nobody would ever sort by (File Size, MAME Romset, English).
-   A curated list of the ones that answer a real question, in the order you'd reach
-   for them: what it is, what it's worth, what it cost, when you played it. */
-const GAMES_SORT_MENU = [
-  "title", "platform", "releaseDate",
-  "rating", "__critic", "__user", "__predicted",
-  "priority",
-  "datePurchased", "dateAdded", "purchasePrice",
-  "dateStarted", "dateCompleted", "completionTime", "__esttime",
-];
+/* The sort menu, per tab. Every sortable column used to be offered everywhere but
+   All Games — thirty-odd options, most of which nobody would ever sort by (File
+   Size, MAME Romset, Steam Deck) — while the enrichment-backed sorts were offered
+   nowhere else. One curated list per tab now, sharing a shape: what it is (title,
+   platform, release), what it's worth (your rating, then the critic/user/estimated
+   cluster wherever it resolves), then the dates and figures that tab is FOR.
+   The keys differ where the sheets do — completed's title column is "game", its
+   completion date is "date" — but the menu reads the same top to bottom. */
+const SORT_MENUS = {
+  games: [
+    "title", "platform", "releaseDate",
+    "rating", "__critic", "__user", "__predicted",
+    "priority",
+    "datePurchased", "dateAdded", "purchasePrice",
+    "dateStarted", "dateCompleted", "completionTime", "__esttime",
+  ],
+  completed: [
+    "game", "platform", "release",
+    "rating", "__critic", "__user",
+    "date", "started", "playTime", "__esttime",
+  ],
+  onOrder: [
+    "title", "platform", "estimatedRelease",
+    "__predicted", "__critic", "__user",
+    "orderedDate", "price", "__esttime",
+  ],
+  wishlist: [
+    "title", "platform", "releaseYear",
+    "__predicted", "__critic", "__user",
+    "price", "discount", "dateAdded", "__esttime",
+  ],
+  recs: [
+    "recScore", "predicted", "confidence", "voters",
+    "title", "platform", "releaseYear",
+  ],
+};
 // The sheet's own headers read as filing-cabinet labels ("Date Purchased"); in a
-// sort menu you want the thing first.
+// sort menu you want the thing first. Completed's keys land on the same labels as
+// their All Games counterparts ("Completed Date", "Started Date"), so the menus
+// read identically even where the sheets named the columns differently.
 const SORT_LABEL = {
   rating: "Rating (yours)",
   datePurchased: "Purchased Date",
   dateAdded: "Added Date",
   dateStarted: "Started Date",
   dateCompleted: "Completed Date",
+  game: "Title",                 // completed's title column
+  release: "Release Date",       // completed's release column
+  date: "Completed Date",        // completed's completion date
+  started: "Started Date",
+  playTime: "Completion Time",
 };
 const sortLabel = (c) => SORT_LABEL[c.key] || c.label;
 
@@ -376,7 +400,10 @@ const playtimeOf = (row) => {
 function criticOf(row) {
   const e = ENRICH[row._k] || {};
   if (e.metascore != null) return e.metascore / 100;
+  // The sheet column is metacriticRating on Games and criticScore on Completed —
+  // same fact, two spellings, one fallback slot.
   if (row.metacriticRating != null) return row.metacriticRating;
+  if (row.criticScore != null) return row.criticScore;
   if (e.criticRating != null) return e.criticRating;
   const g = GR[row._k];
   if (g && g.score != null) return g.score / 100;
@@ -386,7 +413,8 @@ function criticOf(row) {
 function criticSourceOf(row) {
   const e = ENRICH[row._k] || {};
   if (e.metascore != null) return { label: "Metacritic", url: e.metaUrl || null };
-  if (row.metacriticRating != null) return { label: "Metacritic", url: null, sheet: true };
+  if (row.metacriticRating != null || row.criticScore != null)
+    return { label: "Metacritic", url: null, sheet: true };
   if (e.criticRating != null) return { label: "IGDB critics", url: e.url || null, n: e.criticCount };
   const g = GR[row._k];
   if (g) return { label: "GameRankings", url: g.url, n: g.n };

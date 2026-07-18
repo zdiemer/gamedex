@@ -54,6 +54,15 @@ function tlRatingBand(v) {
 }
 function tlBucketLabel(r, spec) {
   const key = spec.key;
+  // A virtual sort has no cell to read — its value comes from the accessor, and
+  // its bands from what the value is: ratings band like Rating, hours bucket
+  // like Play Time. Without this every row fell into one "—" section.
+  const vs = spec.kind && VIRTUAL_SORTS.find((s) => s.kind === spec.kind);
+  if (vs) {
+    const v = vs.get(r);
+    if (vs.kind === "esttime") return v != null ? (bucketLabel(+v, PLAYTIME_BUCKETS) || "—") : "Unknown";
+    return tlRatingBand(v);              // predicted / critic / user are all 0–1
+  }
   const type = spec.type || (typeof colByKey === "function" ? (colByKey(key) || {}).type : null);
   if (key === "game" || key === "title") {
     // Strip diacritics first, so "Ōkami" buckets under O (and sits contiguously with the other
