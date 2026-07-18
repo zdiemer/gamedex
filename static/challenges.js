@@ -236,8 +236,9 @@ function chPercentiles() {
   return (_chPct = { p1: q(1), p5: q(5), p10: q(10), p25: q(25), med: q(50), p75: q(75), p90: q(90), p95: q(95), p99: q(99) });
 }
 const chPctStr = (v) => (v * 100).toFixed(2) + "%";
-function chPercentileBucket(r) {
-  const cr = combinedRating(r);
+const chPercentileBucket = (r) => chPercentileOf(combinedRating(r));
+// Takes the RATING, not the row: the "percentile bands" transform is handed a value.
+function chPercentileOf(cr) {
   if (cr == null) return null;
   const P = chPercentiles();
   if (cr < P.p1) return `1st (<${chPctStr(P.p1)})`;
@@ -295,7 +296,7 @@ const CHALLENGES = [
   {
     id: "platform", icon: "i-dice", name: "One Per Platform",
     blurb: "Beat a game on every platform — counting the splits that actually feel different: Famicom apart from NES, XBLA apart from disc, MAME apart from the rest.",
-    groupBy: "__g_platformid",
+    groupBy: "__g_subplatform",
   },
   {
     id: "genre", icon: "i-library", name: "One Per Genre",
@@ -313,7 +314,7 @@ const CHALLENGES = [
   {
     id: "letter", icon: "i-list", name: "One Per Letter",
     blurb: "Beat a game starting with every letter of the alphabet (leading articles dropped, so The Last of Us is an L).",
-    groupBy: "__g_letter",
+    groupBy: "__g_title|letter",
     keySort: (k) => k,
   },
   {
@@ -324,25 +325,25 @@ const CHALLENGES = [
   {
     id: "playtime", icon: "i-clock", name: "One Per Playtime",
     blurb: "Beat a game of every length, hour by hour — a 3-hour game, a 4-hour game, and so on up.",
-    groupBy: "__g_hours",
+    groupBy: "__g_playtime|unit",
     keySort: (k) => (k === "No Playtime" ? 1e9 : k === "Under 1 Hour" ? -1 : parseInt(k, 10)),
   },
   {
     id: "rating", icon: "i-star", name: "One Per Rating",
     blurb: "Beat a game in every 10% band of combined rating — the great, the mediocre and the truly dire.",
-    groupBy: "__g_ratingband",
+    groupBy: "__g_rating|band10",
     keySort: (k) => -parseInt(k, 10),
   },
   {
     id: "percentile", icon: "i-trend", name: "One Per Percentile",
     blurb: "Beat a game from every percentile band of the collection's rating distribution, from the bottom 1% to the top.",
-    groupBy: "__g_percentile",
+    groupBy: "__g_rating|pct",
     keySort: (k) => -parseFloat(k),
   },
   {
     id: "length", icon: "i-sort", name: "One Per Title Length",
     blurb: "Beat a game of every title length, counted in characters with the spaces taken out.",
-    groupBy: "__g_titlelen",
+    groupBy: "__g_title|len",
     keySort: (k) => Number(k),
   },
   {
@@ -350,37 +351,41 @@ const CHALLENGES = [
     blurb: "Beat a game by each of the 50 developers best represented in the collection.",
     // Unified devs: a game counts for every top studio it's credited to (sheet or IGDB);
     // the groupMany filter keeps the buckets to top-50 studios only.
-    // The grouper yields nothing for a game with no top-50 credit, so it carries the
-    // domain too — no separate predicate to keep in step with it.
-    groupBy: "__g_topdev",
+    // "The top 50" limits which buckets exist; that's a filter on the challenge, not a
+    // reshaping of the developer column, so it goes back to being a domain predicate.
+    domain: (r) => unifiedDevVals(r).some((d) => chTopDevelopers().has(d)),
+    groupMany: (r) => unifiedDevVals(r).filter((d) => chTopDevelopers().has(d)),
+    pickBy: "developer",
   },
   {
     id: "franchise", icon: "i-trophy", name: "One Per Franchise Contender",
     blurb: "Beat a game from every franchise on the shortlist — the series worth actually playing through.",
-    groupBy: "__g_franchisec",
+    domain: (r) => unifiedFranchiseVals(r).some((f) => CH_FRANCHISE_CONTENDERS.has(f)),
+    groupMany: (r) => unifiedFranchiseVals(r).filter((f) => CH_FRANCHISE_CONTENDERS.has(f)),
+    pickBy: "franchise",
   },
   {
     id: "added", icon: "i-plus", name: "One Per Added Date",
     blurb: "Beat a game added to the sheet in every month it's been kept — clearing the backlog a vintage at a time.",
-    groupBy: "__g_addedmonth",
+    groupBy: "dateAdded|month",
     keySort: (k, rows) => rows[0].dateAdded, sortDesc: true,
   },
   {
     id: "purchased", icon: "i-package", name: "One Per Purchase Date",
     blurb: "Beat a game bought in every month I've been buying them.",
-    groupBy: "__g_boughtmonth",
+    groupBy: "datePurchased|month",
     keySort: (k, rows) => rows[0].datePurchased, sortDesc: true,
   },
   {
     id: "price", icon: "i-trend", name: "One Per Purchase Price",
     blurb: "Beat a game bought at every whole-dollar price point.",
-    groupBy: "__g_price",
+    groupBy: "purchasePrice|unit",
     keySort: (k) => parseFloat(String(k).replace("$", "")) || 0,
   },
   {
     id: "limitedprint", icon: "i-package", name: "One Per Limited Print",
     blurb: "Beat a game from every limited-print label — Limited Run, iam8bit, Super Rare and the rest of the boutique pressings.",
-    groupBy: "__g_limitedprint",
+    groupBy: "limitedPrint",
   },
   {
     id: "translation", icon: "🈳", name: "One Per Fan Translation",
@@ -398,7 +403,7 @@ const CHALLENGES = [
     pool: (r) => r.playable !== "Yes" && !r.completed,
     clear: () => true,
     universe: (r) => r.playable !== "Yes",   // only platforms that HAVE unplayable games
-    groupBy: "__g_platformid",
+    groupBy: "__g_subplatform",
   },
 ];
 
@@ -437,7 +442,7 @@ function chGroupsOf(c) {
   // groupBy names a shared column (chGroupables) — the same one Pick can filter on, which
   // is what lets a bucket become a single criterion. group/groupMany stay for the two
   // challenges whose bucketing is genuinely bespoke.
-  const col = c.groupBy ? chColByKey(c.groupBy) : null;
+  const col = c.groupBy ? chGroupCol(c.groupBy) : null;
   const raw = col
     ? (r) => chFacetVals(r, col)
     : c.groupMany
@@ -735,11 +740,16 @@ const CH_CANDIDATES_SHOWN = 5;
    or a pool Pick can't reach at all (One Per Platform (Unplayable) is by definition games
    Pick considers unplayable). Better no link than a link that lies. */
 function chPickCriteria(c, key) {
-  if (!c.groupBy || c.pool || !pickFieldByKey(c.groupBy)) return null;
+  /* pickBy covers the challenges whose BUCKETS are a filtered subset — One Per Top
+     Developer groups by the top fifty, so it can't just group by the developer column
+     without inventing four thousand more buckets. Pinning that column to one bucket key
+     is still exact, though: every game credited to that studio is the bucket. */
+  const field = c.pickBy || c.groupBy;
+  if (!field || c.pool || !pickFieldByKey(field)) return null;
   const kids = [
     pickCond("__pk_sheet", [PICK_ON_SHEET]),
     pickCond("__pk_candidate", ["Yes"]),
-    pickCond(c.groupBy, [String(key)]),
+    pickCond(field, [String(key)]),
   ];
   // A custom challenge's own criteria are already a tree — fold its top-level kids in
   // rather than nesting a redundant AND inside an AND.
@@ -930,63 +940,118 @@ const chLoadCustom = () => {
 const chStoreCustom = (list) => prefsSave("challenges", list.slice(0, 40));
 
 // Facets you can group a challenge by. Straight from the games sheet's own facet
-/* ---- shared groupers ----------------------------------------------------
+/* ---- grouping: a field, plus a transform ---------------------------------
 
-   The bucketing a challenge does — "SNES (Super Famicom)", "7 Hours", "1-5th
-   percentile" — is the same shape as a facet column: a row in, zero or more keys out.
-   It just wasn't ONE, so it lived as a private closure per challenge and nothing else
-   could see it. That's why Pick couldn't express "a game that clears a One Per Platform
-   bucket": the bucket key wasn't a value of anything.
+   A challenge is "one per SOMETHING", and that something is nearly always an ordinary
+   field put through an ordinary reshaping: a date by month, a rating in 10% bands, a
+   title by its first letter, an amount rounded to whole units. Those were twelve
+   hand-written groupers until now — which meant the only bucketings that existed were
+   the ones someone had already thought of, and the builder could only offer a list.
 
-   Promoting them to real columns collapses the special case. A challenge picks its
-   groupBy from this list like any facet; Pick offers them as criteria; and a bucket
-   becomes one leaf — {key: "__g_platformid", vals: ["SNES (Super Famicom)"]} — that
-   reproduces it exactly rather than approximately.
+   So a grouper is composed instead: {field, transform}, serialised as "field|transform"
+   ("platform" on its own means the field as it comes). The builder shows two selects and
+   the second is filled from the first field's type, so what you can group by is however
+   many fields there are times however many transforms fit them, not twelve.
 
-   Returning [] rather than a key for a row outside the challenge's subject also carries
-   the domain for free: a game with no purchase price simply has no price bucket, so the
-   leaf alone says "priced games, grouped by price".
+   Being a plain key that resolves to a facet column matters twice over: computeChallenge
+   groups by it, and "pick me one" pins it as a Pick criterion — the bucket reproduces
+   exactly because it's the same column answering both times. */
 
-   Deliberately NOT in facetCols(): these belong to Pick and the challenge builder, not
-   the grid sidebar, where "Purchased (month)" alone would paint two hundred checkboxes. */
-const CH_GROUPER_DEFS = [
-  { key: "__g_platformid", label: "Platform (completion split)", getVals: (r) => [platformCompletionId(r)] },
-  { key: "__g_letter", label: "First letter of title", getVals: (r) => [chFirstLetter(r)] },
-  { key: "__g_hours", label: "Playtime (to the hour)", getVals: (r) => [chPlaytimeBucket(r)] },
-  { key: "__g_ratingband", label: "Rating (10% band)", getVals: (r) => [chRatingBucket(r)] },
-  { key: "__g_percentile", label: "Rating percentile band", getVals: (r) => [chPercentileBucket(r)] },
-  { key: "__g_titlelen", label: "Title length (characters)", getVals: (r) => [String(r.title).replace(/ /g, "").length] },
-  { key: "__g_addedmonth", label: "Added (month)", getVals: (r) => [chMonth(r.dateAdded)] },
-  { key: "__g_boughtmonth", label: "Purchased (month)", getVals: (r) => [chMonth(r.datePurchased)] },
-  { key: "__g_price", label: "Purchase price (whole $)",
-    getVals: (r) => [r.purchasePrice != null && r.purchasePrice > 0 ? chPriceBucket(r) : null] },
-  { key: "__g_topdev", label: "Top-50 developer",
-    getVals: (r) => unifiedDevVals(r).filter((d) => chTopDevelopers().has(d)) },
-  { key: "__g_franchisec", label: "Franchise contender",
-    getVals: (r) => unifiedFranchiseVals(r).filter((f) => CH_FRANCHISE_CONTENDERS.has(f)) },
-  { key: "__g_limitedprint", label: "Limited-print label", getVals: (r) => [chNoteFacts(r).limitedPrint] },
+const CH_TITLE_KEYS = new Set(["title", "game", "__g_title"]);
+const CH_NUMERIC = new Set(["rating", "money", "hours", "int", "number", "year"]);
+const chIsoOf = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
+
+const CH_TRANSFORMS = [
+  { id: "", label: "each value", fits: () => true, apply: (vals) => vals },
+  { id: "letter", label: "first letter", fits: (c) => c.type === "text" || !c.type,
+    // A title's first letter is not its first character: leading articles, diacritics and
+    // punctuation all come off first, or "The Last of Us" files under T and "Ōkami" under Ō.
+    apply: (vals, r, c) => (CH_TITLE_KEYS.has(c.key)
+      ? [chFirstLetter(r)]
+      : vals.map((v) => (String(v)[0] || "?").toUpperCase())) },
+  { id: "len", label: "length in characters", fits: (c) => c.type === "text",
+    apply: (vals) => vals.map((v) => String(v).replace(/ /g, "").length) },
+  { id: "year", label: "by year", fits: (c) => c.type === "date",
+    apply: (vals) => vals.map((v) => (chIsoOf(v) || "").slice(0, 4)) },
+  { id: "month", label: "by month", fits: (c) => c.type === "date",
+    apply: (vals) => vals.map((v) => chMonth(chIsoOf(v))) },
+  { id: "unit", label: "whole units", fits: (c) => CH_NUMERIC.has(c.type),
+    apply: (vals, r, c) => vals.map((v) => chWholeUnit(v, c)) },
+  { id: "band10", label: "10% bands", fits: (c) => c.type === "rating",
+    apply: (vals) => vals.map((v) => (v == null ? null : `${Math.floor(chPct01(v) * 10) * 10}%`)) },
+  { id: "pct", label: "percentile bands", fits: (c) => c.type === "rating",
+    apply: (vals) => vals.map((v) => (v == null ? null : chPercentileOf(chPct01(v)))) },
 ];
-// Facet-column shape, so rowFacetItems/compilePick/the builders all take them as-is.
-// grouper:true is the flag the grid sidebar filters on; enriched:false keeps facetIsEnriched
-// from holding a render behind the enrichment map for something that reads sheet columns.
-const chGrouperCols = () => CH_GROUPER_DEFS.map((d) => ({
-  key: d.key, label: d.label, type: "text", facet: true, virtual: true,
-  enriched: false, grouper: true, kind: "fn",
-  getVals: (r) => (d.getVals(r) || []).filter((v) => v != null && v !== "").map(String),
-}));
-const chGrouperByKey = (key) => chGrouperCols().find((c) => c.key === key);
+const chTransformById = (id) => CH_TRANSFORMS.find((t) => t.id === (id || ""));
+// Ratings live as 0-1 in some columns and 0-100 in others; the bands want one scale.
+const chPct01 = (v) => (Number(v) > 1 ? Number(v) / 100 : Number(v));
+function chWholeUnit(v, col) {
+  // Hours are the one unit where "unknown" is a bucket rather than a gap — One Per Playtime
+  // has always had a rung for the games whose length nobody has measured.
+  if (v == null || v === "") return col.type === "hours" ? "No Playtime" : null;
+  const n = Math.trunc(Number(v));
+  if (!isFinite(n)) return col.type === "hours" ? "No Playtime" : null;
+  if (col.type === "money") return n > 0 ? `$${n}.00` : "Free";
+  if (col.type === "hours") return n < 1 ? "Under 1 Hour" : `${n} Hour${n !== 1 ? "s" : ""}`;
+  return String(n);
+}
 
-// columns, so anything filterable is also groupable — no separate list to keep in
-// sync as facets are added.
-function chGroupables() {
-  const sheetCols = ((DATA.sheets.games || {}).columns || []).filter((c) => c.facet);
-  // Ask for the GAMES tab's facets explicitly: we're sitting on the Challenges
-  // tab, and these builders default to whatever tab is active.
+/* The one grouping that ISN'T a field and a transform. It splits a platform by the things
+   that make owning it feel different — Famicom apart from NES, MAME apart from the rest of
+   Arcade, a retail disc apart from the same game on a storefront, VR and DLC apart again —
+   which is hand-written knowledge about a dozen platforms, not a reshaping of a column.
+   Named rather than composed, and named neutrally: it is a sub-platform, not a challenge. */
+const CH_NAMED_GROUPERS = [
+  { key: "__g_subplatform", label: "Subplatform", getVals: (r) => [platformCompletionId(r)] },
+  // The playtime a challenge means is "how long is this game for me": what it took if it's
+  // finished, what it's projected to take if it isn't. Neither column alone says that.
+  { key: "__g_playtime", label: "Playtime (actual or estimated)", type: "hours",
+    getVals: (r) => [r.completed ? r.completionTime : r.estimatedTime] },
+  { key: "__g_rating", label: "Rating (critics + players)", type: "rating",
+    getVals: (r) => [combinedRating(r)] },
+  { key: "__g_title", label: "Title", type: "text", getVals: (r) => [r.title] },
+];
+
+// Every field a grouping can start from: the sheet's facets, the virtual ones, and the
+// named few above that no column carries.
+function chGroupFields() {
+  const cols = [...((DATA.sheets.games || {}).columns || []).filter((c) => c.facet)];
   const igdb = typeof igdbFacetCols === "function" ? igdbFacetCols("games") : [];
   const extra = typeof extraFacetCols === "function" ? extraFacetCols("games") : [];
-  return [...sheetCols, ...igdb, ...extra, ...chGrouperCols()];
+  const dated = ((DATA.sheets.games || {}).columns || []).filter((c) => c.type === "date" || c.type === "money");
+  const named = CH_NAMED_GROUPERS.map((g) => ({ ...g, facet: true, virtual: true, enriched: false, kind: "fn" }));
+  const seen = new Set();
+  return [...named, ...cols, ...dated, ...igdb, ...extra].filter((c) => !seen.has(c.key) && seen.add(c.key));
 }
-const chColByKey = (key) => chGroupables().find((c) => c.key === key);
+const chGroupFieldByKey = (k) => chGroupFields().find((c) => c.key === k);
+// Which reshapings make sense for a field — what the builder's second select offers.
+const chTransformsFor = (col) => (col ? CH_TRANSFORMS.filter((t) => t.fits(col)) : []);
+
+/* "field|transform" -> a facet column that yields the bucket keys. Cached per key so the
+   same resolved column is handed to computeChallenge and to compilePick, and rowFacetItems
+   memoises against it. */
+const _chGroupCols = new Map();
+function chGroupCol(key) {
+  if (!key) return null;
+  if (_chGroupCols.has(key)) return _chGroupCols.get(key);
+  const [fk, tid] = String(key).split("|");
+  const base = chGroupFieldByKey(fk);
+  const tf = chTransformById(tid);
+  if (!base || !tf) { _chGroupCols.set(key, null); return null; }
+  const raw = (r) => (base.kind === "fn" ? (base.getVals(r) || []) : rowFacetItems(r, base).map((i) => i.raw));
+  const col = {
+    key, label: base.label + (tf.id ? ` · ${tf.label}` : ""),
+    type: "text", facet: true, virtual: true, enriched: false, grouper: true, kind: "fn",
+    getVals: (r) => (tf.apply(raw(r), r, base) || []).filter((v) => v != null && v !== "").map(String),
+  };
+  _chGroupCols.set(key, col);
+  return col;
+}
+const chResetGroupCols = () => _chGroupCols.clear();
+
+// Resolving a grouping key is chGroupCol's job now (field|transform); this stays as the
+// name the rest of the file already calls.
+const chColByKey = (key) => chGroupCol(key);
 
 // The values a row falls into for a facet — reuses the grid's own accessor, so a
 // multi-valued facet (themes) yields several buckets and a plain one yields one.
@@ -1045,6 +1110,9 @@ const chBlankDef = () => ({
 let chEditTree = null;
 const CH_BUILDER = {
   sel: "#chbBuilder",
+  // A challenge is over the whole library, not Pick's backlog — the same builder, but the
+  // empty state can't say the same thing.
+  emptyHint: "every game in the collection counts",
   root: () => (chEditTree ||= pickGroup()),
   // A challenge is about the WHOLE library — games you've finished are what clear its
   // buckets — so the value counts come from every row, not Pick's backlog-only pool.
@@ -1056,16 +1124,11 @@ const CH_BUILDER = {
 
 function chEditorHtml() {
   const d = chEditor.def;
-  const cols = chGroupables();
-  const opt = (c, sel) => `<option value="${escapeHtml(c.key)}"${c.key === sel ? " selected" : ""}>${escapeHtml(c.label)}</option>`;
-  // Groupers are the interesting half of the list and were buried among 60 facets, so
-  // they get their own optgroup rather than being sorted in alphabetically.
-  const groupers = cols.filter((c) => c.grouper);
-  const plain = cols.filter((c) => !c.grouper);
-  const groupSel = `<select id="chbGroup">
-      <optgroup label="Fields">${plain.map((c) => opt(c, d.groupBy)).join("")}</optgroup>
-      <optgroup label="Bucketings">${groupers.map((c) => opt(c, d.groupBy)).join("")}</optgroup>
-    </select>`;
+  const [gfk, gtid] = String(d.groupBy || "").split("|");
+  const fields = chGroupFields();
+  const base = chGroupFieldByKey(gfk) || fields[0];
+  const transforms = chTransformsFor(base);
+  const opt = (v, label, sel) => `<option value="${escapeHtml(v)}"${v === sel ? " selected" : ""}>${escapeHtml(label)}</option>`;
 
   pkbUse(CH_BUILDER);
   return `<div class="chb">
@@ -1079,11 +1142,16 @@ function chEditorHtml() {
     <label class="chb-row"><span>Icon</span>
       <input id="chbIcon" type="text" value="${escapeHtml(d.icon)}" maxlength="4" style="width:64px">
     </label>
-    <label class="chb-row"><span>One per…</span>
-      ${groupSel}
-      <em>Every game you've ever finished counts, the same rule the built-ins use.
-        Clear the last bucket you can reach and the challenge starts over.</em>
-    </label>
+    <div class="chb-row"><span>One per…</span>
+      <div class="chb-group">
+        <select id="chbGroup">${fields.map((c) => opt(c.key, c.label, base.key)).join("")}</select>
+        ${transforms.length > 1
+          ? `<select id="chbGroupT">${transforms.map((t) => opt(t.id, t.label, gtid || "")).join("")}</select>`
+          : ""}
+        <em>Every game you've ever finished counts, the same rule the built-ins use.
+          Clear the last bucket you can reach and the challenge starts over.</em>
+      </div>
+    </div>
     <div class="chb-row chb-filters">
       <span>Only these games</span>
       <div>
@@ -1100,6 +1168,13 @@ function chEditorHtml() {
       <button class="btn launch" id="chbSave">Save challenge</button>
     </div>
   </div>`;
+}
+
+// field + transform -> the stored "field|transform" key (bare field when it's untransformed).
+function chSetGroupBy(fieldKey, tid) {
+  const base = chGroupFieldByKey(fieldKey);
+  const fits = chTransformsFor(base).some((t) => t.id === (tid || ""));
+  chEditor.def.groupBy = fieldKey + (tid && fits ? "|" + tid : "");
 }
 
 // Live preview: how many buckets would this challenge actually have?
@@ -1127,7 +1202,11 @@ function wireEditor(host) {
   $("#chbCancel").onclick = close;
   $("#chbName").oninput = (e) => { d.name = e.target.value; };
   $("#chbIcon").oninput = (e) => { d.icon = e.target.value; };
-  $("#chbGroup").onchange = (e) => { d.groupBy = e.target.value; chPreview(); };
+  // Changing the field re-renders: the transforms on offer come from its type, so the
+  // second select's options change with it.
+  $("#chbGroup").onchange = (e) => { chSetGroupBy(e.target.value, ""); renderChallenges(); };
+  const gt = $("#chbGroupT");
+  if (gt) gt.onchange = (e) => { chSetGroupBy(String(d.groupBy).split("|")[0], e.target.value); chPreview(); };
 
   // The Pick tab's builder, pointed at this draft's tree (pick.js).
   pkbUse(CH_BUILDER);

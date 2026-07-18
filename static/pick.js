@@ -11,10 +11,7 @@
    shape the sidebar filters have always had — so the builder inherits the grid's
    entire vocabulary for free: sheet columns, IGDB (themes, keywords, perspective),
    and the constructed facets (predicted rating, playtime, sales). See pickFields(). */
-/* groupBy: the field whose buckets this query is "one per". Empty means Pick behaves as
-   it always has — one roll from the whole pool. Set it and the query becomes the shape of
-   a challenge, which is exactly what a challenge is: a saved query with a group-by. */
-const pickState = { filter: null, preset: "backlog", picked: null, groupBy: "" };
+const pickState = { filter: null, preset: "backlog", picked: null };
 let _completedFranchises = null;
 const completedFranchises = () => (_completedFranchises ||=
   new Set(((DATA.sheets.completed || {}).rows || []).flatMap((r) => unifiedFranchiseVals(r))));
@@ -239,12 +236,9 @@ const PICK_FIELD_GROUP = {
   digitalPlatform: "Ownership & price", subscription: "Ownership & price",
   limitedPrint: "Ownership & price",
 };
-// Groupers land in their own section rather than scattered through the others —
-// they are the Challenges tab's bucketings, and read as a set.
-const pickFieldGroup = (c) => (c.grouper ? "Challenge buckets" : PICK_FIELD_GROUP[c.key] || c.group || "More");
+const pickFieldGroup = (c) => PICK_FIELD_GROUP[c.key] || c.group || "More";
 const PICK_GROUP_ORDER = ["The basics", "Status", "Time & ratings", "Play style", "Era",
-                          "Ownership & price", "Progress", "Challenge buckets",
-                          "For the hell of it", "More"];
+                          "Ownership & price", "Progress", "For the hell of it", "More"];
 
 function pickExtraFields() {
   const rows = pickEligible();
@@ -276,7 +270,7 @@ function pickExtraFields() {
     /* isCandidate (challenges.js) as a criterion. Pick's pool is deliberately looser —
        it allows low-priority, unreleased and catalogue games you don't own — so a bucket
        handed over from Challenges has to be able to say "and it would really count". */
-    { key: "__pk_candidate", label: "Challenge candidate", group: "Challenge buckets", kind: "fn",
+    { key: "__pk_candidate", label: "Challenge candidate", group: "Progress", kind: "fn",
       getVals: (r) => (typeof isCandidate === "function" && isCandidate(r) ? ["Yes"] : ["No"]) },
     // An empty ladder means the column is empty too — offering it would be a dead end.
   ].filter((f) => f.kind !== "bucket" || f.buckets.length);
@@ -291,15 +285,17 @@ function pickFields() {
   if (_pickFields && _pickFieldsFor === DATA && _pickFieldsDone === ENRICH_COMPLETE) return _pickFields;
   _pickFieldsFor = DATA;
   _pickFieldsDone = ENRICH_COMPLETE;
-  // The challenge groupers (challenges.js) — the same bucketing the Challenges tab does,
-  // offered as criteria, so "roll me something that would clear a One Per Platform bucket"
-  // is sayable. typeof-guarded: challenges.js is the last script to parse (index.html), and
-  // this runs long after boot either way.
-  const groupers = typeof chGrouperCols === "function" ? chGrouperCols() : [];
-  const all = [...gamesFacetCols().filter((c) => !PICK_SKIP_FIELDS.has(c.key)), ...pickExtraFields(), ...groupers];
+  const all = [...gamesFacetCols().filter((c) => !PICK_SKIP_FIELDS.has(c.key)), ...pickExtraFields()];
   return (_pickFields = all.map((c) => ({ ...c, group: pickFieldGroup(c) })));
 }
-const pickFieldByKey = (k) => pickFields().find((f) => f.key === k);
+/* A grouping key ("dateAdded|month") isn't in the field list — groupings are composed on
+   demand (challenges.js), so there is no finite list to enumerate. It still has to RESOLVE
+   though: "pick me one" hands over a tree whose leaf names one, and compilePick has to be
+   able to answer it. Fall through to the composer rather than widening the catalogue, so
+   the field picker keeps offering fields and not every field × every transform. */
+const pickFieldByKey = (k) =>
+  pickFields().find((f) => f.key === k) ||
+  (typeof chGroupCol === "function" ? chGroupCol(k) : null);
 
 /* ---- the filter tree ----------------------------------------------------
    A group is {op:"and"|"or", not, kids}; a criterion is {key, vals, not}. Groups
@@ -319,6 +315,7 @@ const isPickGroup = (n) => !!n && Array.isArray(n.kids);
    screen (they live on different tabs), and each render sets the context it wants. */
 const PICK_TAB_BUILDER = {
   sel: "#pickBuilder",
+  emptyHint: "every game in the backlog is in play",
   root: () => pickState.filter,
   // What the value counts in the popover are counted over.
   pool: () => pickEligible(),
@@ -667,7 +664,6 @@ function describePicker(node = pickState.filter) {
 function applyPicker(p) {
   closePickPop();
   pickState.filter = pickDecode(p.fb);
-  pickState.groupBy = p.groupBy || "";
   // A saved picker is a tree, so it lands as one: the dropdown reads "Custom filter"
   // rather than naming a preset this may no longer have anything to do with.
   pickState.preset = "";
@@ -956,67 +952,13 @@ function pickGroupHtml(node, path) {
     : "";
   return `<div class="pkg${nested ? " nested" : ""}${node.not ? " neg" : ""}">
     ${bar}
-    ${!node.kids.length && !nested ? `<p class="pkg-empty">No criteria yet — every game in the backlog is in play.</p>` : ""}
+    ${!node.kids.length && !nested ? `<p class="pkg-empty">No criteria yet — ${pkb.emptyHint || "every game in the backlog is in play"}.</p>` : ""}
     <div class="pkg-kids">
       ${kids}
       <button class="pk-add" data-act="add" data-path="${p}" title="Add a criterion">${icon("i-plus", 12)} Criterion</button>
       <button class="pk-add ghost" data-act="gadd" data-path="${p}" title="Add a nested group">${icon("i-plus", 12)} Group</button>
     </div>
   </div>`;
-}
-
-/* Group-by turns the query into a challenge, so the preview IS a challenge: the same
-   computeChallenge the Challenges tab runs, over an ad-hoc definition built from whatever
-   is in the builder right now. Buckets you've already cleared, buckets still to go — and
-   a roll per bucket, which is "pick me one" pointed the other way. */
-function pickGroupOpts() {
-  const cols = pickFields().filter((f) => f.kind !== "bucket" || f.buckets);
-  const groupers = cols.filter((f) => f.grouper);
-  const plain = cols.filter((f) => !f.grouper);
-  const opt = (f) => `<option value="${escapeHtml(f.key)}"${f.key === pickState.groupBy ? " selected" : ""}>${escapeHtml(f.label)}</option>`;
-  return `<optgroup label="Fields">${plain.map(opt).join("")}</optgroup>` +
-         `<optgroup label="Bucketings">${groupers.map(opt).join("")}</optgroup>`;
-}
-
-// The current query as something computeChallenge understands.
-const pickAsChallenge = () => ({
-  id: "__pickpreview", name: "Preview", icon: "i-dice",
-  groupBy: pickState.groupBy,
-  domain: compilePick(pickState.filter || pickGroup()),
-});
-
-const PICK_BUCKETS_SHOWN = 24;
-function pickBucketsHtml() {
-  if (typeof computeChallenge !== "function") return "";
-  let res;
-  try { res = computeChallenge(pickAsChallenge()); }
-  catch (_) { return `<p class="muted">Can't group by that.</p>`; }
-  if (!res.total) return `<p class="muted">Nothing to group — this filter matches no games.</p>`;
-  const rem = [...res.remaining.entries()];
-  const shown = rem.slice(0, PICK_BUCKETS_SHOWN);
-  const rest = rem.length - shown.length;
-  return `<div class="pkb-head">
-      <b>${res.total}</b> bucket${res.total === 1 ? "" : "s"} ·
-      <b>${res.cleared.size}</b> already cleared by games you've finished ·
-      <b>${res.remaining.size}</b> to go
-    </div>
-    ${rem.length ? `<div class="pkb-list">${shown.map(([k, rows]) =>
-      `<button class="pkb-chip" data-bk="${escapeHtml(String(k))}"
-         title="Roll one of the ${rows.length} candidate${rows.length === 1 ? "" : "s"} in this bucket">
-         ${escapeHtml(String(k))}<span>${rows.length}</span></button>`).join("")}
-      ${rest > 0 ? `<span class="muted pkb-rest">+${rest} more</span>` : ""}</div>`
-    : `<p class="muted">Every bucket is cleared — that challenge is complete.</p>`}`;
-}
-
-// Pin the group-by to one bucket and roll, without disturbing the tree you built.
-function pickRollBucket(key) {
-  const pool = pickPool().filter((r) => {
-    const col = pickFieldByKey(pickState.groupBy);
-    return col && rowFacetItems(r, col).some((it) => it.key === String(key));
-  });
-  pickState.picked = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
-  if (pickState.picked && pickAnimOn() && !pickReduced()) playPickRoll(pickState.picked, pool);
-  else renderPicker();
 }
 
 function renderPicker() {
@@ -1069,12 +1011,6 @@ function renderPicker() {
             `<option value="${b.m}"${b.m === mins ? " selected" : ""}>${escapeHtml(b.label)}</option>`).join("")}
         </select>
       </label>
-      <label class="pick-group">One per
-        <select id="pickGroup">
-          <option value=""${pickState.groupBy ? "" : " selected"}>— nothing —</option>
-          ${pickGroupOpts()}
-        </select>
-      </label>
       <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
       <span class="pick-count">${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"} in pool</span>
       ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
@@ -1089,7 +1025,6 @@ function renderPicker() {
       ${saveable ? `<button class="view-save" id="pickSave">＋ Save this picker</button>` : ""}
     </div>` : ""}
     <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
-    ${pickState.groupBy ? `<div class="pick-buckets" id="pickBuckets">${pickBucketsHtml()}</div>` : ""}
     <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
       ? pickCard(pickState.picked)
       : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>`;
@@ -1104,15 +1039,7 @@ function renderPicker() {
   // can negate, widen, or drag into an OR, and the dropdown says "Custom filter" because
   // by then that is exactly what it is.
   $("#pickTime").onchange = (e) => { closePickPop(); pickSetBudget(+e.target.value); renderPicker(); nav(); };
-  $("#pickGroup").onchange = (e) => {
-    closePickPop(); pickState.groupBy = e.target.value; pickState.picked = null;
-    renderPicker(); nav();
-  };
   $("#pickBtn").onclick = () => { pickGame(true); nav(); };
-  // Roll straight into one unbeaten bucket.
-  for (const el of document.querySelectorAll("#pickBuckets [data-bk]")) {
-    el.onclick = () => pickRollBucket(el.dataset.bk);
-  }
   const anim = $("#pickAnim");
   if (anim) anim.onchange = (e) => {
     if (e.target.checked) localStorage.removeItem(PICK_ANIM_KEY);
@@ -1160,15 +1087,13 @@ function wirePickSaved() {
     };
   });
   const save = $("#pickSave");
-  /* Saving from here saves a PICKER — the entrypoint says which kind, so there's no
-     dialog asking. A challenge is made in the challenge editor, which runs this same
-     builder; the group-by rides along either way. */
+  /* Saving from here saves a PICKER. Grouping is a challenge idea and lives only in the
+     challenge editor, which runs this same builder for its criteria. */
   if (save) save.onclick = async () => {
     const name = await uiPrompt({ title: "Name this picker", value: describePicker().slice(0, 40) || "My picker", placeholder: "My picker" });
     if (!name) return;
     const list = savedPickers();
-    list.unshift({ name: name.slice(0, 40), fb: pickEncode(pickPruned(pickState.filter)),
-                   desc: describePicker(), groupBy: pickState.groupBy || "" });
+    list.unshift({ name: name.slice(0, 40), fb: pickEncode(pickPruned(pickState.filter)), desc: describePicker() });
     storePickers(list);
     renderPicker();
   };

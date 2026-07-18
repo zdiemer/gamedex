@@ -208,7 +208,6 @@ function syncURL(push) {
     // inside it now rather than in an &mins= of its own — it's a criterion like the rest.
     if (pickState.preset) p.set("sel", pickState.preset);
     else if (pickState.filter && pickState.filter.kids.length) p.set("fb", pickEncode(pickState.filter));
-    if (pickState.groupBy) p.set("pg", pickState.groupBy);
   } else if (activeTab === "groups") {
     if (groupState.kind) p.set("g", groupState.kind);
     if (groupState.open) p.set("gk", groupState.open);
@@ -268,8 +267,6 @@ function applyStateFromURL() {
       // "By…" groups are fields now) — fall back rather than 404 the tab.
       if (fb) { pickState.filter = pickDecode(fb); pickState.preset = ""; }
       else applyPreset(p.get("sel") || pickState.preset || PICK_DEFAULT_PRESET);
-      // After applyPreset, which resets it — the group-by is part of the link, not the preset.
-      pickState.groupBy = p.get("pg") || "";
       // After the tree exists, never before: this writes a criterion into it.
       pickAdoptMinutes(+(p.get("mins") || 0));
     }
