@@ -3038,6 +3038,19 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .ch-bucket-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
 .ch-bucket-head h4 { font-size: 13.5px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .ch-bucket-head .muted { font-size: 11.5px; white-space: nowrap; flex: none; }
+/* "Pick me one" — quiet until you're on the bucket, since every bucket has one and 40 loud
+   buttons would read as the point of the page rather than an offer. Always visible on
+   touch, where there is no hover to reveal it. */
+.ch-pickone {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  font: 600 11px var(--font); color: var(--accent);
+  background: none; border: 1px solid transparent; border-radius: 999px;
+  padding: 3px 9px; cursor: pointer; white-space: nowrap;
+  opacity: 0; transition: opacity .15s var(--ease), background .15s var(--ease);
+}
+.ch-bucket:hover .ch-pickone, .ch-pickone:focus-visible { opacity: 1; }
+.ch-pickone:hover { background: var(--accent-soft); border-color: var(--accent); }
+@media (hover: none) { .ch-pickone { opacity: 1; } }
 .ch-chips { display: flex; flex-direction: column; gap: 5px; }
 .ch-chip {
   display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; cursor: pointer;

@@ -236,9 +236,12 @@ const PICK_FIELD_GROUP = {
   digitalPlatform: "Ownership & price", subscription: "Ownership & price",
   limitedPrint: "Ownership & price",
 };
-const pickFieldGroup = (c) => PICK_FIELD_GROUP[c.key] || c.group || "More";
+// Groupers land in their own section rather than scattered through the others —
+// they are the Challenges tab's bucketings, and read as a set.
+const pickFieldGroup = (c) => (c.grouper ? "Challenge buckets" : PICK_FIELD_GROUP[c.key] || c.group || "More");
 const PICK_GROUP_ORDER = ["The basics", "Status", "Time & ratings", "Play style", "Era",
-                          "Ownership & price", "Progress", "For the hell of it", "More"];
+                          "Ownership & price", "Progress", "Challenge buckets",
+                          "For the hell of it", "More"];
 
 function pickExtraFields() {
   const rows = pickEligible();
@@ -267,6 +270,11 @@ function pickExtraFields() {
     { key: "__pk_obscure", label: "Obscurity", group: "For the hell of it", kind: "fn",
       getVals: (r) => (isObscure(r) ? ["Nobody has heard of it"] : []) },
     { key: "__pk_bday", label: "My birthday", group: "For the hell of it", kind: "fn", getVals: birthdayTags },
+    /* isCandidate (challenges.js) as a criterion. Pick's pool is deliberately looser —
+       it allows low-priority, unreleased and catalogue games you don't own — so a bucket
+       handed over from Challenges has to be able to say "and it would really count". */
+    { key: "__pk_candidate", label: "Challenge candidate", group: "Challenge buckets", kind: "fn",
+      getVals: (r) => (typeof isCandidate === "function" && isCandidate(r) ? ["Yes"] : ["No"]) },
     // An empty ladder means the column is empty too — offering it would be a dead end.
   ].filter((f) => f.kind !== "bucket" || f.buckets.length);
 }
@@ -280,7 +288,12 @@ function pickFields() {
   if (_pickFields && _pickFieldsFor === DATA && _pickFieldsDone === ENRICH_COMPLETE) return _pickFields;
   _pickFieldsFor = DATA;
   _pickFieldsDone = ENRICH_COMPLETE;
-  const all = [...gamesFacetCols().filter((c) => !PICK_SKIP_FIELDS.has(c.key)), ...pickExtraFields()];
+  // The challenge groupers (challenges.js) — the same bucketing the Challenges tab does,
+  // offered as criteria, so "roll me something that would clear a One Per Platform bucket"
+  // is sayable. typeof-guarded: challenges.js is the last script to parse (index.html), and
+  // this runs long after boot either way.
+  const groupers = typeof chGrouperCols === "function" ? chGrouperCols() : [];
+  const all = [...gamesFacetCols().filter((c) => !PICK_SKIP_FIELDS.has(c.key)), ...pickExtraFields(), ...groupers];
   return (_pickFields = all.map((c) => ({ ...c, group: pickFieldGroup(c) })));
 }
 const pickFieldByKey = (k) => pickFields().find((f) => f.key === k);
@@ -292,7 +305,31 @@ const pickFieldByKey = (k) => pickFields().find((f) => f.key === k);
 const pickGroup = (op = "and", kids = []) => ({ op, not: false, kids });
 const pickCond = (key, vals = []) => ({ key, vals, not: false });
 const isPickGroup = (n) => !!n && Array.isArray(n.kids);
-const pickNodeAt = (path) => path.reduce((n, i) => n.kids[i], pickState.filter);
+/* ---- builder context ----------------------------------------------------
+   The builder renders and edits ONE tree. Which tree, where it paints, and what to do
+   after an edit are the only things that differ between the Pick tab and the challenge
+   editor — so those are the context and everything else is shared. Without this the
+   builder reached straight into pickState.filter, which is why a challenge couldn't
+   borrow it and grew a second, weaker filter UI of its own.
+
+   Module-level rather than threaded through every handler: only one builder is ever on
+   screen (they live on different tabs), and each render sets the context it wants. */
+const PICK_TAB_BUILDER = {
+  sel: "#pickBuilder",
+  root: () => pickState.filter,
+  // What the value counts in the popover are counted over.
+  pool: () => pickEligible(),
+  changed: () => pickEdited(),
+  repaint: () => renderPicker(),
+  sync: (replace) => (replace ? syncURL(false) : nav()),
+};
+let pkb = PICK_TAB_BUILDER;
+const pkbUse = (ctx) => { pkb = ctx || PICK_TAB_BUILDER; };
+const pkbHost = () => $(pkb.sel);
+// Is a builder actually painted right now? Guards the document-level popover listeners,
+// which used to ask "is the Pick tab active" — true of only one of the two builders.
+const pkbOnScreen = () => !!pkbHost();
+const pickNodeAt = (path) => path.reduce((n, i) => n.kids[i], pkb.root());
 const pickPath = (s) => (s ? s.split(".").map(Number) : []);
 
 /* The tree, in a link. Every other bit of URL state here is flat (`f.platform=PS2~GC`)
@@ -339,6 +376,14 @@ function pickPool(except) {
   // fall through to the criterion branch and deref `null.key`.
   if (!pickState.filter) pickState.filter = pickGroup();
   return pickEligible().filter(compilePick(pickState.filter, except));
+}
+
+// The pool the BUILDER counts its value lists over. Same thing on the Pick tab; on the
+// challenge editor it's the whole library, because a challenge is cleared by games you've
+// already finished and Pick's pool is backlog-only.
+function pkbPool(except) {
+  const root = pkb.root() || pickGroup();
+  return (pkb.pool ? pkb.pool() : pickEligible()).filter(compilePick(root, except));
 }
 
 /* ---- the time budget, as seen by the select -----------------------------
@@ -473,7 +518,7 @@ function playPickRoll(picked, pool) {
 // survived. Same trick the sidebar plays.
 function pickFieldValues(field, except) {
   const counts = new Map();
-  for (const r of pickPool(except)) {
+  for (const r of pkbPool(except)) {
     for (const it of rowFacetItems(r, field)) {
       if (!counts.has(it.key)) counts.set(it.key, { n: 0, label: facetLabel(field, it.raw) });
       counts.get(it.key).n++;
@@ -749,10 +794,10 @@ function dismissPickPop() {
     try { n = pickNodeAt(path); } catch (_) { /* the tree moved under it */ }
     if (path.length && n && !isPickGroup(n) && !(n.vals || []).length) {
       pickNodeAt(path.slice(0, -1)).kids.splice(path[path.length - 1], 1);
-      syncURL(false);
+      pkb.sync(true);
     }
   }
-  renderPicker();
+  pkb.repaint();
 }
 
 /* The popover is a child of its chip, which buys it anchoring and scrolling-with-its-anchor
@@ -769,7 +814,7 @@ function dismissPickPop() {
    the field turned out to have, and the width on the viewport. */
 const PICK_POP_GAP = 6, PICK_POP_EDGE = 10, PICK_POP_MIN_H = 150;
 function positionPickPop() {
-  const pop = $("#pickBuilder .pk-pop");
+  const pop = $(pkb.sel + " .pk-pop");
   const chip = pop && pop.closest(".pk-chip");
   if (!chip) return;
   pop.style.left = "0px";                    // measure from the anchored position…
@@ -917,6 +962,7 @@ function pickGroupHtml(node, path) {
 }
 
 function renderPicker() {
+  pkbUse(PICK_TAB_BUILDER);   // the challenge editor borrows the builder; take it back
   const host = $("#picker");
   _pkVals = null;                  // the pool may have moved; recount on demand
   if (!pickState.filter) applyPreset(pickState.preset || "backlog");
@@ -1079,19 +1125,19 @@ function pickPopRepaint() {
    keystroke in the search box rebuilds the list from HTML, so anything held per-element
    would be thrown away with the element. */
 const pkPopItems = () =>
-  [...document.querySelectorAll("#pickBuilder .pk-pop-field, #pickBuilder .facet-opt input, #pickBuilder .facet-more")];
+  [...document.querySelectorAll(`${pkb.sel} .pk-pop-field, ${pkb.sel} .facet-opt input, ${pkb.sel} .facet-more`)];
 
 // renderPicker() rebuilds the whole tab from HTML, so whatever had focus is gone by the
 // time it returns — fine for a mouse, fatal for a keyboard: ticking a value would drop you
 // onto the body and the next arrow key would go nowhere. Re-find the row by its VALUE,
 // since the element that had it no longer exists.
 function pickRefocusValue(v) {
-  const el = document.querySelector(`#pickBuilder .pk-pop input[data-v="${CSS.escape(v)}"]`);
+  const el = document.querySelector(`${pkb.sel} .pk-pop input[data-v="${CSS.escape(v)}"]`);
   if (el) el.focus();
 }
 
 function pickPopKeydown(e) {
-  if (!document.querySelector("#pickBuilder .pk-pop")) return;
+  if (!document.querySelector(pkb.sel + " .pk-pop")) return;
   if (e.key === "Escape") {
     e.preventDefault();
     e.stopPropagation();
@@ -1099,7 +1145,7 @@ function pickPopKeydown(e) {
     dismissPickPop();                    // Escape cancels, exactly as clicking away does
     // Land back on the chip you came from — or, if cancelling just removed it, on the
     // button that would make another one.
-    ($(`#pickBuilder .pk-chip-v[data-path="${at}"]`) || $("#pickBuilder .pk-add"))?.focus();
+    ($(`${pkb.sel} .pk-chip-v[data-path="${at}"]`) || $(pkb.sel + " .pk-add"))?.focus();
     return;
   }
   const items = pkPopItems();
@@ -1124,7 +1170,7 @@ function pickPopKeydown(e) {
 }
 
 function wirePickBuilder() {
-  const host = $("#pickBuilder");
+  const host = pkbHost();
   if (!host) return;
 
   host.onclick = (e) => {
@@ -1144,37 +1190,37 @@ function wirePickBuilder() {
       // it here would rename a preset you haven't actually edited to "Custom filter" —
       // and leave it renamed after the criterion you abandoned was gone.
       openPickPop([...path, g.kids.length - 1], "field");
-      renderPicker();
+      pkb.repaint();
       $("#pkPopSearch")?.focus();
       return;
     }
-    if (act === "gadd") { pickNodeAt(path).kids.push(pickGroup("or")); pickEdited(); renderPicker(); nav(); return; }
+    if (act === "gadd") { pickNodeAt(path).kids.push(pickGroup("or")); pkb.changed(); pkb.repaint(); pkb.sync(); return; }
     if (act === "gdel" || act === "del") {
       closePickPop();
       pickNodeAt(path.slice(0, -1)).kids.splice(path[path.length - 1], 1);
-      pickEdited(); renderPicker(); nav(); return;
+      pkb.changed(); pkb.repaint(); pkb.sync(); return;
     }
     if (act === "not") {
       const n = pickNodeAt(path);
-      n.not = !n.not; pickEdited(); renderPicker(); nav(); return;
+      n.not = !n.not; pkb.changed(); pkb.repaint(); pkb.sync(); return;
     }
     if (act === "edit") {
       const p = path.join(".");
       if (pickPop.path === p && pickPop.mode === "values") dismissPickPop();
       else {
         openPickPop(path, "values");
-        renderPicker();
+        pkb.repaint();
         // The popover itself, not its search box: focus has to land inside for Escape and
         // the arrows to reach it, but focusing a real input here would throw up the
         // keyboard on a phone every time you glance at a field's values.
-        $("#pickBuilder .pk-pop")?.focus();
+        $(pkb.sel + " .pk-pop")?.focus();
       }
       return;
     }
-    if (act === "refield") { openPickPop(path, "field"); renderPicker(); $("#pkPopSearch")?.focus(); return; }
+    if (act === "refield") { openPickPop(path, "field"); pkb.repaint(); $("#pkPopSearch")?.focus(); return; }
     if (act === "clear") {
       pickNodeAt(path).vals = [];
-      pickEdited(); renderPicker(); return;
+      pkb.changed(); pkb.repaint(); return;
     }
   };
   host.onchange = (e) => {
@@ -1183,7 +1229,7 @@ function wirePickBuilder() {
     const m = GROUP_MODES.find((x) => x.v === s.value) || GROUP_MODES[0];
     const n = pickNodeAt(pickPath(s.dataset.path));
     n.op = m.op; n.not = m.not;
-    pickEdited(); renderPicker(); nav();
+    pkb.changed(); pkb.repaint(); pkb.sync();
   };
   host.onkeydown = pickPopKeydown;
 
@@ -1192,7 +1238,7 @@ function wirePickBuilder() {
   const path = pickPath(pop.dataset.path);
   const node = pickNodeAt(path);
 
-  // No stopPropagation here, however tempting: the popover lives INSIDE #pickBuilder,
+  // No stopPropagation here, however tempting: the popover lives INSIDE the builder host,
   // so swallowing its clicks would starve the delegated handler above and the
   // popover's own head buttons (change field, Clear) would quietly do nothing. The
   // outside-click listener already exempts anything inside .pk-pop.
@@ -1220,14 +1266,14 @@ function wirePickBuilder() {
       // edit, and the preset it came from can no longer claim to describe this. Naming the
       // field of a brand-new empty one throws away nothing, so it isn't one yet: it's a
       // criterion mid-build, which dismissPickPop is still free to take back whole.
-      if ((node.vals || []).length) pickEdited();
+      if ((node.vals || []).length) pkb.changed();
       node.key = el.dataset.f;
       node.vals = [];                              // values belong to the old field
       pickPop.mode = "values"; pickPop.q = ""; pickPop.all = false;
       // No nav() either: a criterion with no values yet is not a state the Back button
       // should have to return anyone to. Ticking the first value is what makes it one.
-      renderPicker();
-      $("#pickBuilder .pk-pop")?.focus();
+      pkb.repaint();
+      $(pkb.sel + " .pk-pop")?.focus();
     };
   });
   pop.querySelectorAll("input[type=checkbox]").forEach((el) => {
@@ -1236,10 +1282,10 @@ function wirePickBuilder() {
       const on = new Set(node.vals || []);
       on.has(v) ? on.delete(v) : on.add(v);
       node.vals = [...on];
-      pickEdited();
+      pkb.changed();
       // Repaint the whole picker (the pool count moved) but keep the popover open,
       // so ticking three platforms is three clicks and not three re-opens.
-      renderPicker(); nav();
+      pkb.repaint(); pkb.sync();
       pickRefocusValue(v);
     };
   });
@@ -1249,7 +1295,7 @@ function wirePickBuilder() {
     if (v) localStorage.setItem(BIRTHDAY_KEY, v.slice(5, 10));
     else localStorage.removeItem(BIRTHDAY_KEY);
     pickState.picked = null;
-    renderPicker();
+    pkb.repaint();
   };
 }
 
@@ -1269,7 +1315,9 @@ const pkInsidePop = (el) =>
      el.closest("[data-act='add']") || el.closest("[data-act='refield']")));
 document.addEventListener("click", (e) => { _pkClickedInside = pkInsidePop(e.target); }, true);
 document.addEventListener("click", () => {
-  if (!pickPop.path || activeTab !== "pick" || _pkClickedInside) return;
+  // Not "are we on Pick" any more — the same builder runs inside the challenge editor,
+  // and its popover needs the same click-away.
+  if (!pickPop.path || !pkbOnScreen() || _pkClickedInside) return;
   dismissPickPop();
 });
 
