@@ -257,7 +257,7 @@ function renderHome() {
     heroSection(playing) +
     (loved.length ? `<section class="h-sect">
       <div class="h-sect-head"><h2>${icon("i-trend", 17)} You'd probably love</h2>
-        <div class="h-sect-act"><button class="linkbtn" id="hPickMore">Pick one for me →</button></div></div>
+        <div class="h-sect-act"><button class="linkbtn" id="hPickMore">Roll one instead →</button></div></div>
       <div class="h-picks">${loved.map(({ r, p }) =>
         homeCard(r, "games", `<span class="h-why">~${Math.round(p.score * 100)}% predicted</span>`)).join("")}</div>
     </section>` : "") +
@@ -369,7 +369,9 @@ function wireHome(host, playing) {
     };
   });
   const pickMore = $("#hPickMore");
-  if (pickMore) pickMore.onclick = () => { switchTab("pick"); nav(); };
+  // Land on an already-rolled game, not the empty builder — switchTab paints the picker (which
+  // seeds the default backlog filter), then pickGame() rolls one and re-renders with the result.
+  if (pickMore) pickMore.onclick = () => { switchTab("pick"); pickGame(); nav(); };
   const chalAll = $("#hChalAll");
   if (chalAll) chalAll.onclick = (e) => { e.stopPropagation(); chState.open = null; switchTab("challenges"); nav(); };
   host.querySelectorAll(".h-chal[data-chal]").forEach((el) => {
