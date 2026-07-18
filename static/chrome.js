@@ -8,38 +8,41 @@
    immediately, so home.js/shelf.js/challenges.js and the rest parse while the first
    fetch is in flight, and by the time it resumes, every renderer it calls exists. */
 
+// The top-bar box is the GLOBAL search: it lands on the cross-sheet "search" page (search.js)
+// and answers "do I already own this / is it on order?" — separate from each listing's own
+// inline filter (#tabsearch, below). First keystroke opens the page (one history entry);
+// typing there just refilters (replaceState, so it doesn't flood history).
 let searchTimer = null;
 $("#search").addEventListener("input", (e) => {
+  GLOBAL_SEARCH.q = e.target.value;
+  if (activeTab !== "search") { switchTab("search"); syncURL(true); return; }
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { renderSearch(); syncURL(false); }, 140);
+});
+$("#search").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }   // results are already live
+});
+
+// The inline per-page filter — the OLD top-bar behaviour, now living on each listing so it's
+// clearly "narrow THIS list" rather than a misleadingly global-looking box.
+let tabSearchTimer = null;
+$("#tabsearch").addEventListener("input", (e) => {
   const st = tabState[activeTab];
-  if (!st) return;             // a special tab (Home, Stats…) has no results list to filter
-  // Beginning a search is a FRESH query — it shouldn't inherit facets you'd selected
-  // before (and then paged away from). Clear them as the search STARTS (empty → typed),
-  // not on every keystroke, so you can still add facets to narrow an active search.
+  if (!st) return;             // a special tab has no results list to filter
+  // Beginning a search is a FRESH query — it shouldn't inherit facets you'd selected before
+  // (and then paged away from). Clear them as the search STARTS (empty → typed), not on every
+  // keystroke, so you can still add facets to narrow an active search.
   const starting = !st.search && e.target.value;
   st.search = e.target.value;
   st.page = 1;
   if (starting) st.facets = {};
-  // Coalesce keystrokes. Filtering 14.7k rows and rebuilding every facet is
-  // fast now, but not fast enough to do it between two quick keypresses.
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    renderAll();
-    syncURL(false);        // replace so typing doesn't flood history
-  }, 140);
+  // Coalesce keystrokes — filtering 14.7k rows and rebuilding every facet is fast, but not
+  // fast enough to do between two quick keypresses.
+  clearTimeout(tabSearchTimer);
+  tabSearchTimer = setTimeout(() => { renderAll(); syncURL(false); }, 140);
 });
-// Enter from a tab with no results list of its own (Home, Stats, Shelf, …) takes the
-// query to All Games and shows it there, which is what a search box implies.
-$("#search").addEventListener("keydown", (e) => {
-  if (e.key !== "Enter") return;
-  e.preventDefault();
-  if (["games", "completed", "onOrder"].includes(activeTab)) { e.target.blur(); return; }
-  const q = e.target.value;
-  // A fresh search from the header — start All Games clean rather than carrying whatever
-  // facets were left selected there.
-  tabState.games = { ...freshState(), view: tabState.games.view, combine: tabState.games.combine };
-  tabState.games.search = q;
-  switchTab("games");
-  nav();
+$("#tabsearch").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
 });
 // closest(), not e.target: a tab now contains an <svg> and a <span>, so the click
 // lands on the icon and e.target.dataset.tab is undefined. This is exactly what
@@ -51,7 +54,7 @@ $("#tabs").addEventListener("click", (e) => {
 $("#clear").addEventListener("click", () => {
   const st = tabState[activeTab];
   st.search = ""; st.facets = {}; st.page = 1;
-  $("#search").value = "";
+  $("#tabsearch").value = "";
   renderAll();
   nav();
 });
@@ -83,10 +86,9 @@ function placeControls() {
   const home = MOBILE.matches ? $("#sheetBody") : $(".resultbar");
   if (ctrls.parentElement !== home) home.appendChild(ctrls);
   if (!MOBILE.matches) setSheet(false);
-  // The full search hint ("…title, genre, publisher, notes…") clips to "…publ" in the narrower
-  // mobile top bar — a shorter placeholder reads cleanly there.
+  // The full hint clips in the narrower mobile top bar — a shorter placeholder reads cleanly.
   const s = $("#search");
-  if (s) s.placeholder = MOBILE.matches ? "Search games…" : "Search title, genre, publisher, notes…";
+  if (s) s.placeholder = MOBILE.matches ? "Search your games…" : "Search everything you own or have on order…";
 }
 function setSheet(open) {
   $("#sheet").hidden = !open;

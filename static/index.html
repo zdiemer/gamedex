@@ -111,7 +111,7 @@
     </button>
     <span class="field field-top">
       <svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-search"/></svg>
-      <input id="search" type="search" placeholder="Search title, genre, publisher, notes…" autocomplete="off" />
+      <input id="search" type="search" placeholder="Search everything you own or have on order…" autocomplete="off" />
     </span>
     <div class="freshness" id="freshness"></div>
     <button id="cmdk" class="kbdbtn" title="Search everything" aria-label="Command palette"><kbd id="cmdkMod">Ctrl</kbd><kbd>K</kbd></button>
@@ -124,7 +124,7 @@
 
   <nav class="tabs" id="tabs">
     <button data-tab="home" class="active"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></button>
-    <button data-tab="games"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-library"/></svg><span>All Games</span></button>
+    <button data-tab="games"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-library"/></svg><span>My Games</span></button>
     <button data-tab="completed"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-trophy"/></svg><span>Completed</span></button>
     <button data-tab="onOrder"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-package"/></svg><span>On Order</span></button>
     <button data-tab="wishlist" id="tabWishlist" hidden><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-star"/></svg><span>Wishlist</span></button>
@@ -143,6 +143,10 @@
     <section class="results">
       <div class="resultbar">
         <button id="facetToggle" class="facet-toggle"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-filter"/></svg>Filters</button>
+        <span class="field field-inline">
+          <svg class="ico" width="14" height="14" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="tabsearch" type="search" placeholder="Filter this list…" autocomplete="off" spellcheck="false" />
+        </span>
         <span id="count">Loading…</span>
         <span id="enrichstatus" class="enrichstatus" hidden></span>
         <button id="resetsort" class="linkbtn" hidden>Reset sort</button>
@@ -184,6 +188,7 @@
       <div class="groups" id="groups" hidden></div>
       <div class="picross" id="picross" hidden></div>
       <div class="recs" id="recs" hidden></div>
+      <div class="searchpage" id="searchpage" hidden></div>
       <datalist id="pxTitles"></datalist>
       <div class="timeline" id="timeline" hidden></div>
       <div class="pager" id="pager"></div>
@@ -272,6 +277,7 @@
   <script src="picross.js"></script>
   <script src="konami.js"></script>
   <script src="timeline.js"></script>
+  <script src="search.js"></script>
   <script src="relations.js"></script>
   <script src="predict.js"></script>
   <script src="catalogue.js"></script>

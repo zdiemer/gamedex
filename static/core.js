@@ -38,6 +38,12 @@ for (const t of TABS) {
 const viewOf = () => tabState[activeTab].view;
 const combineOn = () => tabState[activeTab].combine;
 
+// The top-bar search is GLOBAL now — it answers "do I already own or have this on order?"
+// across every real sheet at once (the "search" pseudo-tab, search.js), separate from each
+// listing's own inline filter (tabState[tab].search). Kept here so both the input handler and
+// the renderer read the one query.
+const GLOBAL_SEARCH = { q: "" };
+
 const $ = (sel) => document.querySelector(sel);
 
 /* Icons. `icon("i-play")` -> inline SVG that inherits currentColor.

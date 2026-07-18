@@ -163,7 +163,7 @@ function renderTable(rows) {
       : `<tr><td colspan="99">${emptyState("No games match", "Try loosening a filter.", null)}</td></tr>`;
     if (view === "grid") $("#thead").innerHTML = "";
     const act = $("#emptyAction");
-    if (act) act.onclick = () => { st.search = ""; st.facets = {}; st.page = 1; $("#search").value = ""; renderAll(); nav(); };
+    if (act) act.onclick = () => { st.search = ""; st.facets = {}; st.page = 1; $("#tabsearch").value = ""; renderAll(); nav(); };
   } else if (view === "grid") renderGrid(pageRows);
   else renderTableView(pageRows);
 

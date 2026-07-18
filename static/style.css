@@ -255,6 +255,11 @@ button .ico, a .ico { pointer-events: none; }
 .field input:focus + .ico, .field:focus-within .ico { color: var(--accent); }
 .field input::-webkit-search-cancel-button { filter: grayscale(1) opacity(.5); }
 .field-top { flex: 1; max-width: 560px; }
+/* The inline per-list filter that sits in the result bar. Smaller than the top-bar box, and it
+   grows to take the slack between the Filters button and the count without shoving them. */
+.field-inline { flex: 0 1 240px; min-width: 130px; }
+.field-inline input { padding: 6px 12px 6px 30px; font-size: 12.5px; }
+.field-inline .ico { left: 10px; }
 
 .freshness { margin-left: auto; color: var(--dim); font-size: 11.5px; text-align: right; line-height: 1.35; }
 /* The command-palette button is two keycaps, not a glyph: ⌘ is a Mac-only symbol
@@ -398,6 +403,23 @@ button .ico, a .ico { pointer-events: none; }
 /* Grouped so the whole cluster can be relocated into the mobile sheet. */
 .rb-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .enrichstatus { color: var(--dim); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* ---- Global search landing (search.js) --------------------------------- */
+.searchpage { padding: 4px 0 8px; }
+.search-head { padding: 6px 2px 14px; }
+.search-head h2 { font-family: var(--display); font-size: 22px; letter-spacing: -.02em; }
+.search-head p { margin-top: 3px; font-size: 13px; }
+.search-grid { /* inherits .grid; no extra rules needed beyond spacing above */ }
+/* Status chips under a result's title — the whole point of the page: is it Owned, have you
+   finished it, is it On order. Small, quiet, colour-coded. */
+.s-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.s-chip {
+  font: 600 10px/1 var(--font); letter-spacing: .02em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 999px; white-space: nowrap;
+}
+.s-chip.owned { color: var(--accent); background: var(--accent-soft); }
+.s-chip.done  { color: var(--good); background: var(--good-soft); }
+.s-chip.order { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
 .linkbtn { background: none; border: none; color: var(--accent-2); cursor: pointer; font-size: 12.5px; font-family: inherit; }
 .linkbtn:hover { text-decoration: underline; }
 .linkbtn.danger { color: var(--bad); }

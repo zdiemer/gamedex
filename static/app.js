@@ -11,9 +11,10 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross"];
-function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges"
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "search"];
+function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
+  $("#searchpage").hidden = mode !== "search";
   $("#stats").hidden = mode !== "stats";
   $("#picker").hidden = mode !== "pick";
   $("#challenges").hidden = mode !== "challenges";
@@ -63,6 +64,7 @@ function renderAll() {
   if (activeTab === "groups") { setSpecialMode("groups"); renderGroups(); return; }
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
+  if (activeTab === "search") { setSpecialMode("search"); renderSearch(); return; }
   // Recommend is a sheet-backed tab (synthetic DATA.sheets.recs, recs.js), but its data only
   // exists once the IGDB catalogue + taste model are ready. Until then recsReady() paints a
   // loading/empty panel into #recs and we hold the special layout; once ready it has built
@@ -153,7 +155,13 @@ function switchTab(tab, reset) {
   }
   activeTab = tab;
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("active", b.dataset.tab === tab);
-  if (!SPECIAL_TABS.includes(tab)) $("#search").value = tabState[tab].search;
+  // The top-bar box is the GLOBAL search: it shows the query only on the search page, and
+  // leaving for any other tab drops it (that tab has its own inline filter). The inline
+  // #tabsearch mirrors the tab's own saved filter.
+  if (tab !== "search") { GLOBAL_SEARCH.q = ""; $("#search").value = ""; }
+  else $("#search").value = GLOBAL_SEARCH.q;
+  const ts = $("#tabsearch");
+  if (ts && tabState[tab]) ts.value = tabState[tab].search;
   renderAll();
   setDocTitle();
 }
@@ -168,7 +176,9 @@ function syncURL(push) {
   if (applyingState) return;
   const p = new URLSearchParams();
   if (activeTab !== "home") p.set("tab", activeTab);
-  if (activeTab === "pick") {
+  if (activeTab === "search") {
+    if (GLOBAL_SEARCH.q) p.set("gq", GLOBAL_SEARCH.q);   // the global query, for a shareable link
+  } else if (activeTab === "pick") {
     // A preset is a name; anything you've edited since is a tree, and only the tree is
     // the truth. Send whichever one describes what's on screen. The time budget rides
     // inside it now rather than in an &mins= of its own — it's a criterion like the rest.
@@ -213,11 +223,12 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross", "recs", "wishlist"].includes(tab) ? tab : "home";
+         "health", "shelf", "picross", "recs", "wishlist", "search"].includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   if ((tab === "wishlist" || tab === "health") && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
   if (SPECIAL_TABS.includes(tab)) {
+    if (tab === "search") GLOBAL_SEARCH.q = p.get("gq") || "";
     if (tab === "pick") {
       const fb = p.get("fb");
       // An old link names a selector that may no longer exist (the Playtime and
@@ -279,7 +290,7 @@ function applyStateFromURL() {
 // from), then fall back across the rest — the same match key can live in more than one sheet.
 function findRowByKey(k, sheetHint) {
   if (!k || !DATA || !DATA.sheets) return null;
-  const order = ["games", "completed", "wishlist", "recs"];
+  const order = ["games", "completed", "onOrder", "wishlist", "recs"];
   const hi = order.indexOf(sheetHint);
   if (hi > 0) { order.splice(hi, 1); order.unshift(sheetHint); }
   for (const s of order) {
