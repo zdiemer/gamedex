@@ -1320,11 +1320,12 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 }
 .ost-dk-btn {
   flex: 0 0 auto; background: none; border: none; cursor: pointer; color: var(--text);
-  font-size: 15px; line-height: 1; padding: 5px; border-radius: 6px; display: flex; align-items: center;
+  line-height: 1; padding: 6px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; min-width: 34px; min-height: 34px;
 }
 .ost-dk-btn:hover { background: var(--surface); }
 .ost-dk-btn:disabled { opacity: .35; cursor: default; }
-.ost-dk-play { color: var(--accent-2); font-size: 13px; }
+.ost-dk-play { color: var(--accent-2); }
 .ost-dk-close { margin-left: 2px; color: var(--dim); }
 .ost-dk-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ost-dk-title { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3209,6 +3210,18 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
        title and close button behind the address bar. Bound it by the overlay. */
     max-height: min(92dvh, 100%);
   }
+  /* The soundtrack dock bleeds to the drawer's edges and cancels its bottom padding,
+     so on mobile it must track the mobile padding (16px sides, 22px+safe-area bottom),
+     not the desktop 28px — otherwise it over-pulls and the controls end up jammed
+     against the screen edge / under the home indicator. Extra bottom padding lifts the
+     buttons clear of the safe area, and 42px targets are comfortable to tap. */
+  #ostDock {
+    margin: 14px -16px calc(-22px - env(safe-area-inset-bottom, 0px));
+    bottom: calc(-22px - env(safe-area-inset-bottom, 0px));
+    padding: 10px 12px calc(18px + env(safe-area-inset-bottom, 0px));
+    gap: 4px;
+  }
+  .ost-dk-btn { min-width: 42px; min-height: 42px; padding: 8px; }
   /* The hero bleeds to the drawer's edges, so its negative margins must track
      the drawer's mobile padding (22px 16px), not the desktop 28px. */
   .hero { margin: -22px -16px 16px; padding: 20px 16px 0; }

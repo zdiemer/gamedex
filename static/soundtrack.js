@@ -29,7 +29,7 @@ function soundtrackHtml(key) {
   if (!rec || !(rec.tracks || []).length) return "";
   const cover = rec.cover
     ? `<img class="ost-cover" loading="lazy" src="${escapeHtml(cImg(rec.cover))}" alt="">`
-    : `<span class="ost-cover ost-cover-blank">♫</span>`;
+    : `<span class="ost-cover ost-cover-blank">${icon("i-music", 20)}</span>`;
   const sub = [rec.type, rec.year, rec.trackCount ? `${rec.trackCount} tracks` : null]
     .filter(Boolean).join(" · ");
   // "Other releases" — the runners-up the match kept (arrangements, gamerips…). Switching
@@ -48,7 +48,7 @@ function soundtrackHtml(key) {
        <span class="ost-dur">${t.dur ? escapeHtml(t.dur) : ""}</span>
      </li>`).join("");
   return `<div class="hltb ost" data-ost-key="${escapeHtml(key)}">
-    <div class="hltb-head">♫ Soundtrack (KHInsider)</div>
+    <div class="hltb-head">${icon("i-music", 14)} Soundtrack (KHInsider)</div>
     <div class="ost-bar">
       ${cover}
       <button class="ost-play" data-ost-playall title="Play soundtrack">${icon("i-play", 18)}</button>
@@ -144,9 +144,9 @@ function buildOstDock() {
   const dock = document.createElement("div");
   dock.id = "ostDock";
   dock.innerHTML = `
-    <button class="ost-dk-btn" data-ost-prev title="Previous">⏮</button>
-    <button class="ost-dk-btn ost-dk-play" data-ost-toggle-play title="Play/pause">${icon("i-play", 18)}</button>
-    <button class="ost-dk-btn" data-ost-next title="Next">⏭</button>
+    <button class="ost-dk-btn" data-ost-prev title="Previous" aria-label="Previous track">${icon("i-skip-back", 20)}</button>
+    <button class="ost-dk-btn ost-dk-play" data-ost-toggle-play title="Play/pause" aria-label="Play or pause">${icon("i-play", 20)}</button>
+    <button class="ost-dk-btn" data-ost-next title="Next" aria-label="Next track">${icon("i-skip-fwd", 20)}</button>
     <div class="ost-dk-info">
       <span class="ost-dk-title"></span>
       <div class="ost-dk-seekrow">
@@ -192,8 +192,7 @@ function drawOstProgress() {
 
 function setOstPlayIcon(playing) {
   if (!OSTP) return;
-  OSTP.dock.querySelector(".ost-dk-play").innerHTML =
-    playing ? "❚❚" : icon("i-play", 18);
+  OSTP.dock.querySelector(".ost-dk-play").innerHTML = icon(playing ? "i-pause" : "i-play", 20);
   highlightOstTrack();
 }
 
