@@ -83,6 +83,10 @@ function placeControls() {
   const home = MOBILE.matches ? $("#sheetBody") : $(".resultbar");
   if (ctrls.parentElement !== home) home.appendChild(ctrls);
   if (!MOBILE.matches) setSheet(false);
+  // The full search hint ("…title, genre, publisher, notes…") clips to "…publ" in the narrower
+  // mobile top bar — a shorter placeholder reads cleanly there.
+  const s = $("#search");
+  if (s) s.placeholder = MOBILE.matches ? "Search games…" : "Search title, genre, publisher, notes…";
 }
 function setSheet(open) {
   $("#sheet").hidden = !open;
