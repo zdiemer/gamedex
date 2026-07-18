@@ -71,11 +71,16 @@ function renderSearchResults(q) {
       // Open the combined drawer against games (its schema) when there's a library copy or it's a
       // merged group; a game that's ONLY on order opens against the onOrder sheet.
       sheet: (lib.length || members.length > 1) ? "games" : "onOrder",
+      // Field-weighted relevance: a title hit beats a developer/genre hit, exact beats substring.
+      // This is what lifts "Haze" above the "Hazelight" games and surfaces the game named "X".
+      score: searchScore(row, terms),
     };
   });
-  // Owned first, then completed, then merely-tracked, then alphabetical — an owned title is
-  // usually the answer you came for.
+  // RELEVANCE first — the whole point is that the game you actually typed rises to the top. Then
+  // owned / completed / tracked as a tiebreak (an owned title is usually the answer you came for),
+  // then alphabetical.
   results.sort((a, b) =>
+    (b.score - a.score) ||
     (b.owned - a.owned) || (b.completed - a.completed) || (b.tracked - a.tracked) ||
     String(a.row.title || a.row.game || "").localeCompare(String(b.row.title || b.row.game || "")));
 

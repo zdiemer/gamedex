@@ -70,30 +70,12 @@ function effectiveSort() {
   return DEFAULT_SORT[activeTab] ||
     [{ key: (columns().find((c) => c.primary) || columns()[0]).key, dir: "asc" }];
 }
-// Naive search relevance: a query that hits the TITLE outranks one that only hit
-// another field (genre, publisher…). So searching "Adventure" surfaces the game
-// *named* Adventure above everything merely tagged with the Adventure genre.
-function searchRank(row, terms) {
-  const title = foldText(row.title ?? row.game ?? "");
-  let score = 0;
-  for (const t of terms) {
-    if (title === t) score += 100;
-    else if (title.startsWith(t)) score += 40;
-    else if (title.includes(t)) score += 20;
-    // matched only via another field (it passed the filter) — no title bonus
-  }
-  return score;
-}
-
+// The per-list filter just FILTERS — it doesn't reorder. Results stay in the tab's chosen (or
+// default) sort, so typing a few letters narrows the list in place rather than shuffling it.
+// Relevance ranking is the site search's job (search.js / searchScore), not this box's.
 function sortRows(rows) {
   const spec = effectiveSort();
-  const q = foldText(tabState[activeTab].search || "").trim();
-  const terms = q ? q.split(/\s+/).filter(Boolean) : [];
   return [...rows].sort((a, b) => {
-    if (terms.length) {
-      const r = searchRank(b, terms) - searchRank(a, terms);
-      if (r) return r;                    // title relevance first when searching
-    }
     for (const s of spec) { const c = cmpBy(a, b, s); if (c) return c; }
     return 0;
   });

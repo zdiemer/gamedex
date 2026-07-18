@@ -44,6 +44,42 @@ function matchesSearch(row, terms, cols) {
   const hay = rowHaystack(row, cols);
   return terms.every((t) => hay.includes(t) || searchGenreHay(row).includes(t));
 }
+
+// ---- relevance scoring (the site search ranks by this) -------------------
+// A hit in the TITLE means far more than one in a genre tag, with developer / publisher /
+// franchise in between — so "Haze" (the game) outranks games merely MADE by "Hazelight", and the
+// Game Boy game literally called "X" tops a search for "x". Notes are deliberately absent: they're
+// long, they still count toward WHETHER a row matches, but a note hit shouldn't outrank a real
+// title, and folding every review to score it would be the slow part.
+const SEARCH_FIELD_WEIGHTS = [
+  ["title", 12], ["game", 12], ["franchise", 5],
+  ["developer", 3], ["publisher", 3], ["genre", 2.5], ["vendor", 1.5],
+];
+// How well one field VALUE matches one term, best tier first — multiplied by the field's weight.
+function fieldMatchTier(folded, term) {
+  if (folded === term) return 6;                                  // the field IS the term
+  const words = folded.split(/[^a-z0-9]+/);
+  if (words.includes(term)) return 4;                             // a whole word matches
+  if (folded.startsWith(term)) return 3.5;                        // the field starts with it
+  for (const w of words) if (w.startsWith(term)) return 2.2;      // a word starts with it
+  return folded.includes(term) ? 1 : 0;                           // buried substring, else no hit
+}
+// Total relevance of a row for the query terms: each term scores its single best-weighted field,
+// and the terms sum. Higher is more relevant.
+function searchScore(row, terms) {
+  let total = 0;
+  for (const t of terms) {
+    let best = 0;
+    for (const [key, w] of SEARCH_FIELD_WEIGHTS) {
+      const v = row[key];
+      if (v == null || v === "") continue;
+      const tier = fieldMatchTier(foldText(v), t);
+      if (tier) { const s = w * tier; if (s > best) best = s; }
+    }
+    total += best;
+  }
+  return total;
+}
 // Row matches a facet selection (Set of value keys). OR within a facet; for
 // IGDB array facets a row matches if ANY of its values is selected.
 function matchesFacet(row, col, selected) {
