@@ -197,11 +197,18 @@ function renderTimeline(rows) {
     }
   };
 
+  // A jump-nav should JUMP. Smooth-scrolling the PAGE across a 1,700-entry list is brutal on
+  // mobile: there's no virtualization there (the timeline is overflow:visible, every entry in the
+  // DOM), so Safari renders every entry it animates past AND the active-section observer fires a
+  // rail scroll the whole way down — together enough to crash the tab. Instant scroll paints only
+  // the destination. Desktop is its own scroll container and coped, so it keeps the smooth glide.
+  const mobile = window.matchMedia("(max-width: 760px)").matches;
+  const jump = mobile ? "auto" : "smooth";
   // Click a rail chip → scroll to that section (scroll-margin clears the sticky heading).
   const chips = [...host.querySelectorAll(".tl-rail-chip")];
   chips.forEach((chip) => chip.onclick = () => {
     const sec = host.querySelector(`#tlb-${chip.dataset.tlb}`);
-    if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (sec) sec.scrollIntoView({ behavior: jump, block: "start" });
   });
   // …and light the chip for whichever section is at the top right now, scrolling the RAIL so
   // the active one stays in view (the rail scrolls internally when there are many buckets).
@@ -224,7 +231,9 @@ function renderTimeline(rows) {
       activeBi = bi;
       chips.forEach((c) => c.classList.toggle("on", +c.dataset.tlb === bi));
       const chip = chips[bi];
-      if (chip && rail) rail.scrollTo({ top: chip.offsetTop - rail.clientHeight / 2 + chip.offsetHeight / 2, behavior: "smooth" });
+      // Keep the rail scroll instant on mobile too — a fixed-element smooth scroll fired
+      // repeatedly during a page scroll compounds the same jank.
+      if (chip && rail) rail.scrollTo({ top: chip.offsetTop - rail.clientHeight / 2 + chip.offsetHeight / 2, behavior: jump });
     }, { root, rootMargin: "-8% 0px -80% 0px", threshold: 0 });
     host.querySelectorAll(".tl-year").forEach((s) => spy.observe(s));
   }
