@@ -244,6 +244,32 @@ function setFacets(open) {
 function renderFacets() {
   const st = tabState[activeTab];
   const host = $("#facets");
+
+  /* Rebuilding the sidebar empties it, which clamps its scrollTop to 0 — so every
+     checkbox click flung you back to the top, and even restoring the old scrollTop
+     wouldn't help: groups above you appear and vanish as their counts hit zero, so
+     the same pixel lands somewhere else. Anchor to a GROUP instead: remember which
+     group sits at the container's top edge (and how far above it the edge cuts),
+     rebuild, then scroll so that group sits exactly where it was. The group you're
+     editing keeps still under your cursor no matter what the recount did above it.
+     Only within a tab — landing on a fresh tab's sidebar should start at the top. */
+  let anchorKey = null, anchorDelta = 0;
+  const tabChanged = host.dataset.tab !== activeTab;
+  const hostTop = host.getBoundingClientRect().top;
+  if (!tabChanged && host.scrollTop > 0) {
+    const g = [...host.querySelectorAll(".facet")]
+      .find((el) => el.getBoundingClientRect().bottom > hostTop + 1);
+    if (g) { anchorKey = g.dataset.key; anchorDelta = g.getBoundingClientRect().top - hostTop; }
+  }
+  // The toggled checkbox is destroyed with everything else; without this a keyboard
+  // user's focus falls to <body> after every space-toggle.
+  let refocus = null;
+  const ae = document.activeElement;
+  if (ae && ae.type === "checkbox" && host.contains(ae)) {
+    const opt = ae.closest(".facet-opt"), grp = ae.closest(".facet");
+    if (opt && grp) refocus = { key: grp.dataset.key, val: opt.dataset.val };
+  }
+
   host.innerHTML = "";
 
   const closeBtn = document.createElement("button");   // mobile-only (CSS)
@@ -292,6 +318,7 @@ function renderFacets() {
 
     const group = document.createElement("div");
     group.className = "facet" + (st.expanded[col.key] === false ? " collapsed" : "");
+    group.dataset.key = col.key;                 // the scroll anchor's identity
 
     const head = document.createElement("div");
     head.className = "facet-head";
@@ -330,6 +357,7 @@ function renderFacets() {
         const opt = document.createElement("label");
         const isChecked = selected.has(v.key);
         opt.className = "facet-opt" + (isChecked ? " checked" : "");
+        opt.dataset.val = v.key;                 // for refocusing after a rebuild
         opt.innerHTML =
           `<input type="checkbox" ${isChecked ? "checked" : ""}/>` +
           `<span class="lbl" title="${escapeHtml(v.label)}">${escapeHtml(v.label)}</span>` +
@@ -391,5 +419,23 @@ function renderFacets() {
 
     group.appendChild(body);
     host.appendChild(group);
+  }
+
+  host.dataset.tab = activeTab;
+  // A fresh tab's sidebar starts at the top — the browser happily carries the old
+  // tab's scroll depth through the rebuild otherwise.
+  if (tabChanged) host.scrollTop = 0;
+  else if (anchorKey) {
+    const g = [...host.querySelectorAll(".facet")].find((el) => el.dataset.key === anchorKey);
+    // Nudge by how far the group MOVED, not to an absolute position: whether the
+    // browser kept the old scrollTop through the rebuild (same-task, no layout) or
+    // clamped it to 0, the relative form lands the group back under the same cut.
+    if (g) host.scrollTop += (g.getBoundingClientRect().top - host.getBoundingClientRect().top) - anchorDelta;
+  }
+  if (refocus) {
+    const opt = [...host.querySelectorAll(".facet-opt")].find(
+      (el) => el.dataset.val === refocus.val && el.closest(".facet").dataset.key === refocus.key);
+    const input = opt && opt.querySelector("input");
+    if (input) input.focus({ preventScroll: true });
   }
 }
