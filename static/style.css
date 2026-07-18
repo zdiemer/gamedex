@@ -342,6 +342,23 @@ button .ico, a .ico { pointer-events: none; }
 .th-opt:hover { color: var(--text); }
 .th-opt.on { background: var(--accent-soft); color: var(--accent); }
 
+/* Refresh (admin only) — a round ghost coin so it pairs with the avatar beside it instead of
+   sitting there as the last square button. Same footprint as the avatar; bordered rather than
+   filled, because it's a utility action, not your identity. Spins its icon while working. */
+.iconcoin {
+  width: 38px; height: 38px; flex: none; border: 1px solid var(--border); border-radius: 50%;
+  background: var(--surface); color: var(--muted); cursor: pointer; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color .16s var(--ease), border-color .16s var(--ease), background .16s var(--ease), transform .16s var(--ease), box-shadow .16s var(--ease);
+}
+.iconcoin:hover { border-color: var(--accent-line); color: var(--accent); background: var(--surface-2); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, .18); }
+.iconcoin:active { transform: translateY(0); box-shadow: none; }
+.iconcoin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.iconcoin:disabled { cursor: default; transform: none; box-shadow: none; }
+/* Refreshing spins the ICON, not the coin — a rotating circle would read as a spinner glitch. */
+.iconcoin.spinning { color: var(--accent); border-color: var(--accent-line); }
+.iconcoin.spinning .ico { animation: spin .8s linear infinite; }
+
 /* Account as a monogram avatar. A generic user glyph while signed out; your initial
    in an accent coin with a ring once you're in — the signed-in state you can see. */
 .avatar {
@@ -4696,7 +4713,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* ---- Mobile: comfier touch targets + drop keyboard-only chrome ----------- */
 @media (max-width: 760px) {
   /* 38px icon buttons sit under the comfortable ~44px touch minimum. */
-  .refreshbtn { width: 44px; height: 44px; }
+  .refreshbtn, .iconcoin, .avatar { width: 44px; height: 44px; }
+  /* Grow the theme segment to match so the whole control row shares a baseline height. */
+  .th-opt { width: 38px; height: 38px; }
   /* The home mark is a 26px glyph; grow its hit area (vertical especially) without moving it. */
   .brand { min-height: 44px; padding-right: 8px; }
   /* The command palette's ↑↓ / ↵ / esc hint row is meaningless on a touch device. */
