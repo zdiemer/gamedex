@@ -332,7 +332,7 @@ button .ico, a .ico { pointer-events: none; }
    glyph you have to decode. The lit half is the current theme. */
 .thseg {
   display: inline-flex; background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 3px; gap: 2px;
+  border-radius: 10px; padding: 3px; gap: 2px; cursor: pointer;
 }
 .th-opt {
   width: 32px; height: 30px; border: 0; background: none; border-radius: 7px;

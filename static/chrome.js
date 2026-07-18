@@ -181,13 +181,12 @@ applyTheme(currentTheme());
   const mod = $("#cmdkMod");
   if (mod && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)) mod.textContent = "\u2318";
 }
-// The whole control is one hit target: land on a segment and you get that theme;
-// land anywhere else in the pill (padding, gap) and it flips to the other theme.
+// The whole control is one toggle button: a click anywhere in the pill flips to the
+// other theme — the two segments just show which mode you're in, they aren't targets.
 {
   const seg = $("#themeToggle");
-  if (seg) seg.addEventListener("click", (e) => {
-    const opt = e.target.closest(".th-opt");
-    const t = opt ? opt.dataset.setTheme : (currentTheme() === "dark" ? "light" : "dark");
+  if (seg) seg.addEventListener("click", () => {
+    const t = currentTheme() === "dark" ? "light" : "dark";
     localStorage.setItem(THEME_KEY, t);
     applyTheme(t);
     if (activeTab === "stats") renderStats();     // recolour the charts' text
