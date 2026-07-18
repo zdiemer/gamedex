@@ -163,7 +163,9 @@ function renderTable(rows) {
   if (activeTab === "recs" && typeof loadRecsMeta === "function") loadRecsMeta(pageRows);
   kbReset();
   renderViews();
-  $("#count").textContent = `${sorted.length.toLocaleString()} of ${sheet().rows.length.toLocaleString()} games`;
+  const total = st.combine && typeof groupedTotalOf === "function"
+    ? groupedTotalOf(sheet().rows) : sheet().rows.length;
+  $("#count").textContent = `${sorted.length.toLocaleString()} of ${total.toLocaleString()} games`;
   renderPager(pages);
 }
 

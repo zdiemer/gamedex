@@ -307,13 +307,43 @@ function buildWishlistSheet() {
     return row;
   };
 
+  /* The platform a WISH is for. A storefront wish names its own platform — a
+     Steam wish is a PC game — no matter which owned copy it happened to match:
+     the PS4 disc on the sheet is a copy you HAVE, not the thing you're wishing
+     for. Sheet-only wishes (no storefront source) keep the sheet row's platform;
+     that row IS the wish. Console networks resolve through IGDB's platform list
+     when the meta has landed, else a sensible current-gen guess. */
+  const WL_PC = new Set(["steam", "gog", "epic", "itch"]);
+  const WL_CONSOLE = { psn: /PlayStation/i, xbox: /Xbox/i, nintendo: /Nintendo|Switch|Wii|DS/i };
+  const WL_GUESS = { psn: "PlayStation 5", xbox: "Xbox Series X|S", nintendo: "Nintendo Switch" };
+  const wishPlatform = (e, m) => {
+    const provs = e.sources.filter((s) => s !== "sheet");
+    if (!provs.length) return null;
+    if (provs.some((p) => WL_PC.has(p))) return "PC";
+    const plats = (m && m.platforms) || [];
+    for (const p of provs) {
+      const hit = WL_CONSOLE[p] && plats.find((x) => WL_CONSOLE[p].test(x));
+      if (hit) return hit;
+    }
+    return WL_GUESS[provs[0]] || plats[0] || null;
+  };
+
   const rows = entries.map((e) => {
     const on = e.sources.map((s) => WL_SOURCE[s] || s);
+    const meta = e.igdbId ? (WL_META[e.igdbId] || null) : null;
     if (e.row) {
-      // The shared sheet row IS the wishlist row — stamp the source column on
-      // it (harmless on other tabs: their column lists never name it).
-      e.row.wishlistedOn = on;
-      return stampPrice(e.row, e);
+      /* A COPY of the sheet row, not the row itself: the wishlist stamps
+         (wishlistedOn, the storefront platform, the wish date) must not leak
+         onto the same object All Games renders. Platform and dateAdded are
+         overridden to describe the WISH — a Steam wishlist entry for a game
+         you own on PS4 used to show "PS4" and sort by when you bought the
+         disc, which is the owned copy's story, not the wish's. */
+      const r = { ...e.row, wishlistedOn: on };
+      const plat = wishPlatform(e, meta);
+      if (plat) r.platform = plat;
+      if (e.sources.some((s) => s !== "sheet") && e.addedAt)
+        r.dateAdded = String(e.addedAt).slice(0, 10);
+      return stampPrice(r, e);
     }
     // A game I don't own anywhere: a synthetic row under a private `wl:` key.
     // Seeding ENRICH under that key does two jobs — the grid/hero find the
@@ -328,7 +358,7 @@ function buildWishlistSheet() {
     // The IGDB light meta (video, release date, platforms, genres) is filled in
     // asynchronously by loadWishlistMeta once the tab renders; the fields it
     // sets on ENRICH[k] and on the row are read by the card + hover-preview.
-    const m = e.igdbId ? (WL_META[e.igdbId] || null) : null;
+    const m = meta;
     if (m) {
       if (m.video && !rec.video) rec.video = m.video;
       if (m.shots && !rec.shots) rec.shots = m.shots;   // trailer-less: screenshots for the hover fade
@@ -352,7 +382,7 @@ function buildWishlistSheet() {
     }
     // Platform on a wishlist card is the storefront's platform (a Steam wish is
     // a PC game); the release date and genre come from IGDB.
-    const plat = e.appIds.steam ? "PC" : (m && m.platforms && m.platforms[0]) || null;
+    const plat = wishPlatform(e, m);
     return stampPrice({
       title: e.name, wishlistedOn: on, _k: k, _wlOnly: true, _igdbId: e.igdbId || null,
       // A wishlisted game isn't on the sheet — it's a catalogue game, so it

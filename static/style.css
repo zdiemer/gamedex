@@ -2298,6 +2298,12 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   background: var(--surface-3); color: var(--muted); font-size: 10px; font-weight: 600;
 }
 .rl-copy span[class^="rl-b-"] { flex: none; font-size: 11px; font-weight: 600; }
+/* A copy's own platform-account meta (Steam hours, trophies, store review) — the
+   group drawer hides these on purpose, so the copy row is where they show. Full
+   width under the title line; the flex row above wraps around it. */
+.rl-copy { flex-wrap: wrap; }
+.rl-copy-mine { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+.rl-copy-mine .mine-pill { font-size: 10.5px; padding: 2px 8px; }
 
 /* ---- Predicted rating ---------------------------------------------------- */
 .pw {

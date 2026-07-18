@@ -184,8 +184,24 @@ function groupRow(g) {
     _platforms: platforms,
     completed: ms.some((r) => r.completed),
     owned: ms.some((r) => r.owned),
-    platform: platforms.length > 1 ? `${platforms.length} platforms` : lead.platform,
+    // Name the platforms while they fit — "PS4 · PC · Switch" answers the question
+    // "which copies?" that "3 platforms" only raises. Four or more falls back to
+    // the count; the card sub-line is one ellipsized line.
+    platform: platforms.length > 1
+      ? (platforms.length <= 3 ? platforms.join(" · ") : `${platforms.length} platforms`)
+      : lead.platform,
   };
+}
+
+// Grouped size of the WHOLE sheet, for the count line: with combine on the
+// numerator counts grouped cards, so a raw-row denominator reads as a filter
+// that isn't there — "1,182 of 14,768 games" with nothing filtered. Cached by
+// sheet-rows identity + enrichment epoch (grouping shifts as igdbIds land).
+let _groupTotal = { rows: null, epoch: -1, n: 0 };
+function groupedTotalOf(rows) {
+  if (_groupTotal.rows === rows && _groupTotal.epoch === _enrichEpoch) return _groupTotal.n;
+  _groupTotal = { rows, epoch: _enrichEpoch, n: groupByGame(rows).length };
+  return _groupTotal.n;
 }
 
 // ---- the detail card's relationship map ----------------------------------
@@ -293,7 +309,10 @@ function wireRelations(scope) {
 }
 
 // The other editions of THIS game that you own — shown on the grouped card and
-// in the drawer, so a group is never a black box.
+// in the drawer, so a group is never a black box. Each copy carries its own
+// platform-account meta (Steam hours, trophy counts, store reviews): the group
+// drawer deliberately doesn't show these — they are one copy's story, and this
+// list is where that copy gets to tell it (click through for the full grid).
 function editionsHtml(row) {
   const ms = row._members;
   if (!ms || ms.length < 2) return "";
@@ -306,8 +325,10 @@ function editionsHtml(row) {
         .map((x) => escapeHtml(String(x))).join(" · ");
       const mark = m.completed ? `<span class="rl-b-done">✓ Beaten</span>`
         : m.owned ? `<span class="rl-b-owned">● Owned</span>` : "";
+      const mine = typeof minePillsHtml === "function" ? minePillsHtml(m._k) : "";
       return `<button class="rl-copy" data-rlc="${i}">
-        <span class="rl-copy-t">${bits}${kind ? ` <span class="rl-tag">${escapeHtml(kind)}</span>` : ""}</span>${mark}</button>`;
+        <span class="rl-copy-t">${bits}${kind ? ` <span class="rl-tag">${escapeHtml(kind)}</span>` : ""}</span>${mark}${
+        mine ? `<span class="rl-copy-mine mine-pills">${mine}</span>` : ""}</button>`;
     }).join("")}</div>
   </div>`;
 }

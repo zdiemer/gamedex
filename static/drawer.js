@@ -94,6 +94,12 @@ function historyOf(row) {
 function mineSectionHtml(row) {
   if (!row._k) return "";
   const h = historyOf(row);
+  // A combined card's _k is just the LEAD member's key, so the platform pills and
+  // stat cells here would show one copy's Steam hours as if they were the group's.
+  // Platform-specific meta belongs on the per-platform copy cards ("Your copies" →
+  // click through); the group keeps the sheet-level history, which historyOf and
+  // groupRow already aggregate properly.
+  const grouped = !!(row._members && row._members.length > 1);
 
   const pills = [];
   if (h.beaten) pills.push(`<span class="mine-pill done">✓ Beaten</span>`);
@@ -108,7 +114,7 @@ function mineSectionHtml(row) {
   if (h.steamDeck) pills.push(`<span class="mine-pill">Steam Deck</span>`);
   // What the linked platform accounts know: real hours, achievement counts,
   // whether I reviewed it there (see mine.js).
-  if (typeof minePillsHtml === "function") {
+  if (!grouped && typeof minePillsHtml === "function") {
     const pp = minePillsHtml(row._k);
     if (pp) pills.push(pp);
   }
@@ -117,7 +123,7 @@ function mineSectionHtml(row) {
   if (h.rating != null)
     stats.push([`${Math.round(h.rating * 100)}`, "My rating", ratingClass(h.rating)]);
   if (h.playTime != null) stats.push([fmtHours(h.playTime), "Time played", ""]);
-  if (typeof mineStatCells === "function") stats.push(...mineStatCells(row._k));
+  if (!grouped && typeof mineStatCells === "function") stats.push(...mineStatCells(row._k));
   if (h.price != null) stats.push([`$${Number(h.price).toFixed(2)}`, "Paid", ""]);
 
   // The shape of the play-through. Only the beats that happened, in the order they
@@ -208,10 +214,14 @@ function openDrawer(row, sheetKey, keepStack) {
   }
   // The personal "history" (purchase price, dates) stays public; the NAS section leaks
   // file paths/sizes, so it's admin-only (the read is empty for anon anyway).
+  // A combined card gets no platform detail host: the achievement grid /
+  // screenshots / store review are one COPY's story (the lead's, at that), and
+  // they live on the per-platform copy drawers instead.
+  const groupedRow = !!(row._members && row._members.length > 1);
   if (!row._collection) html += mineSectionHtml(row)
     // The platform detail (achievement grid, personal screenshots, my Steam
     // review) lands async from /api/mine/detail — give it a host to fill.
-    + (row._k ? `<div id="mineExtra" class="mine-extra"></div>` : "")
+    + (row._k && !groupedRow ? `<div id="mineExtra" class="mine-extra"></div>` : "")
     + (IS_ADMIN ? nasSectionHtml(row) : "");
   else {                                       // a grouped card's values are aggregates, not yours
     for (const c of cols) {
@@ -279,7 +289,7 @@ function openDrawer(row, sheetKey, keepStack) {
   syncScrollLock();                       // the page behind the drawer must not scroll
   if (ENRICH_ENABLED && row._k && !row._wlOnly) loadDetail(row._k, $("#igdbDetail"), 0, row);
   else if (wlDetail) loadDetail(row._k, $("#igdbDetail"), 0, row, row._igdbId);
-  if (row._k && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
+  if (row._k && !groupedRow && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
 }
 // silent=true just tears down the DOM without touching history — for callers that immediately
 // drive their own navigation (a facet-link jump), so we don't fight them for the URL.
