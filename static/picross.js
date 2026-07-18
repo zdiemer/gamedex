@@ -390,8 +390,8 @@ function wirePicross(host) {
      so you can play it again from scratch. It leaves the streak alone — you did solve it, and
      un-solving it in the UI shouldn't rewrite history. */
   const reset = host.querySelector("#pxReset");
-  if (reset) reset.onclick = () => {
-    if (PX.solved && !confirm("Reset today's puzzle? The board goes back to blank. Your streak is kept.")) return;
+  if (reset) reset.onclick = async () => {
+    if (PX.solved && !(await uiConfirm({ title: "Reset puzzle", body: "Reset today's puzzle? The board goes back to blank. Your streak is kept.", ok: "Reset", danger: true }))) return;
     PX.cells = new Array(PX.w * PX.h).fill(0);
     PX.solved = false; PX.game = null; PX.guessedEarly = false;
     try { localStorage.removeItem(pxKey()); } catch (_) {}

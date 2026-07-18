@@ -2974,6 +2974,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   box-shadow: var(--sh-3); padding: 20px; animation: popin .18s var(--ease);
 }
 .np-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.np-body { font-size: 13.5px; line-height: 1.5; color: var(--muted); }
 .np-input {
   width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text);
   font: 400 16px/1.2 "Inter", sans-serif; padding: 11px 13px; border-radius: var(--r-sm);
@@ -2989,6 +2990,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .np-btn:hover { background: var(--surface-2); }
 .np-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .np-ok:hover { background: var(--accent); filter: brightness(1.08); }
+.np-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.np-danger:hover { background: var(--bad); filter: brightness(1.08); }
 
 /* ---- Empty state -------------------------------------------------------- */
 .empty {

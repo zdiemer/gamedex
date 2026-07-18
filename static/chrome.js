@@ -378,6 +378,43 @@ function uiPrompt({ title, value = "", placeholder = "", ok = "Save", maxlength 
   });
 }
 
+// Companion to uiPrompt — a native yes/no dialog in place of window.confirm, for the
+// handful of destructive actions that ask before they wipe something. Resolves true
+// on confirm, false on cancel/backdrop/Escape. Pass danger:true to redden the button.
+function uiConfirm({ title = "", body = "", ok = "OK", cancel = "Cancel", danger = false } = {}) {
+  return new Promise((resolve) => {
+    const host = document.createElement("div");
+    host.className = "np-scrim";
+    host.innerHTML = `
+      <div class="np-box" role="alertdialog" aria-modal="true">
+        ${title ? `<div class="np-title">${escapeHtml(title)}</div>` : ""}
+        <div class="np-body">${escapeHtml(body)}</div>
+        <div class="np-actions">
+          <button type="button" class="np-btn" data-np="cancel">${escapeHtml(cancel)}</button>
+          <button type="button" class="np-btn np-ok${danger ? " np-danger" : ""}" data-np="ok">${escapeHtml(ok)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    if (typeof syncScrollLock === "function") syncScrollLock();
+    let done = false;
+    const close = (result) => {
+      if (done) return;
+      done = true;
+      host.remove();
+      if (typeof syncScrollLock === "function") syncScrollLock();
+      resolve(result);
+    };
+    host.querySelector('[data-np="cancel"]').onclick = () => close(false);
+    host.querySelector('[data-np="ok"]').onclick = () => close(true);
+    host.addEventListener("click", (e) => { if (e.target === host) close(false); });
+    host.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); close(true); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(false); }
+    });
+    requestAnimationFrame(() => host.querySelector('[data-np="ok"]').focus());
+  });
+}
+
 // Wordmark = home: back to the landing page with nothing filtered/sorted.
 $("#brand").addEventListener("click", () => {
   for (const t of TABS) tabState[t] = { ...freshState(), view: tabState[t].view, combine: tabState[t].combine };

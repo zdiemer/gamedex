@@ -493,7 +493,7 @@ function wirePlatCards(host) {
     };
     const unlink = card.querySelector("[data-plat-unlink]");
     if (unlink) unlink.onclick = async () => {
-      if (!confirm(`Unlink ${MINE_PROVIDERS[p].label}? Synced data stays until you purge it.`)) return;
+      if (!(await uiConfirm({ title: "Unlink account", body: `Unlink ${MINE_PROVIDERS[p].label}? Synced data stays until you purge it.`, ok: "Unlink", danger: true }))) return;
       try { await fetch(`api/platforms/${p}/link`, { method: "DELETE" }); } catch (_) {}
       openPlatformsDialog();
     };
