@@ -181,12 +181,18 @@ applyTheme(currentTheme());
   const mod = $("#cmdkMod");
   if (mod && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)) mod.textContent = "\u2318";
 }
-document.querySelectorAll("#themeToggle .th-opt").forEach((b) => b.addEventListener("click", () => {
-  const t = b.dataset.setTheme;
-  localStorage.setItem(THEME_KEY, t);
-  applyTheme(t);
-  if (activeTab === "stats") renderStats();     // recolour the charts' text
-}));
+// The whole control is one hit target: land on a segment and you get that theme;
+// land anywhere else in the pill (padding, gap) and it flips to the other theme.
+{
+  const seg = $("#themeToggle");
+  if (seg) seg.addEventListener("click", (e) => {
+    const opt = e.target.closest(".th-opt");
+    const t = opt ? opt.dataset.setTheme : (currentTheme() === "dark" ? "light" : "dark");
+    localStorage.setItem(THEME_KEY, t);
+    applyTheme(t);
+    if (activeTab === "stats") renderStats();     // recolour the charts' text
+  });
+}
 
 // ---- command palette (⌘K / Ctrl-K) ---------------------------------------
 // 14.7k games is too many to browse to. Type a few letters, hit enter.

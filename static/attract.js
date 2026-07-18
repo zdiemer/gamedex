@@ -63,10 +63,10 @@ function attractBuildPool() {
       if (row && row._k && !NO_MATCH.has(row._k)) out.push({ row, sheetKey });
     }
   };
-  // Real, ownable games only: All Games / Completed / On Order / Wishlist. Recommend is a
-  // sheet tab too now, but it's the catalogue of games you DON'T own — they have no business
-  // in a slideshow of your collection, so it's excluded.
-  TABS.filter((t) => t !== "recs").forEach(add);
+  // Games you actually own: All Games / Completed / On Order. Recommend is the catalogue of
+  // games you DON'T own, and Wishlist is games you don't own yet — neither belongs in a
+  // slideshow of your collection, so both are excluded.
+  TABS.filter((t) => t !== "recs" && t !== "wishlist").forEach(add);
   return attractShuffle(out);
 }
 
