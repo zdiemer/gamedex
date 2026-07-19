@@ -124,7 +124,7 @@ function barsV(data, opts = {}) {
     const pct = d.value ? Math.max(2, (d.value / max) * 100) : 0;
     const tag = d.link ? "button" : "div";
     // Value printed above the bar? Then the tooltip has nothing to add.
-    const tip = d.tip || (showVals ? "" : `${d.label} — ${fmt(d.value)}`);
+    const tip = d.tip || (showVals ? "" : `${d.label} · ${fmt(d.value)}`);
     return `<${tag} class="col${d.link ? " linked" : ""}"${chartLink(d.link)}
       ${tipAttr(tip)}>
       ${showVals ? `<span class="col-val">${d.value ? escapeHtml(fmt(d.value)) : ""}</span>` : ""}
@@ -383,7 +383,7 @@ function heatmap(counts, year, opts = {}) {
     const wk = Math.floor(idx / 7), dow = idx % 7;
     const x = 24 + wk * (CELL + GAP), y = TOP + dow * (CELL + GAP);
     const lvl = n === 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4));
-    const tip = n && tipFor ? tipFor(iso, n) : `${iso} — ${n} finished`;
+    const tip = n && tipFor ? tipFor(iso, n) : `${iso} · ${n} finished`;
     cells += `<rect class="hm-cell hm-l${lvl}${n && onDay ? " linked" : ""}" x="${x}" y="${y}"
       width="${CELL}" height="${CELL}" rx="2.5"${n && onDay ? chartLink(() => onDay(iso)) : ""}
       ${tipAttr(tip)} style="--d:${(wk * 6)}ms"/>`;
@@ -535,14 +535,14 @@ function radar(axes, opts = {}) {
     const [x, y] = pt(i, 1.14);
     const anchor = x < cx - 4 ? "end" : x > cx + 4 ? "start" : "middle";
     return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${anchor}" class="rd-lbl"
-      ${tipAttr(a.tip || `${a.label} — ${a.hint || a.value}`)}>${escapeHtml(String(a.label))}</text>`;
+      ${tipAttr(a.tip || `${a.label} · ${a.hint || a.value}`)}>${escapeHtml(String(a.label))}</text>`;
   }).join("");
   return `<svg viewBox="0 0 ${W} ${H}" class="s-svg radar">
     ${rings}${spokes}
     <polygon class="rd-poly" points="${poly}" fill="${c1}" fill-opacity=".28" stroke="${c2}" stroke-width="2"/>
     ${axes.map((a, i) => { const [x, y] = pt(i, a.value / max);
       return `<circle class="rd-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${c2}" fill-opacity=".9"
-        ${tipAttr(a.tip || `${a.label} — ${a.hint || a.value}`)}/>`; }).join("")}
+        ${tipAttr(a.tip || `${a.label} · ${a.hint || a.value}`)}/>`; }).join("")}
     ${labels}
   </svg>`;
 }

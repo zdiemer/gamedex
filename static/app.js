@@ -424,7 +424,7 @@ function setFreshness() {
   if (m.lastError) {
     const banner = $("#banner");
     banner.hidden = false;
-    banner.textContent = `⚠ Last Dropbox refresh failed (${m.lastError}). Showing last-known data.`;
+    banner.innerHTML = `${icon("i-alert", 13)} Couldn't refresh the library (${escapeHtml(m.lastError)}). Showing last-known data.`;
   }
 }
 
@@ -460,10 +460,10 @@ async function load() {
   for (let attempt = 0; attempt < 40; attempt++) {
     const res = await fetch("api/data", { cache: "no-store" });
     if (res.ok) { payload = await res.json(); break; }
-    if (res.status === 503) { $("#count").textContent = "Fetching spreadsheet from Dropbox…"; await sleep(1500); continue; }
+    if (res.status === 503) { $("#count").textContent = "Loading your library…"; await sleep(1500); continue; }
     throw new Error(`api/data returned ${res.status}`);
   }
-  if (!payload) { $("#count").textContent = "Could not load data — is the Dropbox link set?"; return; }
+  if (!payload) { $("#count").textContent = "Couldn't load the library."; return; }
   DATA = payload;
   resetDerived();
   buildWishlistSheet();         // the synthetic Wishlist sheet joins the real ones (wishlist.js)

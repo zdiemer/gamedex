@@ -203,12 +203,12 @@ const recsMsg = (html) =>
 function recsReady() {
   const host = $("#recs");
   if (typeof catEnabled === "function" && !catEnabled()) {
-    host.innerHTML = recsMsg(`The IGDB catalogue isn't enabled, so there's nothing to recommend from.
+    host.innerHTML = recsMsg(`The IGDB catalog isn't enabled, so there's nothing to recommend from.
       Set <code>igdb.catalogue: true</code> and give the crawl a few minutes.`);
     return false;
   }
   if (typeof CAT === "undefined" || !CAT) {
-    host.innerHTML = recsMsg(`${icon("i-sparkle", 16)} Fetching the IGDB catalogue…`);
+    host.innerHTML = recsMsg(`${icon("i-sparkle", 16)} Fetching the IGDB catalog…`);
     if (!_recsBusy && typeof ensureCatalogue === "function") {
       _recsBusy = true;
       ensureCatalogue().then(() => { _recsBusy = false; if (activeTab === "recs") renderAll(); });
@@ -216,7 +216,7 @@ function recsReady() {
     return false;
   }
   if ((typeof CAT_ERROR !== "undefined" && CAT_ERROR) || !CAT.length) {
-    host.innerHTML = recsMsg(CAT_ERROR ? "Couldn't fetch the catalogue." : "The catalogue is still being built — check back shortly.");
+    host.innerHTML = recsMsg(CAT_ERROR ? "Couldn't fetch the catalog." : "The catalog is still being built. Check back shortly.");
     return false;
   }
   const m = tasteModel();
@@ -238,7 +238,7 @@ function recsReady() {
 // through a typeof guard). Only rec rows carry `predicted`, so it's "" everywhere else.
 function recsPredictBadge(row) {
   if (!row || row.predicted == null) return "";
-  return `<span class="card-meta ${ratingClass(row.predicted)}" title="Predicted rating — how you'd probably score it">${Math.round(row.predicted * 100)}</span>`;
+  return `<span class="card-meta ${ratingClass(row.predicted)}" title="Predicted rating: how you'd probably score it">${Math.round(row.predicted * 100)}</span>`;
 }
 
 // The recommendation block inside a rec game's drawer: the predicted score, the confidence,

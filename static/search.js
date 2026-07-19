@@ -37,7 +37,7 @@ function renderSearch() {
   clearTimeout(_searchTimer);
   if (!q) {
     host.innerHTML = emptyState("Search your collection",
-      "Type a title above to check whether you already own it or have it on order.", null);
+      "Type a title above to search your games.", null);
     return;
   }
   // Don't blank an existing list while you keep typing — rebuild it after the pause. A short
@@ -89,7 +89,7 @@ function renderSearchResults(q) {
   if (!results.length) {
     host.innerHTML =
       `<div class="search-head"><h2>No matches for “${escapeHtml(q)}”</h2>
-        <p class="muted">Nothing in your collection or on order — looks safe to buy. 🛒</p></div>`;
+        <p class="muted">Nothing in your collection matches.</p></div>`;
     return;
   }
 

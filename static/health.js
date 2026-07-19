@@ -129,7 +129,7 @@ const HEALTH_CHECKS = [
   {
     id: "dupes", severity: "warn", sheet: "games",
     title: "Possible duplicate rows",
-    why: "The same game logged twice — same title, platform, region AND release year. "
+    why: "The same game logged twice: same title, platform, region AND release year. "
        + "A US and a JP copy, or two platforms, or two years, are genuinely different "
        + "things you own, so they're not flagged.",
     find: () => {
@@ -147,7 +147,7 @@ const HEALTH_CHECKS = [
   {
     id: "order", severity: "error", sheet: "games",
     title: "Finished before it was started",
-    why: "Date Completed is earlier than Date Started — one of the two dates is wrong.",
+    why: "Date Completed is earlier than Date Started, so one of the two dates is wrong.",
     find: () => hzGames().filter((r) => r.dateStarted && r.dateCompleted && r.dateCompleted < r.dateStarted),
   },
   {
@@ -162,7 +162,7 @@ const HEALTH_CHECKS = [
   {
     id: "donenodate", severity: "warn", sheet: "games",
     title: "Completed, but no completion date",
-    why: "Marked Completed with no Date Completed — it won't count toward any challenge, which all key off that date.",
+    why: "Marked Completed with no Date Completed. It won't count toward any challenge, which all key off that date.",
     find: () => hzGames().filter((r) => r.completed && !r.dateCompleted),
   },
   {
@@ -174,13 +174,13 @@ const HEALTH_CHECKS = [
   {
     id: "stalled", severity: "info", sheet: "games",
     title: "Started, never finished, not marked as playing",
-    why: "Has a Date Started but isn't Completed and has no Playing Status — abandoned, or just untracked?",
+    why: "Has a Date Started but isn't Completed and has no Playing Status. Abandoned, or just untracked?",
     find: () => hzGames().filter((r) => r.dateStarted && !r.completed && !r.playingStatus),
   },
   {
     id: "playingdone", severity: "error", sheet: "games",
     title: "Completed, but still marked as playing",
-    why: "Completed and a Playing Status at the same time — it'll show up in Now Playing forever.",
+    why: "Completed and a Playing Status at the same time, so it'll show up in Now Playing forever.",
     find: () => hzGames().filter((r) => r.completed && r.playingStatus),
   },
   {
@@ -198,13 +198,13 @@ const HEALTH_CHECKS = [
   {
     id: "wishowned", severity: "warn", sheet: "games",
     title: "Wishlisted and already owned",
-    why: "You own it — it shouldn't still be on the wishlist.",
+    why: "You own it, so it shouldn't still be on the wishlist.",
     find: () => hzGames().filter((r) => r.wishlisted && r.owned),
   },
   {
     id: "steamwishsheet", severity: "info", sheet: "games",
     title: "On your Steam wishlist, but already on the sheet",
-    why: "A game still on your Steam wishlist that already has a row here — matched by "
+    why: "A game still on your Steam wishlist that is already in your library, matched by "
        + "IGDB id or title. You may already own it, or can clear it off the Steam wishlist.",
     find: () => {
       const wl = (typeof WL !== "undefined" && WL) || [];
@@ -221,7 +221,7 @@ const HEALTH_CHECKS = [
   {
     id: "hltbgap", severity: "warn", sheet: "games",
     title: "Your playtime is wildly off HowLongToBeat",
-    why: "Your Completion Time differs from HLTB's main story by more than 3× — likely a units slip (minutes for hours) or a typo.",
+    why: "Your Completion Time differs from HLTB's main story by more than 3×. Likely a units slip (minutes for hours) or a typo.",
     find: () => hzGames().filter((r) => {
       const e = ENRICH[r._k];
       const mine = r.completionTime, theirs = e && e.hltbMain;
@@ -237,7 +237,7 @@ const HEALTH_CHECKS = [
   {
     id: "criticgap", severity: "info", sheet: "completed",
     title: "Biggest disagreements with the critics",
-    why: "Not an error — just where your score is furthest from the critics'. Worth a sanity check for typos.",
+    why: "Not an error, just where your score is furthest from the critics'. Worth a sanity check for typos.",
     find: () => hzDone()
       .filter((r) => r.rating != null && r.criticScore != null && Math.abs(r.rating - r.criticScore) >= 0.35)
       .sort((a, b) => Math.abs(b.rating - b.criticScore) - Math.abs(a.rating - a.criticScore)),
@@ -249,7 +249,7 @@ const HEALTH_CHECKS = [
   {
     id: "nometa", severity: "info", sheet: "games",
     title: "No metadata from any source",
-    why: "No IGDB, no fallback, no cover — usually a title that needs correcting, or a manual mapping.",
+    why: "No IGDB, no fallback, no cover. Usually a title that needs correcting, or a manual mapping.",
     find: () => hzGames().filter((r) => {
       const e = ENRICH[r._k];
       return !e || (!e.igdbId && !e.source && !e.cover && !e.coverUrl);
@@ -259,7 +259,7 @@ const HEALTH_CHECKS = [
     id: "titleonly", severity: "error", sheet: "games",
     title: "Matched on a fuzzy title and nothing else",
     why: "Confidence 5/15 or less: the matcher accepted a title that was merely SIMILAR, and nothing "
-       + "corroborated it — not the platform, not the release year, not the publisher, developer or "
+       + "corroborated it: not the platform, not the release year, not the publisher, developer or "
        + "franchise. These are where a wrong cover, a wrong score or a wrong launch link comes from. "
        + "Open one, check the matched name against yours, and pin the right game with Match manually.",
     find: () => hzGames().filter((r) => { const c = hzConf(r); return c != null && c <= 5; })
@@ -270,8 +270,8 @@ const HEALTH_CHECKS = [
     id: "lowconf", severity: "warn", sheet: "games",
     title: "Low-confidence metadata match",
     why: "Confidence 6-9/15: the title was a fuzzy match rather than an exact one, though something else "
-       + "agreed (platform, year, publisher…). Usually right — a subtitle or a \u00ae the sheet spells "
-       + "differently — but this is the pile worth spot-checking.",
+       + "agreed (platform, year, publisher…). Usually right, maybe a subtitle or a \u00ae your library spells "
+       + "differently, but this is the pile worth spot-checking.",
     find: () => hzGames().filter((r) => { const c = hzConf(r); return c != null && c > 5 && c < CONF_EXACT; })
       .sort((a, b) => hzConf(a) - hzConf(b)),
     detail: hzConfDetail,
@@ -279,10 +279,10 @@ const HEALTH_CHECKS = [
   {
     id: "misspelled", severity: "warn", sheet: "games",
     title: "Title may be misspelled",
-    why: "The sheet's title and IGDB's differ by a letter or two — close enough to be the same game, "
+    why: "Your library's title and IGDB's differ by a letter or two, close enough to be the same game, "
        + "far enough apart that one of them is a typo. Note that it isn't always yours: IGDB spells "
        + "Slayers X as 'Vengance'. Punctuation, roman numerals, bracketed editions and leading "
-       + "articles are normalised away first, so what's left is a genuine letter-level difference.",
+       + "articles are normalized away first, so what's left is a genuine letter-level difference.",
     find: () => hzGames().filter((r) => {
       const e = ENRICH[r._k];
       if (!e || !e.name || e.manualMatch) return false;
@@ -312,9 +312,9 @@ const HEALTH_CHECKS = [
   {
     id: "sequel", severity: "warn", sheet: "games",
     title: "Matched the wrong game in a series",
-    why: "The IGDB match is the same series but a different number — “The Amazing "
-       + "Spider-Man” matched “The Amazing Spider-Man 2”, “Sonic the "
-       + "Hedgehog” matched “Sonic the Hedgehog 2”. The metadata, cover and "
+    why: "The IGDB match is the same series but a different number: \"The Amazing "
+       + "Spider-Man\" matched \"The Amazing Spider-Man 2\", \"Sonic the "
+       + "Hedgehog\" matched \"Sonic the Hedgehog 2\". The metadata, cover and "
        + "playtime are all for the wrong game.",
     find: () => hzGames().filter((r) => {
       const e = ENRICH[r._k];
@@ -409,8 +409,8 @@ function renderHealth() {
   host.innerHTML =
     `<div class="hz-head">
       <h1>Data health</h1>
-      <p>${total.toLocaleString()} rows across ${results.filter((x) => x.rows.length).length} checks want a second look.
-         Fix them in the spreadsheet and they'll clear on the next Dropbox poll.</p>
+      <p>${total.toLocaleString()} entries across ${results.filter((x) => x.rows.length).length} checks want a second look.
+         Fix them at the source and they'll clear on the next refresh.</p>
       <div class="hz-summary">
         <span class="hz-pill sev-error">${errs} error${errs !== 1 ? "s" : ""}</span>
         <span class="hz-pill sev-warn">${warns} warning${warns !== 1 ? "s" : ""}</span>

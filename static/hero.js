@@ -356,13 +356,13 @@ function mapControlHtml(key) {
   };
   // IGDB / Steam / IGN all fill the same "primary metadata" slot.
   const rows = [
-    { id: "igdb", label: "Metadata — IGDB", ph: "IGDB game URL" },
-    { id: "steam", label: "Metadata — Steam", ph: "Steam store URL (…/app/<id>/)" },
-    { id: "ign", label: "Metadata — IGN", ph: "IGN game URL" },
-    { id: "launchbox", label: "Metadata — LaunchBox", ph: "LaunchBox game URL" },
+    { id: "igdb", label: "Metadata · IGDB", ph: "IGDB game URL" },
+    { id: "steam", label: "Metadata · Steam", ph: "Steam store URL (…/app/<id>/)" },
+    { id: "ign", label: "Metadata · IGN", ph: "IGN game URL" },
+    { id: "launchbox", label: "Metadata · LaunchBox", ph: "LaunchBox game URL" },
     // The only source that knows the Japanese feature phones, so it's the one you reach
     // for when a DoJa game's title on the wiki isn't the title in the sheet.
-    { id: "keitai", label: "Metadata — Keitai Wiki", ph: "keitaiwiki.com/wiki/<page>" },
+    { id: "keitai", label: "Metadata · Keitai Wiki", ph: "keitaiwiki.com/wiki/<page>" },
   ];
   // Every configured source gets a box. The auto-enrichment gates (VNDB only asks about
   // sheet-genre "Visual Novel"/"Adventure", Arcade Database only about MAME romsets, and
@@ -392,7 +392,7 @@ function mapControlHtml(key) {
       <div class="map-row"><input type="url" placeholder="${s.ph}" value="${escapeHtml(cur[s.id] || "")}" data-map-input>
       <button class="btn" data-map-go>Map</button>
       <button class="linkbtn" data-map-reset title="Re-run auto-matching">Auto</button>
-      <button class="linkbtn danger" data-map-remove title="Pin as no match — auto-matching won't re-fill it">Remove</button>
+      <button class="linkbtn danger" data-map-remove title="Pin as no match. Auto-matching won't re-fill it">Remove</button>
       </div></div>`).join("") +
     `</details>`;
 }

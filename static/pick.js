@@ -985,7 +985,7 @@ function pickGroupHtml(node, path) {
     : "";
   return `<div class="pkg${nested ? " nested" : ""}${node.not ? " neg" : ""}">
     ${bar}
-    ${!node.kids.length && !nested ? `<p class="pkg-empty">No criteria yet — ${pkb.emptyHint || "every game in the backlog is in play"}.</p>` : ""}
+    ${!node.kids.length && !nested ? `<p class="pkg-empty">No criteria yet. ${pkb.emptyHint || "every game in the backlog is in play"}.</p>` : ""}
     <div class="pkg-kids">
       ${kids}
       <button class="pk-add" data-act="add" data-path="${p}" title="Add a criterion">${icon("i-plus", 12)} Criterion</button>

@@ -28,7 +28,7 @@ const GROUPINGS = [
   { id: "series", label: "Series", icon: "i-timeline", vals: (r) => unifiedFranchiseVals(r),
     units: "franchises", blurb: "Franchises in release order. How far through Castlevania are you?" },
   { id: "developer", label: "Developers", icon: "i-edit", vals: (r) => unifiedDevVals(r),
-    units: "studios", blurb: "Every studio you own something by — sheet and IGDB — and what you never got round to." },
+    units: "studios", blurb: "Every studio you own something by, and what you never got around to." },
   { id: "publisher", label: "Publishers", icon: "i-package", vals: (r) => unifiedPubVals(r),
     units: "publishers", blurb: "Who put it on the shelf, rather than who made it." },
   { id: "genre", label: "Genres", icon: "i-target", vals: (r) => unifiedGenreVals(r),
@@ -39,9 +39,9 @@ const GROUPINGS = [
   // the one axis a genre can't express — plenty of games are "Action" and the only real
   // difference is where the camera sits.
   { id: "keyword", label: "Keywords", icon: "i-star", vals: (r) => igdbVals(r, "keywords"),
-    units: "keywords", blurb: "IGDB's finest-grained vocabulary — metroidvania, soulslike, cozy, story rich." },
+    units: "keywords", blurb: "IGDB's finest-grained vocabulary: metroidvania, soulslike, cozy, story rich." },
   { id: "perspective", label: "Perspective", icon: "i-target", vals: (r) => igdbVals(r, "perspectives"),
-    units: "perspectives", blurb: "Where the camera sits. First person, side view, isometric — the thing genre never says." },
+    units: "perspectives", blurb: "Where the camera sits. First person, side view, isometric: the thing genre never says." },
   { id: "engine", label: "Engines", icon: "i-package", vals: (r) => igdbVals(r, "engines"),
     units: "engines", blurb: "What it was built in. Everything you own running on Unreal, or on Godot." },
 ];
@@ -196,7 +196,7 @@ function groupFavHtml(s) {
   const meta = [bits, when, played].filter(Boolean).join(" · ");
   const review = h.review ? String(h.review) : "";
   return `<div class="fr-fav">
-    <span class="h-eyebrow">${icon("i-star", 13)} Your favourite here</span>
+    <span class="h-eyebrow">${icon("i-star", 13)} Your favorite here</span>
     <button class="fr-fav-card" data-fg="${escapeHtml(String(best._k || ""))}" data-fi="${i}">
       ${cs ? `<img class="fr-fav-art" loading="lazy" src="${escapeHtml(cs)}" alt="">`
            : `<span class="fr-fav-art ph">${icon("i-library", 22)}</span>`}

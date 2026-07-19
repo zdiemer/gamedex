@@ -152,7 +152,7 @@ function wireWishlistMap(host, row) {
         body: JSON.stringify({ provider, appId, ...bodyExtra }),
       });
       if (r.ok) {
-        showToast("Wishlist mapping updated ✓");
+        showToast("Wishlist mapping updated", "i-check");
         WL = null; loadWishlist();           // re-pull + re-render with the new match
         closeDrawer();
         return;

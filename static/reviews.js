@@ -73,7 +73,7 @@ function reviewStats(rows) {
     .map(([w, e]) => ({ w, n: e.n, avg: e.sum / e.n, d: (e.sum / e.n - global) }));
   lift.sort((a, b) => b.d - a.d);
   const liftRow = (s) => ({ label: s.w, value: Math.round(s.d * 100),
-    tip: `“${s.w}” — ${Math.round(s.avg * 100)}% average across ${s.n} reviews` });
+    tip: `"${s.w}" · ${Math.round(s.avg * 100)}% average across ${s.n} reviews` });
   const liftData = [...lift.slice(0, 8), ...lift.slice(-8)].map(liftRow);
 
   // ---- length vs rating ------------------------------------------------------
@@ -123,15 +123,15 @@ function reviewStats(rows) {
 
     const bar = (r) => ({ label: r.name, value: Math.round(Math.abs(r.rating - r.wordsAs) * 100),
       link: gameLink(r.row, "completed"),
-      tip: `You rated it ${Math.round(r.rating * 100)} — its words rank like a ${Math.round(r.wordsAs * 100)}` });
+      tip: `You rated it ${Math.round(r.rating * 100)}, but its words rank like a ${Math.round(r.wordsAs * 100)}` });
     const warmer = flagged.filter((r) => r.gap < 0).sort((a, b) => a.gap - b.gap).slice(0, 8).map(bar);
     const harsher = flagged.filter((r) => r.gap > 0).sort((a, b) => b.gap - a.gap).slice(0, 8).map(bar);
 
     if (warmer.length) mismPanels.push(statPanel("Kinder in words than in score", barsH(warmer, { fmt: (v) => v + " pts warmer" }), "",
       `Your writing tracks your scores at r=${corr.toFixed(2)}; these ${flagged.length} drift furthest. You wrote about ` +
-      `these more warmly than most games you scored this low — judged by rank, so it isn't just your bottom scores.`));
+      `these more warmly than most games you scored this low. Judged by rank, so it isn't just your bottom scores.`));
     if (harsher.length) mismPanels.push(statPanel("Harsher in words than in score", barsH(harsher, { fmt: (v) => v + " pts colder" }), "",
-      "Scored high, but the review reads cooler than most games you rated this well — a nitpicker's love. Click one to reread it."));
+      "Scored high, but the review reads cooler than most games you rated this well. A nitpicker's love. Click one to reread it."));
   }
 
   const panels = [

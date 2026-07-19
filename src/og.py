@@ -130,13 +130,11 @@ def render_og(snapshot: dict, light: dict, img_cache) -> bytes:
     draw.text((x, 56), "Game", font=wordmark, fill=TEXT)
     draw.text((x + draw.textlength("Game", font=wordmark), 56), "dex",
               font=wordmark, fill=MUTED)
-    draw.text((x, 172), "a games collection, catalogued",
-              font=_font("plex-sans.ttf", 28), fill=MUTED)
 
     num_f = _font("archivo-800.ttf", 54)
     lbl_f = _font("plex-sans.ttf", 26)
     stats = [
-        (f"{len(games):,}", "games catalogued"),
+        (f"{len(games):,}", "games cataloged"),
         (f"{len(completed):,}", "beaten"),
         (f"{int(hours):,}", "hours played"),
     ]

@@ -1252,8 +1252,8 @@ def index_html():
     if g and c:
         key = (g, c)
         if _index_cache["key"] != key:
-            html = re.sub(rb"[\d,]+ games catalogued",
-                          f"{g:,} games catalogued".encode(), raw)
+            html = re.sub(rb"[\d,]+ games cataloged",
+                          f"{g:,} games cataloged".encode(), raw)
             html = re.sub(rb"[\d,]+ beaten", f"{c:,} beaten".encode(), html)
             _index_cache.update(key=key, html=html)
         raw = _index_cache["html"]

@@ -185,7 +185,7 @@ function renderPicross() {
   }
   if (PX.w === 0) {
     host.innerHTML = `<div class="px-wrap">${emptyState("No puzzle today",
-      "Couldn't cut a solvable grid out of the library — it'll try again tomorrow.")}</div>`;
+      "Couldn't cut a solvable grid out of the library. It'll try again tomorrow.")}</div>`;
     return;
   }
 
@@ -222,7 +222,7 @@ function renderPicross() {
       <div>
         <span class="h-eyebrow">${icon("i-star", 13)} Daily Picross · ${escapeHtml(PX.date)}</span>
         <h1>Draw the box art</h1>
-        <p class="muted">The picture is a cover from your own shelf. Solve it to find out which —
+        <p class="muted">The picture is a cover from your own shelf. Solve it to find out which.
           or name it early for the bonus.</p>
       </div>
       <div class="px-streak">
@@ -259,7 +259,7 @@ function renderPicross() {
         </div>
         <!-- Under the buttons, not beside them: a sentence of instructions wedged into the end
              of a row of controls reads as a fourth, very wide, broken button. -->
-        <p class="px-hint">Drag to paint — the stroke locks to the row or column you set off in.
+        <p class="px-hint">Drag to paint. The stroke locks to the row or column you set off in.
           Right-click for ✕, middle-click for •.</p>`}
       <div class="px-tool-row">
         <button class="px-tool ghost" id="pxReset">↺ Reset puzzle</button>
@@ -578,7 +578,7 @@ function picrossHomeCardHtml() {
         `<i class="${c === 1 ? "on" : ""}"></i>`).join("")}</span>`
     : `<span class="px-mini px-mini-ph"></span>`;
   const line = done
-    ? `Solved — it was <b>${escapeHtml(String((PX.game || {}).title || "…"))}</b>`
+    ? `Solved! It was <b>${escapeHtml(String((PX.game || {}).title || "…"))}</b>`
     : started ? "Half drawn. Finish it."
     : "A cover from your shelf, hidden in a grid.";
   return `<section class="h-sect">

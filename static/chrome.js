@@ -98,10 +98,10 @@ function placeControls() {
   const home = MOBILE.matches ? $("#sheetBody") : $(".resultbar");
   if (ctrls.parentElement !== home) home.appendChild(ctrls);
   if (!MOBILE.matches) setSheet(false);
-  // The magnifying-glass icon already says "search", so the placeholder doesn't repeat the word —
-  // it just names WHAT you're searching. Shorter on mobile, where the bar is tight.
+  // One phrase both widths: names what you're searching without naming the
+  // data behind it. Short enough for the mobile bar as-is.
   const s = $("#search");
-  if (s) s.placeholder = MOBILE.matches ? "Owned or on order…" : "Everything you own or have on order…";
+  if (s) s.placeholder = "Search my games…";
 }
 function setSheet(open) {
   $("#sheet").hidden = !open;
@@ -527,9 +527,12 @@ document.addEventListener("keydown", (e) => {
   else closeDrawer();
 });
 
-function showToast(msg) {
+function showToast(msg, ico) {
   const t = $("#toast");
-  t.textContent = msg; t.hidden = false;
+  // An optional site icon in place of text marks like "✓" — status reads as UI,
+  // not as punctuation bolted onto the sentence.
+  t.innerHTML = (ico ? icon(ico, 14) + " " : "") + escapeHtml(msg);
+  t.hidden = false;
   requestAnimationFrame(() => t.classList.add("show"));
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => { t.classList.remove("show"); setTimeout(() => (t.hidden = true), 250); }, 2500);
@@ -563,7 +566,7 @@ function applyAdminUI() {
   if (adminGrp) adminGrp.hidden = !IS_ADMIN;
   if (!acct) return;
   if (IS_ADMIN) {
-    acct.title = `Signed in as ${ME.username} — account`;
+    acct.title = `Signed in as ${ME.username} · account`;
     acct.setAttribute("aria-label", "Account");
     acct.classList.add("signed-in");
     // Your initial in the accent coin — the signed-in state you can see at a glance.
@@ -673,7 +676,7 @@ function openPasswordDialog() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: cur, new_password: nw }),
       });
-      if (r.ok) { closeAuthModal(); showToast("Password changed ✓"); return; }
+      if (r.ok) { closeAuthModal(); showToast("Password changed", "i-check"); return; }
       if (r.status === 403) return fail("Your current password is wrong.");
       const j = await r.json().catch(() => ({}));
       fail(j.detail || "Couldn't change the password.");
@@ -704,7 +707,7 @@ $("#refresh").addEventListener("click", async () => {
         ENRICH_ENABLED = !!(en && en.enabled !== false);
         setFreshness(); renderAll(); loadAllEnrichment();
       }
-      showToast(j.changed ? "Spreadsheet updated ✓" : "Already up to date");
+      showToast(j.changed ? "Library updated" : "Already up to date", j.changed ? "i-check" : null);
     } else showToast("Refresh failed: " + (j.error || res.status));
   } catch (_) { showToast("Refresh failed"); }
   finally { btn.classList.remove("spinning"); btn.disabled = false; }

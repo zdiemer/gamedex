@@ -267,7 +267,7 @@ async function prefsSave(key, val) {
   } catch (e) {
     // Offline, or the backend is down. The edit is safe locally and will be
     // pushed the next time anything saves; say so rather than pretend.
-    if (typeof showToast === "function") showToast("Saved on this device — couldn't reach the server");
+    if (typeof showToast === "function") showToast("Saved on this device, couldn't reach the server");
   }
 }
 

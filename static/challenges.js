@@ -295,7 +295,7 @@ const CH_FRANCHISE_CONTENDERS = new Set([
 const CHALLENGES = [
   {
     id: "platform", icon: "i-dice", name: "One Per Platform",
-    blurb: "Beat a game on every platform — counting the splits that actually feel different: Famicom apart from NES, XBLA apart from disc, MAME apart from the rest.",
+    blurb: "Beat a game on every platform, counting the splits that actually feel different: Famicom apart from NES, XBLA apart from disc, MAME apart from the rest.",
     groupBy: "__g_subplatform",
   },
   {
@@ -324,13 +324,13 @@ const CHALLENGES = [
   },
   {
     id: "playtime", icon: "i-clock", name: "One Per Playtime",
-    blurb: "Beat a game of every length, hour by hour — a 3-hour game, a 4-hour game, and so on up.",
+    blurb: "Beat a game of every length, hour by hour: a 3-hour game, a 4-hour game, and so on up.",
     groupBy: "__g_playtime|unit",
     keySort: (k) => (k === "No Playtime" ? 1e9 : k === "Under 1 Hour" ? -1 : parseInt(k, 10)),
   },
   {
     id: "rating", icon: "i-star", name: "One Per Rating",
-    blurb: "Beat a game in every 10% band of combined rating — the great, the mediocre and the truly dire.",
+    blurb: "Beat a game in every 10% band of combined rating: the great, the mediocre and the truly dire.",
     groupBy: "__g_rating|band10",
     keySort: (k) => -parseInt(k, 10),
   },
@@ -359,14 +359,14 @@ const CHALLENGES = [
   },
   {
     id: "franchise", icon: "i-trophy", name: "One Per Franchise Contender",
-    blurb: "Beat a game from every franchise on the shortlist — the series worth actually playing through.",
+    blurb: "Beat a game from every franchise on the shortlist, the series worth actually playing through.",
     domain: (r) => unifiedFranchiseVals(r).some((f) => CH_FRANCHISE_CONTENDERS.has(f)),
     groupMany: (r) => unifiedFranchiseVals(r).filter((f) => CH_FRANCHISE_CONTENDERS.has(f)),
     pickBy: "franchise",
   },
   {
     id: "added", icon: "i-plus", name: "One Per Added Date",
-    blurb: "Beat a game added to the sheet in every month it's been kept — clearing the backlog a vintage at a time.",
+    blurb: "Beat a game added to your library in every month it's been kept, clearing the backlog a vintage at a time.",
     groupBy: "dateAdded|month",
     keySort: (k, rows) => rows[0].dateAdded, sortDesc: true,
   },
@@ -384,12 +384,12 @@ const CHALLENGES = [
   },
   {
     id: "limitedprint", icon: "i-package", name: "One Per Limited Print",
-    blurb: "Beat a game from every limited-print label — Limited Run, iam8bit, Super Rare and the rest of the boutique pressings.",
+    blurb: "Beat a game from every limited-print label: Limited Run, iam8bit, Super Rare and the rest of the boutique pressings.",
     groupBy: "limitedPrint",
   },
   {
     id: "translation", icon: "🈳", name: "One Per Fan Translation",
-    blurb: "Beat a fan-translated game on every platform — the imports that only exist in English thanks to someone's weekend.",
+    blurb: "Beat a fan-translated game on every platform: the imports that only exist in English thanks to someone's weekend.",
     domain: (r) => r.english === "Full" && !r.owned,
     clear: (r) => r.english === "Full",
     group: (r) => {
@@ -399,7 +399,7 @@ const CHALLENGES = [
   },
   {
     id: "unplayable", icon: "i-alert", name: "One Per Platform (Unplayable)",
-    blurb: "The stubborn half of the platform challenge: the games marked unplayable — no dump, no hardware, no way in — one per platform.",
+    blurb: "The stubborn half of the platform challenge: the games marked unplayable (no dump, no hardware, no way in), one per platform.",
     pool: (r) => r.playable !== "Yes" && !r.completed,
     clear: () => true,
     universe: (r) => r.playable !== "Yes",   // only platforms that HAVE unplayable games
@@ -660,7 +660,7 @@ function chTimelineHtml(cleared) {
     // The note is the bucket and the day it fell — nothing else. "+31 more" (the other games
     // beaten in that bucket since) ran the note to three lines and swallowed the cover it was
     // sitting on, for a number nobody came here to read. It lives in the tooltip.
-    const tip = `${row.title} — cleared ${key} on ${chWhenLong(row)}`
+    const tip = `${row.title} · cleared ${key} on ${chWhenLong(row)}`
       + (also ? ` (${also} more beaten in this bucket since)` : "");
     const card = posterCardHtml(row, {
       cls: "chtl-card",
@@ -687,7 +687,7 @@ function chClearedTimeline(res) {
   const rail = chTimelineHtml(res.cleared);
   if (!rail) return `<div class="ch-empty">Nothing cleared yet.</div>`;
   const firsts = [...res.cleared.values()].map((rows) => rows[0]);
-  return `<p class="ch-hint">Oldest first — ${escapeHtml(chSpanText(firsts))}.
+  return `<p class="ch-hint">Oldest first · ${escapeHtml(chSpanText(firsts))}.
     Tap a cover for the game that cleared it.</p>${rail}`;
 }
 
@@ -776,7 +776,7 @@ function chPickFromBucket(c, key) {
 function chBucketList(res, map) {
   const entries = chSortBuckets(res, map);
   if (!entries.length) {
-    return `<div class="ch-empty">Nothing left — challenge complete!</div>`;
+    return `<div class="ch-empty">Nothing left. Challenge complete.</div>`;
   }
   const show = chState.showAll === "todo" ? entries : entries.slice(0, CH_BUCKETS_SHOWN);
   const html = show.map(([key, rows]) => {
@@ -831,7 +831,7 @@ function renderChallenges() {
          <button class="ch-card ch-new" id="chNew">
            <span class="ch-new-plus">＋</span>
            <b>New challenge</b>
-           <span class="muted">One per anything you can filter by — themes, storefronts, developers, Steam Deck rating.</span>
+           <span class="muted">One per anything you can filter by: themes, storefronts, developers, Steam Deck rating.</span>
          </button>
        </div>`;
     for (const el of host.querySelectorAll(".ch-card[data-ch]")) {
@@ -1193,7 +1193,7 @@ function chPreview() {
       : "";
     host.innerHTML = res.total
       ? `<b>${res.total}</b> buckets · <b>${res.cleared.size}</b> already cleared by past completions · <b>${res.remaining.size}</b> to go${walked}`
-      : `<span class="muted">No buckets — that combination of facet and filters matches nothing.</span>`;
+      : `<span class="muted">No buckets. That combination of facet and filters matches nothing.</span>`;
   } catch (e) {
     host.innerHTML = `<span class="muted">Can't evaluate that yet.</span>`;
   }

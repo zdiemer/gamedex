@@ -81,7 +81,7 @@ function ytFallback(m) {
   a.innerHTML =
     `<img src="https://i.ytimg.com/vi/${escapeHtml(m.id)}/hqdefault.jpg" alt="">
      <span class="shot-fallback-play">▶</span>
-     <span class="shot-fallback-note">YouTube won’t play this here — watch it on YouTube ↗</span>`;
+     <span class="shot-fallback-note">YouTube won't play this here. Watch it on YouTube ↗</span>`;
   return a;
 }
 
@@ -295,7 +295,7 @@ function speedrunHtml(key) {
   // The run is the thing worth watching; the leaderboard is a table of times.
   const wr = r.wrUrl
     ? `<a class="hltb-link" href="${escapeHtml(r.wrUrl)}" target="_blank" rel="noopener">` +
-      `Watch the world record${r.wrCategory ? ` — ${escapeHtml(r.wrCategory)}` : ""}${r.wrTime ? ` (${escapeHtml(r.wrTime)})` : ""} ↗</a>` : "";
+      `Watch the world record${r.wrCategory ? ` · ${escapeHtml(r.wrCategory)}` : ""}${r.wrTime ? ` (${escapeHtml(r.wrTime)})` : ""} ↗</a>` : "";
   return `<div class="hltb"><div class="hltb-head">${icon("i-trophy", 15)} World records</div>${rows}${wr}` +
     (r.url ? `<a class="hltb-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Leaderboards on speedrun.com ↗</a>` : "") +
     `</div>`;
@@ -460,7 +460,7 @@ function renderIgdbSection(key, el, status, detail) {
   else {
     // Loading / pending / error. The hero already carries the cover and title,
     // so this is only the prose area — shimmer lines, never a bare "Loading".
-    const msg = status === "pending-final" ? "Metadata still resolving — reopen shortly."
+    const msg = status === "pending-final" ? "Metadata still resolving. Reopen shortly."
       : status === "error" ? "Couldn’t load extra details." : "";
     content = msg
       ? `<div class="igdb-loading muted">${msg}</div>`

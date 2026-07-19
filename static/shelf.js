@@ -359,7 +359,7 @@ function shBuild(i) {
   el.style.setProperty("--h", shH + "px");
   el.style.setProperty("--d", shPx(g.case.d) + "px");
   el.style.width = shW + "px"; el.style.height = shH + "px";
-  el.setAttribute("aria-label", `${g.t} — drag to turn`);
+  el.setAttribute("aria-label", `${g.t} · drag to turn`);
 
   // An IGDB image id when we have one, otherwise a whole URL from whichever source did
   // have art (GameTDB's box front, most often). Either way it beats a blank slab.
@@ -900,8 +900,8 @@ function openCoverEditor({ key, platform, title, hasUpload, caseDefault, existin
   depthEl.value = depth;
 
   const HINTS = {
-    wrap: "A full wrap — back, spine, front in one image. Drag the two lines onto the spine; we slice there and the front takes its own shape.",
-    front: "Just the front cover. Drag the box to crop away any margin or background — the case takes the shape of what you keep, and we colour a spine and make a stand-in back.",
+    wrap: "A full wrap: back, spine, front in one image. Drag the two lines onto the spine; we slice there and the front takes its own shape.",
+    front: "Just the front cover. Drag the box to crop away any margin or background. The case takes the shape of what you keep, and we color a spine and make a stand-in back.",
   };
 
   // The rotated image's on-screen dimensions (what the guides and slicing act on).

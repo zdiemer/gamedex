@@ -105,9 +105,9 @@ const STATS_SECTIONS = [
   { id: "reviews", label: "Reviews" },
 ];
 const STATS_NAV_BLURB = {
-  year: "Your year in games — heatmap, the best of it, and the backlog burn-down.",
+  year: "Your year in games: heatmap, the best of it, and the backlog burn-down.",
   completed: "Everything you've finished: playthroughs, your taste, and you against the critics.",
-  backlog: "What's left to play — by platform, genre, length and status.",
+  backlog: "What's left to play, by platform, genre, length and status.",
   purchases: "Spending, collection value, and how long games sit before you play them.",
   reviews: "The words behind your scores, and how well the rating model does.",
 };
@@ -120,7 +120,7 @@ const countBars = (src, field, n, tab) =>
   topCounts(src.map((r) => r[field]), n).map((d) => {
     const members = src.filter((r) => r[field] === d.label);
     return { ...d, link: facetLink(tab, field, d.label),
-             tip: tipList(`${d.label} — ${d.value.toLocaleString()} games`, members.map(statNameOf), members.length) };
+             tip: tipList(`${d.label} · ${d.value.toLocaleString()} games`, members.map(statNameOf), members.length) };
   });
 
 // A stats sub-section header + its grid of panels.
@@ -200,7 +200,7 @@ function yearInReview(rows, games) {
     (gamesByDay[d] = gamesByDay[d] || []).push(String(r.game));
   });
   // A count tells you a day was busy; the names tell you what the day WAS.
-  const dayTip = (iso, n) => tipList(`${fmtDate(iso)} — ${n} finished`, gamesByDay[iso] || []);
+  const dayTip = (iso, n) => tipList(`${fmtDate(iso)} · ${n} finished`, gamesByDay[iso] || []);
   // Land on that day in the Completed timeline, neighbours intact (timeline.js).
   const showDay = (iso) => timelineJumpToDay(iso);
   // Best and worst come off the same ranking, and the worst row only gets what
@@ -226,9 +226,9 @@ function yearInReview(rows, games) {
       </div>
       ${deltaTxt}
       <div class="yr-games">
-        ${gameChip(best, "Favourite")}
+        ${gameChip(best, "Favorite")}
         ${gameChip(longest, "Longest")}
-        ${gameChip(worst, "Least favourite")}
+        ${gameChip(worst, "Least favorite")}
       </div>
     </div>
     ${statPanel(`Every day of ${y}`, heatmap(byDay, y, { onDay: showDay, tipFor: dayTip }), "wide")}
@@ -262,7 +262,7 @@ function burnDown(rows, games) {
     <div class="yr-head"><h2>Backlog burn-down</h2></div>
     <p class="yr-note">You finished <b>${Math.round(rate)}</b> games a year over ${recent.length === 1 ? "the last year" : `${recent.length} years`}.
       At that pace the <b>${backlog.toLocaleString()}</b>-game backlog runs out in
-      <b>${isFinite(yrs) ? Math.round(yrs).toLocaleString() : "∞"} years</b> — around <b>${isFinite(yrs) ? now + Math.round(yrs) : "never"}</b>.</p>
+      <b>${isFinite(yrs) ? Math.round(yrs).toLocaleString() : "∞"} years</b>, around <b>${isFinite(yrs) ? now + Math.round(yrs) : "never"}</b>.</p>
     ${statPanel("Years to clear the backlog", barsH(scen, { fmt: (v) => v.toLocaleString() + " yrs" }), "wide")}
   </section>`;
 }
@@ -281,15 +281,15 @@ function predictionPanel() {
         <h3>How good is the guess?</h3>
         <p class="yr-note">
           Trained on your <b>${m.n.toLocaleString()}</b> rated games and scored by
-          <b>${e.folds}-fold cross-validation</b> — every game gets predicted by a model
+          <b>${e.folds}-fold cross-validation</b>: every game gets predicted by a model
           that never saw it, and the group averages are rebuilt from the training games
           alone, so it can't mark its own homework. It is off by
-          <b>${pts(e.mae)} points</b> on average — against <b>${pts(e.maeMean)}</b> if we
+          <b>${pts(e.mae)} points</b> on average, against <b>${pts(e.maeMean)}</b> if we
           just guessed your average every time, and <b>${pts(e.maeCritic)}</b> if we simply
           quoted the critics. So it is <b>${(e.liftVsMean * 100).toFixed(0)}%</b> better than
           guessing${beatsCritics
             ? ` and <b>${(e.liftVsCritic * 100).toFixed(0)}%</b> better than the critics`
-            : `, but <b>not</b> better than just quoting the critics — treat it with suspicion`}.
+            : `, but <b>not</b> better than just quoting the critics, so treat it with suspicion`}.
         </p>
         ${barsH([
           { label: "This model", value: +pts(e.mae) },
@@ -300,7 +300,7 @@ function predictionPanel() {
           It also knows <b>when</b> you rated something, because your standard has moved:
           you averaged <b>${pts(m.baselineNow)}%</b> over the last few years against
           <b>${pts(m.global)}%</b> across all ${m.n.toLocaleString()}. A game you haven't
-          played is scored on <b>today's</b> scale — what you'd make of it now, not what
+          played is scored on <b>today's</b> scale: what you'd make of it now, not what
           you'd have said a decade ago. Ignoring that, the model came out
           <b>four points too generous</b> on everything you finished since 2024.
         </p>
@@ -314,7 +314,7 @@ function renderStats() {
   const rows = (DATA.sheets.completed || { rows: [] }).rows;
   const games = ((DATA.sheets.games || {}).rows) || [];
   const host = $("#stats");
-  if (!rows.length && !games.length) { host.innerHTML = emptyState("No data yet", "The spreadsheet hasn’t loaded."); return; }
+  if (!rows.length && !games.length) { host.innerHTML = emptyState("No data yet", "Your library hasn't loaded."); return; }
   resetChartLinks();
 
   const section = STATS_SECTIONS.some((s) => s.id === statsState.section) ? statsState.section : "overview";
@@ -369,7 +369,7 @@ function renderStatsOverview(rows, games) {
   // outstanding — the accent stays out of it.
   return `<h2 class="stat-sec">All time</h2>
     <div class="stat-cards lead">
-      ${statCard(rows.length, "Beaten", "", "", { tone: "good", icon: "i-trophy", sub: `of ${games.length.toLocaleString()} catalogued` })}
+      ${statCard(rows.length, "Beaten", "", "", { tone: "good", icon: "i-trophy", sub: `of ${games.length.toLocaleString()} cataloged` })}
       ${statCard(backlog.length, "In backlog", "", "", { tone: "warn", icon: "i-clock", sub: `${Math.round(backlogHours).toLocaleString()} hours of it` })}
       ${statCard(complPct, "Library done", "", "%", { tone: "lead", icon: "i-target", sub: `${thisYear} beaten in ${curYear || "—"}` })}
     </div>
@@ -420,7 +420,7 @@ function renderStatsCompleted(rows, games) {
       // x is the real year: this axis is shared with series that start in other
       // years, and "'07" sorts as a string in ways nobody wants.
       return { x: yy, label: yr2(yy), value: run,
-               tip: `${yy} — ${run.toLocaleString()} (+${per.get(yy).toLocaleString()} that year)` };
+               tip: `${yy} · ${run.toLocaleString()} (+${per.get(yy).toLocaleString()} that year)` };
     });
   };
   const cumulative = cumFrom(rows, (r) => r.date);
@@ -529,11 +529,11 @@ function renderStatsCompleted(rows, games) {
         { points: cumAdded, color: 1, name: "Added to the sheet", label: `Added to the sheet · ${last(cumAdded)}` },
         { points: cumulative, color: 0, name: "Finished", label: `Finished · ${rows.length.toLocaleString()}` },
       ]), "wide",
-      "The gap between the lines is your backlog. Acquired uses Date Purchased; Added uses Date Added, which only starts in 2024 — that is when you began recording it, not a gap in the chart."),
+      "The gap between the lines is your backlog. Acquired uses Date Purchased; Added uses Date Added, which only starts in 2024. That is when you began recording it, not a gap in the chart."),
       statPanel("Your hall of fame", posterRow(bestRows, { note: (r) => `${Math.round(r.rating * 100)}%` }), "wide"),
       statPanel("You vs the critics", scatter(scatterPts, { xLabel: "Critics", yLabel: "You" })),
       statPanel("Your taste, by genre", radar(genreRadar, { color: 4 }), "",
-        "Your average rating per genre (0-100%), for genres you've finished 15+ games in. A long spoke means you rate that genre highly — not that you play it a lot."),
+        "Your average rating per genre (0-100%), for genres you've finished 15+ games in. A long spoke means you rate that genre highly, not that you play it a lot."),
       statPanel("Completions per year", barsV(yearData, { tone: "good" }), "wide"),
       statPanel("Completions by month", barsV(monthData, { tone: "good" })),
       statPanel("By release decade", barsV(decadeData)),
@@ -548,14 +548,14 @@ function renderStatsCompleted(rows, games) {
       statPanel("Most hours played", barsH(longest, { fmt: (v) => v + "h" }), "",
         "Hours at the pad. For the games that took the longest in CALENDAR time, see the slow burns below."),
       statPanel("Longest playthroughs (start → finish)", barsH(slowBurn, { fmt: fmtSpan }), "",
-        "Calendar time from your first session to the credits — a slow burn, not necessarily a long game."),
+        "Calendar time from your first session to the credits. A slow burn, not necessarily a long game."),
       statPanel("Biggest me-vs-critic gaps", barsH(gaps, { fmt: (v) => (v > 0 ? "+" : "") + v, diverging: true }), "",
         "Green: you rated it higher than the critics did. Red: lower."),
       statPanel("Hardest you've binged", barsH(bingeRows, { fmt: (v) => v + "h/day" }), "",
         "Hours played divided by the days it took. The top of this list is a lost weekend."),
       statPanel("Most overlapping playthroughs",
         intervals(ivl, peakOn ? { from: PK - WIN, to: PK + WIN } : {}), "wide",
-        peak ? `Your busiest stretch: ${peak} games on the go at once, around ${peakOn ? fmtDate(peakOn) : "—"}. Each bar is one playthrough and stacks when it overlaps another — the height of the pile is how many you were juggling. A bar that runs off an edge was already under way. Click one to open it.`
+        peak ? `Your busiest stretch: ${peak} games on the go at once, around ${peakOn ? fmtDate(peakOn) : "—"}. Each bar is one playthrough and stacks when it overlaps another. The height of the pile is how many you were juggling. A bar that runs off an edge was already under way. Click one to open it.`
              : "Counted from start and finish dates."),
     ]) +
     sect("Buying vs playing", [
@@ -563,7 +563,7 @@ function renderStatsCompleted(rows, games) {
         "How long a game sat between paying for it and finishing it. Click a bar to open the game."),
       statPanel("Bought → started", barsV(bsData), "wide",
         bsMed != null
-          ? `Half the games you start, you start within ${fmtSpan(bsMed)} of buying them — but the average is ${fmtSpan(bsAvg)}, dragged out by the tail on the right. The shape is what matters: you either play it almost at once, or it sits for years. That right-hand spike is the backlog.`
+          ? `Half the games you start, you start within ${fmtSpan(bsMed)} of buying them, but the average is ${fmtSpan(bsAvg)}, dragged out by the tail on the right. The shape is what matters: you either play it almost at once, or it sits for years. That right-hand spike is the backlog.`
           : "Needs both a purchase date and a start date."),
     ]);
 }
@@ -648,7 +648,7 @@ function renderStatsPurchases(rows, games) {
           areaLine(VALUE_HISTORY.map((h) => ({ label: fmtDate(h.day).replace(/,.*/, ""), value: Math.round(h.total) })),
             { color: 2, fmt: usd, label: usd(VALUE_HISTORY[VALUE_HISTORY.length - 1].total) + " today" }), "wide")]
       : [statPanel("Collection value over time",
-          `<div class="s-empty">Recording daily from today — a trend needs at least two points.
+          `<div class="s-empty">Recording daily from today. A trend needs at least two points.
            ${VALUE_HISTORY && VALUE_HISTORY.length ? `First snapshot: ${escapeHtml(fmtDate(VALUE_HISTORY[0].day))} at ${usd(VALUE_HISTORY[0].total)}.` : ""}</div>`, "wide")]),
     statPanel("The crown jewels", posterRow(topValueRows, { note: (r) => usd(collectionValueOf(r)) }), "wide"),
     statPanel("Biggest movers", barsH(movers, { fmt: (v) => (v > 0 ? "+" : "-") + usd(Math.abs(v)) }), "wide",

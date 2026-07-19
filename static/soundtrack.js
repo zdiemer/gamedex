@@ -37,8 +37,8 @@ function soundtrackHtml(key) {
   const alts = (rec.alternates || []);
   const picker = alts.length
     ? `<select class="ost-alts" data-ost-alts title="Other releases on KHInsider">
-         <option value="${escapeHtml(rec.slug)}" selected>${escapeHtml(rec.name)}${rec.type ? ` — ${escapeHtml(rec.type)}` : ""}</option>
-         ${alts.map((a) => `<option value="${escapeHtml(a.slug)}">${escapeHtml(a.name)}${a.type ? ` — ${escapeHtml(a.type)}` : ""}${a.year ? ` (${escapeHtml(a.year)})` : ""}</option>`).join("")}
+         <option value="${escapeHtml(rec.slug)}" selected>${escapeHtml(rec.name)}${rec.type ? ` · ${escapeHtml(rec.type)}` : ""}</option>
+         ${alts.map((a) => `<option value="${escapeHtml(a.slug)}">${escapeHtml(a.name)}${a.type ? ` · ${escapeHtml(a.type)}` : ""}${a.year ? ` (${escapeHtml(a.year)})` : ""}</option>`).join("")}
        </select>`
     : "";
   const tracks = (rec.tracks || []).map((t, i) =>

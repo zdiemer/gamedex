@@ -58,14 +58,14 @@ const PLAT_FORMS = {
     hintHtml: `<ol class="plat-steps">
       <li><a href="https://xbl.io/login" target="_blank" rel="noopener">Sign in to OpenXBL ↗</a> with the Microsoft account whose Xbox library you want.</li>
       <li>Copy your key from <a href="https://xbl.io/dashboard/keys" target="_blank" rel="noopener">xbl.io/dashboard/keys ↗</a> and paste it below.</li>
-    </ol><span class="muted">Free tier is 150 requests/hour — plenty for the nightly trickle this does.</span>`,
+    </ol><span class="muted">Free tier is 150 requests/hour, plenty for the nightly trickle this does.</span>`,
     fields: [{ k: "apiKey", label: "OpenXBL API key", ph: "from xbl.io/dashboard/keys" }],
   },
   gog: {
     hintHtml: `Brings your DRM-free library + wishlist (GOG doesn't expose playtime).
       <ol class="plat-steps">
         <li><a href="https://auth.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=client2" target="_blank" rel="noopener">Log in to GOG ↗</a>.</li>
-        <li>You'll land on a blank page — copy its <b>whole URL</b> (it has <code>?code=…</code>) and paste it below.</li>
+        <li>You'll land on a blank page. Copy its <b>whole URL</b> (it has <code>?code=…</code>) and paste it below.</li>
       </ol>`,
     fields: [{ k: "code", label: "Login code (or the redirect URL)", ph: "…on_login_success?code=…" }],
   },
@@ -87,11 +87,11 @@ const PLAT_FORMS = {
     fields: [{ k: "apiKey", label: "itch.io API key", ph: "from itch.io/user/settings/api-keys" }],
   },
   nintendo: {
-    hintHtml: `Nintendo only exposes playtime, through the Parental Controls app —
+    hintHtml: `Nintendo only exposes playtime, through the Parental Controls app;
       so this brings hours per game, nothing else.
       <ol class="plat-steps">
-        <li>Get a Parental-Controls <b>session token</b> for your Nintendo account —
-          the <a href="https://github.com/samuelthomas2774/nxapi" target="_blank" rel="noopener">nxapi tool ↗</a>
+        <li>Get a Parental-Controls <b>session token</b> for your Nintendo account.
+          The <a href="https://github.com/samuelthomas2774/nxapi" target="_blank" rel="noopener">nxapi tool ↗</a>
           (<code>nxapi pctl auth</code>) is the usual way, or any guide for the
           "moonlight" / Parental Controls session token.</li>
         <li>Paste it below. It's long-lived; you'll only redo this if it's revoked.</li>
@@ -199,7 +199,7 @@ function mineAchHtml(provider, d) {
   const FOLD = 24;
   const grid = (arr) => `<div class="mine-ach-grid">${arr.map(cell).join("")}</div>`;
   return `<div class="hltb mine-ach">
-    <div class="hltb-head">${icon("i-trophy", 15)} ${MINE_PROVIDERS[provider].achWord} — ${done.length} / ${list.length} · ${escapeHtml(label)}</div>
+    <div class="hltb-head">${icon("i-trophy", 15)} ${MINE_PROVIDERS[provider].achWord} · ${done.length} / ${list.length} · ${escapeHtml(label)}</div>
     <div class="mine-ach-track"><div class="mine-ach-bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     ${grid(sorted.slice(0, FOLD))}
     ${sorted.length > FOLD
@@ -215,7 +215,7 @@ function mineShotsHtml(provider, d) {
     <div class="hltb-head">${icon("i-grid", 15)} Your screenshots <span class="muted">${shots.length}</span></div>
     <div class="mine-shots" data-mineshots="${escapeHtml(provider)}">
       ${shots.map((s, i) => `<img loading="lazy" src="${escapeHtml(s.url)}" alt=""
-        onerror="this.style.opacity=.25" data-shot="${i}" title="${escapeHtml([s.caption, s.takenAt ? fmtDate(String(s.takenAt).slice(0, 10)) : null].filter(Boolean).join(" — "))}">`).join("")}
+        onerror="this.style.opacity=.25" data-shot="${i}" title="${escapeHtml([s.caption, s.takenAt ? fmtDate(String(s.takenAt).slice(0, 10)) : null].filter(Boolean).join(" · "))}">`).join("")}
     </div>
   </div>`;
 }
@@ -454,7 +454,7 @@ function wirePlatCards(host) {
           body: JSON.stringify({ credentials }),
         });
         if (r.ok) {
-          showToast(`${MINE_PROVIDERS[p].label} linked ✓ — first sync started`);
+          showToast(`${MINE_PROVIDERS[p].label} linked, first sync started`, "i-check");
           openPlatformsDialog();
           return;
         }
