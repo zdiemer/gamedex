@@ -231,6 +231,20 @@ GAMETDB_VERSION = "2"
 # page" for any scanned booklet (its pages live in a _jp2.zip; the one loose image is the
 # Archive's thumbnail). The count now comes from scandata.xml, and v2 re-does every row.
 MANUALS_FILES_VERSION = "2"
+# Written when a manual-cover warm pass completes — observability only, never a
+# skip: newly matched manuals must be picked up on every boot, and the per-item
+# "done" marker is the cover file itself on the PVC (see backfill_manual_covers).
+MANUAL_COVERS_VERSION = "1"
+# The platforms whose shelf case is a cardboard sleeve, not a hinged shell — the
+# `kind: "cart"` rows of MEDIA in static/media.js (keep the two in step). The
+# shelf only draws a booklet in a hinged lid (opensBy() === "hinge"), so warming
+# covers for these would download PDFs nobody's case will ever show.
+CART_PLATFORMS = frozenset({
+    "NES", "Nintendo Entertainment System", "SNES", "Super Nintendo",
+    "Nintendo 64", "Game Boy", "Game Boy Color", "Game Boy Advance",
+    "Sega Genesis", "Game Gear", "Virtual Boy", "Nintendo Virtual Boy",
+    "Atari 2600", "Neo-Geo", "WonderSwan",
+})
 # Bump to discard PCGamingWiki rows written while its dump was still incomplete.
 PCGW_VERSION = "2"
 
@@ -248,6 +262,9 @@ class Enricher:
         # the admin actually OWNS, which beats whatever IGDB's external_games
         # guessed (IGDB links Fallout: New Vegas to an appid I don't have).
         self.appid_override = None
+        # Set by app.py to ManualCovers.warm: pre-renders each manual's front
+        # cover for the shelf's box lid before anyone pulls the box.
+        self.manual_cover_warm = None
         self._sources = ["igdb"] + list(self._secondary)
 
         self._lock = threading.Lock()
@@ -1325,6 +1342,54 @@ class Enricher:
         self._kv_set("manuals_files_version", MANUALS_FILES_VERSION)
         log.info("manuals: %d booklets now carry a page count", done)
 
+    def backfill_manual_covers(self):
+        """Pre-render each manual's front cover so the shelf's lid never loads cold.
+
+        Deliberately NOT gated on its kv marker, unlike the other backfills: those
+        converge and are done forever, but manuals keep getting matched, and each
+        new one needs its cover. The per-item "done" marker is the cover file (or
+        failure marker) on the PVC — warm() is a stat call on a hit — so running
+        the whole pass on every boot is cheap, resumable, and self-healing. The
+        version is written on completion for observability only, never to skip.
+        """
+        if not self.manual_cover_warm or "manuals" not in self._secondary:
+            return
+        if not self._await_reindex():           # platforms come from _key_meta
+            return
+        self._stop.wait(120)                    # let the startup peak pass first
+        if self._stop.is_set():
+            return
+        with self._db_lock:
+            rows = self._db.execute(
+                "SELECT match_key, data FROM manuals WHERE status='matched' AND data IS NOT NULL"
+            ).fetchall()
+        todo = []
+        for key, raw in rows:
+            try:
+                rec = json.loads(raw)
+            except Exception:
+                continue
+            plat = (self._key_meta.get(key) or {}).get("platform")
+            # Cardboard sleeves have no lid to hold a booklet against.
+            if rec.get("pdf") and plat not in CART_PLATFORMS:
+                todo.append(rec["pdf"])
+        warmed = 0
+        for n, url in enumerate(todo, 1):
+            if self._stop.is_set():
+                return                          # resumable: the disk files ARE the progress
+            try:
+                cold = self.manual_cover_warm(url)
+            except Exception as exc:
+                log.debug("manual covers: warm failed for %s: %s", url, exc)
+                continue
+            if cold:
+                warmed += 1
+                if warmed % 25 == 0:
+                    log.info("manual covers: %d rendered (%d/%d checked)", warmed, n, len(todo))
+                self._stop.wait(2.0)            # politeness to archive.org, only on cold work
+        self._kv_set("manual_covers_version", MANUAL_COVERS_VERSION)
+        log.info("manual covers: pass complete — %d of %d rendered this boot", warmed, len(todo))
+
     def start(self):
         # Synchronously, and BEFORE anything is queued: reindex() calls request(), which
         # skips any key that already has a status. Clear the bad rows first or they'd be
@@ -1336,6 +1401,7 @@ class Enricher:
             t.start()
         threading.Thread(target=self.backfill_gametdb, name="gametdb-backfill", daemon=True).start()
         threading.Thread(target=self.backfill_manual_files, name="manuals-files", daemon=True).start()
+        threading.Thread(target=self.backfill_manual_covers, name="manual-covers", daemon=True).start()
         threading.Thread(target=self.backfill_stores, name="stores-backfill", daemon=True).start()
         threading.Thread(target=self.backfill_relations, name="relations-backfill", daemon=True).start()
         threading.Thread(target=self.backfill_franchises, name="franchise-backfill", daemon=True).start()

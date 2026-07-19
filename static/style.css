@@ -4389,6 +4389,28 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   background: linear-gradient(170deg, #26262e, #15151a);
   box-shadow: inset 0 0 30px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .06);
 }
+/* THE BOOKLET UNDER THE LID'S CLIPS. Same contract as the liner directly above: the lid
+   itself must stay backface-visible (Chrome culls a hidden face's whole SUBTREE — see the
+   block comment at .sh-case.open .f-front), so this layer and its <img> each carry their
+   own backface rule. Closed, both face away from the camera and vanish — nothing bleeds
+   through the front art. And it is OPAQUE from the first frame: an unpainted or translucent
+   surface inside a case reads as a hole in the plastic, so the background paints before the
+   image arrives. 1px proud of the liner along the flipped axis, so the open lid paints
+   liner → booklet with no z-fighting. Insets are symmetric left/right because rotateY(180)
+   mirrors them. */
+.sh-manual {
+  position: absolute; left: 6%; right: 6%; top: 5%; bottom: 5%;
+  transform: rotateY(180deg) translateZ(calc(var(--t) + 1px));
+  backface-visibility: hidden;
+  background: #101014;
+  border-radius: 2px; overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+.sh-manual img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  backface-visibility: hidden;
+}
 
 /* The inside of the case: dark plastic, and the media sitting in it. */
 /* THE INTERIOR IS THE BACK WALL, and it has to be, because the media has DEPTH of its own.

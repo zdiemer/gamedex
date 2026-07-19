@@ -33,6 +33,7 @@ from pydantic import BaseModel
 import accounts as accounts_mod
 import assetcache as assetcache_mod
 import itad as itad_mod
+import manualcover as manualcover_mod
 import picross as picross_mod
 import platformdb as platformdb_mod
 import platform_sync as platform_sync_mod
@@ -691,6 +692,15 @@ MANUAL_CACHE = assetcache_mod.AssetCache(
     max_item_mb=int(os.environ.get("MANUAL_CACHE_MAX_ITEM_MB", "64")),
     enabled=_on("MANUAL_CACHE_ENABLED", "true"),
 )
+# Page 1 of each manual, as a JPEG for the box lid. Derived from MANUAL_CACHE's
+# copy of the PDF but stored outside its LRU: evicting a 40 MB PDF must never
+# take the 40 KB cover down with it.
+MANUAL_COVERS = manualcover_mod.ManualCovers(
+    Path(os.environ.get("MANUAL_COVER_DIR", "/data/manualcovers")), MANUAL_CACHE)
+if enricher:
+    # Same idiom as appid_override: the enricher pre-warms covers so pulling a
+    # box off the shelf never waits on a cold archive.org download.
+    enricher.manual_cover_warm = MANUAL_COVERS.warm
 
 
 def _served_from_cache(cache, u: str, media_type: str):
@@ -724,6 +734,21 @@ def api_manual(u: str):
     manual reader points here so opening a booklet a second time is instant and works
     offline, instead of booting the Archive's BookReader over the network every time."""
     return _served_from_cache(MANUAL_CACHE, u, "application/pdf")
+
+
+@app.get("/api/manual/cover")
+def api_manual_cover(u: str):
+    """The manual's front cover as a JPEG, for the inside of the shelf box's lid.
+
+    Rendered from page 1 of the cached PDF on first request, then read off the
+    PVC forever. Unlike /api/manual there is no 302 fallback on a miss — there is
+    no origin image to redirect to; 404 is the contract and the shelf simply
+    doesn't draw the booklet."""
+    img = MANUAL_COVERS.get(u)
+    if img is None:
+        return JSONResponse({"error": "no cover"}, status_code=404)
+    return Response(content=img, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 # GameRankings: a frozen archive baked into the image, joined on (title, platform).

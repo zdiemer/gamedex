@@ -418,6 +418,21 @@ function shBuild(i) {
     const liner = document.createElement("span");
     liner.className = "sh-liner";
     lid.appendChild(liner);
+    // ...and the BOOKLET, clipped inside the lid — hinged cases only; a cardboard
+    // sleeve never held its manual against the lid. The raw Archive URL is the
+    // cover cache's key, so no cManual rewrite. A 404 (no PDF cover renderable)
+    // removes the layer entirely: no booklet beats a blank slab pretending.
+    const art = typeof mediaArt === "function" ? mediaArt(g.mk) : {};
+    if (typeof opensBy === "function" && opensBy(g.p) === "hinge" && art.manualPdf) {
+      const man = document.createElement("span");
+      man.className = "sh-manual";
+      const im = new Image();
+      im.draggable = false;
+      im.onerror = () => man.remove();
+      im.src = `/api/manual/cover?u=${encodeURIComponent(art.manualPdf)}`;
+      man.appendChild(im);
+      lid.appendChild(man);
+    }
   }
   for (const e of lid ? ["e-t", "e-r", "e-b", "e-l"] : []) {
     const edge = document.createElement("span");
