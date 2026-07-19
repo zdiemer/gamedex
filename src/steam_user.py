@@ -255,7 +255,8 @@ class SteamUserClient:
         out = [{"appId": it["appid"], "addedAt": _iso(it.get("date_added")),
                 "priority": it.get("priority")} for it in items if it.get("appid")]
         self._wishlist_names(out)
-        return out
+        # Hardware (Index, Deck, ...) can be wishlisted too; this site is software only.
+        return [it for it in out if not it.pop("hardware", False)]
 
     def _wishlist_names(self, items):
         """Batch-resolve names via IStoreBrowseService; a miss just leaves the
@@ -269,10 +270,12 @@ class SteamUserClient:
                         "ids": [{"appid": int(it["appId"])} for it in batch],
                         "context": {"language": "english", "country_code": "US"},
                     })})
-                got = {s.get("appid"): s.get("name")
+                got = {s.get("appid"): s
                        for s in ((j.get("response") or {}).get("store_items")) or []}
                 for it in batch:
-                    it["name"] = got.get(int(it["appId"]))
+                    s = got.get(int(it["appId"])) or {}
+                    it["name"] = s.get("name")
+                    it["hardware"] = s.get("type") == 10  # EStoreAppType Hardware
             except Exception as exc:
                 log.debug("wishlist name batch failed: %s", exc)
 
