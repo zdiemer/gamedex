@@ -57,19 +57,19 @@ function detailHtml(d) {
     ? `<div class="shots"><div class="shot-view"></div>` +
       (nShots > 1 ? `<button class="shot-nav prev" aria-label="Previous">‹</button><button class="shot-nav next" aria-label="Next">›</button>` : "") +
       `<div class="shot-count"></div><div class="shot-cap"></div></div>` : "";
-  // Only the ones you actually own. IGDB's similar list is mostly games you've
-  // never heard of and don't have; as an external link it was a store aisle.
-  // Filtered to the collection it becomes a real "you have this, and it's like
-  // this" — and every entry opens in-app instead of navigating away.
-  const similar = (typeof similarInCollection === "function" ? similarInCollection(d) : [])
-    .slice(0, 12);
+  // Computed at home, not fetched: feature overlap (franchise, developer,
+  // keywords, era…) between this game and every game on the sheet, weighted by
+  // how rare each shared feature is in the collection (similar.js). IGDB's own
+  // similar_games list orbited the same few ubiquitous titles; this one has to
+  // earn each entry — and every entry opens in-app instead of navigating away.
+  const similar = typeof similarByFeatures === "function" ? similarByFeatures(d, drawerRow) : [];
   const simHtml = similar.length
     ? `<div class="detail-row notes"><div class="k">Similar games you own <span class="muted">${similar.length}</span></div>
         <div class="similar">${similar.map((s) => {
           const cover = s.cover ? IMG(s.cover, "cover_small") : coverSrc(ENRICH[s.row._k], "cover_small");
           const mark = s.row.completed ? `<i class="sim-done" title="Beaten">✓</i>`
             : s.row.owned ? `<i class="sim-owned" title="Owned">●</i>` : "";
-          return `<button class="sim" data-simk="${escapeHtml(String(s.row._k || ""))}" title="${escapeHtml(s.name)}">
+          return `<button class="sim" data-simk="${escapeHtml(String(s.row._k || ""))}" title="${escapeHtml(s.name + (s.why ? " — " + s.why : ""))}">
             ${cover ? `<img loading="lazy" src="${escapeHtml(cover)}" alt="">` : `<span class="sim-ph">${icon("i-library", 18)}</span>`}
             ${mark}
             <span>${escapeHtml(s.name)}</span>
