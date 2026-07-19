@@ -118,16 +118,53 @@ function mineSteamAppId(key) {
   return s ? s.appId : null;
 }
 
+/* Which sheet platforms a provider's clock can speak for — the same families the
+   server-side matcher uses (platform_sync._PLATFORM_FAMILY). A completion logged
+   on PS5 says nothing about stray Steam hours for the same title, so hours are
+   only compared to the sheet when the row's platform belongs to the provider's
+   family. Shared with the health checks in health.js. */
+const _MINE_PC = ["pc", "mac os", "linux"];
+const MINE_PLAT_FAMILY = {
+  steam: _MINE_PC, gog: _MINE_PC, epic: _MINE_PC, itch: _MINE_PC,
+  psn: ["playstation", "playstation 2", "playstation 3", "playstation 4",
+        "playstation 5", "playstation network", "playstation portable",
+        "playstation vita"],
+  xbox: ["xbox", "xbox 360", "xbox one", "xbox series x|s"],
+  nintendo: ["nintendo switch", "nintendo switch 2", "nintendo wii u",
+             "nintendo 3ds"],
+};
+
+/* The sheet's own Completion Time for this key, when this provider's family
+   covers the row's platform; null otherwise. Linear scan, same as every other
+   _k → row lookup. */
+function mineSheetHours(key, provider) {
+  const fam = MINE_PLAT_FAMILY[provider];
+  if (!fam || !DATA) return null;
+  const r = (((DATA.sheets || {}).games || {}).rows || []).find((x) => x._k === key);
+  if (!r || !r.completionTime) return null;
+  return fam.includes(String(r.platform || "").toLowerCase()) ? r.completionTime : null;
+}
+
+// Close = the platform's clock is retelling the sheet's own number — within 20%
+// or an hour, whichever is wider. The drawer drops the hours then; agreement is
+// noise, only disagreement is worth a pill.
+function mineCloseToSheet(key, provider, hours) {
+  const sheet = mineSheetHours(key, provider);
+  return sheet != null && Math.abs(hours - sheet) <= Math.max(1, sheet * 0.2);
+}
+
 // ---- drawer: pills + stat cells (sync, from the light map) ----------------
 function minePillsHtml(key) {
   const pills = [];
   for (const [p, it] of mineEntries(key)) {
     const verb = MINE_PROVIDERS[p].verb;
-    if (it.playtimeMin != null && it.playtimeMin > 0)
+    if (it.playtimeMin != null && it.playtimeMin > 0
+        && !mineCloseToSheet(key, p, it.playtimeMin / 60))
       pills.push(`<span class="mine-pill plat">${escapeHtml(fmtHours(it.playtimeMin / 60))} ${escapeHtml(verb)}</span>`);
     else
       // A store with no playtime (GOG, itch) still owns the game — say so, so the
-      // library ownership shows up at all.
+      // library ownership shows up at all. Same when the clock just agrees with
+      // the sheet: keep the ownership, skip the redundant number.
       pills.push(`<span class="mine-pill plat">Owned ${escapeHtml(verb)}</span>`);
     if (it.ach && it.ach.total)
       pills.push(`<span class="mine-pill plat">🏆 ${it.ach.unlocked}/${it.ach.total}</span>`);
@@ -140,7 +177,8 @@ function minePillsHtml(key) {
 function mineStatCells(key) {
   const cells = [];
   for (const [p, it] of mineEntries(key)) {
-    if (it.playtimeMin != null && it.playtimeMin > 0)
+    if (it.playtimeMin != null && it.playtimeMin > 0
+        && !mineCloseToSheet(key, p, it.playtimeMin / 60))
       cells.push([fmtHours(it.playtimeMin / 60), `Played (${MINE_PROVIDERS[p].label})`, ""]);
   }
   return cells;

@@ -136,30 +136,16 @@ function hzWishOnSheet(provider) {
   });
 }
 
-/* Which sheet platforms a provider's clock can speak for — the same families the
-   server-side matcher uses (platform_sync._PLATFORM_FAMILY). A completion logged
-   on PS5 says nothing about stray Steam hours for the same title, so playtime is
-   only compared when the row's platform belongs to the provider's family. */
-const _HZ_PC = ["pc", "mac os", "linux"];
-const HZ_PLAT_FAMILY = {
-  steam: _HZ_PC, gog: _HZ_PC, epic: _HZ_PC, itch: _HZ_PC,
-  psn: ["playstation", "playstation 2", "playstation 3", "playstation 4",
-        "playstation 5", "playstation network", "playstation portable",
-        "playstation vita"],
-  xbox: ["xbox", "xbox 360", "xbox one", "xbox series x|s"],
-  nintendo: ["nintendo switch", "nintendo switch 2", "nintendo wii u",
-             "nintendo 3ds"],
-};
-
 // [provider, hours] for every linked account whose family covers this row's
-// platform and that actually clocked time. GOG and itch report no playtime,
+// platform (MINE_PLAT_FAMILY, mine.js — a PS5 completion isn't judged by stray
+// Steam hours) and that actually clocked time. GOG and itch report no playtime,
 // so they never contribute.
 function hzPlatHours(r) {
   if (typeof MINE === "undefined") return [];
   const plat = String(r.platform || "").toLowerCase();
   const out = [];
   for (const [p, it] of mineEntries(r._k)) {
-    const fam = HZ_PLAT_FAMILY[p];
+    const fam = MINE_PLAT_FAMILY[p];
     if (!fam || !fam.includes(plat)) continue;
     if (it.playtimeMin != null && it.playtimeMin > 0) out.push([p, it.playtimeMin / 60]);
   }
