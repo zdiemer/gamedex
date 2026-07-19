@@ -20,29 +20,42 @@ const byStatus = (s) => hRows().filter((r) => r.playingStatus === s);
 const hToday = () => new Date();
 
 /* Rotate the recommendation shelves daily: the same picks all day, a fresh set
-   tomorrow. A date-seeded shuffle, not a random one — random would reshuffle on
-   every refresh, and a static top-N never changes at all. The salt lets each shelf
-   rotate independently so they don't all move in lockstep. */
+   tomorrow. Seeded per (day, shelf, game) — NOT a positional shuffle of the pool.
+   The pools these shelves draw from settle in pieces after the first paint (the
+   enrichment map refits the prediction model, RECS arrive in their own fetch), and
+   each arrival re-renders Home. A Fisher–Yates over the array meant one entrant
+   moving in the pool re-dealt every slot, so the landing set visibly swapped out
+   from under you a moment after it appeared. Ranking each game by its own
+   day-seeded hash keeps a pick stable wherever it sits in the pool, and pinning
+   what a shelf has already shown today means a later render can only fill empty
+   slots or drop a game that's genuinely no longer eligible — never trade cards.
+   The salt lets each shelf rotate independently so they don't move in lockstep. */
 const _dayNum = () => { const d = hToday(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
 function _daySeed(salt) {
   let h = 2166136261 ^ _dayNum();
   for (let i = 0; i < salt.length; i++) h = Math.imul(h ^ salt.charCodeAt(i), 16777619);
   return h >>> 0;
 }
-function _rng(seed) {
-  return () => {
-    seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+function dailyStable(pool, n, salt, keyOf) {
+  const day = _dayNum();
+  const pins = homeState.picks || (homeState.picks = {});
+  const st = pins[salt] && pins[salt].day === day ? pins[salt] : (pins[salt] = { day, keys: [] });
+  const byKey = new Map(pool.map((x) => [String(keyOf(x)), x]));
+  const out = st.keys.map((k) => byKey.get(k)).filter(Boolean);   // today's already-shown picks, minus any now ineligible
+  // fmix32 on top of the FNV pass: without it, keys that differ only in their last
+  // character rank next to each other, and "today's six" comes out as near-neighbours.
+  const rank = (x) => {
+    let h = _daySeed(salt + "|" + keyOf(x));
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return (h ^ (h >>> 16)) >>> 0;
   };
+  const pinned = new Set(st.keys);
+  const rest = pool.filter((x) => !pinned.has(String(keyOf(x)))).sort((a, b) => rank(a) - rank(b));
+  out.push(...rest.slice(0, Math.max(0, n - out.length)));
+  st.keys = out.map((x) => String(keyOf(x)));
+  return out;
 }
-function dailyShuffle(arr, salt) {
-  const rnd = _rng(_daySeed(salt)), a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  return a;
-}
-const dailyPick = (arr, n, salt) => dailyShuffle(arr, salt).slice(0, n);
 const hMD = (d) => `-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const yearsAgo = (iso) => hToday().getFullYear() - +String(iso).slice(0, 4);
 const agoText = (n) => (n <= 0 ? "today" : n === 1 ? "1 year ago" : `${n} years ago`);
@@ -248,19 +261,19 @@ function renderHome() {
   // Recommendations come from the server (IGDB's similar-games, crossed with
   // your backlog); predictions are computed here from your own ratings. Both
   // rotate daily from their full pool rather than always showing the same top 18.
-  const recRows = dailyPick((RECS || []).map((rec) => {
+  const recRows = dailyStable((RECS || []).map((rec) => {
     const row = hRows().find((r) => String(r._k || "") === rec.key);
     return row ? { row, rec } : null;
-  }).filter(Boolean), 18, "recs");
+  }).filter(Boolean), 18, "recs", (x) => x.rec.key);
 
   // The lead section: a grid of big poster cards right under the hero. Rotate six out of the
   // top ~60 predicted so it's a fresh set daily but always from the strongest picks.
-  const loved = dailyPick(hRows()
+  const loved = dailyStable(hRows()
     .filter((r) => !r.completed && !r.playingStatus && (typeof isCandidate !== "function" || isCandidate(r)))
     .map((r) => ({ r, p: typeof predictedCached === "function" ? predictedCached(r) : null }))
     .filter((x) => x.p && x.p.confidence >= 0.75)
     .sort((a, b) => b.p.score - a.p.score)
-    .slice(0, 60), 6, "loved");
+    .slice(0, 60), 6, "loved", (x) => String(x.r._k || ""));
 
   /* What each card's click should open, keyed by sheet + match key. The shelves
      above render GROUP rows whose _k is the lead's — resolving a click by _k
