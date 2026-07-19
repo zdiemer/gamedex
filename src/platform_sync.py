@@ -63,7 +63,8 @@ _STORE_SLOT = {"steam": "steam", "psn": "playstation", "xbox": "xbox",
 class PlatformSync:
     def __init__(self, db, providers: dict, enricher=None, catalogue=None,
                  store=None, shots_dir: Path = Path("/data/platshots"),
-                 interval: int = 21600, ach_backfill: int = 150, itad=None):
+                 interval: int = 21600, ach_backfill: int = 150, itad=None,
+                 itad_interval: int = 3600):
         self._db = db
         self._providers = providers
         self._enricher = enricher
@@ -72,6 +73,7 @@ class PlatformSync:
         self._itad = itad          # ItadClient (prices), or None if no key
         self._shots_dir = shots_dir
         self._interval = interval
+        self._itad_interval = itad_interval
         self._ach_backfill = ach_backfill
         self._validator = MatchValidator()
         self._stop = threading.Event()
@@ -91,6 +93,16 @@ class PlatformSync:
             self._wakes[name] = threading.Event()
             t = threading.Thread(target=self._provider_loop, args=(name, client),
                                  daemon=True, name=f"platform-sync-{name}")
+            self._threads.append(t)
+            t.start()
+        # Prices used to refresh only inside the 6-hour sync pass, so a Steam
+        # flash sale could be over before the wishlist ever saw it. They get
+        # their own clock now: hourly, and cheap — a resolved wishlist re-prices
+        # in batches of 200 ids, ~15 requests against ITAD's 1,000-per-5-minutes.
+        # Lookups (per-item) and bundle checks (no batch endpoint) stay on the
+        # sync pass; this loop only touches items that already have an ITAD id.
+        if self._itad is not None and self._itad.configured:
+            t = threading.Thread(target=self._price_loop, daemon=True, name="itad-prices")
             self._threads.append(t)
             t.start()
 
@@ -381,6 +393,50 @@ class PlatformSync:
             self._hot[provider] = True
         log.info("steam wishlist prices: refreshed %d (ITAD)%s", len(resolved),
                  f", {remaining} left to resolve" if remaining else "")
+
+    # ---- the hourly price clock ---------------------------------------------
+    def _price_loop(self):
+        """Re-price resolved wishlist items every `itad_interval` seconds
+        (default hourly), independent of the 6-hour sync pass. Waits a minute at
+        boot so the first sync pass wins any race for a fresh link's items."""
+        if self._stop.wait(60):
+            return
+        while not self._stop.is_set():
+            try:
+                self._refresh_resolved_prices()
+            except Exception as exc:
+                log.warning("itad price loop: %s", exc)
+            if self._stop.wait(self._itad_interval):
+                return
+
+    def _refresh_resolved_prices(self):
+        if self._itad is None or not self._itad.configured:
+            return
+        from datetime import datetime, timedelta, timezone
+        stale = (datetime.now(timezone.utc)
+                 - timedelta(seconds=self._itad_interval)).isoformat(timespec="seconds")
+        for provider in sorted(self._PRICED_STORES):
+            acct = self._db.account(provider)
+            if not acct or acct["status"] == "disabled":
+                continue
+            # Resolved ids only: pricing is batched and cheap. Items without an
+            # id wait for the sync pass's capped lookups, same as always.
+            todo = [w for w in self._db.wishlist_for_pricing(provider, stale) if w["itadId"]]
+            if not todo:
+                continue
+            resolved = {w["appId"]: w["itadId"] for w in todo}
+            prices = self._itad.prices(list(set(resolved.values())))
+            if not prices:
+                continue               # whole batch failed; keep old prices, retry next hour
+            wrote = 0
+            for app_id, iid in resolved.items():
+                # An id ITAD returned nothing for keeps its old price here — the
+                # sync pass owns deciding a game is genuinely priceless now.
+                if iid in prices:
+                    self._db.set_wishlist_price(provider, app_id, iid, prices[iid])
+                    wrote += 1
+            if wrote:
+                log.info("%s wishlist prices: refreshed %d (hourly loop)", provider, wrote)
 
     def _bundles_wishlist(self, provider):
         """Check ITAD bundles for a bounded slice of matched wishlist items whose

@@ -205,6 +205,7 @@ PSYNC = platform_sync_mod.PlatformSync(
     interval=int(os.environ.get("PLATFORM_SYNC_INTERVAL", "21600")),
     ach_backfill=int(os.environ.get("ACH_BACKFILL_PER_SYNC", "150")),
     itad=(_itad if _itad.configured else None),
+    itad_interval=int(os.environ.get("ITAD_REFRESH_INTERVAL", "3600")),
 )
 if enricher:
     # The appid of the copy I actually own beats IGDB's external_games guess —
