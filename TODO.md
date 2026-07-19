@@ -1,7 +1,8 @@
 # Gamedex — in flight
 
-Two external sources left to add, plus the two things the criteria-builder rework
-left hand-written; then the feature backlog, then the 2026-07-18 codebase audit.
+Three external sources left to add, plus the two things the criteria-builder
+rework left hand-written; then the feature backlog, then the 2026-07-18
+codebase audit.
 
 - [ ] **RetroAchievements** — the next source to add, and the shape is ideal:
       `GetGameList` is a BULK endpoint returning every game for a console in one
@@ -12,6 +13,13 @@ left hand-written; then the feature backlog, then the 2026-07-18 codebase audit.
       Wikidata now hands us 33,902 MobyGames ids for free, so the matching is
       already done. Non-commercial limit is 720/hr (1 per 5s) → ~20h backfill;
       free access is by application.
+- [ ] **ScreenScraper — replace shelf cover art** — the box-scan database:
+      per-region full box scans plus separate front/spine/back faces, keyed by
+      ROM hash or name, which is exactly the art the shelf fakes today from
+      flat covers. Free account required; quotas are per-day with thread
+      limits, so it's a slow backfill like the others. Would supersede the
+      GameTDB/covers-resolved patchwork for shelf rendering, and the same
+      scans feed the editor's box-art slots (see the rewrite's editing item).
 - [ ] **Decompose `isCandidate` into criteria** — the challenge pool
       (`challenges.js:64`) is five hardcoded conditions: not completed, priority
       above Will Not Play, `playable === "Yes"`, not an untranslated game in a
@@ -92,6 +100,17 @@ left hand-written; then the feature backlog, then the 2026-07-18 codebase audit.
         bulk editor; per-row forms won't replace 40-column mass edits. Not
         done without a grid editor or an xlsx export→edit→import round-trip
         as the escape hatch. `parse.py` survives as the importer.
+      - **Full inline editing + game creation.** Past the quick-log verbs,
+        the drawer grows real per-field editing: title, release date,
+        description, and every art slot — full box scan, front/spine/back
+        faces, cover-art-only — each replaceable inline (upload or pick from
+        a source, e.g. ScreenScraper's scans). Sits on the annotation model:
+        edits to universal fields are per-user overrides layered on the IGDB
+        record, not mutations of the shared wrap. And a create-game flow for
+        titles IGDB doesn't have — the NO_MATCH/keitai/bootleg tail stops
+        being a migration-time triage artifact and becomes a first-class
+        "add a game" form that mints a custom row (own id range) with the
+        same editable fields.
       - **Phasing:** (1) staged-edits overlay — quick-log ("mark finished",
         "set status", "log hours") writes to a side table and overlays the
         served rows, sheet still truth, zero risk, admin-only; (2) igdbId-
