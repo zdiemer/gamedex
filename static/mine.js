@@ -217,9 +217,14 @@ async function loadMineDetail(key, el) {
       MINED[key] = (await r.json()).items || {};
     } catch (_) { return; }
   }
+  // Same home-platform rule as the pills: the achievement grid, screenshots and
+  // store review are the Steam copy's story, not the 360 copy's. The admin fix
+  // box stays either way — a cross-family match is exactly the kind that needs
+  // repairing, and hiding its only handle would strand it.
   const html = Object.entries(MINED[key])
     .filter(([p]) => MINE_PROVIDERS[p])
-    .map(([p, d]) => mineAchHtml(p, d) + mineShotsHtml(p, d) + mineReviewHtml(p, d)
+    .map(([p, d]) => (mineOnHomePlatform(key, p)
+        ? mineAchHtml(p, d) + mineShotsHtml(p, d) + mineReviewHtml(p, d) : "")
       + (IS_ADMIN ? mineFixHtml(p, d, key) : ""))
     .join("");
   el.innerHTML = html;
