@@ -123,6 +123,49 @@ const hzConfDetail = (r) => {
   return `${name} \u00b7 ${c}/15 \u00b7 ${e.source || "igdb"}`;
 };
 
+// Sheet rows that a provider's wishlist still lists, matched by matchKey or IGDB id.
+function hzWishOnSheet(provider) {
+  const wl = (typeof WL !== "undefined" && WL) || [];
+  const mine = wl.filter((w) => w.provider === provider);
+  const keys = new Set(mine.filter((w) => w.matchKey).map((w) => w.matchKey));
+  const igdbs = new Set(mine.filter((w) => w.igdbId).map((w) => Number(w.igdbId)));
+  return hzGames().filter((r) => {
+    if (keys.has(r._k)) return true;
+    const e = ENRICH[r._k];
+    return e && e.igdbId && igdbs.has(Number(e.igdbId));
+  });
+}
+
+/* Which sheet platforms a provider's clock can speak for — the same families the
+   server-side matcher uses (platform_sync._PLATFORM_FAMILY). A completion logged
+   on PS5 says nothing about stray Steam hours for the same title, so playtime is
+   only compared when the row's platform belongs to the provider's family. */
+const _HZ_PC = ["pc", "mac os", "linux"];
+const HZ_PLAT_FAMILY = {
+  steam: _HZ_PC, gog: _HZ_PC, epic: _HZ_PC, itch: _HZ_PC,
+  psn: ["playstation", "playstation 2", "playstation 3", "playstation 4",
+        "playstation 5", "playstation network", "playstation portable",
+        "playstation vita"],
+  xbox: ["xbox", "xbox 360", "xbox one", "xbox series x|s"],
+  nintendo: ["nintendo switch", "nintendo switch 2", "nintendo wii u",
+             "nintendo 3ds"],
+};
+
+// [provider, hours] for every linked account whose family covers this row's
+// platform and that actually clocked time. GOG and itch report no playtime,
+// so they never contribute.
+function hzPlatHours(r) {
+  if (typeof MINE === "undefined") return [];
+  const plat = String(r.platform || "").toLowerCase();
+  const out = [];
+  for (const [p, it] of mineEntries(r._k)) {
+    const fam = HZ_PLAT_FAMILY[p];
+    if (!fam || !fam.includes(plat)) continue;
+    if (it.playtimeMin != null && it.playtimeMin > 0) out.push([p, it.playtimeMin / 60]);
+  }
+  return out;
+}
+
 // severity: "error" = almost certainly wrong · "warn" = probably worth a look ·
 // "info" = just a gap you may not care about.
 const HEALTH_CHECKS = [
@@ -206,17 +249,14 @@ const HEALTH_CHECKS = [
     title: "On your Steam wishlist, but already on the sheet",
     why: "A game still on your Steam wishlist that is already in your library, matched by "
        + "IGDB id or title. You may already own it, or can clear it off the Steam wishlist.",
-    find: () => {
-      const wl = (typeof WL !== "undefined" && WL) || [];
-      const steam = wl.filter((w) => w.provider === "steam");
-      const keys = new Set(steam.filter((w) => w.matchKey).map((w) => w.matchKey));
-      const igdbs = new Set(steam.filter((w) => w.igdbId).map((w) => Number(w.igdbId)));
-      return hzGames().filter((r) => {
-        if (keys.has(r._k)) return true;
-        const e = ENRICH[r._k];
-        return e && e.igdbId && igdbs.has(Number(e.igdbId));
-      });
-    },
+    find: () => hzWishOnSheet("steam"),
+  },
+  {
+    id: "gogwishsheet", severity: "info", sheet: "games",
+    title: "On your GOG wishlist, but already on the sheet",
+    why: "A game still on your GOG wishlist that is already in your library, matched by "
+       + "IGDB id or title. You may already own it, or can clear it off the GOG wishlist.",
+    find: () => hzWishOnSheet("gog"),
   },
   {
     id: "hltbgap", severity: "warn", sheet: "games",
@@ -232,6 +272,26 @@ const HEALTH_CHECKS = [
     detail: (r) => {
       const e = ENRICH[r._k] || {};
       return `you ${fmtHours(r.completionTime)} · HLTB ${fmtHours(e.hltbMain)}`;
+    },
+  },
+  {
+    id: "platplaygap", severity: "warn", sheet: "games",
+    title: "Your playtime disagrees with the platform's clock",
+    why: "Your Completion Time is 2× or more off the hours the platform itself recorded, "
+       + "and the gap is at least an hour. Only counted when the row's platform matches the "
+       + "account that clocked it — a PS5 completion isn't judged by stray Steam hours.",
+    find: () => hzGames().filter((r) => {
+      const mine = r.completionTime;
+      if (!mine || mine < 0.5) return false;
+      const theirs = hzPlatHours(r).reduce((s, [, h]) => s + h, 0);
+      if (theirs < 0.5 || Math.abs(mine - theirs) < 1) return false;
+      const ratio = mine > theirs ? mine / theirs : theirs / mine;
+      return ratio >= 2;
+    }),
+    detail: (r) => {
+      const parts = hzPlatHours(r)
+        .map(([p, h]) => `${MINE_PROVIDERS[p].label} ${fmtHours(h)}`);
+      return `you ${fmtHours(r.completionTime)} · ${parts.join(" · ")}`;
     },
   },
   {
