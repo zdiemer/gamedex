@@ -113,7 +113,7 @@ function heroStatsHtml(row) {
   const pct = (v) => `${Math.round(v * 100)}`;
   const cells = [];
   const mine = row.rating != null ? row.rating : null;
-  if (mine != null) cells.push([pct(mine), "My rating", ratingClass(mine)]);
+  if (mine != null) cells.push([pct(mine), "Your rating", ratingClass(mine)]);
   const mc = metacriticOf(row);
   if (mc != null) cells.push([pct(mc), "Critics", ratingClass(mc)]);
   const ur = userRatingOf(row);

@@ -142,7 +142,10 @@ function renderTable(rows) {
   $("#resetsort").hidden = !(st.sort && st.sort.length);
   if (view === "timeline") {
     renderTimeline(rows);
-    $("#count").textContent = `${rows.length.toLocaleString()} of ${sheet().rows.length.toLocaleString()} games`;
+    const tlTotal = sheet().rows.length;
+    $("#count").textContent = rows.length === tlTotal
+      ? `${tlTotal.toLocaleString()} game${tlTotal === 1 ? "" : "s"}`
+      : `${rows.length.toLocaleString()} of ${tlTotal.toLocaleString()} games`;
     renderViews();
     return;
   }
@@ -167,7 +170,10 @@ function renderTable(rows) {
   renderViews();
   const total = st.combine && typeof groupedTotalOf === "function"
     ? groupedTotalOf(sheet().rows) : sheet().rows.length;
-  $("#count").textContent = `${sorted.length.toLocaleString()} of ${total.toLocaleString()} games`;
+  // Unfiltered, "14,768 of 14,768 games" reads like a filter that isn't there.
+  $("#count").textContent = sorted.length === total
+    ? `${total.toLocaleString()} game${total === 1 ? "" : "s"}`
+    : `${sorted.length.toLocaleString()} of ${total.toLocaleString()} games`;
   renderPager(pages);
 }
 
@@ -254,7 +260,7 @@ function cardBodyHtml(row) {
   const units = salesOf(row);
   if (units != null) parts.push("↗ " + fmtUnits(units));
   const rating = row.rating != null
-    ? `<span class="card-rating ${ratingClass(row.rating)}" title="My rating">${Math.round(row.rating * 100)}</span>` : "";
+    ? `<span class="card-rating ${ratingClass(row.rating)}" title="Your rating">${Math.round(row.rating * 100)}</span>` : "";
   const mc = metacriticOf(row);
   const meta = mc != null
     ? `<span class="card-meta ${ratingClass(mc)}" title="Metacritic">${Math.round(mc * 100)}</span>` : "";

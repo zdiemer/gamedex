@@ -472,7 +472,6 @@ button .ico, a .ico { pointer-events: none; }
 .resultbar .ctl { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 /* Grouped so the whole cluster can be relocated into the mobile sheet. */
 .rb-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.enrichstatus { color: var(--dim); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
 /* ---- Global search landing (search.js) --------------------------------- */
 .searchpage { flex: 1; overflow-y: auto; padding: 12px 20px 28px; }
@@ -4989,3 +4988,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   /* The command palette's ↑↓ / ↵ / esc hint row is meaningless on a touch device. */
   .cmdk-foot { display: none; }
 }
+
+/* Health's match dashboard: how much of the library each source has matched
+   (moved here from the listings' result bar). */
+.hz-matches { margin-top: 14px; }
+.hz-matches h2 { font: 700 13px var(--display); margin: 0 0 8px; }
+.hz-matches .muted { font-weight: 500; color: var(--muted); }
+.hz-pill.hz-match { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border-soft); }
+.hz-pill.hz-match b { color: var(--text); font-weight: 600; }

@@ -126,7 +126,7 @@ const SORT_MENUS = {
 // their All Games counterparts ("Completed Date", "Started Date"), so the menus
 // read identically even where the sheets named the columns differently.
 const SORT_LABEL = {
-  rating: "Rating (yours)",
+  rating: "Your Rating",
   datePurchased: "Purchased Date",
   dateAdded: "Added Date",
   dateStarted: "Started Date",

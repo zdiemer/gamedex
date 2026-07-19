@@ -146,7 +146,7 @@ function onThisDay() {
   const sect = (rows, id, label, sheet, dateKey, verb) =>
     rows.length ? shelf(id, `<span class="h-sub">${label}</span>`, cards(rows, sheet, dateKey, verb)) : "";
   return `<div class="h-otd-head"><h2>${icon("i-calendar", 17)} On this day <span class="muted">${escapeHtml(today)}</span></h2></div>` +
-    sect(done, "otdDone", "You finished these", "completed", "date", "Finished") +
+    sect(done, "otdDone", "You completed these", "completed", "date", "Completed") +
     sect(bought, "otdBought", "You bought these", "games", "datePurchased", "Bought") +
     sect(added, "otdAdded", "You added these", "games", "dateAdded", "Added") +
     sect(rel, "otdRel", "Released on this date", "games", "releaseDate", "Released");
@@ -292,7 +292,7 @@ function renderHome() {
       r.dateStarted ? `Started ${escapeHtml(fmtDate(r.dateStarted))}` : ""))) +
     (typeof picrossHomeCardHtml === "function" ? picrossHomeCardHtml() : "") +
     onThisDay() +
-    shelf("hRecent", `${icon("i-trophy", 16)} Recently finished`, recent.map((r) => homeCard(r, "completed",
+    shelf("hRecent", `${icon("i-trophy", 16)} Recently completed`, recent.map((r) => homeCard(r, "completed",
       r.rating != null ? `You gave it ${Math.round(r.rating * 100)}%` : (r.date ? escapeHtml(fmtDate(r.date)) : "")))) +
     shelf("hAdded", `${icon("i-plus", 16)} Recently added`, added.map((r) => homeCard(r, "games",
       r.dateAdded ? `Added ${escapeHtml(fmtDate(r.dateAdded))}` : ""))) +

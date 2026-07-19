@@ -383,7 +383,7 @@ function heatmap(counts, year, opts = {}) {
     const wk = Math.floor(idx / 7), dow = idx % 7;
     const x = 24 + wk * (CELL + GAP), y = TOP + dow * (CELL + GAP);
     const lvl = n === 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4));
-    const tip = n && tipFor ? tipFor(iso, n) : `${iso} · ${n} finished`;
+    const tip = n && tipFor ? tipFor(iso, n) : `${iso} · ${n} completed`;
     cells += `<rect class="hm-cell hm-l${lvl}${n && onDay ? " linked" : ""}" x="${x}" y="${y}"
       width="${CELL}" height="${CELL}" rx="2.5"${n && onDay ? chartLink(() => onDay(iso)) : ""}
       ${tipAttr(tip)} style="--d:${(wk * 6)}ms"/>`;

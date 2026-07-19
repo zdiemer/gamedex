@@ -34,7 +34,7 @@ const GROUPINGS = [
   { id: "genre", label: "Genres", icon: "i-target", vals: (r) => unifiedGenreVals(r),
     units: "genres", blurb: "What you actually play, as opposed to what you buy." },
   { id: "platform", label: "Platforms", icon: "i-dice", vals: (r) => (r.platform ? [r.platform] : []),
-    units: "platforms", blurb: "A shelf per machine, with how much of it you've finished." },
+    units: "platforms", blurb: "A shelf per machine, with how much of it you've completed." },
   // IGDB knows these about nearly everything and the app has never asked. A perspective is
   // the one axis a genre can't express — plenty of games are "Action" and the only real
   // difference is where the camera sits.
@@ -109,7 +109,7 @@ const grGroups = (kind) => groupIndex(kind).filter((s) => s.games.length >= MIN_
 const GROUP_SORTS = {
   size: { label: "Most games", cmp: (a, b) => b.games.length - a.games.length },
   progress: { label: "Closest to done", cmp: (a, b) => (b.pct - a.pct) || (b.done - a.done) },
-  done: { label: "Most finished", cmp: (a, b) => b.done - a.done },
+  done: { label: "Most completed", cmp: (a, b) => b.done - a.done },
   name: { label: "A–Z", cmp: (a, b) => a.name.localeCompare(b.name) },
   untouched: { label: "Never started", cmp: (a, b) => (a.pct - b.pct) || (b.games.length - a.games.length) },
   // Now that a group carries its own numbers, they're worth sorting on: which studio do
@@ -172,7 +172,7 @@ function groupCardHtml(s) {
     ${cs ? `<img class="fr-art" loading="lazy" src="${escapeHtml(cs)}" alt="">` : `<span class="fr-art ph">${icon("i-library", 22)}</span>`}
     <span class="fr-body">
       <b>${escapeHtml(s.name)}</b>
-      <span class="muted">${s.done} of ${s.games.length} finished${s.owned ? ` · ${s.owned} owned` : ""}</span>
+      <span class="muted">${s.done} of ${s.games.length} completed${s.owned ? ` · ${s.owned} owned` : ""}</span>
       ${groupCardStats(s)}
       <span class="ch-bar"><span style="width:${(s.pct * 100).toFixed(1)}%"></span></span>
     </span>
@@ -276,7 +276,7 @@ function renderGroups() {
           <div>
             <span class="h-eyebrow">${glyph(g.icon, 14)} ${escapeHtml(g.label)}</span>
             <h1>${escapeHtml(s.name)}</h1>
-            <p class="muted">${s.games.length} games · ${s.done} finished · ${s.owned} owned</p>
+            <p class="muted">${s.games.length} games · ${s.done} completed · ${s.owned} owned</p>
             <div class="ch-bar big" style="margin:14px 0 0"><span style="width:${(s.pct * 100).toFixed(1)}%"></span></div>
           </div>
           ${typeof chRing === "function" ? chRing(s.pct, 84) : ""}
@@ -308,7 +308,7 @@ function renderGroups() {
     `<div class="fr-index-head">
       <button class="ch-back" id="grHome">← All groupings</button>
       <h1>${glyph(g.icon, 24)} ${escapeHtml(g.label)}</h1>
-      <p>${all.length.toLocaleString()} ${escapeHtml(g.units)} with ${MIN_GROUP}+ games · ${finished.toLocaleString()} finished end to end.</p>
+      <p>${all.length.toLocaleString()} ${escapeHtml(g.units)} with ${MIN_GROUP}+ games · ${finished.toLocaleString()} completed end to end.</p>
       <div class="rev-controls">
         ${searchField("grQ", `Find a ${g.units.replace(/e?s$/, "")}…`, groupState.q)}
         <label class="ctl">Sort
@@ -346,7 +346,7 @@ function renderGroupMenu(host) {
       <span class="gr-icon">${glyph(g.icon, 26)}</span>
       <span class="gr-tile-b">
         <b>${escapeHtml(g.label)}</b>
-        <span class="gr-n">${all.length.toLocaleString()} ${escapeHtml(g.units)}${done ? ` · ${done.toLocaleString()} finished` : ""}</span>
+        <span class="gr-n">${all.length.toLocaleString()} ${escapeHtml(g.units)}${done ? ` · ${done.toLocaleString()} completed` : ""}</span>
         <span class="muted">${escapeHtml(g.blurb)}</span>
         <span class="gr-eg">${top.map((s) =>
           `<span>${escapeHtml(s.name)} <i>${s.games.length}</i></span>`).join("")}</span>
@@ -357,9 +357,9 @@ function renderGroupMenu(host) {
 
   host.innerHTML =
     `<div class="fr-index-head">
-      <h1>Groupings</h1>
+      <h1>Collections</h1>
       <p>Your collection, cut along whichever axis you care about. Each one shows what you own,
-         what you've finished, how far through you are, and what to play next.</p>
+         what you've completed, how far through you are, and what to play next.</p>
     </div>
     <div class="gr-tiles">${tiles}</div>`;
 

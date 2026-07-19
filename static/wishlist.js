@@ -172,7 +172,7 @@ function wireWishlistMap(host, row) {
 const WL_COLUMNS = [
   { key: "title", label: "Title", type: "text", facet: false, search: true, sort: true, primary: true },
   { key: "platform", label: "Platform", type: "text", facet: true, search: false, sort: true, primary: true },
-  { key: "wishlistedOn", label: "Wishlisted On", type: "text", facet: true, search: false, sort: true, primary: true },
+  { key: "wishlistedOn", label: "Wishlist Source", type: "text", facet: true, search: false, sort: true, primary: true },
   { key: "genre", label: "Genre", type: "text", facet: true, search: true, sort: true, primary: true },
   // ITAD price columns (Steam wishlist). `price` sorts cheapest-first; `discount`
   // sorts biggest-cut-first; `deal` facets on sale / at-all-time-low / full price.

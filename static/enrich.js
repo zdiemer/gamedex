@@ -56,6 +56,7 @@ let IS_ADMIN = false;              // set from /api/me on boot; gates every writ
 let ME = null;                     // {authenticated, username}
 let ENRICH_ENABLED = false;
 let ENRICH_COMPLETE = false;       // all sources backfilled → stop shimmering covers
+let ENRICH_STATS = null;           // last /api/enrichment stats — Health's match dashboard reads it
 /* READY is not COMPLETE, and the difference is the whole reason a filter can be
    answered at all. COMPLETE means every source has finished backfilling, which on a
    cold instance is minutes away and on a busy one may not happen this session — a
@@ -158,22 +159,19 @@ async function postEnrich(keys) {
 }
 
 function updateEnrichStatus(stats) {
-  const el = $("#enrichstatus");
-  if (!el || !stats) return;
-  const src = stats.sources || {};
-  const parts = [`IGDB ${(stats.matched || 0).toLocaleString()}`];
-  if (src.hltb) parts.push(`HLTB ${(src.hltb.matched || 0).toLocaleString()}`);
-  if (src.metacritic) parts.push(`MC ${(src.metacritic.matched || 0).toLocaleString()}`);
-  let queued = stats.queued || 0;
-  for (const s of Object.values(src)) queued += s.queued || 0;
-  el.textContent = parts.join(" · ") + (queued ? ` · ${queued.toLocaleString()} queued` : "");
-  el.hidden = false;
+  if (!stats) return;
+  // The per-source matched counts used to sit in the result bar of every
+  // listing, which is plumbing detail on a browsing surface. They live on the
+  // Health page now (its match dashboard reads this), and the listing keeps
+  // only the progress bar below.
+  ENRICH_STATS = stats;
+  if (activeTab === "health" && typeof renderHealth === "function") renderHealth();
 
   // Enrichment progress bar (all sources combined).
   ENRICH_COMPLETE = !!stats.complete;
   const wrap = $("#progress"), bar = $("#progressBar");
   if (wrap && bar && stats.total) {
-    const srcs = Object.values(src);
+    const srcs = Object.values(stats.sources || {});
     const done = (stats.resolved || 0) + srcs.reduce((a, s) => a + (s.resolved || 0), 0);
     const total = stats.total * (1 + srcs.length);
     bar.style.width = Math.min(100, Math.round((100 * done) / total)) + "%";

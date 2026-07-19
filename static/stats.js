@@ -200,7 +200,7 @@ function yearInReview(rows, games) {
     (gamesByDay[d] = gamesByDay[d] || []).push(String(r.game));
   });
   // A count tells you a day was busy; the names tell you what the day WAS.
-  const dayTip = (iso, n) => tipList(`${fmtDate(iso)} · ${n} finished`, gamesByDay[iso] || []);
+  const dayTip = (iso, n) => tipList(`${fmtDate(iso)} · ${n} completed`, gamesByDay[iso] || []);
   // Land on that day in the Completed timeline, neighbours intact (timeline.js).
   const showDay = (iso) => timelineJumpToDay(iso);
   // Best and worst come off the same ranking, and the worst row only gets what
@@ -369,7 +369,7 @@ function renderStatsOverview(rows, games) {
   // outstanding — the accent stays out of it.
   return `<h2 class="stat-sec">All time</h2>
     <div class="stat-cards lead">
-      ${statCard(rows.length, "Beaten", "", "", { tone: "good", icon: "i-trophy", sub: `of ${games.length.toLocaleString()} cataloged` })}
+      ${statCard(rows.length, "Completed", "", "", { tone: "good", icon: "i-trophy", sub: `of ${games.length.toLocaleString()} cataloged` })}
       ${statCard(backlog.length, "In backlog", "", "", { tone: "warn", icon: "i-clock", sub: `${Math.round(backlogHours).toLocaleString()} hours of it` })}
       ${statCard(complPct, "Library done", "", "%", { tone: "lead", icon: "i-target", sub: `${thisYear} beaten in ${curYear || "—"}` })}
     </div>

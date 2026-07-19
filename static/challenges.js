@@ -661,7 +661,7 @@ function chTimelineHtml(cleared) {
     // beaten in that bucket since) ran the note to three lines and swallowed the cover it was
     // sitting on, for a number nobody came here to read. It lives in the tooltip.
     const tip = `${row.title} · cleared ${key} on ${chWhenLong(row)}`
-      + (also ? ` (${also} more beaten in this bucket since)` : "");
+      + (also ? ` (${also} more completed in this bucket since)` : "");
     const card = posterCardHtml(row, {
       cls: "chtl-card",
       note: `<b>${escapeHtml(String(key))}</b> · ${escapeHtml(chWhen(row))}`,
@@ -709,7 +709,7 @@ function chPathsHtml(res) {
         <span class="ch-path-n">Path ${i + 1}</span>
         <span class="ch-path-span">${escapeHtml(chSpanText(firsts))}</span>
         <span class="muted">${p.cleared.size} bucket${p.cleared.size !== 1 ? "s" : ""} ·
-          ${p.games.toLocaleString()} game${p.games !== 1 ? "s" : ""} beaten</span>
+          ${p.games.toLocaleString()} game${p.games !== 1 ? "s" : ""} completed</span>
         <span class="ch-path-done">✓ cleared</span>
       </summary>
       ${chTimelineHtml(p.cleared)}
@@ -818,12 +818,12 @@ function renderChallenges() {
     host.innerHTML =
       `<div class="ch-hero">
          <h1>Challenges</h1>
-         <p>One game per platform, per genre, per year, per letter… Progress is read straight from the sheet, over everything you've ever finished: a bucket clears the day you beat something in it, and clearing the last one you can reach starts the whole challenge over.</p>
+         <p>One game per platform, per genre, per year, per letter… Progress is read straight from the sheet, over everything you've ever completed: a bucket clears the day you beat something in it, and clearing the last one you can reach starts the whole challenge over.</p>
          <div class="ch-hero-stats">
            <span><b>${all.length}</b> challenges</span>
            <span><b>${totalCleared.toLocaleString()}</b> buckets cleared</span>
            <span><b>${(totalBuckets - totalCleared).toLocaleString()}</b> to go</span>
-           ${finished ? `<span><b>${finished}</b> finished</span>` : ""}
+           ${finished ? `<span><b>${finished}</b> completed</span>` : ""}
            ${walked ? `<span><b>${walked.toLocaleString()}</b> paths walked</span>` : ""}
          </div>
        </div>
@@ -869,7 +869,7 @@ function renderChallenges() {
          <div><b>${res.remaining.size}</b><span>remaining</span></div>
          <div><b>${res.total}</b><span>total</span></div>
          <div><b>${escapeHtml(from)}</b><span>${res.paths.length ? "path opened" : "counting from"}</span></div>
-         <div><b>${res.completedThisPath.toLocaleString()}</b><span>games beaten ${res.paths.length ? "this path" : "overall"}</span></div>
+         <div><b>${res.completedThisPath.toLocaleString()}</b><span>games completed ${res.paths.length ? "this path" : "overall"}</span></div>
        </div>
        <h2 class="ch-sec">Still to do <span class="muted">${res.remaining.size}</span></h2>
        <p class="ch-hint">Top-rated candidates for each, five shown. Tap any game for details.</p>
@@ -1152,7 +1152,7 @@ function chEditorHtml() {
         ${transforms.length > 1
           ? `<select id="chbGroupT">${transforms.map((t) => opt(t.id, t.label, gtid || "")).join("")}</select>`
           : ""}
-        <em>Every game you've ever finished counts, the same rule the built-ins use.
+        <em>Every game you've ever completed counts, the same rule the built-ins use.
           Clear the last bucket you can reach and the challenge starts over.</em>
       </div>
     </div>

@@ -135,7 +135,7 @@ def render_og(snapshot: dict, light: dict, img_cache) -> bytes:
     lbl_f = _font("plex-sans.ttf", 26)
     stats = [
         (f"{len(games):,}", "games cataloged"),
-        (f"{len(completed):,}", "beaten"),
+        (f"{len(completed):,}", "completed"),
         (f"{int(hours):,}", "hours played"),
     ]
     y0, row_h = 300, 84

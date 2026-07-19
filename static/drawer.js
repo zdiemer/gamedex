@@ -121,7 +121,7 @@ function mineSectionHtml(row) {
 
   const stats = [];
   if (h.rating != null)
-    stats.push([`${Math.round(h.rating * 100)}`, "My rating", ratingClass(h.rating)]);
+    stats.push([`${Math.round(h.rating * 100)}`, "Your rating", ratingClass(h.rating)]);
   if (h.playTime != null) stats.push([fmtHours(h.playTime), "Time played", ""]);
   if (!grouped && typeof mineStatCells === "function") stats.push(...mineStatCells(row._k));
   if (h.price != null) stats.push([`$${Number(h.price).toFixed(2)}`, "Paid", ""]);
@@ -133,7 +133,7 @@ function mineSectionHtml(row) {
   // of each other ("Added & Bought" when you logged it the day you bought it).
   const byDay = new Map();
   for (const [label, v] of [["Added", h.added], ["Bought", h.purchased],
-                            ["Started", h.started], ["Finished", h.finished]]) {
+                            ["Started", h.started], ["Completed", h.finished]]) {
     if (!v) continue;
     const day = String(v).slice(0, 10);              // ISO day — sorts chronologically as text
     if (!byDay.has(day)) byDay.set(day, { v, labels: [] });

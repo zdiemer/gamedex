@@ -146,7 +146,7 @@ const HEALTH_CHECKS = [
   },
   {
     id: "order", severity: "error", sheet: "games",
-    title: "Finished before it was started",
+    title: "Completed before it was started",
     why: "Date Completed is earlier than Date Started, so one of the two dates is wrong.",
     find: () => hzGames().filter((r) => r.dateStarted && r.dateCompleted && r.dateCompleted < r.dateStarted),
   },
@@ -173,7 +173,7 @@ const HEALTH_CHECKS = [
   },
   {
     id: "stalled", severity: "info", sheet: "games",
-    title: "Started, never finished, not marked as playing",
+    title: "Started, never completed, not marked as playing",
     why: "Has a Date Started but isn't Completed and has no Playing Status. Abandoned, or just untracked?",
     find: () => hzGames().filter((r) => r.dateStarted && !r.completed && !r.playingStatus),
   },
@@ -307,7 +307,7 @@ const HEALTH_CHECKS = [
       const d = hzEditDistance(a, b);
       return d > 0 && d <= 2 && Math.min(a.length, b.length) >= 10;
     }),
-    detail: (r) => `sheet: "${r.title}" · IGDB: "${(ENRICH[r._k] || {}).name}"`,
+    detail: (r) => `library: "${r.title}" · IGDB: "${(ENRICH[r._k] || {}).name}"`,
   },
   {
     id: "sequel", severity: "warn", sheet: "games",
@@ -321,12 +321,12 @@ const HEALTH_CHECKS = [
       if (!e || !e.name || e.manualMatch) return false;
       return hzSequelMismatch(r.title, e.name);
     }),
-    detail: (r) => `sheet: "${r.title}" · IGDB: "${(ENRICH[r._k] || {}).name}"`,
+    detail: (r) => `library: "${r.title}" · IGDB: "${(ENRICH[r._k] || {}).name}"`,
   },
   {
     id: "incompletecol", severity: "info", sheet: "games",
-    title: "Collections you've only partly finished",
-    why: "A compilation where you've beaten some of the games inside but never marked the "
+    title: "Collections you've only partly completed",
+    why: "A compilation where you've completed some of the games inside but never marked the "
        + "collection itself complete. Either there's more to play, or the parent row needs ticking.",
     find: () => {
       if (typeof buildCollections !== "function") return [];
@@ -341,7 +341,7 @@ const HEALTH_CHECKS = [
     },
     detail: (r) => {
       const c = typeof collectionOfParent === "function" ? collectionOfParent(r) : null;
-      return c ? `${c.members.length} of its games finished, collection not marked complete` : "";
+      return c ? `${c.members.length} of its games completed, collection not marked complete` : "";
     },
   },
   {
@@ -398,6 +398,34 @@ function healthPager(id, total, page) {
   </div>`;
 }
 
+// How much of the library each metadata source has matched. This used to sit in
+// every listing's result bar; it's plumbing detail, and this page is where the
+// plumbing gets looked at. Reads the stats updateEnrichStatus (enrich.js) stashes.
+const HZ_SOURCE_LABEL = {
+  hltb: "HowLongToBeat", metacritic: "Metacritic", gameye: "GameEye",
+  arcadedb: "ArcadeDB", vndb: "VNDB", thumby: "Thumby", vgchartz: "VGChartz",
+  steamx: "Steam extras", speedrun: "Speedrun.com", guides: "StrategyWiki",
+  cooptimus: "Co-Optimus", manuals: "Manuals", gametdb: "GameTDB",
+  pcgw: "PCGamingWiki", wikidata: "Wikidata", khinsider: "Soundtracks",
+};
+function hzMatchDashboard() {
+  const s = typeof ENRICH_STATS !== "undefined" && ENRICH_STATS;
+  if (!s || !s.total) return "";
+  const pill = (label, matched) =>
+    `<span class="hz-pill hz-match">${escapeHtml(label)} <b>${(matched || 0).toLocaleString()}</b></span>`;
+  const pills = [pill("IGDB", s.matched)];
+  for (const [key, src] of Object.entries(s.sources || {})) {
+    pills.push(pill(HZ_SOURCE_LABEL[key] || key, src.matched));
+  }
+  let queued = s.queued || 0;
+  for (const src of Object.values(s.sources || {})) queued += src.queued || 0;
+  return `<div class="hz-matches">
+    <h2>Metadata matches <span class="muted">of ${s.total.toLocaleString()} games${
+      queued ? ` · ${queued.toLocaleString()} queued` : ""}</span></h2>
+    <div class="hz-summary">${pills.join("")}</div>
+  </div>`;
+}
+
 function renderHealth() {
   const host = $("#health");
   if (!DATA) return;
@@ -416,6 +444,7 @@ function renderHealth() {
         <span class="hz-pill sev-warn">${warns} warning${warns !== 1 ? "s" : ""}</span>
         <span class="hz-pill sev-info">${results.filter((x) => x.c.severity === "info" && x.rows.length).length} gaps</span>
       </div>
+      ${hzMatchDashboard()}
     </div>
     <div class="hz-list">` +
     results.map(({ c, rows }) => {
