@@ -134,15 +134,36 @@ const MINE_PLAT_FAMILY = {
              "nintendo 3ds"],
 };
 
-/* The sheet's own Completion Time for this key, when this provider's family
-   covers the row's platform; null otherwise. Linear scan, same as every other
-   _k → row lookup. */
-function mineSheetHours(key, provider) {
+// key → games-sheet row, memoized per rows array so a data reload rebuilds it.
+let _mineRowIdx = null, _mineRowSrc = null;
+function mineRowOf(key) {
+  const rows = (((typeof DATA !== "undefined" && DATA ? DATA.sheets : {}) || {}).games || {}).rows || [];
+  if (rows !== _mineRowSrc) {
+    _mineRowSrc = rows;
+    _mineRowIdx = new Map(rows.map((r) => [r._k, r]));
+  }
+  return _mineRowIdx.get(key);
+}
+
+/* A provider's story belongs on the copy it happened on — the Steam clock on
+   the PC row, trophies on the PlayStation row. The matcher ties one app to
+   every row sharing the IGDB id, so a combined card's PS5 copy arrives
+   carrying Steam hours; the glance surfaces (pills, stat cells) skip those.
+   A row the sheet can't resolve keeps everything. */
+function mineOnHomePlatform(key, provider) {
   const fam = MINE_PLAT_FAMILY[provider];
-  if (!fam || !DATA) return null;
-  const r = (((DATA.sheets || {}).games || {}).rows || []).find((x) => x._k === key);
+  const r = mineRowOf(key);
+  const plat = r && String(r.platform || "").toLowerCase();
+  if (!fam || !plat) return true;
+  return fam.includes(plat);
+}
+
+/* The sheet's own Completion Time for this key, when this provider's family
+   covers the row's platform; null otherwise. */
+function mineSheetHours(key, provider) {
+  const r = mineRowOf(key);
   if (!r || !r.completionTime) return null;
-  return fam.includes(String(r.platform || "").toLowerCase()) ? r.completionTime : null;
+  return mineOnHomePlatform(key, provider) ? r.completionTime : null;
 }
 
 // Close = the platform's clock is retelling the sheet's own number — within 20%
@@ -157,6 +178,7 @@ function mineCloseToSheet(key, provider, hours) {
 function minePillsHtml(key) {
   const pills = [];
   for (const [p, it] of mineEntries(key)) {
+    if (!mineOnHomePlatform(key, p)) continue;
     const verb = MINE_PROVIDERS[p].verb;
     if (it.playtimeMin != null && it.playtimeMin > 0
         && !mineCloseToSheet(key, p, it.playtimeMin / 60))
@@ -177,6 +199,7 @@ function minePillsHtml(key) {
 function mineStatCells(key) {
   const cells = [];
   for (const [p, it] of mineEntries(key)) {
+    if (!mineOnHomePlatform(key, p)) continue;
     if (it.playtimeMin != null && it.playtimeMin > 0
         && !mineCloseToSheet(key, p, it.playtimeMin / 60))
       cells.push([fmtHours(it.playtimeMin / 60), `Played (${MINE_PROVIDERS[p].label})`, ""]);
