@@ -36,6 +36,12 @@ const SIM_MIN_SCORE = 5.0;    // below this a match is noise, not a recommendati
 const SIM_MIN_SHARED = 2;     // need at least two shared features…
 const SIM_STRONG = 5.0;       // …unless one alone is this informative (franchise, rare keyword)
 const SIM_TOP_N = 12;
+// Franchise siblings are the most ACCURATE matches and the least USEFUL ones —
+// you already know the other Zelda games exist, and the franchise facet is one
+// click away. They get a few slots as a courtesy; the rest of the row is
+// reserved for discovery, which means games that earned their way in without
+// the family name.
+const SIM_FRANCHISE_CAP = 3;
 
 // One game's feature set: Map("f:zelda" -> {w, label}). Tokens are namespaced
 // by category and normalised through the same canon* spellings the facets use,
@@ -64,6 +70,12 @@ function simTokensOf(e, row) {
     if (row.developer) add("d", canonDev(row.developer));
     if (row.genre) add("g", canonGenre(row.genre));
     if (row.publisher) add("pub", canonPub(row.publisher));
+  }
+  // Self-published games list the same company as developer AND publisher, and
+  // crediting it twice made "Nintendo · Nintendo" a stronger claim than a
+  // shared keyword. One company, one token — the developer slot wins.
+  for (const k of [...t.keys()]) {
+    if (k.startsWith("pub:") && t.has("d:" + k.slice(4))) t.delete(k);
   }
   return t;
 }
@@ -126,15 +138,17 @@ function similarByFeatures(detail, row) {
   }
   if (q.size < 2) return [];   // nothing to compare on; the block just hides
 
-  const hits = new Map();      // cand index -> running {score, shared, max}
+  const hits = new Map();      // cand index -> running {score, shared, max, kin}
+  const isCompany = (k) => k.startsWith("d:") || k.startsWith("pub:");
   for (const [k, qt] of q) {
     const list = postings.get(k);
     if (!list) continue;
     const contrib = qt.w * idf.get(k);
     for (const i of list) {
       let h = hits.get(i);
-      if (!h) hits.set(i, (h = { score: 0, shared: 0, max: 0 }));
+      if (!h) hits.set(i, (h = { score: 0, shared: 0, max: 0, kin: false }));
       h.score += contrib; h.shared++; if (contrib > h.max) h.max = contrib;
+      if (!isCompany(k)) h.kin = true;
     }
   }
 
@@ -156,13 +170,31 @@ function similarByFeatures(detail, row) {
     }
     if (score < SIM_MIN_SCORE) continue;
     if (h.shared < SIM_MIN_SHARED && h.max < SIM_STRONG) continue;
+    // Sharing only a company is a catalog, not a kinship — every publisher
+    // spans genres. Something about the GAMES must overlap (franchise,
+    // keyword, theme, genre, mode…) before a studio-mate can take a seat.
+    if (!h.kin) continue;
     scored.push({ c, score });
   }
   scored.sort((a, b) => (b.score - a.score) || ((b.c.e.rating || 0) - (a.c.e.rating || 0)));
 
+  // Seat the list: same-franchise candidates outscore everything (that's the
+  // weights working), so without the cap they'd fill every slot. Walk the
+  // ranking, let SIM_FRANCHISE_CAP of them through, and give the remaining
+  // seats to the best cross-franchise matches. No backfill past the cap — a
+  // short honest list beats one padded with sequels.
+  const qFran = [...q.keys()].filter((k) => k.startsWith("f:"));
+  const seated = [];
+  let fran = 0;
+  for (const s of scored) {
+    if (seated.length >= SIM_TOP_N) break;
+    if (qFran.some((k) => s.c.tokens.has(k)) && ++fran > SIM_FRANCHISE_CAP) continue;
+    seated.push(s);
+  }
+
   // "Why" — the top shared features by contribution, for the card tooltip.
   // Only computed for the dozen finalists; the intersection is tiny by then.
-  return scored.slice(0, SIM_TOP_N).map(({ c }) => {
+  return seated.map(({ c }) => {
     const shared = [];
     for (const [k, qt] of q) {
       if (c.tokens.has(k)) shared.push({ label: qt.label, v: qt.w * (idf.get(k) || 0) });
