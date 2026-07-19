@@ -192,6 +192,10 @@ function groupRow(g, fullMs) {
     _groupId: g._group,
     // Every copy when the caller told us the universe; the filtered ones otherwise.
     _members: fullMs && fullMs.length > ms.length ? fullMs : ms,
+    // The copies the averages above were computed over — so collectionValueOf
+    // and the drawer's group history aggregate over the SAME set instead of
+    // _members, which under a filter is the wider universe.
+    _aggMembers: ms,
     _platforms: platforms,
     completed: ms.some((r) => r.completed),
     owned: ms.some((r) => r.owned),

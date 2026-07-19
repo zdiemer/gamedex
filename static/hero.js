@@ -121,7 +121,10 @@ function heroStatsHtml(row) {
   const pt = playtimeOf(row);
   if (pt != null) cells.push([fmtHours(pt), e.hltbBest != null ? "HowLongToBeat" : "Est. playtime", ""]);
   // The hours the platform itself counted — real, not estimated (see mine.js).
-  if (typeof mineStatCells === "function") cells.push(...mineStatCells(row._k));
+  // Not on a combined card: its _k is the lead copy's, so the lead's Steam clock
+  // would pose as the group's number (drawer.js guards its pills the same way).
+  const grouped = !!(row._members && row._members.length > 1);
+  if (!grouped && typeof mineStatCells === "function") cells.push(...mineStatCells(row._k));
   const units = salesOf(row);
   if (units != null) cells.push([fmtUnits(units), "Units sold", ""]);
   const cv = collectionValueOf(row);
@@ -241,9 +244,18 @@ function heroHtml(row, titleText) {
     : coverPending(row)
       ? `<div class="cover-big skel" id="heroCover"></div>`
       : `<div class="cover-big ph" id="heroCover">${icon("i-library", 40)}</div>`;
-  const bits = [row.platform, row.releaseYear || row.releaseDate || row.release, row.genre]
-    .filter((x) => x != null && x !== "")
-    .map((x) => `<span class="pill facet-link" data-fk="${x === row.platform ? "platform" : x === row.genre ? "genre" : "releaseYear"}" data-fv="${escapeHtml(String(x))}">${escapeHtml(String(x))}</span>`);
+  // A group's platform is a joined label ("PS4 · PC · Switch") — as one facet
+  // value it filters for a platform no row has, so the pill led to an empty
+  // result. Pill each real platform instead; each click filters to that copy.
+  const pill = (fk, v) => `<span class="pill facet-link" data-fk="${fk}" data-fv="${escapeHtml(String(v))}">${escapeHtml(String(v))}</span>`;
+  const plats = row._platforms && row._platforms.length > 1 ? row._platforms
+    : row.platform != null && row.platform !== "" ? [row.platform] : [];
+  const year = row.releaseYear || row.releaseDate || row.release;
+  const bits = [
+    ...plats.map((p) => pill("platform", p)),
+    ...(year != null && year !== "" ? [pill("releaseYear", year)] : []),
+    ...(row.genre != null && row.genre !== "" ? [pill("genre", row.genre)] : []),
+  ];
   // The pills can only carry the YEAR — that's the facet you can click. The exact day was
   // in the sheet all along and surfaced nowhere but the Raw data disclosure, so say it
   // here, in plain text, next to the year it belongs to.

@@ -468,9 +468,14 @@ function renderIgdbSection(key, el, status, detail) {
          <div class="skel skel-line"></div><div class="skel skel-line"></div>
          <div class="skel skel-line short"></div>`;
   }
+  // The Steam store panel (Deck rating, ProtonDB) and PCGamingWiki are the PC
+  // copy's story — the enricher joins them on the Steam appid it finds for ANY
+  // copy of the game, so gate them off the row's platform family the way the
+  // mine surfaces do. An unresolvable key keeps them (mineOnHomePlatform's rule).
+  const pcCopy = typeof mineOnHomePlatform !== "function" || mineOnHomePlatform(key, "steam");
   el.innerHTML = content + hltbHtml(HLTBC[key]) + speedrunHtml(key) + metacriticHtml(key)
-    + coopHtml(key) + steamxHtml(key) + arcadeHtml(key) + vndbHtml(key) + thumbyHtml(key) + guidesHtml(key)
-    + soundtrackHtml(key) + pcgwHtml(key) + salesHtml(key) + physicalHtml(key) + wikidataHtml(key)
+    + coopHtml(key) + (pcCopy ? steamxHtml(key) : "") + arcadeHtml(key) + vndbHtml(key) + thumbyHtml(key) + guidesHtml(key)
+    + soundtrackHtml(key) + (pcCopy ? pcgwHtml(key) : "") + salesHtml(key) + physicalHtml(key) + wikidataHtml(key)
     + gameyeHtml(key) + (IS_ADMIN ? mapControlHtml(key) : "");   // "Fix mapping" is a write — admin only
 
   wireSoundtrack(key, el);   // collapse/expand the tracklist, drive the docked player

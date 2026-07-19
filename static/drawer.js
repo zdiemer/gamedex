@@ -63,6 +63,39 @@ function rowsByK() {
 // Games was showing a thinner history than the app already knew. Join them on the match
 // key and let each fact come from wherever it exists.
 function historyOf(row) {
+  // A group's history is the union of its copies' — earliest dates, latest
+  // finish, any copy's ownership, hours and dollars added up — not the lead's
+  // row wearing the group's name: that put the lead's rating next to the hero's
+  // averaged one, two "Your rating" tiles disagreeing in the same drawer. The
+  // lead goes first so single-copy facts (status, review, format) still prefer
+  // the copy the card is titled after; _aggMembers keeps the basis the same set
+  // the hero's averages were computed over.
+  const ms = row._members && row._members.length > 1
+    ? (row._aggMembers || row._members) : null;
+  if (ms && ms.length > 1) {
+    const hs = [...ms].sort((a, b) => (b._k === row._k) - (a._k === row._k)).map(historyOf);
+    const has = (v) => v !== undefined && v !== null && v !== "";
+    const pick = (f) => { const h = hs.find((x) => has(x[f])); return h ? h[f] : null; };
+    const day = (f, last) => {
+      const ds = hs.map((x) => x[f]).filter(has).sort((a, b) => String(a).localeCompare(String(b)));
+      return ds.length ? ds[last ? ds.length - 1 : 0] : null;
+    };
+    const sum = (f) => {
+      const vs = hs.map((x) => x[f]).filter((v) => has(v) && !isNaN(Number(v)));
+      return vs.length ? vs.reduce((s, v) => s + Number(v), 0) : null;
+    };
+    return {
+      rating: has(row.rating) ? row.rating : pick("rating"),   // the hero's average, not the lead's
+      playTime: sum("playTime"), price: sum("price"),
+      started: day("started"), finished: day("finished", true),
+      added: day("added"), purchased: day("purchased"),
+      condition: pick("condition"), format: pick("format"),
+      status: pick("status"), progress: pick("progress"), priority: pick("priority"),
+      owned: hs.some((x) => x.owned), beaten: hs.some((x) => x.beaten),
+      emulated: hs.some((x) => x.emulated), steamDeck: hs.some((x) => x.steamDeck),
+      review: pick("review"), note: pick("note"),
+    };
+  }
   const idx = rowsByK();
   const g = idx.games.get(row._k) || (row.title !== undefined ? row : null);
   const c = idx.completed.get(row._k) || (row.game !== undefined ? row : null);

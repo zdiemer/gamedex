@@ -61,8 +61,11 @@ function launchTarget(row) {
   // The appid from MY linked Steam library. It corrects two things at once:
   // IGDB's external_games sometimes names an appid I don't own (Fallout: New
   // Vegas), and a game IGDB never matched can still be launchable if the
-  // library says I have it.
-  const ownedSteam = typeof mineSteamAppId === "function" ? mineSteamAppId(row._k) : null;
+  // library says I have it. PC-family rows only: the matcher ties the app to
+  // every copy of the game, and the Switch copy was offering "Play on Steam"
+  // with the PC sibling's appid.
+  const ownedSteam = typeof mineSteamAppId === "function" && mineOnHomePlatform(row._k, "steam")
+    ? mineSteamAppId(row._k) : null;
   if ((!e || !e.stores) && !ownedSteam) return null;
   const notes = String(row.notes || "");
   const want = NOTES_STORE[notes] || PLATFORM_STORE[row.platform] || null;
@@ -355,9 +358,11 @@ const r0 = (v) => typeof v === "number" && v > 0;   // a real price, not free/bl
 
 function collectionValueOf(row) {
   // A group card averages its copies' values, nulls excluded — same aggregation
-  // as the group row's other value fields (GROUP_AVG_KEYS, relations.js).
+  // AND same copies as the group row's other value fields (_aggMembers,
+  // relations.js): under a filter _members is the full universe, and averaging
+  // over it made "Value" count copies the rating didn't.
   if (row._members && row._members.length > 1) {
-    const vs = row._members.map(collectionValueOf).filter((v) => v != null);
+    const vs = (row._aggMembers || row._members).map(collectionValueOf).filter((v) => v != null);
     return vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null;
   }
   const e = ENRICH[row._k];
@@ -366,6 +371,15 @@ function collectionValueOf(row) {
   return price != null ? price * quantityFromNotes(row.notes) : null;
 }
 function bucketLabel(v, buckets) { for (const b of buckets) if (b.test(v)) return b.label; return null; }
+
+// Steam-appid-joined facts (Deck rating, Proton tier, ultrawide) are about the
+// PC copy; the enricher attaches them to every copy of the game, so those
+// facets skip rows from other platform families. A blank platform keeps them —
+// the same benefit of the doubt mineOnHomePlatform gives.
+const pcFacetRow = (r) => {
+  const p = String(r.platform || "").toLowerCase();
+  return !p || MINE_PLAT_FAMILY.steam.includes(p);
+};
 
 // What each source found for a row (used by the metadata facets).
 const metaOf = (row) => {
@@ -450,10 +464,10 @@ function extraFacetCols(tab = activeTab) {
     // You track Steam Deck completions in the sheet — now you can filter the
     // backlog down to what Valve says actually runs on it.
     { key: "__deck", label: "Steam Deck", type: "text", facet: true, virtual: true, kind: "fn",
-      getVals: (r) => { const e = ENRICH[r._k]; return e && e.deck ? [e.deck] : []; } },
+      getVals: (r) => { const e = ENRICH[r._k]; return e && e.deck && pcFacetRow(r) ? [e.deck] : []; } },
     { key: "__proton", label: "ProtonDB", type: "text", facet: true, virtual: true, kind: "fn",
       // The API returns "platinum"; it's a tier, not a word in a sentence.
-      getVals: (r) => { const e = ENRICH[r._k]; return e && e.protonTier ? [titleCase(e.protonTier)] : []; } },
+      getVals: (r) => { const e = ENRICH[r._k]; return e && e.protonTier && pcFacetRow(r) ? [titleCase(e.protonTier)] : []; } },
     { key: "__steamrev", label: "Steam reviews", type: "text", facet: true, virtual: true, kind: "bucket",
       buckets: METACRITIC_BUCKETS, getVal: (r) => { const e = ENRICH[r._k]; return e && e.steamReview; } },
     // What we think you'd score it — a filter for "things I'd probably love".
@@ -462,7 +476,7 @@ function extraFacetCols(tab = activeTab) {
     // PCGamingWiki, joined on the Steam appid. "true"/"false"/"hackable"/"limited" is the
     // wiki's own vocabulary — keep its words, they mean something ("hackable" is not "yes").
     { key: "__ultrawide", label: "Ultrawide", type: "text", facet: true, virtual: true, kind: "fn",
-      getVals: (r) => { const e = ENRICH[r._k]; return e && e.pcgwUltrawide ? [titleCase(e.pcgwUltrawide)] : []; } },
+      getVals: (r) => { const e = ENRICH[r._k]; return e && e.pcgwUltrawide && pcFacetRow(r) ? [titleCase(e.pcgwUltrawide)] : []; } },
     // Who scored it. Wikidata is the only source in the app that knows, and filtering a
     // collection by composer is a thing you simply could not do before.
     { key: "__composer", label: "Composer", type: "text", facet: true, virtual: true, kind: "fn",
