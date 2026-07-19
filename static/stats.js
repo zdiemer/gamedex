@@ -105,8 +105,8 @@ const STATS_SECTIONS = [
   { id: "reviews", label: "Reviews" },
 ];
 const STATS_NAV_BLURB = {
-  year: "Your year in games: heatmap, the best of it, and the backlog burn-down.",
-  completed: "Everything you've finished: playthroughs, your taste, and you against the critics.",
+  year: "Your year in games. A heatmap, the best of what you played, and the backlog burn-down.",
+  completed: "Everything you've completed: playthroughs, your taste, and you against the critics.",
   backlog: "What's left to play, by platform, genre, length and status.",
   purchases: "Spending, collection value, and how long games sit before you play them.",
   reviews: "The words behind your scores, and how well the rating model does.",
@@ -548,11 +548,11 @@ function renderStatsCompleted(rows, games) {
       statPanel("Most hours played", barsH(longest, { fmt: (v) => v + "h" }), "",
         "Hours at the pad. For the games that took the longest in CALENDAR time, see the slow burns below."),
       statPanel("Longest playthroughs (start → finish)", barsH(slowBurn, { fmt: fmtSpan }), "",
-        "Calendar time from your first session to the credits. A slow burn, not necessarily a long game."),
+        "Calendar time from first session to credits. A big number here just means it sat around a while, not that the game is long."),
       statPanel("Biggest me-vs-critic gaps", barsH(gaps, { fmt: (v) => (v > 0 ? "+" : "") + v, diverging: true }), "",
         "Green: you rated it higher than the critics did. Red: lower."),
       statPanel("Hardest you've binged", barsH(bingeRows, { fmt: (v) => v + "h/day" }), "",
-        "Hours played divided by the days it took. The top of this list is a lost weekend."),
+        "Hours played divided by the days it took. The top of this list was probably a lost weekend."),
       statPanel("Most overlapping playthroughs",
         intervals(ivl, peakOn ? { from: PK - WIN, to: PK + WIN } : {}), "wide",
         peak ? `Your busiest stretch: ${peak} games on the go at once, around ${peakOn ? fmtDate(peakOn) : "—"}. Each bar is one playthrough and stacks when it overlaps another. The height of the pile is how many you were juggling. A bar that runs off an edge was already under way. Click one to open it.`
@@ -563,7 +563,7 @@ function renderStatsCompleted(rows, games) {
         "How long a game sat between paying for it and finishing it. Click a bar to open the game."),
       statPanel("Bought → started", barsV(bsData), "wide",
         bsMed != null
-          ? `Half the games you start, you start within ${fmtSpan(bsMed)} of buying them, but the average is ${fmtSpan(bsAvg)}, dragged out by the tail on the right. The shape is what matters: you either play it almost at once, or it sits for years. That right-hand spike is the backlog.`
+          ? `Half the games you start, you start within ${fmtSpan(bsMed)} of buying them, but the average is ${fmtSpan(bsAvg)}, dragged out by the tail on the right. The shape is what matters here: you either play it almost at once, or it sits for years (that right-hand spike is the backlog).`
           : "Needs both a purchase date and a start date."),
     ]);
 }

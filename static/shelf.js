@@ -900,8 +900,8 @@ function openCoverEditor({ key, platform, title, hasUpload, caseDefault, existin
   depthEl.value = depth;
 
   const HINTS = {
-    wrap: "A full wrap: back, spine, front in one image. Drag the two lines onto the spine; we slice there and the front takes its own shape.",
-    front: "Just the front cover. Drag the box to crop away any margin or background. The case takes the shape of what you keep, and we color a spine and make a stand-in back.",
+    wrap: "A full wrap (back, spine, and front in one image). Drag the two lines onto the spine and it gets sliced there.",
+    front: "Just the front cover. Drag the box to crop out any margin or background, and the case takes the shape of whatever you keep (with a stand-in spine and back).",
   };
 
   // The rotated image's on-screen dimensions (what the guides and slicing act on).

@@ -131,7 +131,7 @@ function reviewStats(rows) {
       `Your writing tracks your scores at r=${corr.toFixed(2)}; these ${flagged.length} drift furthest. You wrote about ` +
       `these more warmly than most games you scored this low. Judged by rank, so it isn't just your bottom scores.`));
     if (harsher.length) mismPanels.push(statPanel("Harsher in words than in score", barsH(harsher, { fmt: (v) => v + " pts colder" }), "",
-      "Scored high, but the review reads cooler than most games you rated this well. A nitpicker's love. Click one to reread it."));
+      "Scored high, but the review reads cooler than most games you rated this well. Basically a nitpicker's love. Click one to reread it."));
   }
 
   const panels = [

@@ -30,7 +30,7 @@ const GROUPINGS = [
   { id: "developer", label: "Developers", icon: "i-edit", vals: (r) => unifiedDevVals(r),
     units: "studios", blurb: "Every studio you own something by, and what you never got around to." },
   { id: "publisher", label: "Publishers", icon: "i-package", vals: (r) => unifiedPubVals(r),
-    units: "publishers", blurb: "Who put it on the shelf, rather than who made it." },
+    units: "publishers", blurb: "Grouped by who published it, not who made it." },
   { id: "genre", label: "Genres", icon: "i-target", vals: (r) => unifiedGenreVals(r),
     units: "genres", blurb: "What you actually play, as opposed to what you buy." },
   { id: "platform", label: "Platforms", icon: "i-dice", vals: (r) => (r.platform ? [r.platform] : []),
@@ -39,11 +39,11 @@ const GROUPINGS = [
   // the one axis a genre can't express — plenty of games are "Action" and the only real
   // difference is where the camera sits.
   { id: "keyword", label: "Keywords", icon: "i-star", vals: (r) => igdbVals(r, "keywords"),
-    units: "keywords", blurb: "IGDB's finest-grained vocabulary: metroidvania, soulslike, cozy, story rich." },
+    units: "keywords", blurb: "IGDB's finest-grained tags (metroidvania, soulslike, cozy, story rich)." },
   { id: "perspective", label: "Perspective", icon: "i-target", vals: (r) => igdbVals(r, "perspectives"),
-    units: "perspectives", blurb: "Where the camera sits. First person, side view, isometric: the thing genre never says." },
+    units: "perspectives", blurb: "Where the camera sits (first person, side view, isometric). It's the one thing genre doesn't tell you." },
   { id: "engine", label: "Engines", icon: "i-package", vals: (r) => igdbVals(r, "engines"),
-    units: "engines", blurb: "What it was built in. Everything you own running on Unreal, or on Godot." },
+    units: "engines", blurb: "What it was built in, so everything you own running on Unreal, or on Godot." },
 ];
 const grouping = (id) => GROUPINGS.find((g) => g.id === id);
 
@@ -358,7 +358,7 @@ function renderGroupMenu(host) {
   host.innerHTML =
     `<div class="fr-index-head">
       <h1>Collections</h1>
-      <p>Your collection, cut along whichever axis you care about. Each one shows what you own,
+      <p>Your collection, cut along whichever axis you care about. Each collection shows what you own,
          what you've completed, how far through you are, and what to play next.</p>
     </div>
     <div class="gr-tiles">${tiles}</div>`;
