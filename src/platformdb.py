@@ -363,6 +363,16 @@ class PlatformDB:
                  "globalPct": r[7], "unlocked": bool(r[8]), "unlockedAt": r[9]}
                 for r in rows]
 
+    def apps_with_unlocked(self, provider: str) -> set[str]:
+        """Apps with at least one EARNED achievement — the matcher's "actually
+        played this" signal for providers whose clock doesn't cover the game
+        (Sony reports no minutes for PS3/Vita; Xbox none at all pre-One)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT DISTINCT app_id FROM achievements WHERE provider=? AND unlocked=1",
+                (provider,)).fetchall()
+        return {r[0] for r in rows}
+
     def apps_with_achievements(self, provider: str) -> set[str]:
         with self._lock:
             rows = self._db.execute(

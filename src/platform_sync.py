@@ -564,6 +564,7 @@ class PlatformSync:
             return [k for k in keys if key_platform.get(k) in side] or None
 
         games = self._db.lib_games(provider)
+        earned = self._db.apps_with_unlocked(provider)
         matched = appid_hits = title_hits = fuzzy_hits = 0
         owned_appid_keys = []     # keys whose owned appid should refresh steamx/pcgw
         per_app = {}              # written in ONE transaction at the end
@@ -594,20 +595,25 @@ class PlatformSync:
                 continue
             # Fuzzy, cheap tier: one fragment-index lookup. Unique full-norm
             # across every shared fragment or nothing — a fragment like a bare
-            # franchise name hits many games and means we don't know.
+            # franchise name hits many games and means we don't know. (The
+            # ambiguous union isn't wasted: it seeds the expensive tier below,
+            # where the real fuzzy comparison can pick the one true hit out of
+            # a franchise's worth of siblings.)
             norms = set()
             for f in self._frags(g["name"]):
                 norms |= frag_index.get(f, set())
             keys = by_platform(by_norm.get(next(iter(norms))), gplat) if len(norms) == 1 else None
             # Expensive tier (edit-distance typos, long-substring containment):
-            # only for games with actual hours — the rest of a 5,000-app
+            # only for games actually played — the rest of a 5,000-app
             # library isn't worth a scan each, and the cheap tiers already
-            # caught everything systematic. Xbox never has minutes, so earned
-            # gamerscore stands in as its "actually played this" signal.
+            # caught everything systematic. Hours don't cover everything:
+            # Xbox never has minutes (earned gamerscore stands in) and Sony
+            # reports none for PS3/Vita (an earned trophy stands in).
             played = (g["playtimeMin"] or 0) > 0 \
-                or ((g.get("extra") or {}).get("gamerscore") or 0) > 0
+                or ((g.get("extra") or {}).get("gamerscore") or 0) > 0 \
+                or aid in earned
             if not keys and played:
-                hit = self._fuzzy_scan(g["name"], norm, by_norm, meta)
+                hit = self._fuzzy_scan(g["name"], norm, by_norm, meta, norms)
                 keys = by_platform([hit], gplat) if hit else None
             if keys:
                 per_app[aid] = [(k, "fuzzy", None) for k in keys]
@@ -622,26 +628,54 @@ class PlatformSync:
                  provider, matched, len(games), appid_hits, title_hits, fuzzy_hits)
         self._requeue_corrected(provider, owned_appid_keys, appid_keys)
 
-    def _fuzzy_scan(self, name, norm, by_norm, meta) -> str | None:
+    def _match_strength(self, name, cand_title) -> int:
+        """2 when the titles agree on the WHOLE name or a whole subtitle —
+        1 when they only fuzzy-match through a weak branch (a shared franchise
+        prefix left of the colon, edit distance, containment). Every "Ratchet
+        & Clank: <subtitle>" passes titles_equal_fuzzy against every other,
+        which reads as strength 1; only the row whose subtitle actually equals
+        the game's reads as 2."""
+        v = self._validator
+        if v.titles_equal_normalized(name, cand_title) or v.titles_equal_normalized(
+                self._POSSESSIVE_RE.sub("", name), self._POSSESSIVE_RE.sub("", cand_title)):
+            return 2
+        for sep in (":", " - "):
+            if sep in name and sep in cand_title:
+                r1 = self._ARTICLES_RE.sub("", name.split(sep, 1)[1].strip())
+                r2 = self._ARTICLES_RE.sub("", cand_title.split(sep, 1)[1].strip())
+                if r1 and r2 and v.titles_equal_normalized(r1, r2):
+                    return 2
+        return 1
+
+    def _fuzzy_scan(self, name, norm, by_norm, meta, frag_cands=frozenset()) -> str | None:
         """A UNIQUE fuzzy hit or nothing — a tie means we don't know, and a wrong
         match here quietly hangs my hours on someone else's game. Candidates are
         length-gated first: the only accept paths the fragment index doesn't
         already cover are edit distance <= 3 and long-substring containment,
-        and neither can fire outside these bounds."""
+        and neither can fire outside these bounds. frag_cands are exempt from
+        the gate: they share a whole subtitle fragment with the game, so the
+        title can be any length away ("Ratchet & Clank: A Crack in Time" is 6
+        edits from its sheet row's "Future" subtitle). Hits are tiered by
+        _match_strength so one whole-subtitle agreement beats any number of
+        franchise siblings; uniqueness is judged within the strongest tier."""
         if not name:
             return None
-        hit_norm = None
+        tiers: dict[int, set] = {}
         for cand, keys in by_norm.items():
-            plausible = abs(len(cand) - len(norm)) <= 3 \
+            plausible = cand in frag_cands \
+                or abs(len(cand) - len(norm)) <= 3 \
                 or (len(norm) > 15 and norm in cand) \
                 or (len(cand) > 15 and cand in norm)
             if not plausible:
                 continue
-            if self._validator.titles_equal_fuzzy(name, meta[keys[0]].get("title") or ""):
-                if hit_norm is not None and hit_norm != cand:
-                    return None
-                hit_norm = cand
-        return by_norm[hit_norm][0] if hit_norm else None
+            title = meta[keys[0]].get("title") or ""
+            if self._validator.titles_equal_fuzzy(name, title):
+                tiers.setdefault(self._match_strength(name, title), set()).add(cand)
+        for s in (2, 1):
+            cands = tiers.get(s)
+            if cands:
+                return by_norm[next(iter(cands))][0] if len(cands) == 1 else None
+        return None
 
     def _requeue_corrected(self, provider, owned_appid_keys, appid_keys):
         """Where the appid I actually own differs from the one IGDB guessed,
