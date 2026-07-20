@@ -62,7 +62,13 @@ class XboxUserClient:
         # OpenXBL wraps the real payload in {"content": {...}, "code": 200}. Some
         # endpoints answer flat, so unwrap only when the envelope is present.
         if isinstance(j, dict) and "content" in j and isinstance(j["content"], (dict, list)):
-            return j["content"]
+            j = j["content"]
+        # Over the limit, OpenXBL answers 200 with a throttle notice instead of
+        # data ({"limitType": "Rate", "currentRequests": ...}). Left to flow
+        # through, that body reads as "no achievements" and the app gets
+        # permanently flagged noach — so it must raise, not return.
+        if isinstance(j, dict) and j.get("limitType") == "Rate":
+            raise RuntimeError("OpenXBL rate limit hit — try later")
         return j
 
     @staticmethod
@@ -120,6 +126,9 @@ class XboxUserClient:
     # ---- library -------------------------------------------------------------
     def fetch_library(self, creds: dict) -> list[dict]:
         j = self._get(creds, "/api/v2/player/titleHistory")
+        # titleHistory names the account's xuid; the x360 achievements endpoint
+        # needs it in the path (the modern one infers it from the key).
+        self._xuid = j.get("xuid") or self._xuid
         out = []
         for t in j.get("titles") or []:
             ach = t.get("achievement") or {}
@@ -150,7 +159,9 @@ class XboxUserClient:
             raise
         rows = j.get("achievements") or []
         if not rows:
-            return None
+            # Empty here doesn't mean the game has none: Xbox 360-era titles
+            # only answer on the x360 endpoint, in its own schema.
+            return self._fetch_achievements_x360(creds, app_id)
         out = []
         for a in rows:
             unlocked = str(a.get("progressState") or "").lower() == "achieved"
@@ -177,6 +188,52 @@ class XboxUserClient:
                 "globalPct": float(pct) if pct is not None else None,
                 "unlocked": unlocked,
                 "unlockedAt": prog.get("timeUnlocked") if unlocked else None,
+            })
+        return out
+
+    def _ensure_xuid(self, creds) -> str | None:
+        if not self._xuid:
+            j = self._get(creds, "/api/v2/player/titleHistory")
+            self._xuid = j.get("xuid")
+        return self._xuid
+
+    def _fetch_achievements_x360(self, creds: dict, app_id: str) -> list[dict] | None:
+        """Xbox 360 titles, which the modern endpoint answers with an empty
+        list. This one serves only the EARNED unlocks (Portal 2 at 18/50 comes
+        back as 18 rows) — the locked remainder isn't offered, so the grid for
+        a 360 game shows what was earned and the summary counts carry the
+        denominator. No mediaAssets either: imageId is a dashboard asset id,
+        not a URL, so 360 achievements go without icons."""
+        xuid = self._ensure_xuid(creds)
+        if not xuid:
+            return None
+        try:
+            j = self._get(creds, f"/api/v2/achievements/x360/{xuid}/title/{app_id}")
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                return None
+            raise
+        rows = j.get("achievements") or []
+        if not rows:
+            return None
+        out = []
+        for a in rows:
+            unlocked = (bool(a.get("unlocked")) or bool(a.get("unlockedOnline"))) \
+                and not a.get("isRevoked")
+            rarity = a.get("rarity") or {}
+            pct = rarity.get("currentPercentage")
+            out.append({
+                "id": str(a.get("id")),
+                "name": a.get("name"),
+                "description": (a.get("description")
+                                if unlocked else a.get("lockedDescription")) or a.get("description"),
+                "iconUrl": None,
+                "iconLockedUrl": None,
+                "hidden": bool(a.get("isSecret")),
+                "rarity": (rarity.get("currentCategory") or "").lower() or None,
+                "globalPct": float(pct) if pct is not None else None,
+                "unlocked": unlocked,
+                "unlockedAt": a.get("timeUnlocked") if unlocked else None,
             })
         return out
 

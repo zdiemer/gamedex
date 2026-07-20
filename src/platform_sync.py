@@ -266,9 +266,12 @@ class PlatformSync:
             (g for g in self._db.lib_games(provider)
              if g["appId"] in fresh or (g["appId"] not in have
                                         and not no_ach(g["appId"]))),
-            key=lambda g: g["playtimeMin"] or 0, reverse=True)
+            key=lambda g: (g["playtimeMin"] or 0,
+                           (g.get("extra") or {}).get("gamerscore") or 0),
+            reverse=True)
         # Most-played first: the games with hours on them are the ones whose
-        # achievement grid is worth seeing tonight, not in a week.
+        # achievement grid is worth seeing tonight, not in a week. Gamerscore
+        # breaks the tie for Xbox, where minutes don't exist at all.
         backlog = [g["appId"] for g in by_played if g["appId"] not in refresh]
         # Per-provider budget. Steam's Web API is generous, so it drains fast in
         # hot chunks; OpenXBL's free tier is 150 req/hr, so Xbox takes a small
@@ -590,8 +593,11 @@ class PlatformSync:
             # Expensive tier (edit-distance typos, long-substring containment):
             # only for games with actual hours — the rest of a 5,000-app
             # library isn't worth a scan each, and the cheap tiers already
-            # caught everything systematic.
-            if not keys and (g["playtimeMin"] or 0) > 0:
+            # caught everything systematic. Xbox never has minutes, so earned
+            # gamerscore stands in as its "actually played this" signal.
+            played = (g["playtimeMin"] or 0) > 0 \
+                or ((g.get("extra") or {}).get("gamerscore") or 0) > 0
+            if not keys and played:
                 hit = self._fuzzy_scan(g["name"], norm, by_norm, meta)
                 keys = by_platform([hit], gplat) if hit else None
             if keys:

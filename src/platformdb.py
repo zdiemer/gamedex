@@ -249,10 +249,11 @@ class PlatformDB:
     def lib_games(self, provider: str) -> list[dict]:
         with self._lock:
             rows = self._db.execute(
-                "SELECT app_id, name, playtime_min, playtime_2wk_min, last_played, platform"
-                " FROM lib_games WHERE provider=?", (provider,)).fetchall()
+                "SELECT app_id, name, playtime_min, playtime_2wk_min, last_played, platform,"
+                " extra FROM lib_games WHERE provider=?", (provider,)).fetchall()
         return [{"appId": r[0], "name": r[1], "playtimeMin": r[2],
-                 "playtime2wkMin": r[3], "lastPlayed": r[4], "platform": r[5]} for r in rows]
+                 "playtime2wkMin": r[3], "lastPlayed": r[4], "platform": r[5],
+                 "extra": json.loads(r[6]) if r[6] else {}} for r in rows]
 
     # ---- matching ----------------------------------------------------------
     def replace_matches(self, provider: str, app_id: str,
