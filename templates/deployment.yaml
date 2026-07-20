@@ -5,10 +5,19 @@ metadata:
   labels:
     {{- include "gamedex.labels" . | nindent 4 }}
 spec:
-  # Recreate: the IGDB cache PVC is RWO, so never two pods mounting it at once.
+  # One replica, but rollouts surge to two so deploys have no downtime: the new
+  # pod starts alongside the old and only takes traffic once its readiness gate
+  # (first Dropbox load) passes. The brief two-pod overlap on the RWO PVC is
+  # fine — local-path pins the volume to one node, RWO is node-scoped so both
+  # pods co-mount there, and SQLite's file locking handles the overlap on local
+  # disk. Two PERMANENT replicas would double the scrapers and refresh loops,
+  # so replicas stays at 1.
   replicas: 1
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "gamedex.selectorLabels" . | nindent 6 }}
