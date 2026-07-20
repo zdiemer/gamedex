@@ -51,7 +51,11 @@ _PLATFORM_FAMILY = {
     "psn": {"playstation", "playstation 2", "playstation 3", "playstation 4",
             "playstation 5", "playstation network", "playstation portable",
             "playstation vita"},
-    "xbox": {"xbox", "xbox 360", "xbox one", "xbox series x|s"},
+    # Xbox includes PC: Game Pass PC / Play Anywhere / GFWL titles live in the
+    # same account, and their achievements belong on the sheet's PC rows. The
+    # matcher's platform narrowing keeps each game on its own SIDE (console
+    # vs PC) via the devices-derived platform hint.
+    "xbox": {"xbox", "xbox 360", "xbox one", "xbox series x|s"} | _PC,
     "nintendo": {"nintendo switch", "nintendo switch 2", "nintendo wii u",
                  "nintendo 3ds"},
 }
@@ -546,13 +550,18 @@ class PlatformSync:
         def by_platform(keys, game_platform):
             """Narrow same-name matches to the game's OWN platform when it has
             one (a PS5 game keeps off the PS3 row); if nothing on that platform
-            matches, fall back to the name match so a platform-naming mismatch
-            doesn't drop the game entirely."""
+            matches, fall back to the game's SIDE of the family — console or
+            PC — so a platform-naming mismatch doesn't drop the game, but a
+            360 title can never hang its hours on a PC row. For families with
+            no PC in them the side IS the family, so nothing changes."""
             if not keys or not game_platform:
                 return keys
             gp = game_platform.lower()
             exact = [k for k in keys if key_platform.get(k) == gp]
-            return exact or keys
+            if exact:
+                return exact
+            side = _PC if gp in _PC else family - _PC
+            return [k for k in keys if key_platform.get(k) in side] or None
 
         games = self._db.lib_games(provider)
         matched = appid_hits = title_hits = fuzzy_hits = 0

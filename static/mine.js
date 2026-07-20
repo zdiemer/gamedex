@@ -129,7 +129,9 @@ const MINE_PLAT_FAMILY = {
   psn: ["playstation", "playstation 2", "playstation 3", "playstation 4",
         "playstation 5", "playstation network", "playstation portable",
         "playstation vita"],
-  xbox: ["xbox", "xbox 360", "xbox one", "xbox series x|s"],
+  // PC included: Game Pass PC / Play Anywhere / GFWL live in the same Xbox
+  // account, and the server-side matcher hangs them on PC rows.
+  xbox: ["xbox", "xbox 360", "xbox one", "xbox series x|s", ..._MINE_PC],
   nintendo: ["nintendo switch", "nintendo switch 2", "nintendo wii u",
              "nintendo 3ds"],
 };

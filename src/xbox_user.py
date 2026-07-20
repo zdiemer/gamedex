@@ -18,9 +18,12 @@ for a nightly TRICKLE, not a sprint (see hot_drain=False / ach_per_sync below):
   * dvr/screenshots — the captures, paginated by continuationToken, each with a
     download URL we mirror to the PVC like Steam's.
 
-Xbox exposes playtime poorly (no per-title minutes on titleHistory), so the
-hours cell simply won't show for Xbox games — the gamerscore and achievement
-grid are what Xbox is good for, and those are what we surface.
+Playtime doesn't ride on titleHistory, but the userstats service behind
+player/stats serves a MinutesPlayed stat — and it batches, so ONE extra POST
+per pass covers the whole library. Only the modern titles (Xbox One/Series/PC)
+carry the stat; 360-era games stay hours-less forever, and Series clocks run
+hot (Quick Resume counts suspended time), which the health page's
+platform-clock check is there to surface.
 """
 
 from __future__ import annotations
@@ -49,16 +52,14 @@ class XboxUserClient:
     def __init__(self):
         self._limiter = RateLimiter(1 / 26)   # ~138 requests/hour
         self._xuid = None
+        # titleId -> the titleHistory summary's achievement volume (count +
+        # gamerscore). Zero means the x360 fallback has nothing to find, which
+        # spares a paced call per app-with-no-achievements (Steam shadow
+        # entries, Halo Waypoint and friends).
+        self._ach_totals: dict[str, int] = {}
 
-    def _get(self, creds, path, params=None, timeout=25):
-        self._limiter.wait()
-        r = requests.get(f"{BASE}{path}", params=params,
-                         headers={"x-authorization": creds.get("apiKey", ""),
-                                  "Accept": "application/json"}, timeout=timeout)
-        if r.status_code == 429:
-            raise RuntimeError("OpenXBL hourly rate limit hit — try later")
-        r.raise_for_status()
-        j = r.json()
+    @staticmethod
+    def _unwrap(j):
         # OpenXBL wraps the real payload in {"content": {...}, "code": 200}. Some
         # endpoints answer flat, so unwrap only when the envelope is present.
         if isinstance(j, dict) and "content" in j and isinstance(j["content"], (dict, list)):
@@ -70,6 +71,26 @@ class XboxUserClient:
         if isinstance(j, dict) and j.get("limitType") == "Rate":
             raise RuntimeError("OpenXBL rate limit hit — try later")
         return j
+
+    def _get(self, creds, path, params=None, timeout=25):
+        self._limiter.wait()
+        r = requests.get(f"{BASE}{path}", params=params,
+                         headers={"x-authorization": creds.get("apiKey", ""),
+                                  "Accept": "application/json"}, timeout=timeout)
+        if r.status_code == 429:
+            raise RuntimeError("OpenXBL hourly rate limit hit — try later")
+        r.raise_for_status()
+        return self._unwrap(r.json())
+
+    def _post(self, creds, path, body, timeout=30):
+        self._limiter.wait()
+        r = requests.post(f"{BASE}{path}", json=body,
+                          headers={"x-authorization": creds.get("apiKey", ""),
+                                   "Accept": "application/json"}, timeout=timeout)
+        if r.status_code == 429:
+            raise RuntimeError("OpenXBL hourly rate limit hit — try later")
+        r.raise_for_status()
+        return self._unwrap(r.json())
 
     @staticmethod
     def _name_from_account(j: dict) -> tuple[str | None, str | None]:
@@ -124,30 +145,76 @@ class XboxUserClient:
             return None
 
     # ---- library -------------------------------------------------------------
+    @staticmethod
+    def _platform_from_devices(devices) -> str | None:
+        """A sheet-platform hint from titleHistory's devices list, so matching
+        can keep a Game Pass PC title on the PC rows and a 360 title off them.
+        Play Anywhere (PC + console) stays None — it could be either side."""
+        d = set(devices or [])
+        if not d:
+            return None
+        if d <= {"PC", "Win32"}:      # Store/Game Pass PC, GFWL, tracked Steam
+            return "pc"
+        if "Xbox360" in d:            # 360 titles also list their backcompat hosts
+            return "xbox 360"
+        if "PC" in d:
+            return None
+        if d == {"XboxSeries"}:
+            return "xbox series x|s"
+        return "xbox one"
+
+    def _fetch_minutes(self, creds, title_ids) -> dict[str, int]:
+        """MinutesPlayed for the whole library in ONE userstats batch. Only
+        modern (One/Series/PC) titles carry the stat; the rest just return no
+        row. Raises on failure rather than answering {} — a transient miss
+        must fail the library stage, not overwrite every stored clock with 0."""
+        if not self._xuid or not title_ids:
+            return {}
+        j = self._post(creds, "/api/v2/player/stats",
+                       {"xuids": [str(self._xuid)],
+                        "stats": [{"name": "MinutesPlayed", "titleId": str(t)}
+                                  for t in title_ids]})
+        out = {}
+        for coll in (j.get("statlistscollection") or []) if isinstance(j, dict) else []:
+            for s in coll.get("stats") or []:
+                v = s.get("value")
+                if v is None or s.get("name") != "MinutesPlayed":
+                    continue
+                try:
+                    out[str(s.get("titleid"))] = int(v)
+                except (TypeError, ValueError):
+                    continue
+        return out
+
     def fetch_library(self, creds: dict) -> list[dict]:
         j = self._get(creds, "/api/v2/player/titleHistory")
         # titleHistory names the account's xuid; the x360 achievements endpoint
         # needs it in the path (the modern one infers it from the key).
         self._xuid = j.get("xuid") or self._xuid
+        titles = [t for t in j.get("titles") or []
+                  if t.get("titleId") is not None]
+        minutes = self._fetch_minutes(creds, [t["titleId"] for t in titles])
         out = []
-        for t in j.get("titles") or []:
+        for t in titles:
             ach = t.get("achievement") or {}
             th = t.get("titleHistory") or {}
+            tid = str(t.get("titleId"))
+            self._ach_totals[tid] = ((ach.get("totalAchievements") or 0)
+                                     + (ach.get("totalGamerscore") or 0))
             out.append({
-                "appId": str(t.get("titleId")),
+                "appId": tid,
                 "name": t.get("name"),
-                # Xbox doesn't hand out per-title minutes; the gamerscore and
-                # achievement counts are the signal instead (kept in `extra`).
-                "playtimeMin": None,
+                "playtimeMin": minutes.get(tid),
                 "playtime2wkMin": None,
                 "lastPlayed": th.get("lastTimePlayed"),
                 "iconUrl": t.get("displayImage"),
+                "platform": self._platform_from_devices(t.get("devices")),
                 "extra": {"gamerscore": ach.get("currentGamerscore"),
                           "totalGamerscore": ach.get("totalGamerscore"),
                           "achEarned": ach.get("currentAchievements"),
                           "achTotal": ach.get("totalAchievements")},
             })
-        return [g for g in out if g["appId"] and g["appId"] != "None"]
+        return out
 
     # ---- achievements ----------------------------------------------------------
     def fetch_achievements(self, creds: dict, app_id: str) -> list[dict] | None:
@@ -160,7 +227,13 @@ class XboxUserClient:
         rows = j.get("achievements") or []
         if not rows:
             # Empty here doesn't mean the game has none: Xbox 360-era titles
-            # only answer on the x360 endpoint, in its own schema.
+            # (GFWL included) only answer on the x360 endpoint, in its own
+            # schema. But when the titleHistory summary already said the title
+            # has zero achievements AND zero gamerscore, the fallback has
+            # nothing to find — skip the paced call. Unknown (cold cache)
+            # errs toward asking.
+            if self._ach_totals.get(str(app_id), 1) == 0:
+                return None
             return self._fetch_achievements_x360(creds, app_id)
         out = []
         for a in rows:

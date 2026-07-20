@@ -265,11 +265,16 @@ const HEALTH_CHECKS = [
     title: "Your playtime disagrees with the platform's clock",
     why: "Your Completion Time is 2× or more off the hours the platform itself recorded, "
        + "and the gap is at least an hour. Only counted when the row's platform matches the "
-       + "account that clocked it — a PS5 completion isn't judged by stray Steam hours.",
+       + "account that clocked it — a PS5 completion isn't judged by stray Steam hours. "
+       + "When several accounts clocked the same copy (the Xbox app shadow-tracks PC games "
+       + "Steam already counts), only the LARGEST clock is judged, not the sum. Xbox Series "
+       + "clocks also run hot: Quick Resume counts suspended time as played.",
     find: () => hzGames().filter((r) => {
       const mine = r.completionTime;
       if (!mine || mine < 0.5) return false;
-      const theirs = hzPlatHours(r).reduce((s, [, h]) => s + h, 0);
+      // Largest single clock, not the sum — overlapping trackers (Steam + the
+      // Xbox PC app) would double-count the same sitting.
+      const theirs = hzPlatHours(r).reduce((m, [, h]) => Math.max(m, h), 0);
       if (theirs < 0.5 || Math.abs(mine - theirs) < 1) return false;
       const ratio = mine > theirs ? mine / theirs : theirs / mine;
       return ratio >= 2;
