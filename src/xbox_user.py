@@ -201,6 +201,17 @@ class XboxUserClient:
             tid = str(t.get("titleId"))
             self._ach_totals[tid] = ((ach.get("totalAchievements") or 0)
                                      + (ach.get("totalGamerscore") or 0))
+            plat = self._platform_from_devices(t.get("devices"))
+            # The Xbox PC app shadow-tracks OTHER stores' games (Steam,
+            # mostly): a PC-side entry with zero achievement volume isn't
+            # owned on Xbox in any sense worth a pill on the PC row — and a
+            # real-but-unplayed Game Pass title still shows its full
+            # totalGamerscore, so this only sheds the shadows.
+            if plat == "pc" and not (ach.get("currentGamerscore")
+                                     or ach.get("totalGamerscore")
+                                     or ach.get("currentAchievements")
+                                     or ach.get("totalAchievements")):
+                continue
             out.append({
                 "appId": tid,
                 "name": t.get("name"),
@@ -208,7 +219,7 @@ class XboxUserClient:
                 "playtime2wkMin": None,
                 "lastPlayed": th.get("lastTimePlayed"),
                 "iconUrl": t.get("displayImage"),
-                "platform": self._platform_from_devices(t.get("devices")),
+                "platform": plat,
                 "extra": {"gamerscore": ach.get("currentGamerscore"),
                           "totalGamerscore": ach.get("totalGamerscore"),
                           "achEarned": ach.get("currentAchievements"),
@@ -275,8 +286,10 @@ class XboxUserClient:
         list. This one serves only the EARNED unlocks (Portal 2 at 18/50 comes
         back as 18 rows) — the locked remainder isn't offered, so the grid for
         a 360 game shows what was earned and the summary counts carry the
-        denominator. No mediaAssets either: imageId is a dashboard asset id,
-        not a URL, so 360 achievements go without icons."""
+        denominator. No mediaAssets, but the legacy tile service still serves
+        the icons at image.xboxlive.com/global/t.{titleId hex}/ach/0/{imageId
+        hex} (plain http — fine, the UI proxies every third-party image
+        through /api/img anyway)."""
         xuid = self._ensure_xuid(creds)
         if not xuid:
             return None
@@ -295,13 +308,19 @@ class XboxUserClient:
                 and not a.get("isRevoked")
             rarity = a.get("rarity") or {}
             pct = rarity.get("currentPercentage")
+            icon = None
+            try:
+                icon = (f"http://image.xboxlive.com/global/t.{int(app_id):x}"
+                        f"/ach/0/{int(a['imageId']):x}")
+            except (KeyError, TypeError, ValueError):
+                pass
             out.append({
                 "id": str(a.get("id")),
                 "name": a.get("name"),
                 "description": (a.get("description")
                                 if unlocked else a.get("lockedDescription")) or a.get("description"),
-                "iconUrl": None,
-                "iconLockedUrl": None,
+                "iconUrl": icon,
+                "iconLockedUrl": icon,
                 "hidden": bool(a.get("isSecret")),
                 "rarity": (rarity.get("currentCategory") or "").lower() or None,
                 "globalPct": float(pct) if pct is not None else None,

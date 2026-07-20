@@ -329,6 +329,10 @@ function achTip() {
     t.id = "achTip";
     t.hidden = true;
     document.body.appendChild(t);
+    // The tip is viewport-positioned, so once the page (or the drawer, or any
+    // ancestor) scrolls it detaches from its cell and floats — dismiss instead.
+    // Capture phase because scroll events don't bubble out of inner scrollers.
+    document.addEventListener("scroll", achTipHide, { capture: true, passive: true });
   }
   return t;
 }

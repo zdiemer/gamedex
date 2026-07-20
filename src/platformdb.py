@@ -301,10 +301,18 @@ class PlatformDB:
         return out
 
     def app_for_key(self, provider: str, match_key: str) -> str | None:
+        """The app for this row — when several match (a 360 and a One SKU on
+        one sheet row), the most-played copy, by the same rank mine_light uses."""
         with self._lock:
             row = self._db.execute(
-                "SELECT app_id FROM lib_matches WHERE provider=? AND match_key=?",
-                (provider, match_key)).fetchone()
+                "SELECT m.app_id FROM lib_matches m"
+                " LEFT JOIN (SELECT app_id, SUM(unlocked) u FROM achievements"
+                "            WHERE provider=? GROUP BY app_id) a ON a.app_id=m.app_id"
+                " LEFT JOIN lib_games g ON g.provider=m.provider AND g.app_id=m.app_id"
+                " WHERE m.provider=? AND m.match_key=?"
+                " ORDER BY COALESCE(a.u,0) DESC, COALESCE(g.playtime_min,0) DESC, m.app_id DESC"
+                " LIMIT 1",
+                (provider, provider, match_key)).fetchone()
         return row[0] if row else None
 
     def steam_appid_for_key(self, match_key: str) -> str | None:
@@ -604,6 +612,13 @@ class PlatformDB:
             wl_keys = {r[0] for r in self._db.execute(
                 "SELECT DISTINCT match_key FROM wishlist WHERE match_key IS NOT NULL")}
         out: dict[str, dict] = {}
+        # Two apps of one provider can land on the SAME row (the 360 and the
+        # One SKU of a game both falling back to the one sheet row). The row
+        # shows the copy that was actually played — most unlocked, then most
+        # minutes — and app_for_key ranks identically so the pills and the
+        # drawer's achievement section tell the same story.
+        rank = lambda it: ((it.get("ach") or {}).get("unlocked", 0),
+                           it.get("playtimeMin") or 0, str(it["appId"]))
         for provider, app_id, mk in match_rows:
             g = games.get((provider, app_id))
             if g is None:
@@ -620,7 +635,9 @@ class PlatformDB:
             r = revs.get((provider, app_id))
             if r is not None:
                 item["review"] = {"recommended": bool(r)}
-            entry[provider] = item
+            prev = entry.get(provider)
+            if prev is None or rank(item) > rank(prev):
+                entry[provider] = item
         for mk in wl_keys:
             out.setdefault(mk, {}).setdefault("_flags", {})["wishlisted"] = True
         return out
