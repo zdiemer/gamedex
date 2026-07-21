@@ -29,6 +29,17 @@ const PICK_ANIM_KEY = "gamedex.pickAnim";
 const pickAnimOn = () => localStorage.getItem(PICK_ANIM_KEY) !== "0";
 const pickReduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// On a phone the criteria builder would swallow the screen, so it folds behind a toggle and
+// the picked game leads instead (see .pick-filters-toggle). This remembers whether you've
+// opened it — it starts closed, and on desktop the toggle is hidden so the tree always shows.
+let pickFiltersOpen = false;
+// How many criterion chips the tree holds, for the fold's little badge — a group is its kids,
+// a criterion is one, so it reads the same at any nesting depth the builder does.
+function pickCritCount(node) {
+  if (!node) return 0;
+  return node.kids ? node.kids.reduce((n, k) => n + pickCritCount(k), 0) : (node.key ? 1 : 0);
+}
+
 const alphaOnly = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const isPalindrome = (t) => {
   const a = alphaOnly(t);
@@ -1057,7 +1068,13 @@ function renderPicker() {
         </button>`).join("")}
       ${saveable ? `<button class="view-save" id="pickSave">＋ Save this picker</button>` : ""}
     </div>` : ""}
-    <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
+    <button class="pick-filters-toggle${pickFiltersOpen ? " open" : ""}" id="pickFiltersToggle"
+      type="button" aria-expanded="${pickFiltersOpen}" aria-controls="pickBuilder">
+      ${icon("i-filter", 15)}<span>Criteria</span>
+      ${(() => { const n = pickCritCount(pickState.filter); return n ? `<span class="pick-filters-n">${n}</span>` : ""; })()}
+      <span class="chev" aria-hidden="true">▾</span>
+    </button>
+    <div class="pick-builder${pickFiltersOpen ? "" : " collapsed"}" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
     <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
       ? pickCard(pickState.picked)
       : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>`;
@@ -1082,6 +1099,16 @@ function renderPicker() {
   if (reset) reset.onclick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); renderPicker(); nav(); };
   wirePickSaved();
   wirePickBuilder();
+  // The mobile fold: flip the class rather than re-render, so opening the criteria doesn't
+  // tear down and rebuild the whole tab (and any popover) under the tap.
+  const ft = $("#pickFiltersToggle");
+  if (ft) ft.onclick = () => {
+    pickFiltersOpen = !pickFiltersOpen;
+    ft.setAttribute("aria-expanded", String(pickFiltersOpen));
+    ft.classList.toggle("open", pickFiltersOpen);
+    $("#pickBuilder").classList.toggle("collapsed", !pickFiltersOpen);
+    if (!pickFiltersOpen) closePickPop();
+  };
   positionPickPop();
 
   const game = host.querySelector("#pickGameCard");
