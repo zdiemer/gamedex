@@ -255,6 +255,24 @@ button .ico, a .ico { pointer-events: none; }
 .field input:focus + .ico, .field:focus-within .ico { color: var(--accent); }
 .field input::-webkit-search-cancel-button { filter: grayscale(1) opacity(.5); }
 .field-top { flex: 1; max-width: 560px; }
+/* The global box gets its own round ✕ (the native cancel-button is WebKit-only and styles
+   poorly), shown purely by :placeholder-shown — so programmatic clears on tab switches need
+   no JS bookkeeping to hide it. */
+.field-top input::-webkit-search-cancel-button { display: none; }
+.field-top input:not(:placeholder-shown) { padding-right: 38px; }  /* text can't run under the ✕ */
+.search-x {
+  position: absolute; right: 7px;
+  width: 22px; height: 22px; border: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-3); color: var(--muted); cursor: pointer;
+  transition: background .15s var(--ease), color .15s var(--ease);
+}
+.search-x:hover { background: var(--accent-soft); color: var(--text); }
+/* 22px is right visually but under the 44px touch floor — grow the hit area, not the dot. */
+.search-x::before { content: ""; position: absolute; inset: -11px; }
+.field input:placeholder-shown ~ .search-x { display: none; }
+/* Undo the field's magnifier positioning — this .ico lives inside the button. */
+.search-x .ico { position: static; color: inherit; }
 /* The inline per-list filter that sits in the result bar. Smaller than the top-bar box, and it
    grows to take the slack between the Filters button and the count without shoving them. */
 .field-inline { flex: 0 1 240px; min-width: 130px; }

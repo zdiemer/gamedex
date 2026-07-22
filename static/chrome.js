@@ -21,6 +21,16 @@ $("#search").addEventListener("input", (e) => {
 $("#search").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }   // results are already live
 });
+// The round ✕ in the box. Clearing goes through the input handler above so the search page
+// and URL stay in step; visibility is pure CSS (:placeholder-shown). mousedown is swallowed
+// so focus never leaves the input — on a phone that would collapse the keyboard mid-search.
+$("#searchClear").addEventListener("mousedown", (e) => e.preventDefault());
+$("#searchClear").addEventListener("click", () => {
+  const s = $("#search");
+  s.value = "";
+  s.dispatchEvent(new Event("input", { bubbles: true }));
+  s.focus();
+});
 
 // The inline per-page filter — the OLD top-bar behaviour, now living on each listing so it's
 // clearly "narrow THIS list" rather than a misleadingly global-looking box.
