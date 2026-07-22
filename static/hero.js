@@ -229,7 +229,7 @@ function predictWhyHtml(row) {
         <span class="vd-eye">${icon("i-trend", 12)} You'd probably rate this</span>
         <span class="vd-say">${verdict}</span>
       </span>
-      <span class="vd-conf vd-${conf}">${conf} confidence</span>
+      <span class="vd-conf vd-${conf}">${conf}<span class="vd-conf-lbl"> confidence</span></span>
     </div>
     <div class="vd-why">${rows}</div>
     <p class="vd-foot">Your average across ${(m.n || 0).toLocaleString()} rated games is ${pts(base)}%.${err}</p>

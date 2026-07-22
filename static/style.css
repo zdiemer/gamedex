@@ -3452,6 +3452,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .pick-info .vd-say,
   .pick-info .vd-why,
   .pick-info .vd-foot { display: none; }
+  /* Keep the confidence, but condensed to just the level — "Low", not "Low confidence" — a
+     small pill that sits beside the score rather than a full chip of its own. */
+  .pick-info .vd-conf { padding: 4px 7px; font-size: 8.5px; }
+  .pick-info .vd-conf-lbl { display: none; }
   .pick-info .hero-stats { margin-bottom: 12px; padding: 12px 0 4px; gap: 6px 10px; }
   .pick-info .hero-stat { flex-basis: 72px; }
   .pick-info .hero-stat b { font-size: 17px; }
