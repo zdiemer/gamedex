@@ -532,6 +532,7 @@ document.addEventListener("keydown", (e) => {
   if (cmdk.open) setCmdk(false);
   else if (!$("#navdrawer").hidden) setNav(false);
   else if (!$("#sheet").hidden) setSheet(false);
+  else if (typeof pickSheetDismiss === "function" && pickSheetDismiss()) { /* Pick's criteria sheet */ }
   // Esc unwinds the drawer history one step at a time, then closes.
   else if (drawerStack.length && !$("#overlay").hidden) drawerBack();
   else closeDrawer();

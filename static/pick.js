@@ -29,12 +29,35 @@ const PICK_ANIM_KEY = "gamedex.pickAnim";
 const pickAnimOn = () => localStorage.getItem(PICK_ANIM_KEY) !== "0";
 const pickReduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// On a phone the criteria builder would swallow the screen, so it folds behind a toggle and
-// the picked game leads instead (see .pick-filters-toggle). This remembers whether you've
-// opened it — it starts closed, and on desktop the toggle is hidden so the tree always shows.
-let pickFiltersOpen = false;
-// How many criterion chips the tree holds, for the fold's little badge — a group is its kids,
-// a criterion is one, so it reads the same at any nesting depth the builder does.
+/* On a phone the builder, the preset/time selects and the saved pickers all live in a
+   bottom sheet ("Build the pool"), opened from the Criteria pill in the pool bar — so the
+   picked game owns the screen and every control has one named home. On desktop the sheet
+   wrapper dissolves (display: contents) and everything sits inline exactly as it always
+   has. This remembers whether the sheet is up, so the re-render every edit causes paints
+   it back open instead of dropping it mid-build. */
+let pickSheetOpen = false;
+function pickSheetSet(open) {
+  pickSheetOpen = open;
+  const sh = $("#pickSheet");
+  if (!sh) return;
+  // A class flip, not a re-render: the slide animation should play on the tap that asked
+  // for it, and never on the wholesale repaints that edits inside the sheet cause.
+  sh.classList.toggle("open", open);
+  const bk = $("#pickShBack");
+  if (bk) bk.hidden = !open;
+  const btn = $("#pickCrit");
+  if (btn) btn.setAttribute("aria-expanded", String(open));
+  // Closing walks away from any half-built criterion, exactly like clicking elsewhere.
+  if (!open && pickPop.path !== null) dismissPickPop();
+}
+// chrome.js's Escape chain asks this before the drawer: true means "I closed something".
+function pickSheetDismiss() {
+  if (activeTab !== "pick" || !pickSheetOpen || !$("#pickSheet")) return false;
+  pickSheetSet(false);
+  return true;
+}
+// How many criterion chips the tree holds, for the Criteria pill's badge — a group is its
+// kids, a criterion is one, so it reads the same at any nesting depth the builder does.
 function pickCritCount(node) {
   if (!node) return 0;
   return node.kids ? node.kids.reduce((n, k) => n + pickCritCount(k), 0) : (node.key ? 1 : 0);
@@ -766,11 +789,20 @@ function pickCard(row) {
   const details = row._cat
     ? `<a class="pick-open" href="${escapeHtml(rec.url || "#")}" target="_blank" rel="noopener">View on IGDB ↗</a>`
     : `<button class="pick-open" id="pickOpen">Full details</button>`;
+  /* The split-title flair: a subtitled game reads as its series name over the subtitle —
+     the over-line small, letterspaced and in the second accent (a different voice from the
+     violet eyebrow above it), the subtitle at full display weight. Split on ": " or a
+     spaced dash only, so "Half-Life" stays whole; the over-line is capped so a colon deep
+     in a long title doesn't demote most of it to an eyebrow. */
+  const tm = /^(.{2,32}?)(?::\s+|\s+[–—-]\s+)(.{3,})$/.exec(String(row.title));
+  const titleHtml = tm
+    ? `<h2><span class="pick-t-pre">${escapeHtml(tm[1])}</span>${escapeHtml(tm[2])}</h2>`
+    : `<h2>${escapeHtml(String(row.title))}</h2>`;
   return `<div class="pick-card">
     <div class="pick-art">${game}${hint}</div>
     <div class="pick-info">
       <div class="pick-eyebrow">${eyebrow}</div>
-      <h2>${escapeHtml(String(row.title))}</h2>
+      ${titleHtml}
       <div class="pick-chips">${chips}</div>
       ${heroStatsHtml(row)}
       ${predictWhyHtml(row)}
@@ -1043,41 +1075,63 @@ function renderPicker() {
      anything it said, which is exactly when the dropdown starts reading "Custom filter". */
   const saveable = !pickState.preset;
 
+  const games = `${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"}`;
+  const sumLabel = pickState.preset
+    ? (presetById(pickState.preset) || PRESETS[0]).label : "Custom filter";
+  const critN = pickCritCount(pickState.filter);
   host.innerHTML = `
-    <div class="pick-controls">
-      <label>Start from <select id="pickPreset">
-        ${pickState.preset ? "" : `<option value="" selected>Custom filter</option>`}${opts}
-      </select></label>
-      <label class="pick-time">I have
-        <select id="pickTime">
-          <option value="0"${mins ? "" : " selected"}>Any length</option>
-          ${TIME_BUDGETS.map((b) =>
-            `<option value="${b.m}"${b.m === mins ? " selected" : ""}>${escapeHtml(b.label)}</option>`).join("")}
-        </select>
-      </label>
-      <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
-      <span class="pick-count">${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"} in pool</span>
-      ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
-      <label class="pick-anim" title="Play a dice-roll animation when picking a game">
-        <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation
-      </label>
+    <div class="pick-mtop">
+      <span class="pick-msum">${escapeHtml(sumLabel)} · ${games}</span>
+      <button class="pick-crit" id="pickCrit" type="button"
+        aria-expanded="${pickSheetOpen}" aria-controls="pickSheet">
+        ${icon("i-filter", 14)} Criteria${critN ? ` <span class="pick-filters-n">${critN}</span>` : ""}
+      </button>
     </div>
-    ${saved.length || saveable ? `<div class="pick-saved">
-      ${saved.map((p, i) => `<button class="view-chip" data-pi="${i}" title="${escapeHtml(p.desc || "")}">
-          ${escapeHtml(p.name)}<span class="view-x" data-px="${i}" title="Forget this picker">✕</span>
-        </button>`).join("")}
-      ${saveable ? `<button class="view-save" id="pickSave">＋ Save this picker</button>` : ""}
-    </div>` : ""}
-    <button class="pick-filters-toggle${pickFiltersOpen ? " open" : ""}" id="pickFiltersToggle"
-      type="button" aria-expanded="${pickFiltersOpen}" aria-controls="pickBuilder">
-      ${icon("i-filter", 15)}<span>Criteria</span>
-      ${(() => { const n = pickCritCount(pickState.filter); return n ? `<span class="pick-filters-n">${n}</span>` : ""; })()}
-      <span class="chev" aria-hidden="true">▾</span>
-    </button>
-    <div class="pick-builder${pickFiltersOpen ? "" : " collapsed"}" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
+    <div class="pick-shwrap${pickSheetOpen ? " open" : ""}" id="pickSheet" role="dialog" aria-label="Build the pool">
+      <div class="pick-shhead"><b>Build the pool</b>
+        <span class="pick-shcount">${games}</span>
+        <button class="pick-shclose" id="pickShClose" aria-label="Close">✕</button>
+      </div>
+      <div class="pick-shbody">
+        <div class="pick-controls">
+          <label>Start from <select id="pickPreset">
+            ${pickState.preset ? "" : `<option value="" selected>Custom filter</option>`}${opts}
+          </select></label>
+          <label class="pick-time">I have
+            <select id="pickTime">
+              <option value="0"${mins ? "" : " selected"}>Any length</option>
+              ${TIME_BUDGETS.map((b) =>
+                `<option value="${b.m}"${b.m === mins ? " selected" : ""}>${escapeHtml(b.label)}</option>`).join("")}
+            </select>
+          </label>
+          <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
+          <span class="pick-count">${games} in pool</span>
+          ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
+          <label class="pick-anim" title="Play a dice-roll animation when picking a game">
+            <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation
+          </label>
+        </div>
+        ${saved.length || saveable ? `<div class="pick-saved">
+          ${saved.map((p, i) => `<button class="view-chip" data-pi="${i}" title="${escapeHtml(p.desc || "")}">
+              ${escapeHtml(p.name)}<span class="view-x" data-px="${i}" title="Forget this picker">✕</span>
+            </button>`).join("")}
+          ${saveable ? `<button class="view-save" id="pickSave">＋ Save this picker</button>` : ""}
+        </div>` : ""}
+        <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
+      </div>
+      <button class="pick-shgo" id="pickShGo" type="button"${pool.length ? "" : " disabled"}>
+        ${icon("i-dice", 16)} ${pool.length
+          ? `Roll from ${pool.length === 1 ? "this 1 game" : `these ${pool.length.toLocaleString()} games`}`
+          : "Nothing matches these criteria"}
+      </button>
+    </div>
+    <div class="pick-shback" id="pickShBack"${pickSheetOpen ? "" : " hidden"}></div>
     <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
       ? pickCard(pickState.picked)
-      : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>`;
+      : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>
+    <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button">
+      ${icon("i-dice", 16)} ${pickState.picked && pool.includes(pickState.picked) ? "Re-roll" : "Pick for me"}
+    </button></div>`;
 
   // "Custom filter" is a readout of where you've ended up, not a thing you can
   // choose — selecting it should leave the tree you built alone.
@@ -1099,16 +1153,15 @@ function renderPicker() {
   if (reset) reset.onclick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); renderPicker(); nav(); };
   wirePickSaved();
   wirePickBuilder();
-  // The mobile fold: flip the class rather than re-render, so opening the criteria doesn't
-  // tear down and rebuild the whole tab (and any popover) under the tap.
-  const ft = $("#pickFiltersToggle");
-  if (ft) ft.onclick = () => {
-    pickFiltersOpen = !pickFiltersOpen;
-    ft.setAttribute("aria-expanded", String(pickFiltersOpen));
-    ft.classList.toggle("open", pickFiltersOpen);
-    $("#pickBuilder").classList.toggle("collapsed", !pickFiltersOpen);
-    if (!pickFiltersOpen) closePickPop();
-  };
+  // The mobile chrome. All of it renders at every width and none of it shows on desktop
+  // (see the Option-B block in style.css), so there's no width test to keep in step.
+  $("#pickCrit").onclick = () => pickSheetSet(!pickSheetOpen);
+  $("#pickShClose").onclick = () => pickSheetSet(false);
+  $("#pickShBack").onclick = () => pickSheetSet(false);
+  // The sheet's CTA IS the roll — building criteria flows straight into a pick rather
+  // than ending on a Done button and a hunt for the dice.
+  $("#pickShGo").onclick = () => { pickSheetSet(false); pickGame(true); nav(); };
+  $("#pickBtnM").onclick = () => { pickGame(true); nav(); };
   positionPickPop();
 
   const game = host.querySelector("#pickGameCard");
@@ -1385,4 +1438,4 @@ document.addEventListener("click", () => {
 
 // Landing state (core.js). applyPreset rebuilds filter+preset together and clears the
 // rolled game — hand-assigning either one leaves the two disagreeing about what's shown.
-TAB_RESET.pick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); };
+TAB_RESET.pick = () => { closePickPop(); pickSheetOpen = false; applyPreset(PICK_DEFAULT_PRESET); };
