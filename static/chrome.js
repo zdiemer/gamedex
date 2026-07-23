@@ -138,10 +138,16 @@ $("#fabTop").addEventListener("click", () => window.scrollTo({ top: 0, behavior:
   const HIDE_AT = 48, SHOW_AT = 24, TOP = 80, BOTTOM = 96;   // px thresholds
   let lastY = Math.max(0, window.scrollY), acc = 0, tucked = false, ticking = false;
   const set = (v) => { if (v !== tucked) { tucked = v; fab.classList.toggle("fab-tucked", v); } acc = 0; };
+  /* "Jump to top" earns its spot by there being somewhere to jump FROM. At the top of the
+     page it's dead weight — and on tabs where Filters/Sort are hidden (Pick, Stats…) it
+     was the bar's ONLY button, a lone ↑ floating over a page you haven't scrolled. */
+  const top = $("#fabTop");
+  top.hidden = lastY <= TOP;
   const update = () => {
     ticking = false;
     const y = Math.max(0, window.scrollY), dy = y - lastY;
     lastY = y;
+    top.hidden = y <= TOP;
     const maxY = document.documentElement.scrollHeight - window.innerHeight;
     // Near the bottom the pager is on screen, so the bar must not be. Force it
     // hidden — but only when the page scrolls enough that you can bring it back
