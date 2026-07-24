@@ -173,6 +173,7 @@
       </div>
       <div class="nav-foot">
         <button class="h-attract nav-attract" id="navAttract"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-play"/></svg> Attract mode</button>
+        <button class="h-attract nav-attract" id="navJukebox"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-music"/></svg> Jukebox</button>
       </div>
     </aside>
   </div>
@@ -245,6 +246,10 @@
       <div id="drawerBody"></div>
     </div>
   </div>
+
+  <!-- The Jukebox dock: shuffle radio over every matched OST (jukebox.js). Pinned to the
+       page corner, outside the tab layout, so it keeps playing wherever you browse. -->
+  <div class="jukebox" id="jukebox" hidden></div>
 
   <!-- Mobile: filters/sort reachable without scrolling back to the top -->
   <div class="fab" id="fab">
@@ -321,6 +326,7 @@
   <script src="picross.js"></script>
   <script src="dexle.js"></script>
   <script src="hilo.js"></script>
+  <script src="jukebox.js"></script>
   <script src="konami.js"></script>
   <script src="timeline.js"></script>
   <script src="search.js"></script>

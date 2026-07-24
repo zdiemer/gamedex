@@ -57,11 +57,11 @@ codebase audit.
       Hi-Lo** (higher-or-lower runs over Metacritic / HLTB / release year /
       VGChartz units / SteamSpy owners, dimension rotating daily). ?tab=daily is
       the three-game landing.
-- [ ] **Soundtrack Jukebox.** Promote the per-game KHInsider tracklist (today only
-      inside one drawer) to a lean-back **shuffle radio across every matched OST** —
-      an audio sibling to Attract mode. Feeds the "name that tune" quiz mode, and a
-      **composer view** finally surfaces Wikidata `composers` (captured, almost never
-      shown): "you own 14 Nobuo Uematsu games". Near-zero new data.
+- [x] **Soundtrack Jukebox** — shipped 1.58.103: shuffle radio across every matched
+      OST (~5k albums), launched from the hamburger foot next to Attract mode, in a
+      corner dock that keeps playing while you browse. The composer dial surfaces
+      Wikidata `composers` at last ("Koji Kondo · 35 games") and retunes the pool;
+      Media Session wires lock-screen controls. Zero new backend.
 - [ ] **Rank-your-GOAT bracket.** A 32/64-game single-elim bracket seeded from the
       collection or a facet ("best JRPG", "best thing I finished in 2024"). Vote down
       to a **personal all-time ranking** + shareable result. Pick says what to *play*;

@@ -72,6 +72,7 @@ $("#navClose").addEventListener("click", () => setNav(false));
 $("#navBackdrop").addEventListener("click", () => setNav(false));
 // Attract mode sits at the foot of the menu now — close the drawer, then take the screen.
 $("#navAttract").addEventListener("click", () => { setNav(false); if (typeof openAttract === "function") openAttract(); });
+$("#navJukebox").addEventListener("click", () => { setNav(false); if (typeof jbToggle === "function") jbToggle(); });
 $("#clear").addEventListener("click", () => {
   const st = tabState[activeTab];
   st.search = ""; st.facets = {}; st.page = 1;

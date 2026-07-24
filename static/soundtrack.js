@@ -116,6 +116,7 @@ function playSoundtrack(key, i) {
   if (!rec || !(rec.tracks || [])[i]) return;
   if (!OSTP || OSTP.key !== key) {
     stopSoundtrack();
+    if (typeof jukeboxPause === "function") jukeboxPause();   // one radio at a time
     const audio = new Audio();
     audio.preload = "none";
     OSTP = { key, rec, i: -1, audio, dock: buildOstDock() };
