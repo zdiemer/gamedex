@@ -48,16 +48,14 @@ codebase audit.
 
 ## Features
 
-### Fun / interactive (brainstorm 2026-07-24 — Galaxy built; these are the runners-up)
+### Fun / interactive (brainstorm 2026-07-24 — Galaxy and Dexle built; these are the runners-up)
 
-- [ ] **Guess-the-Game — daily + endless quiz suite.** One engine, several modes,
-      each cut from assets already cached: zoomed cover, blurred screenshot that
-      de-blurs on wrong guesses, IGDB `summary` with the title/franchise starred
-      out, **your own review prose with the game name censored** (a mode nobody
-      else can build), "name that soundtrack" from a KHInsider clip, and a
-      **Higher-or-Lower** on Metacritic / SteamSpy `owners` / HLTB / release year /
-      VGChartz `units`. Server picks a daily seed the way Picross does; streaks reuse
-      the same cross-device store. Highest fun-per-effort; slots next to Picross.
+- [ ] **Dexle extensions** — the daily guess-the-game shipped in 1.58.101 (five
+      rotating modes: zoomed cover, blurred screenshot, redacted summary, censored
+      own-review, name-that-tune; ?tab=daily is the landing). Left on the table:
+      an **endless/practice mode** off the daily seed, and **Higher-or-Lower** on
+      Metacritic / SteamSpy `owners` / HLTB / release year / VGChartz `units` —
+      a different engine, so it stayed out of v1.
 - [ ] **Soundtrack Jukebox.** Promote the per-game KHInsider tracklist (today only
       inside one drawer) to a lean-back **shuffle radio across every matched OST** —
       an audio sibling to Attract mode. Feeds the "name that tune" quiz mode, and a
