@@ -31,7 +31,8 @@ log = logging.getLogger("gamedex.prefs")
 # pickers: named filter trees from the Pick tab. A picker is minutes of ticking boxes,
 #   which is too much work to keep on one browser.
 # dexle: the daily guess-the-game's streak, same shape as picross's.
-KEYS = {"views", "challenges", "picross", "dexle", "dismissed", "pickers"}
+# hilo: the daily higher-or-lower's record (best run, days played).
+KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

@@ -232,6 +232,7 @@ function cmdkTabs() {
   // and goTab gives it a real ?tab=picross URL you can link, reload and go Back out of.
   tabs.push({ id: "picross", label: "Daily Picross", icon: "i-target" });
   tabs.push({ id: "dexle", label: "Dexle — guess the game", icon: "i-dice" });
+  tabs.push({ id: "hilo", label: "Daily Hi-Lo — higher or lower", icon: "i-trend" });
   tabs.push({ id: "daily", label: "Daily games", icon: "i-dice" });
   // Home lost its nav button (the logo goes there now), but the palette should still reach it.
   tabs.unshift({ id: "home", label: "Home", icon: "i-home" });

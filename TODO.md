@@ -50,12 +50,13 @@ codebase audit.
 
 ### Fun / interactive (brainstorm 2026-07-24 — Galaxy and Dexle built; these are the runners-up)
 
-- [ ] **Dexle extensions** — the daily guess-the-game shipped in 1.58.101 (five
+- [x] **Dexle + Hi-Lo** — the daily guess-the-game shipped in 1.58.101 (five
       rotating modes: zoomed cover, blurred screenshot, redacted summary, censored
-      own-review, name-that-tune; ?tab=daily is the landing). Left on the table:
-      an **endless/practice mode** off the daily seed, and **Higher-or-Lower** on
-      Metacritic / SteamSpy `owners` / HLTB / release year / VGChartz `units` —
-      a different engine, so it stayed out of v1.
+      own-review, name-that-tune); 1.58.102 added **endless practice** (seeded
+      rounds, mode/stat of your choice, nothing recorded server-side) and **Daily
+      Hi-Lo** (higher-or-lower runs over Metacritic / HLTB / release year /
+      VGChartz units / SteamSpy owners, dimension rotating daily). ?tab=daily is
+      the three-game landing.
 - [ ] **Soundtrack Jukebox.** Promote the per-game KHInsider tracklist (today only
       inside one drawer) to a lean-back **shuffle radio across every matched OST** —
       an audio sibling to Attract mode. Feeds the "name that tune" quiz mode, and a

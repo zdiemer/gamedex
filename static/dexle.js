@@ -20,7 +20,9 @@ const DX = {
   hints: [],            // hints revealed so far
   done: false, won: false, answer: null,
   loaded: false, failed: false,
+  practice: null,       // {seed, mode} while an endless round is up; null = today's
 };
+let dxPracticeMode = "any";   // the mode chip selection for the next practice round
 
 const DX_MODES = {
   cover:   { label: "Zoomed In",       icon: "i-search",
@@ -45,6 +47,7 @@ const dxStage = () => Math.min(DX.guesses.length, DX.maxGuesses - 1);
 // ---- per-day progress (localStorage) ---------------------------------------
 const dxKey = () => `dexle:${DX.date}`;
 const dxSave = () => {
+  if (DX.practice) return;        // a practice round is disposable by design
   try {
     localStorage.setItem(dxKey(), JSON.stringify({
       guesses: DX.guesses, hints: DX.hints, done: DX.done, won: DX.won, answer: DX.answer,
@@ -52,6 +55,7 @@ const dxSave = () => {
   } catch (_) { /* private mode: the round just won't survive a reload */ }
 };
 const dxLoad = () => {
+  if (DX.practice) return false;
   try {
     const s = JSON.parse(localStorage.getItem(dxKey()) || "null");
     if (!s || !Array.isArray(s.guesses)) return false;
@@ -129,18 +133,22 @@ function renderDexle() {
 
   const m = DX_MODES[DX.mode] || { label: DX.mode, icon: "i-dice", blurb: "" };
   const st = dxStreak();
+  const tally = dxPracticeTally();
   host.innerHTML = `<div class="px-wrap dx-wrap">
     <div class="px-head">
       <div>
-        <span class="h-eyebrow">${icon("i-dice", 13)} Dexle · ${escapeHtml(DX.date)}</span>
+        <span class="h-eyebrow">${icon("i-dice", 13)} Dexle · ${DX.practice ? "endless practice" : escapeHtml(DX.date)}</span>
         <h1>Guess the game</h1>
         <p class="muted"><b class="dx-mode">${icon(m.icon, 13)} ${escapeHtml(m.label)}</b>
           — ${escapeHtml(m.blurb)}</p>
       </div>
-      <div class="px-streak">
+      ${DX.practice ? `<div class="px-streak">
+        <b>${tally.won}</b><span>practice wins</span>
+        <em>${tally.played} round${tally.played === 1 ? "" : "s"} this device</em>
+      </div>` : `<div class="px-streak">
         <b>${dxCurrentStreak()}</b><span>day streak</span>
         <em>best ${st.best || 0} · ${st.solved || 0} solved</em>
-      </div>
+      </div>`}
     </div>
 
     <div class="dx-clue" id="dxClue">${dxClueHtml()}</div>
@@ -161,9 +169,77 @@ function renderDexle() {
         <span class="dx-log-t${g.title ? "" : " skip"}">${g.title ? escapeHtml(g.title) : "Skipped"}</span>
         ${g.near ? `<span class="dx-log-near">${escapeHtml(g.near)}</span>` : ""}
       </li>`).join("")}</ol>` : ""}
+
+    ${dxPracticeHtml()}
   </div>`;
 
   wireDexle(host);
+}
+
+/* ---- endless practice -------------------------------------------------------
+   The same engine on a client-minted seed: no streak, no calendar, a fresh game
+   every round, and a mode you can drill on purpose. */
+function dxPracticeTally() {
+  try { return JSON.parse(localStorage.getItem("gamedex.dexle.practice") || "null") || { played: 0, won: 0 }; }
+  catch (_) { return { played: 0, won: 0 }; }
+}
+function dxBumpPracticeTally(won) {
+  const t = dxPracticeTally();
+  t.played += 1; if (won) t.won += 1;
+  try { localStorage.setItem("gamedex.dexle.practice", JSON.stringify(t)); } catch (_) {}
+}
+
+function dxPracticeHtml() {
+  const chips = ["any", ...Object.keys(DX_MODES)].map((k) => {
+    const label = k === "any" ? "Any clue" : DX_MODES[k].label;
+    return `<button class="dx-chip${dxPracticeMode === k ? " on" : ""}" data-dxmode="${k}">${escapeHtml(label)}</button>`;
+  }).join("");
+  if (DX.practice) {
+    return `<div class="dx-practice">
+      <div class="dx-practice-h"><b>Endless practice</b>
+        <span class="muted">No streak, no stakes — a fresh game every round.</span></div>
+      <div class="dx-chips">${chips}</div>
+      <div class="px-guess">
+        <button class="btn" id="dxNextRound">Next round</button>
+        <button class="btn ghost" id="dxBackToday">← Back to today's</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="dx-practice">
+    <div class="dx-practice-h"><b>Endless practice</b>
+      <span class="muted">${DX.done ? "Still warm? Keep going —" : "Done already, or just warming up?"}
+        a fresh game every round, no streak on the line.</span></div>
+    <div class="dx-chips">${chips}</div>
+    <div class="px-guess"><button class="btn" id="dxPracticeGo">Start a round</button></div>
+  </div>`;
+}
+
+function dxStartPractice() {
+  const seed = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const mode = dxPracticeMode;
+  fetch(`api/dexle/round?seed=${encodeURIComponent(seed)}&mode=${encodeURIComponent(mode)}`)
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j.ok) return;
+      DX.practice = { seed, mode };
+      DX.date = j.date; DX.mode = j.mode; DX.clue = j.clue; DX.maxGuesses = j.maxGuesses || 6;
+      DX.guesses = []; DX.hints = []; DX.done = false; DX.won = false; DX.answer = null;
+      DX.loaded = true; DX.failed = false;
+      renderDexle();
+    })
+    .catch(() => {});
+}
+
+function dxExitPractice() {
+  DX.practice = null;
+  DX.loaded = false; DX.failed = false;
+  renderDexle();                 // repaints as loading and refetches today's round
+}
+
+// Leaving the tab mid-practice: fall back to today's round so Home and the Daily
+// page never read practice state as if it were the daily. (Mirrors shelfTeardown.)
+function dexleTeardown() {
+  if (DX.practice) dxExitPractice();
 }
 
 function dxClueHtml() {
@@ -206,7 +282,8 @@ function dxClueHtml() {
         <div class="dx-tunebar"><i id="dxTuneFill"></i></div>
         <span class="muted" id="dxTuneMsg">You've unlocked ${label}${c.track && c.track.dur ? ` of ${escapeHtml(c.track.dur)}` : ""}.</span>
       </div>
-      <audio id="dxAudio" preload="none" src="api/dexle/track"></audio>
+      <audio id="dxAudio" preload="none" src="api/dexle/track${DX.practice
+        ? `?seed=${encodeURIComponent(DX.practice.seed)}&mode=${encodeURIComponent(DX.practice.mode)}` : ""}"></audio>
     </div>`;
   }
   return "";
@@ -237,7 +314,7 @@ function dxEndHtml() {
       <h2>${escapeHtml(String(g.title || ""))}</h2>
       <p class="muted">${[g.platform, g.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ")}</p>
       ${DX.won ? `<p class="px-bonus">★ Named it in ${DX.guesses.length} guess${DX.guesses.length === 1 ? "" : "es"}.</p>`
-                : `<p class="muted">Tomorrow's another clue.</p>`}
+                : `<p class="muted">${DX.practice ? "The next round costs nothing." : "Tomorrow's another clue."}</p>`}
       <button class="btn" id="dxOpen">Open in library</button>
     </div>
   </div>`;
@@ -256,6 +333,16 @@ function wireDexle(host) {
     if (row) openDrawer(row, "games");
   };
   if (typeof pxFillTitles === "function") pxFillTitles();   // shares the Picross datalist
+
+  host.querySelectorAll("[data-dxmode]").forEach((el) => {
+    el.onclick = () => { dxPracticeMode = el.dataset.dxmode; renderDexle(); };
+  });
+  const start = host.querySelector("#dxPracticeGo");
+  if (start) start.onclick = dxStartPractice;
+  const next = host.querySelector("#dxNextRound");
+  if (next) next.onclick = dxStartPractice;
+  const back = host.querySelector("#dxBackToday");
+  if (back) back.onclick = dxExitPractice;
 
   const audio = host.querySelector("#dxAudio");
   if (audio) wireDexleTune(host, audio);
@@ -300,9 +387,11 @@ function dxSubmit() {
 async function dxGuess(title) {
   if (DX.done) return;
   try {
+    const body = { title: title || null, n: DX.guesses.length };
+    if (DX.practice) { body.seed = DX.practice.seed; body.mode = DX.practice.mode; }
     const r = await fetch("api/dexle/guess", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title || null, n: DX.guesses.length }),
+      body: JSON.stringify(body),
     });
     const j = await r.json();
     if (!j.ok) return;
@@ -310,9 +399,11 @@ async function dxGuess(title) {
     if (j.hint) DX.hints.push(j.hint);
     if (j.correct) {
       DX.done = true; DX.won = true; DX.answer = j.answer;
-      await dxBumpStreak();
+      if (DX.practice) dxBumpPracticeTally(true);
+      else await dxBumpStreak();
     } else if (j.done) {
       DX.done = true; DX.won = false; DX.answer = j.answer || null;
+      if (DX.practice) dxBumpPracticeTally(false);
     }
     dxSave();
     renderDexle();
@@ -381,6 +472,7 @@ function renderDaily() {
   if (!host) return;
   if (typeof picrossHomeInit === "function") picrossHomeInit();
   dexleMetaInit();
+  if (typeof hiloMetaInit === "function") hiloMetaInit();
 
   const pxDone = typeof PX !== "undefined" && PX.solved;
   const pxStarted = typeof PX !== "undefined" && (PX.cells || []).some((c) => c === 1);
@@ -398,13 +490,23 @@ function renderDaily() {
     : DX.guesses.length ? `${DX.maxGuesses - DX.guesses.length} guess${DX.maxGuesses - DX.guesses.length === 1 ? "" : "es"} left.`
     : m ? `Today's clue: ${m.label}.` : "Six guesses, one game a day.";
 
+  const hd = (typeof HL !== "undefined" && HL.dim && typeof HL_DIMS !== "undefined")
+    ? (HL_DIMS[HL.dim] || { label: HL.dim, icon: "i-trend" }) : null;
+  const hlDone = typeof HL !== "undefined" && HL.over;
+  const hlLine = typeof HL === "undefined" ? "Call the numbers."
+    : HL.over ? (HL.cleared ? `Cleared the deck — <b>${HL.score} in a row</b>` : `Run of <b>${HL.score}</b> today.`)
+    : HL.score ? `${HL.score} in a row and counting.`
+    : hd ? `Today's stat: ${hd.label}.` : "Higher or lower, one stat a day.";
+  const hlRec = typeof hlRecord === "function" ? hlRecord() : { best: 0 };
+
   host.innerHTML = `<div class="px-wrap">
     <div class="px-head">
       <div>
         <span class="h-eyebrow">${icon("i-dice", 13)} Daily games${DX.date || (typeof PX !== "undefined" && PX.date) ? ` · ${escapeHtml(DX.date || PX.date)}` : ""}</span>
-        <h1>Two a day</h1>
-        <p class="muted">A nonogram cut from your own shelf, and a guessing game cut from
-          everything the library knows. Fresh at midnight UTC.</p>
+        <h1>Three a day</h1>
+        <p class="muted">A nonogram cut from your own shelf, a guessing game cut from
+          everything the library knows, and a higher-or-lower run on its numbers.
+          Fresh at midnight UTC.</p>
       </div>
     </div>
     <div class="dl-cards">
@@ -428,6 +530,16 @@ function renderDaily() {
         <span class="px-home-s"><b>${dxCurrentStreak()}</b><i>day streak</i></span>
         <span class="gr-go">→</span>
       </button>
+      <button class="dl-card${hlDone ? " done" : ""}" id="dlHilo">
+        <span class="dl-dexle-mini">${hd ? icon(hd.icon, 26) : icon("i-trend", 26)}
+          <em>${hd ? escapeHtml(hd.label) : "…"}</em></span>
+        <span class="dl-card-b">
+          <b>${icon("i-trend", 15)} Daily Hi-Lo</b>
+          <span class="muted">${hlLine}</span>
+        </span>
+        <span class="px-home-s"><b>${hlRec.best || 0}</b><i>best run</i></span>
+        <span class="gr-go">→</span>
+      </button>
     </div>
   </div>`;
 
@@ -435,6 +547,8 @@ function renderDaily() {
   if (px) px.onclick = () => goTab("picross");
   const dx = host.querySelector("#dlDexle");
   if (dx) dx.onclick = () => goTab("dexle");
+  const hl = host.querySelector("#dlHilo");
+  if (hl) hl.onclick = () => goTab("hilo");
 }
 
 /* ---- the way in from Home ---------------------------------------------------
@@ -451,9 +565,16 @@ function dailyHomeCardHtml() {
   const dxLine = DX.done ? (DX.won ? "Got it today" : "Out of guesses")
     : DX.guesses.length ? `${DX.guesses.length}/${DX.maxGuesses} guesses in`
     : m ? `Today: ${m.label}` : "Guess the game";
+  const hd = (typeof HL !== "undefined" && HL.dim && typeof HL_DIMS !== "undefined")
+    ? (HL_DIMS[HL.dim] || { label: HL.dim, icon: "i-trend" }) : null;
+  const hlDone = typeof HL !== "undefined" && HL.over;
+  const hlLine = hlDone ? `Run of ${HL.score} today`
+    : (typeof HL !== "undefined" && HL.score) ? `${HL.score} in a row, live`
+    : hd ? `Today: ${hd.label}` : "Higher or lower";
+  const hlRec = typeof hlRecord === "function" ? hlRecord() : { best: 0 };
   return `<section class="h-sect">
     <div class="h-sect-head"><h2>${icon("i-dice", 17)} Daily games</h2>
-      <div class="h-sect-act"><button class="linkbtn" id="hDailyAll">Both, one page →</button></div></div>
+      <div class="h-sect-act"><button class="linkbtn" id="hDailyAll">All three, one page →</button></div></div>
     <div class="dl-home">
       <button class="px-home${pxDone ? " done" : ""}" id="hPicross">
         ${pxMini}
@@ -474,6 +595,16 @@ function dailyHomeCardHtml() {
         <span class="px-home-s"><b>${dxCurrentStreak()}</b><i>day streak</i></span>
         <span class="gr-go">→</span>
       </button>
+      <button class="px-home${hlDone ? " done" : ""}" id="hHilo">
+        <span class="dl-dexle-mini">${hd ? icon(hd.icon, 26) : icon("i-trend", 26)}
+          <em>${hd ? escapeHtml(hd.label) : "…"}</em></span>
+        <span class="px-home-b">
+          <b>Daily Hi-Lo</b>
+          <span class="muted">${hlLine}</span>
+        </span>
+        <span class="px-home-s"><b>${hlRec.best || 0}</b><i>best run</i></span>
+        <span class="gr-go">→</span>
+      </button>
     </div>
   </section>`;
 }
@@ -485,11 +616,14 @@ function wireDailyHome() {
   if (px) px.onclick = () => goTab("picross");
   const dx = document.getElementById("hDexle");
   if (dx) dx.onclick = () => goTab("dexle");
+  const hl = document.getElementById("hHilo");
+  if (hl) hl.onclick = () => goTab("hilo");
 }
 
 function dailyHomeInit() {
   if (typeof picrossHomeInit === "function") picrossHomeInit();
   dexleMetaInit();
+  if (typeof hiloMetaInit === "function") hiloMetaInit();
 }
 
 /* Landing state (core.js) — deliberately empty, like Picross's: DX is today's round

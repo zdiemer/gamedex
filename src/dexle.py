@@ -30,6 +30,7 @@ import logging
 import pathlib
 import random
 import re
+import unicodedata
 from datetime import datetime
 
 log = logging.getLogger("gamedex.dexle")
@@ -40,6 +41,7 @@ PROBE_CAP = 250            # candidates to try for modes that cost a DB read per
 MIN_PROSE = 200            # a summary/review shorter than this isn't a clue, it's a caption
 
 _WORD = re.compile(r"[A-Za-z0-9]+")
+_WORDU = re.compile(r"[^\W_]+", re.UNICODE)   # like _WORD but accent-aware, for prose
 _ROMAN = re.compile(r"^[ivxlcdm]+$", re.I)
 _SENT = re.compile(r"(?<=[.!?])\s+")
 _PAREN = re.compile(r"\s*\([^)]*\)")
@@ -50,20 +52,30 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
+def _fold(w: str) -> str:
+    """Accent-blind lowercase: 'Pokémon' and 'Pokemon' must be the same word, or the
+    censor waves the franchise name straight through."""
+    return unicodedata.normalize("NFKD", w).encode("ascii", "ignore").decode().lower()
+
+
 def _censor_terms(names: list[str]) -> set[str]:
     """The words that give the game away: every meaningful word of its title(s) and
     franchise. Short function words survive ("of", "the"); numerals and roman numerals
     don't — "VII" names the game as surely as "Fantasy" does."""
     terms = set()
     for name in names:
-        for w in _WORD.findall(name or ""):
+        # Fold BEFORE tokenizing: 'Pokémon' must yield the token 'pokemon', not the
+        # é-split shrapnel 'pok'+'mon'.
+        for w in _WORD.findall(_fold(name or "")):
             if len(w) >= 3 or w.isdigit() or _ROMAN.match(w):
-                terms.add(w.lower())
+                terms.add(w)
     return terms
 
 
 def _censor(text: str, terms: set[str]) -> str:
-    return _WORD.sub(lambda m: BLOCK if m.group(0).lower() in terms else m.group(0), text)
+    # _WORDU, not _WORD: the prose side must keep 'Pokémon' one token too, or the
+    # é-split halves never fold back to the term they're hiding.
+    return _WORDU.sub(lambda m: BLOCK if _fold(m.group(0)) in terms else m.group(0), text)
 
 
 def _sentences(text: str) -> list[str]:
@@ -88,6 +100,10 @@ class Dexle:
     def __init__(self, cache_dir: str = "/data/dexle"):
         self._dir = pathlib.Path(cache_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
+        # Practice rounds, keyed by (seed, mode). Deterministic from the seed, so this is
+        # only a cost saver (a shot/summary/ost build probes the DB) — a restart just
+        # rebuilds the same round when the next guess arrives.
+        self._rounds: dict = {}
 
     def daily(self, date: str, candidates: list[dict], get_detail, get_ost) -> dict | None:
         """The puzzle for `date`. `candidates` is [{key,title,platform,year,cover,genre,
@@ -128,6 +144,38 @@ class Dexle:
                     log.info("dexle %s: %s (%s) via %s", date, g["title"], g.get("platform"), mode)
                     return puz
         log.warning("dexle %s: no candidate qualified for any mode", date)
+        return None
+
+    def round(self, seed: str, mode: str, candidates: list[dict], get_detail, get_ost) -> dict | None:
+        """A practice round: same engine as daily(), seeded by a client-minted string
+        instead of the calendar, and never written to disk. `mode` is a specific mode
+        or "any" (the seed picks). Deterministic per (seed, mode), so a guess can
+        rebuild the round even after a restart."""
+        key = (seed, mode)
+        if key in self._rounds:
+            return self._rounds[key]
+        if not candidates:
+            return None
+        h = int(hashlib.sha256(f"dexle:round:{seed}:{mode}".encode()).hexdigest()[:12], 16)
+        rng = random.Random(h)
+        pool = list(candidates)
+        rng.shuffle(pool)
+        start = rng.randrange(len(MODES))
+        order = [mode] if mode in MODES else list(MODES[start:] + MODES[:start])
+        for m in order:
+            probes = 0
+            for g in pool:
+                if m in ("shot", "summary", "ost"):
+                    probes += 1
+                    if probes > PROBE_CAP:
+                        break
+                puz = self._build(m, g, rng, get_detail, get_ost)
+                if puz:
+                    puz["date"] = seed          # public() calls it date; the client echoes it back
+                    if len(self._rounds) > 200:
+                        self._rounds.pop(next(iter(self._rounds)))
+                    self._rounds[key] = puz
+                    return puz
         return None
 
     def _build(self, mode: str, g: dict, rng: random.Random, get_detail, get_ost) -> dict | None:

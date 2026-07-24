@@ -11,7 +11,7 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "daily", "search", "galaxy"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
   $("#searchpage").hidden = mode !== "search";
@@ -25,8 +25,13 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#shelfview").hidden = mode !== "shelf";
   $("#picross").hidden = mode !== "picross";
   $("#dexle").hidden = mode !== "dexle";
+  $("#hilo").hidden = mode !== "hilo";
   $("#daily").hidden = mode !== "daily";
   $("#recs").hidden = mode !== "recs";
+  // Leaving a daily-game tab mid-practice falls back to today's round, so Home and
+  // the Daily page never mistake a practice round for the daily (mirrors shelfTeardown).
+  if (mode !== "dexle" && typeof dexleTeardown === "function") dexleTeardown();
+  if (mode !== "hilo" && typeof hiloTeardown === "function") hiloTeardown();
   // The Shelf's 3D pull can't animate itself shut onto a host that's about to be hidden,
   // and shCur >= 0 is one of the things anyOverlayOpen() counts (drawer.js) — so a box
   // left out kept the whole PAGE scroll-locked on every tab you visited afterwards. Here
@@ -78,6 +83,7 @@ function renderAll() {
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
   if (activeTab === "dexle") { setSpecialMode("dexle"); renderDexle(); return; }
+  if (activeTab === "hilo") { setSpecialMode("hilo"); renderHilo(); return; }
   if (activeTab === "daily") { setSpecialMode("daily"); renderDaily(); return; }
   if (activeTab === "search") { setSpecialMode("search"); renderSearch(); return; }
   // Recommend is a sheet-backed tab (synthetic DATA.sheets.recs, recs.js), but its data only
@@ -268,7 +274,7 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross", "dexle", "daily", "recs", "wishlist", "search", "galaxy"].includes(tab) ? tab : "home";
+         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "wishlist", "search", "galaxy"].includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   if ((tab === "wishlist" || tab === "health") && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
@@ -415,7 +421,7 @@ function setDocTitle() {
   } else {
     const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"] span`);
     const label = btn ? btn.textContent.trim()
-      : ({ picross: "Daily Picross", dexle: "Dexle", daily: "Daily Games" }[activeTab] || "");
+      : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games" }[activeTab] || "");
     if (label && label !== "Home") lead = label;
   }
   document.title = lead ? `${lead} · Gamedex` : "Gamedex";
@@ -428,9 +434,11 @@ function updateNavHere() {
   if (!el) return;
   const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"]`);
   const label = btn ? (btn.querySelector("span") || {}).textContent
-    : ({ picross: "Daily Picross", dexle: "Dexle", daily: "Daily Games", search: "Search" }[activeTab] || "");
+    : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games", search: "Search" }[activeTab] || "");
   const iconHref = btn ? (btn.querySelector("use") || {}).getAttribute("href")
-    : (activeTab === "search" ? "#i-search" : (activeTab === "dexle" || activeTab === "daily") ? "#i-dice" : null);
+    : (activeTab === "search" ? "#i-search"
+      : (activeTab === "dexle" || activeTab === "daily") ? "#i-dice"
+      : activeTab === "hilo" ? "#i-trend" : null);
   const show = label && activeTab !== "home";
   el.hidden = !show;
   if (show) el.innerHTML = (iconHref ? `<svg class="ico" width="15" height="15" aria-hidden="true"><use href="${iconHref}"/></svg>` : "") + escapeHtml(label);

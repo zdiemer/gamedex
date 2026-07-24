@@ -33,6 +33,7 @@ from pydantic import BaseModel
 import accounts as accounts_mod
 import assetcache as assetcache_mod
 import dexle as dexle_mod
+import hilo as hilo_mod
 import itad as itad_mod
 import manualcover as manualcover_mod
 import picross as picross_mod
@@ -930,7 +931,7 @@ def _dexle_candidates() -> list[dict]:
     (Games sheet `review`, else the Completed sheet's review/notes, joined on _k)."""
     if not enricher:
         return []
-    data = store.snapshot()["data"]
+    data = store.snapshot()["data"] or {}     # None until the sheet's first load lands
     light = enricher.get_all_light()
     completed_prose = {}
     for r in data.get("completed", {}).get("rows", []):
@@ -955,12 +956,20 @@ def _dexle_candidates() -> list[dict]:
     return out
 
 
+def _dexle_get_detail(k):
+    return enricher.get_detail(k)[1] if enricher else None
+
+
+def _dexle_get_ost(k):
+    return enricher.get_secondary("khinsider", k) if enricher else None
+
+
 def _dexle_daily() -> dict | None:
-    return DEXLE.daily(
-        _today(), _dexle_candidates(),
-        get_detail=lambda k: (enricher.get_detail(k)[1] if enricher else None),
-        get_ost=lambda k: (enricher.get_secondary("khinsider", k) if enricher else None),
-    )
+    return DEXLE.daily(_today(), _dexle_candidates(), _dexle_get_detail, _dexle_get_ost)
+
+
+def _dexle_round(seed: str, mode: str | None) -> dict | None:
+    return DEXLE.round(seed, mode or "any", _dexle_candidates(), _dexle_get_detail, _dexle_get_ost)
 
 
 @app.get("/api/dexle/daily")
@@ -972,9 +981,21 @@ def api_dexle_daily():
     return {"ok": True, **dexle_mod.Dexle.public(puz)}
 
 
+@app.get("/api/dexle/round")
+def api_dexle_round(seed: str, mode: str | None = None):
+    """A practice round — same engine as the daily, seeded by the client, no streak.
+    The seed comes back in `date`; the client echoes it on every guess."""
+    puz = _dexle_round(seed, mode)
+    if not puz:
+        return {"ok": False, "reason": "no round for that seed"}
+    return {"ok": True, **dexle_mod.Dexle.public(puz)}
+
+
 class DexleGuess(BaseModel):
     title: str | None = None      # None: a deliberate skip, burning the guess for the hint
     n: int = 0                    # which guess this is (0-based)
+    seed: str | None = None       # present on practice-round guesses
+    mode: str | None = None       # the practice round's requested mode ("any" included)
 
 
 @app.post("/api/dexle/guess")
@@ -982,7 +1003,7 @@ def api_dexle_guess(body: DexleGuess):
     """Judge one guess. A wrong one earns the next metadata hint and, when the guessed
     game shares something with the answer, a warmer/colder nudge. The answer itself only
     comes back when the round is over — won, or out of guesses."""
-    puz = _dexle_daily()
+    puz = _dexle_round(body.seed, body.mode) if body.seed else _dexle_daily()
     if not puz:
         return {"ok": False}
     n = max(0, min(int(body.n), dexle_mod.MAX_GUESSES - 1))
@@ -1001,13 +1022,90 @@ def api_dexle_guess(body: DexleGuess):
 
 
 @app.get("/api/dexle/track")
-def api_dexle_track():
-    """The day's soundtrack clip, by indirection: the KHInsider song path has the album
-    name in it, so the browser only ever sees this URL."""
-    puz = _dexle_daily()
+def api_dexle_track(seed: str | None = None, mode: str | None = None):
+    """The round's soundtrack clip, by indirection: the KHInsider song path has the
+    album name in it, so the browser only ever sees this URL."""
+    puz = _dexle_round(seed, mode) if seed else _dexle_daily()
     if not puz or not puz.get("song"):
         raise HTTPException(status_code=404, detail="no track today")
     return khinsider_audio(puz["song"])
+
+
+# ---- Hi-Lo: the daily higher-or-lower --------------------------------------
+HILO = hilo_mod.Hilo(os.environ.get("HILO_DIR", "/data/hilo"))
+
+
+def _owners_mid(s) -> int | None:
+    """SteamSpy's owners is a range string ('1,000,000 .. 2,000,000'); play the midpoint."""
+    try:
+        lo, hi = (int(p.strip().replace(",", "")) for p in str(s).split(".."))
+        return (lo + hi) // 2
+    except Exception:
+        return None
+
+
+def _hilo_candidates() -> list[dict]:
+    """The Picross pool again, each game carrying whichever of the five numbers it has."""
+    if not enricher:
+        return []
+    data = store.snapshot()["data"] or {}     # None until the sheet's first load lands
+    light = enricher.get_all_light()
+    out = []
+    for r in data.get("games", {}).get("rows", []):
+        if not (r.get("owned") or r.get("completed")):
+            continue
+        le = light.get(r.get("_k")) or {}
+        if not le.get("cover"):
+            continue
+        hltb = le.get("hltbBest") or le.get("hltbMain")
+        out.append({"key": r["_k"], "title": r.get("title"), "platform": r.get("platform"),
+                    "year": r.get("releaseYear"), "cover": le["cover"],
+                    "metascore": le.get("metascore"),
+                    "hltb": round(float(hltb), 1) if hltb else None,
+                    "units": le.get("units") or None,
+                    "owners": _owners_mid(le.get("owners")) if le.get("owners") else None})
+    return out
+
+
+def _hilo_daily() -> dict | None:
+    return HILO.daily(_today(), _hilo_candidates())
+
+
+@app.get("/api/hilo/daily")
+def api_hilo_daily():
+    """The first pair of today's deck: the open card with its number, the challenger
+    without. Every later value arrives one guess at a time."""
+    deck = _hilo_daily()
+    if not deck:
+        return {"ok": False, "reason": "no deck today"}
+    return {"ok": True, **hilo_mod.Hilo.public(deck)}
+
+
+@app.get("/api/hilo/round")
+def api_hilo_round(seed: str, dim: str | None = None):
+    """A practice deck: client seed, chosen (or any) dimension, memory only."""
+    deck = HILO.round(seed, dim or "any", _hilo_candidates())
+    if not deck:
+        return {"ok": False, "reason": "no round for that seed"}
+    return {"ok": True, **hilo_mod.Hilo.public(deck)}
+
+
+class HiloGuess(BaseModel):
+    n: int                        # which pair (0-based: challenger items[n+1] vs items[n])
+    dir: str                      # "higher" | "lower"
+    seed: str | None = None       # present on practice-deck guesses
+    dim: str | None = None        # the practice deck's requested dimension ("any" included)
+
+
+@app.post("/api/hilo/guess")
+def api_hilo_guess(body: HiloGuess):
+    """The verdict for one call, revealing exactly one number either way."""
+    if body.dir not in ("higher", "lower"):
+        return {"ok": False}
+    deck = HILO.round(body.seed, body.dim or "any", _hilo_candidates()) if body.seed else _hilo_daily()
+    if not deck:
+        return {"ok": False}
+    return hilo_mod.Hilo.judge(deck, int(body.n), body.dir)
 
 
 @app.get("/api/uploads")
