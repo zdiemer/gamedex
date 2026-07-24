@@ -428,7 +428,8 @@ button .ico, a .ico { pointer-events: none; }
 #tabs button.active .ico { color: var(--accent); }
 /* Attract mode lives at the foot of the menu now (it used to sit on Home). margin-top:auto
    drops it to the bottom of the panel; the hairline reads it as a footer action. */
-.nav-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.nav-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border-soft);
+  display: flex; flex-direction: column; gap: 8px; }
 .nav-attract { width: 100%; justify-content: center; padding: 11px; font-size: 13.5px; }
 
 /* ---- Layout ------------------------------------------------------------- */
@@ -4085,7 +4086,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .rl-prog-txt { font: 500 11px var(--font); color: var(--dim); font-variant-numeric: tabular-nums; }
 
 /* ================= the daily Picross ================= */
-.picross { flex: 1; overflow-y: auto; padding: 26px 20px 60px; }
+/* One rule for all four game hosts — Dexle/Hi-Lo/Daily launched with none of this
+   and sat flush against the top bar. */
+.picross, .dexle, .hilo, .daily { flex: 1; overflow-y: auto; padding: 26px 20px 60px; }
 .px-wrap { max-width: 900px; margin: 0 auto; position: relative; }
 .px-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
 .px-head h1 { font-family: var(--display); font-size: 30px; letter-spacing: -.02em; margin: 6px 0 6px; }
@@ -4218,6 +4221,22 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 400 13.5px var(--font);
 }
 .px-guess input:focus { outline: none; border-color: var(--accent); }
+/* The guess box's own dropdown (acAttach, core.js) — anchored inside the wrapper so a
+   reflow under it (a de-blurring clue) can never strand the list mid-page. */
+.px-guess .ac-wrap { flex: 1; min-width: 220px; }
+.ac-wrap { position: relative; display: flex; }
+.ac-wrap input { width: 100%; min-width: 0; }
+.ac-list {
+  position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 35;
+  padding: 4px; max-height: 300px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); box-shadow: 0 16px 36px rgba(0,0,0,.4);
+}
+.ac-item {
+  padding: 8px 11px; border-radius: 7px; cursor: pointer; font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-item:hover, .ac-item.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .px-guess-msg { font-size: 12.5px; color: var(--dim); }
 .px-guess-msg.bad { color: var(--bad); }
 
@@ -4340,6 +4359,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .dx-log-t::before { content: "✕"; color: var(--bad); margin-right: 8px; font-size: 12px; }
 .dx-log-t.skip { color: var(--dim); }
 .dx-log-t.skip::before { content: "→"; color: var(--warn); }
+.dx-log-t.hit::before { content: "✓"; color: var(--good); }
 .dx-log-near { font-size: 12px; color: var(--warn); }
 
 /* ---- endless practice (shared by Dexle and Hi-Lo) ---- */
@@ -4448,13 +4468,24 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .jb-composer { font-size: 10.5px; color: var(--accent); display: flex; align-items: center; gap: 4px; }
 .jb-timebar { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; margin-top: 4px; cursor: pointer; }
 .jb-timebar i { display: block; height: 100%; width: 0; background: var(--accent); }
-.jb-ctl { flex: none; display: flex; align-items: center; gap: 2px; }
-.jb-ctl button {
+.jb-side { flex: none; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.jb-ctl { display: flex; align-items: center; gap: 2px; }
+.jb-ctl button, .jb-volume button {
   border: 0; background: none; cursor: pointer; color: var(--text);
   padding: 6px; border-radius: 6px; display: grid; place-items: center;
 }
-.jb-ctl button:hover { background: var(--surface-2); }
+.jb-ctl button:hover, .jb-volume button:hover { background: var(--surface-2); }
 .jb-ctl button.on { color: var(--accent); }
+.jb-volume { display: flex; align-items: center; gap: 4px; width: 100%; }
+.jb-vol {
+  flex: 1; min-width: 0; height: 3px; accent-color: var(--accent); cursor: pointer;
+  -webkit-appearance: none; appearance: none; border-radius: 2px; background: var(--border);
+}
+.jb-vol::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--accent); border: 0;
+}
+.jb-vol::-moz-range-thumb { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 0; }
 .jb-browse {
   display: flex; flex-direction: column; gap: 4px; padding: 10px;
   max-height: 46vh; overflow-y: auto;

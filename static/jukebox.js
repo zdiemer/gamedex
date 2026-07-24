@@ -28,6 +28,18 @@ const JB = {
 };
 const JBC = {};          // slug -> album record (or null after a failed fetch)
 
+// Volume outlives the session — a radio that resets to full blast isn't lean-back.
+const JB_VOL = "gamedex.jukebox.vol";
+function jbVolLoad() {
+  try {
+    const v = JSON.parse(localStorage.getItem(JB_VOL) || "null");
+    return v && typeof v.vol === "number" ? v : { vol: 1, muted: false };
+  } catch (_) { return { vol: 1, muted: false }; }
+}
+function jbVolSave(vol, muted) {
+  try { localStorage.setItem(JB_VOL, JSON.stringify({ vol, muted })); } catch (_) {}
+}
+
 // ---- the pool ---------------------------------------------------------------
 const jbSlug = (e) => {
   const m = String((e || {}).ostUrl || "").match(/\/album\/([^/?#]+)/);
@@ -155,6 +167,9 @@ function jbStart() {
     audio.addEventListener("durationchange", jbDrawTime);
     audio.addEventListener("play", jbDraw);
     audio.addEventListener("pause", jbDraw);
+    const v = jbVolLoad();
+    audio.volume = v.vol;
+    audio.muted = v.muted;
     JB.audio = audio;
   }
   JB.on = true;
@@ -209,13 +224,20 @@ function jbDraw() {
         ${composers ? `<span class="jb-composer">${icon("i-music", 10)} ${escapeHtml(composers)}</span>` : ""}
         <div class="jb-timebar" data-jb-seek><i id="jbTimeFill"></i></div>
       </div>
-      <div class="jb-ctl">
-        <button data-jb-prev title="Previous">${icon("i-skip-back", 16)}</button>
-        <button data-jb-play title="Play/pause">${icon(playing ? "i-pause" : "i-play", 18)}</button>
-        <button data-jb-next title="Next">${icon("i-skip-fwd", 16)}</button>
-        <button data-jb-dial-toggle class="${JB.composer ? "on" : ""}"
-          title="${JB.composer ? `Playing: ${escapeHtml(JB.composer)}` : "By composer"}">${icon("i-filter", 15)}</button>
-        <button data-jb-close title="Stop the jukebox">${icon("i-close", 15)}</button>
+      <div class="jb-side">
+        <div class="jb-ctl">
+          <button data-jb-prev title="Previous">${icon("i-skip-back", 16)}</button>
+          <button data-jb-play title="Play/pause">${icon(playing ? "i-pause" : "i-play", 18)}</button>
+          <button data-jb-next title="Next">${icon("i-skip-fwd", 16)}</button>
+          <button data-jb-dial-toggle class="${JB.composer ? "on" : ""}"
+            title="${JB.composer ? `Playing: ${escapeHtml(JB.composer)}` : "By composer"}">${icon("i-filter", 15)}</button>
+          <button data-jb-close title="Stop the jukebox">${icon("i-close", 15)}</button>
+        </div>
+        <div class="jb-volume">
+          <button data-jb-mute title="Mute">${icon(JB.audio && JB.audio.muted ? "i-muted" : "i-volume", 14)}</button>
+          <input type="range" class="jb-vol" data-jb-vol min="0" max="1" step="0.05"
+            value="${JB.audio ? JB.audio.volume : 1}" title="Volume">
+        </div>
       </div>
     </div>`;
   jbWire(host);
@@ -247,6 +269,22 @@ function jbWire(host) {
   host.querySelector("[data-jb-prev]").onclick = () => jbPrev();
   host.querySelector("[data-jb-close]").onclick = () => jbStop();
   host.querySelector("[data-jb-dial-toggle]").onclick = () => { JB.browse = !JB.browse; jbDraw(); };
+  // Volume writes straight to the element — re-rendering the dock mid-drag would
+  // yank the slider out from under the pointer.
+  const vol = host.querySelector("[data-jb-vol]");
+  if (vol) vol.oninput = () => {
+    if (!JB.audio) return;
+    JB.audio.volume = +vol.value;
+    if (JB.audio.muted && +vol.value > 0) { JB.audio.muted = false; jbDraw(); }
+    jbVolSave(JB.audio.volume, JB.audio.muted);
+  };
+  const mute = host.querySelector("[data-jb-mute]");
+  if (mute) mute.onclick = () => {
+    if (!JB.audio) return;
+    JB.audio.muted = !JB.audio.muted;
+    jbVolSave(JB.audio.volume, JB.audio.muted);
+    jbDraw();
+  };
   host.querySelectorAll("[data-jb-dial]").forEach((el) => {
     el.onclick = () => {
       JB.composer = el.dataset.jbDial || null;

@@ -232,7 +232,7 @@ function renderPicross() {
     </div>
 
     ${PX.solved ? pxWinHtml() : `<div class="px-guess">
-      <input id="pxGuess" type="text" list="pxTitles" placeholder="Know it already? Name the game…" autocomplete="off">
+      <span class="ac-wrap"><input id="pxGuess" type="text" placeholder="Know it already? Name the game…" autocomplete="off"></span>
       <button class="btn" id="pxGuessGo">Guess</button>
       <span class="px-guess-msg" id="pxMsg"></span>
     </div>`}
@@ -400,7 +400,7 @@ function wirePicross(host) {
   const go = host.querySelector("#pxGuessGo");
   if (go) go.onclick = pxGuess;
   const gi = host.querySelector("#pxGuess");
-  if (gi) gi.onkeydown = (e) => { if (e.key === "Enter") pxGuess(); };
+  if (gi) { acAttach(gi, pxTitleList); gi.addEventListener("keydown", (e) => { if (e.key === "Enter") pxGuess(); }); }
   const open = host.querySelector("#pxOpen");
   if (open) open.onclick = () => {
     const row = (DATA.sheets.games.rows || []).find((r) => r._k === (PX.game || {}).key);
@@ -515,6 +515,8 @@ async function pxGuess() {
   const input = $("#pxGuess"), msg = $("#pxMsg");
   const v = (input.value || "").trim();
   if (!v) return;
+  msg.textContent = "Checking…";        // the verdict is a round trip away; ack the keypress now
+  msg.className = "px-guess-msg";
   try {
     const r = await fetch("api/picross/guess", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: v }),
@@ -545,24 +547,22 @@ function pxCelebrate() {
 }
 
 // The guess box completes against the games it could possibly be — the ones I own or have
-// finished, which is exactly the pool the puzzle is cut from. Completing against all 14,746
-// would be offering answers that cannot be right.
-let pxTitlesFilled = false;
-function pxFillTitles() {
-  if (pxTitlesFilled || !DATA || !DATA.sheets.games) return;
-  const dl = $("#pxTitles");
-  if (!dl) return;
+// finished, which is exactly the pool the puzzles are cut from. Completing against all 14,746
+// would be offering answers that cannot be right. Shared with Dexle's box (acAttach, core.js);
+// folds precomputed once, not per keystroke.
+let _pxTitles = null;
+function pxTitleList() {
+  if (_pxTitles || !DATA || !DATA.sheets.games) return _pxTitles || [];
   const seen = new Set();
-  const opts = [];
+  const out = [];
   for (const r of DATA.sheets.games.rows) {
     if (!(r.owned || r.completed) || !r.title) continue;
     const t = String(r.title);
     if (seen.has(t)) continue;
     seen.add(t);
-    opts.push(`<option value="${escapeHtml(t)}"></option>`);
+    out.push({ t, f: acFold(t) });
   }
-  dl.innerHTML = opts.join("");
-  pxTitlesFilled = true;
+  return (_pxTitles = out);
 }
 
 /* The way in. A daily puzzle doesn't deserve a permanent seat in the nav — you play it once
@@ -593,7 +593,6 @@ async function loadPicross() {
     if (!j.ok) { PX.date = "—"; PX.w = 0; renderPicross(); return; }
     PX.date = j.date; PX.w = j.w; PX.h = j.h; PX.rows = j.rows; PX.cols = j.cols;
     if (!pxLoad()) PX.cells = new Array(PX.w * PX.h).fill(0);
-    pxFillTitles();
     renderPicross();
   } catch (_) {
     PX.date = "—"; PX.w = 0; renderPicross();

@@ -156,7 +156,7 @@ function renderDexle() {
     ${DX.done ? dxEndHtml() : `
       <div class="dx-dots">${dxDotsHtml()}</div>
       <div class="px-guess">
-        <input id="dxGuessIn" type="text" list="pxTitles" placeholder="Name the game…" autocomplete="off">
+        <span class="ac-wrap"><input id="dxGuessIn" type="text" placeholder="Name the game…" autocomplete="off"></span>
         <button class="btn" id="dxGuessGo">Guess</button>
         <button class="btn ghost" id="dxSkip" title="Burn a guess for the next hint">Skip →</button>
         <span class="px-guess-msg" id="dxMsg"></span>
@@ -165,8 +165,8 @@ function renderDexle() {
     ${DX.hints.length ? `<div class="dx-hints">${DX.hints.map((h) =>
       `<span class="dx-hint"><i>${escapeHtml(h.label)}</i>${escapeHtml(h.value)}</span>`).join("")}</div>` : ""}
 
-    ${DX.guesses.length ? `<ol class="dx-log">${DX.guesses.map((g) => `<li>
-        <span class="dx-log-t${g.title ? "" : " skip"}">${g.title ? escapeHtml(g.title) : "Skipped"}</span>
+    ${DX.guesses.length ? `<ol class="dx-log">${DX.guesses.map((g, i) => `<li>
+        <span class="dx-log-t${!g.title ? " skip" : (DX.won && i === DX.guesses.length - 1) ? " hit" : ""}">${g.title ? escapeHtml(g.title) : "Skipped"}</span>
         ${g.near ? `<span class="dx-log-near">${escapeHtml(g.near)}</span>` : ""}
       </li>`).join("")}</ol>` : ""}
 
@@ -324,7 +324,14 @@ function wireDexle(host) {
   const go = host.querySelector("#dxGuessGo");
   if (go) go.onclick = dxSubmit;
   const gi = host.querySelector("#dxGuessIn");
-  if (gi) gi.onkeydown = (e) => { if (e.key === "Enter") dxSubmit(); };
+  if (gi) {
+    acAttach(gi, pxTitleList);            // the same owned/completed pool as Picross's box
+    gi.addEventListener("keydown", (e) => { if (e.key === "Enter") dxSubmit(); });
+    // A guess re-renders the whole tab; hand the keyboard straight back so the next
+    // guess needs no click. Only when one was just made — not on plain tab opens,
+    // where focus would pop the keyboard on a phone.
+    if (DX._refocus) { DX._refocus = false; gi.focus(); }
+  }
   const skip = host.querySelector("#dxSkip");
   if (skip) skip.onclick = () => dxGuess(null);
   const open = host.querySelector("#dxOpen");
@@ -332,7 +339,6 @@ function wireDexle(host) {
     const row = (DATA.sheets.games.rows || []).find((r) => r._k === (DX.answer || {}).key);
     if (row) openDrawer(row, "games");
   };
-  if (typeof pxFillTitles === "function") pxFillTitles();   // shares the Picross datalist
 
   host.querySelectorAll("[data-dxmode]").forEach((el) => {
     el.onclick = () => { dxPracticeMode = el.dataset.dxmode; renderDexle(); };
@@ -373,7 +379,7 @@ function wireDexleTune(host, audio) {
 function dxSubmit() {
   const input = $("#dxGuessIn"), msg = $("#dxMsg");
   const v = (input.value || "").trim();
-  if (!v) return;
+  if (!v || dxBusy) return;
   const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (DX.guesses.some((g) => g.title && norm(g.title) === norm(v))) {
     msg.textContent = "Already tried that one.";
@@ -381,11 +387,18 @@ function dxSubmit() {
     input.select();
     return;
   }
+  // The verdict is a round trip away; acknowledge the keypress NOW.
+  msg.textContent = "Checking…";
+  msg.className = "px-guess-msg";
+  DX._refocus = true;
   dxGuess(v);
 }
 
+let dxBusy = false;             // one guess in flight at a time — Enter mashing must not burn two
+
 async function dxGuess(title) {
-  if (DX.done) return;
+  if (DX.done || dxBusy) return;
+  dxBusy = true;
   try {
     const body = { title: title || null, n: DX.guesses.length };
     if (DX.practice) { body.seed = DX.practice.seed; body.mode = DX.practice.mode; }
@@ -409,6 +422,7 @@ async function dxGuess(title) {
     renderDexle();
     if (j.correct) dxCelebrate();
   } catch (_) { /* offline: the guess just doesn't land */ }
+  finally { dxBusy = false; }
 }
 
 // Same small shower the Picross throws; same class, same CSS.
