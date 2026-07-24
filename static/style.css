@@ -4399,7 +4399,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   display: grid; place-items: center; padding: 24px;
 }
 .md-book {
-  width: min(1000px, 96vw); height: min(84vh, 900px); display: flex; flex-direction: column;
+  /* 100% is the scrim's *padded* content box, so the booklet stays inside the 24px scrim
+     padding on every side. 96vw ignored that padding and spilled off the right edge on a phone. */
+  width: min(1000px, 100%); height: min(84vh, 900px); display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
   overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6);
 }
@@ -4407,14 +4409,24 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   display: flex; align-items: center; gap: 12px; padding: 12px 14px;
   border-bottom: 1px solid var(--border); flex-wrap: wrap;
 }
-.md-book-bar b { font: 700 14px/1 var(--display); }
+.md-book-bar b { font: 700 14px/1.2 var(--display); }
 .md-book-bar .muted { font-size: 12px; }
 .md-book-bar .sh-btn:last-child { margin-left: auto; }
+/* The reader lives in its own relative box so the skeleton overlay can pin to it (inset: 0)
+   instead of guessing the bar's height — which is what let the bar wrap over the skeleton. */
+.md-book-body { position: relative; flex: 1; min-height: 0; display: flex; }
 .md-book iframe { flex: 1; width: 100%; border: 0; background: #111; }
 
 @media (max-width: 760px) {
   .md-panel { flex-direction: column; align-items: flex-start; gap: 14px; }
   .md-stage { width: 100%; height: 150px; }
+  /* On a phone the bar can't hold everything on one line. Give the title its own row (truncated,
+     never wrapping to force width) and let the caption + Archive link + Close settle onto the next. */
+  .md-book-bar { gap: 8px 10px; padding: 10px 12px; }
+  .md-book-bar b {
+    flex: 1 1 100%; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 }
 
 /* ---- opening the box ------------------------------------------------------
@@ -4639,7 +4651,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    "it's coming". Sits over the frame and is removed on load — see openManual(). */
 .md-book { position: relative; }
 .md-skel {
-  position: absolute; inset: 44px 0 0; z-index: 2;
+  position: absolute; inset: 0; z-index: 2;
   display: flex; align-items: center; justify-content: center; gap: 18px;
   background: var(--surface); transition: opacity .4s ease;
 }

@@ -348,12 +348,14 @@ function openManual(g) {
         <a class="sh-btn" href="${escapeHtml(art.manualUrl)}" target="_blank" rel="noopener">Open at the Archive ↗</a>
         <button class="sh-btn" id="mdClose">Close</button>
       </div>
-      <div class="md-skel" aria-hidden="true">
-        <div class="md-skel-page"><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="md-skel-page"><i></i><i></i><i></i><i></i><i></i></div>
-        <span class="md-skel-say">${say}</span>
+      <div class="md-book-body">
+        <div class="md-skel" aria-hidden="true">
+          <div class="md-skel-page"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="md-skel-page"><i></i><i></i><i></i><i></i><i></i></div>
+          <span class="md-skel-say">${say}</span>
+        </div>
+        <iframe src="${escapeHtml(src)}" allowfullscreen frameborder="0"></iframe>
       </div>
-      <iframe src="${escapeHtml(src)}" allowfullscreen frameborder="0"></iframe>
     </div>`;
   document.body.appendChild(host);
   /* The Archive's BookReader takes a few seconds to boot, and until it does the iframe is a blank
