@@ -48,17 +48,23 @@ const GX_PALETTE = [
 ];
 
 // Force-sim constants. Tuned for a few thousand stars settling in ~450 cooling ticks.
-// Gravity is deliberately gentle: too much and 3,000 stars crush into a pin-dot while a
-// handful of weakly-linked ones stay stranded at their start radius, and fit-to-view then
-// zooms out to a speck. Strong-but-local repulsion inflates the core into a readable disc.
-const GX_REST = 55;            // spring rest length for a unit-weight edge
-const GX_SPRING = 0.03;        // spring stiffness (stiff enough to reel a stray in while it's still warm)
-const GX_REPULSE = 3200;       // repulsion strength between nearby stars
-const GX_REPULSE_DIST = 190;   // …only felt within this world radius (grid-bucketed, keeps it O(n))
-const GX_GRAVITY = 0.007;      // pull toward the centre so the graph can't drift or fly apart
+// The layout clusters by COMMUNITY (label propagation over the link weights): each
+// community binds tight internally, cross-community links barely pull, far-field
+// repulsion (cell aggregates, Barnes-Hut style) pushes whole islands apart, and a
+// per-community centroid pull keeps each island round. Without the far field,
+// repulsion only acted locally and gravity crushed everything into one hairball.
+const GX_REST = 42;            // spring rest length for a unit-weight edge
+const GX_SPRING = 0.05;        // spring stiffness within a community
+const GX_SPRING_XCOM = 0.006;  // …across communities: a shared keyword shouldn't drag islands together
+const GX_REST_XCOM = 3.0;      // cross-community links also sit at several times the rest length
+const GX_REPULSE = 2300;       // exact repulsion between nearby stars
+const GX_REPULSE_DIST = 190;   // …felt within this world radius (grid-bucketed, keeps it O(n))
+const GX_FAR = 3200;           // far-field repulsion from whole grid-cell aggregates (island vs island)
+const GX_GRAVITY = 0.006;      // pull toward the centre so the archipelago can't fly apart
+const GX_COM_PULL = 0.042;     // pull toward your own community's centroid — keeps islands round
 const GX_DECAY = 0.88;         // velocity damping per tick
 const GX_ALPHA_MIN = 0.01;     // below this the layout is settled — stop the RAF, keep it live for drags
-const GX_COOL = 0.99;          // per-tick cooling — slower than usual so the core has time to inflate
+const GX_COOL = 0.99;          // per-tick cooling — slower than usual so the islands have time to part
 const GX_COVER_ZOOM = 1.8;     // show cover thumbnails once zoomed in past this
 const GX_R_MIN = 2.6, GX_R_MAX = 6.2;  // star radius by your rating
 
@@ -177,15 +183,13 @@ function galaxyGraph() {
   top.forEach(([label], idx) => colorOf.set(label, GX_PALETTE[idx]));
   const legend = top.map(([label, n], idx) => ({ label, n, color: GX_PALETTE[idx] }));
 
-  // Nodes, with a deterministic starting position hashed from the game id so the
-  // galaxy forms the same way every visit (and so we never touch Math.random).
+  // Nodes; positions are seeded per-community further down, once the communities
+  // are known (and always from hashes, never Math.random, so the galaxy forms the
+  // same way every visit).
   const idxOf = new Map();
   const nodes = ciList.map((ci, n) => {
     idxOf.set(ci, n);
     const c = cands[ci];
-    const h = gxHash(c.gid);
-    const ang = (h % 3600) / 3600 * Math.PI * 2;
-    const rad = Math.sqrt(((h >>> 12) % 1000) / 1000) * 210 + 26;
     const rating = Number((c.row && c.row.rating) != null ? c.row.rating : c.e.rating) || 0;
     const label = gxGroupLabel(c, colorBy);
     const deg = degW.get(ci) || 0;
@@ -195,7 +199,7 @@ function galaxyGraph() {
       group: label,
       color: colorOf.get(label) || GX_PALETTE[GX_LEGEND_MAX],
       r: GX_R_MIN + (rating || 0.45) * (GX_R_MAX - GX_R_MIN) + Math.min(deg, 60) * 0.012,
-      x: Math.cos(ang) * rad, y: Math.sin(ang) * rad, vx: 0, vy: 0,
+      com: 0, x: 0, y: 0, vx: 0, vy: 0,
     };
   });
 
@@ -211,9 +215,63 @@ function galaxyGraph() {
     adj[na].push(nb); adj[nb].push(na);
   }
 
+  // Communities — the clusters the layout is FOR. Weighted label propagation over
+  // the kept edges: cheap, deterministic, and it finds exactly the "these games
+  // keep linking to each other" neighbourhoods the eye expects to see as islands.
+  const com = gxCommunities(nodes.length, edges);
+  for (let i = 0; i < nodes.length; i++) nodes[i].com = com[i];
+
+  // Seed each community in its own patch of sky, members hash-scattered around the
+  // patch in proportion to the community's size. Starting apart matters as much as
+  // the forces: a force layout mostly untangles what its start already suggests.
+  const comKey = new Map();   // community -> smallest member-gid hash (stable identity)
+  const comSize = new Map();
+  for (let i = 0; i < nodes.length; i++) {
+    const c = com[i], h = gxHash(nodes[i].gid);
+    const prev = comKey.get(c);
+    if (prev === undefined || h < prev) comKey.set(c, h);
+    comSize.set(c, (comSize.get(c) || 0) + 1);
+  }
+  for (const n of nodes) {
+    const hc = comKey.get(n.com), size = comSize.get(n.com);
+    const ang = (hc % 3600) / 3600 * Math.PI * 2;
+    const rad = size > 2 ? 150 + ((hc >>> 12) % 1000) / 1000 * 210
+                         : 430 + ((hc >>> 12) % 1000) / 1000 * 90;   // pairs & loners start on the rim
+    const spread = Math.sqrt(size) * 9 + 8;
+    const h = gxHash(n.gid);
+    const a2 = (h % 3600) / 3600 * Math.PI * 2;
+    const r2 = Math.sqrt(((h >>> 12) % 1000) / 1000) * spread;
+    n.x = Math.cos(ang) * rad + Math.cos(a2) * r2;
+    n.y = Math.sin(ang) * rad + Math.sin(a2) * r2;
+  }
+
   const g = { nodes, edges, adj, legend, omitted, capped, scope };
   _gxGraph = { key, g };
   return g;
+}
+
+// Weighted label propagation: every star starts as its own community, then
+// repeatedly adopts whichever label carries the most link weight among its
+// neighbours (ties to the smaller label, fixed sweep order — fully deterministic).
+// Converges in a handful of rounds on graphs this sparse.
+function gxCommunities(n, edges) {
+  const adjW = Array.from({ length: n }, () => []);
+  for (const e of edges) { adjW[e.a].push([e.b, e.w]); adjW[e.b].push([e.a, e.w]); }
+  const label = new Array(n);
+  for (let i = 0; i < n; i++) label[i] = i;
+  for (let round = 0; round < 20; round++) {
+    let changed = 0;
+    for (let i = 0; i < n; i++) {
+      if (!adjW[i].length) continue;
+      const tally = new Map();
+      for (const [j, w] of adjW[i]) tally.set(label[j], (tally.get(label[j]) || 0) + w);
+      let best = label[i], bestW = tally.get(label[i]) || 0;
+      for (const [l, w] of tally) if (w > bestW || (w === bestW && l < best)) { best = l; bestW = w; }
+      if (best !== label[i]) { label[i] = best; changed++; }
+    }
+    if (!changed) break;
+  }
+  return label;
 }
 
 // FNV-1a, for a stable per-star seed.
@@ -318,6 +376,32 @@ function galaxyController(host, g, key) {
   const legendEl = host.querySelector("#gxLegend");
   const nodes = g.nodes, edges = g.edges, adj = g.adj;
 
+  // The landmarks: the biggest communities get a name floating at their centroid,
+  // so the archipelago reads as "the Zelda island, the JRPG island" at a glance.
+  // A community is named for its dominant colour-axis label when one clearly owns
+  // it, otherwise for its best-connected member (the island's capital).
+  const bigComs = (() => {
+    const stats = new Map();   // com -> {n, groups, capDeg, capital}
+    for (let i = 0; i < nodes.length; i++) {
+      const nd = nodes[i];
+      let s = stats.get(nd.com);
+      if (!s) stats.set(nd.com, (s = { n: 0, groups: new Map(), capDeg: -1, capital: "" }));
+      s.n++;
+      if (nd.group) s.groups.set(nd.group, (s.groups.get(nd.group) || 0) + 1);
+      if (adj[i].length > s.capDeg) { s.capDeg = adj[i].length; s.capital = nd.title; }
+    }
+    return [...stats.entries()]
+      .filter(([, s]) => s.n >= 8)
+      .sort((a, b) => b[1].n - a[1].n)
+      .slice(0, 14)
+      .map(([com, s]) => {
+        let label = "", best = 0;
+        for (const [gl, c] of s.groups) if (c > best) { best = c; label = gl; }
+        if (best < s.n * 0.35) label = s.capital;
+        return { com, label };
+      });
+  })();
+
   const cam = { x: 0, y: 0, z: 0.9 };
   let W = 0, H = 0, dpr = 1;
   let alpha = 1, raf = 0, running = false;
@@ -336,24 +420,27 @@ function galaxyController(host, g, key) {
   const w2sx = (wx) => W / 2 + (wx - cam.x) * cam.z;
   const w2sy = (wy) => H / 2 + (wy - cam.y) * cam.z;
 
-  // ---- force simulation (grid-bucketed repulsion → O(n) per tick) ----
+  // ---- force simulation (near field exact, far field from cell aggregates) ----
   function tick() {
     const cell = GX_REPULSE_DIST;
-    const grid = new Map();
+    const grid = new Map();     // "cx,cy" -> { idx: [...], m, x, y } (mass + centroid)
     const ck = (cx, cy) => cx + "," + cy;
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
       const gx = Math.floor(n.x / cell), gy = Math.floor(n.y / cell);
       const k = ck(gx, gy);
-      let b = grid.get(k); if (!b) grid.set(k, (b = [])); b.push(i);
+      let b = grid.get(k); if (!b) grid.set(k, (b = { idx: [], m: 0, x: 0, y: 0, gx, gy }));
+      b.idx.push(i); b.m++; b.x += n.x; b.y += n.y;
     }
-    // Repulsion between stars sharing a 3×3 cell neighbourhood.
+    const cells = [...grid.values()];
+    for (const b of cells) { b.x /= b.m; b.y /= b.m; }
+    // Near field: exact pair repulsion within the 3×3 cell neighbourhood.
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
       const gx = Math.floor(n.x / cell), gy = Math.floor(n.y / cell);
       for (let ax = -1; ax <= 1; ax++) for (let ay = -1; ay <= 1; ay++) {
         const b = grid.get(ck(gx + ax, gy + ay)); if (!b) continue;
-        for (const j of b) {
+        for (const j of b.idx) {
           if (j <= i) continue;
           const m = nodes[j];
           let dx = n.x - m.x, dy = n.y - m.y;
@@ -366,20 +453,41 @@ function galaxyController(host, g, key) {
           m.vx -= ux * f; m.vy -= uy * f;
         }
       }
+      // Far field: every OTHER cell pushes as one body from its centroid — this is
+      // what lets whole islands shoulder each other apart instead of piling up.
+      // (Cells at Chebyshev distance ≤1 were just handled exactly; skip them.)
+      for (const b of cells) {
+        if (Math.abs(b.gx - gx) <= 1 && Math.abs(b.gy - gy) <= 1) continue;
+        const dx = n.x - b.x, dy = n.y - b.y;
+        const d2 = dx * dx + dy * dy; if (!d2) continue;
+        const f = GX_FAR * b.m / d2 / Math.sqrt(d2);
+        n.vx += dx * f; n.vy += dy * f;
+      }
     }
-    // Springs along links — stronger links pull tighter and shorter.
+    // Springs along links — kin bind tight; cross-community links stay slack so a
+    // shared keyword can't reel two islands into each other.
     for (const e of edges) {
       const a = nodes[e.a], b = nodes[e.b];
+      const same = a.com === b.com;
       let dx = b.x - a.x, dy = b.y - a.y;
       let d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-      const rest = GX_REST / Math.max(1, Math.log2(1 + e.w));
-      const f = GX_SPRING * (d - rest);
+      const rest = (GX_REST / Math.max(1, Math.log2(1 + e.w))) * (same ? 1 : GX_REST_XCOM);
+      const f = (same ? GX_SPRING : GX_SPRING_XCOM) * (d - rest);
       const ux = dx / d, uy = dy / d;
       a.vx += ux * f; a.vy += uy * f;
       b.vx -= ux * f; b.vy -= uy * f;
     }
-    // Gravity to the centre + integrate with damping.
+    // Community centroids: each island pulls itself round.
+    const cs = new Map();
     for (const n of nodes) {
+      let c = cs.get(n.com); if (!c) cs.set(n.com, (c = { x: 0, y: 0, m: 0 }));
+      c.x += n.x; c.y += n.y; c.m++;
+    }
+    // Gravity to the centre + centroid pull + integrate with damping.
+    for (const n of nodes) {
+      const c = cs.get(n.com);
+      n.vx += (c.x / c.m - n.x) * GX_COM_PULL;
+      n.vy += (c.y / c.m - n.y) * GX_COM_PULL;
       n.vx -= n.x * GX_GRAVITY;
       n.vy -= n.y * GX_GRAVITY;
       n.vx *= GX_DECAY; n.vy *= GX_DECAY;
@@ -416,17 +524,22 @@ function galaxyController(host, g, key) {
     const matched = query ? new Set() : null;
     if (query) for (let i = 0; i < nodes.length; i++) if (nodes[i].title.toLowerCase().includes(query)) matched.add(i);
 
-    // Edges: one faint batched pass, then the hovered star's links bright on top.
+    // Edges: two faint batched passes — kin links visible, cross-island links barely
+    // there (they're real, but drawing them at full strength is what read as "mess") —
+    // then the hovered star's links bright on top.
     ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(140,160,210,0.07)";
     ctx.globalAlpha = active >= 0 ? 0.5 : 1;
-    ctx.beginPath();
-    for (const e of edges) {
-      if (active >= 0 && e.a !== active && e.b !== active) continue;
-      ctx.moveTo(w2sx(nodes[e.a].x), w2sy(nodes[e.a].y));
-      ctx.lineTo(w2sx(nodes[e.b].x), w2sy(nodes[e.b].y));
+    for (const pass of [0, 1]) {
+      ctx.strokeStyle = pass ? "rgba(140,160,210,0.09)" : "rgba(140,160,210,0.025)";
+      ctx.beginPath();
+      for (const e of edges) {
+        if (active >= 0 && e.a !== active && e.b !== active) continue;
+        if ((nodes[e.a].com === nodes[e.b].com) !== !!pass) continue;
+        ctx.moveTo(w2sx(nodes[e.a].x), w2sy(nodes[e.a].y));
+        ctx.lineTo(w2sx(nodes[e.b].x), w2sy(nodes[e.b].y));
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
     if (active >= 0) {
       ctx.strokeStyle = "rgba(200,220,255,0.55)"; ctx.lineWidth = 1.4; ctx.globalAlpha = 1;
       ctx.beginPath();
@@ -480,6 +593,33 @@ function galaxyController(host, g, key) {
         ctx.beginPath(); ctx.arc(sx, sy, r + 3.5, 0, Math.PI * 2); ctx.stroke();
       }
       ctx.globalAlpha = 1;
+    }
+
+    // Island names at the big communities' live centroids — the map's landmarks.
+    // They yield to the per-star hub labels once you're zoomed right in.
+    if (bigComs.length && cam.z < 2.4 && !query) {
+      const want = new Map(bigComs.map((b) => [b.com, null]));
+      const acc = new Map();
+      for (const n of nodes) {
+        if (!want.has(n.com)) continue;
+        let a = acc.get(n.com); if (!a) acc.set(n.com, (a = { x: 0, y: 0, m: 0 }));
+        a.x += n.x; a.y += n.y; a.m++;
+      }
+      ctx.font = "700 11px system-ui, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,6,12,0.85)";
+      ctx.fillStyle = "rgba(205,218,242,0.62)";
+      const placed = [];   // bigComs is size-ordered, so a collision drops the smaller island's name
+      for (const b of bigComs) {
+        const a = acc.get(b.com); if (!a) continue;
+        const sx = w2sx(a.x / a.m), sy = w2sy(a.y / a.m);
+        if (sx < -60 || sx > W + 60 || sy < 0 || sy > H) continue;
+        const t = b.label.length > 26 ? b.label.slice(0, 25) + "…" : b.label;
+        const tw = ctx.measureText(t).width;
+        if (placed.some((p) => Math.abs(p.x - sx) < (p.w + tw) / 2 + 10 && Math.abs(p.y - sy) < 16)) continue;
+        placed.push({ x: sx, y: sy, w: tw });
+        ctx.strokeText(t, sx, sy); ctx.fillText(t, sx, sy);
+      }
     }
 
     // Labels for the hovered star and, when zoomed in, the biggest hubs on screen.
