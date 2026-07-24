@@ -578,6 +578,18 @@ class Enricher:
     def set_override(self, key, enrichment):
         enrichment = dict(enrichment)
         enrichment["manual"] = True
+        # Attach the relationship graph NOW rather than at the next boot's
+        # backfill_relations pass: the grouped ("combine") view walks a port up to
+        # its parent via `relations`, so a manual map to a port id that ships
+        # without them sits outside its own game's group until the pod restarts.
+        gid = enrichment.get("igdbId")
+        if gid and not enrichment.get("relations"):
+            try:
+                rel = self._igdb.relations_for([gid]).get(int(gid))
+                if rel:
+                    enrichment["relations"] = rel
+            except Exception as exc:
+                log.debug("override: relations fetch failed for %s: %s", key, exc)
         self._save_igdb(key, enrichment, enrichment.get("confidence") or 0, manual=True)
         with self._lock:
             self._queued["igdb"].discard(key)

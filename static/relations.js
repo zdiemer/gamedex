@@ -20,10 +20,10 @@
 
 // ---- who owns what -------------------------------------------------------
 // igdbId -> the rows in your collection that matched it.
-let _byIgdb = null, _completedSet = null, _gamesByGid = null;
+let _byIgdb = null, _completedSet = null, _gamesByGid = null, _titleGid = null;
 const resetRelations = () => {
   _byIgdb = null; _completedSet = null; _relById = null;
-  _gamesByGid = null; _gidCache = new WeakMap();
+  _gamesByGid = null; _gidCache = new WeakMap(); _titleGid = null;
 };
 
 // The completed sheet's rows, by object identity — for telling a beaten episode apart
@@ -94,12 +94,38 @@ function canonicalGameId(row) {
   return id;
 }
 
+/* A row with NO IGDB id at all — a fallback-source match (IGN/GameSpot/Steam) or the
+   unenriched tail — used to be unmergeable: "no id, can't claim it's the same game."
+   Which is right in general and wrong in the one case that stings: "No More Heroes
+   (Wii)" matched by IGN sitting un-combined next to the Switch copy IGDB identified.
+   So an id-less row may ADOPT a canonical id by name, under a strict rule: every
+   identified games-sheet copy whose folded title matches must resolve to ONE canonical
+   game. A name that genuinely belongs to two games (Resident Evil 4, 2005 and 2023)
+   resolves to two ids and is left alone. */
+function titleGidAdoption(title) {
+  if (!title) return undefined;
+  if (!_titleGid) {
+    const sets = new Map();
+    for (const r of ((DATA.sheets.games || {}).rows || [])) {
+      const id = canonicalGameId(r);
+      if (!id || !r.title) continue;
+      const t = relNorm(r.title);
+      if (!sets.has(t)) sets.set(t, new Set());
+      sets.get(t).add(id);
+    }
+    _titleGid = new Map();
+    for (const [t, ids] of sets) if (ids.size === 1) _titleGid.set(t, ids.values().next().value);
+  }
+  return _titleGid.get(relNorm(title));
+}
+
 // row → canonical id, memoised — the facet counter asks per column per row, which
 // is 20+ sweeps of the sheet per render. Reset with the rest (resetRelations).
 let _gidCache = new WeakMap();
 function cachedGameId(row) {
   if (_gidCache.has(row)) return _gidCache.get(row);
-  const id = canonicalGameId(row);
+  // `game`, not `title`, on completed-sheet rows.
+  const id = canonicalGameId(row) || titleGidAdoption(row.title || row.game) || null;
   _gidCache.set(row, id);
   return id;
 }
