@@ -7,7 +7,10 @@
    game is a star, and two stars are linked when they share the rare things that
    make them kin — a franchise, a studio, a distinctive keyword or theme. Clusters
    form on their own: the Zelda cluster, the From Software cluster, the visual-novel
-   nebula. Pan, zoom, hover to light up a game's neighbourhood, click to open it.
+   nebula. Pan, zoom, hover to light up a game's neighbourhood. Click (or tap) to
+   LOCK ON to a star: its links stay lit, a side panel lists every linked game by
+   strength, and a second click opens the drawer. The layout settles behind a
+   veil before it's shown — nobody needs to watch 3,000 stars thrash.
 
    Nothing here is fetched or recomputed from scratch. The nodes and the edge
    weights come straight from similar.js's `simIndex()` — the same IDF-weighted
@@ -59,7 +62,7 @@ const GX_COOL = 0.99;          // per-tick cooling — slower than usual so the 
 const GX_COVER_ZOOM = 1.8;     // show cover thumbnails once zoomed in past this
 const GX_R_MIN = 2.6, GX_R_MAX = 6.2;  // star radius by your rating
 
-const galaxyState = { scope: "owned", colorBy: "franchise", showSolo: false, focus: null };
+const galaxyState = { scope: "owned", colorBy: "franchise", showSolo: false };
 
 // ---- graph build ---------------------------------------------------------
 let _gxGraph = { key: "", g: null };
@@ -255,7 +258,9 @@ function renderGalaxy() {
        <canvas class="gx-canvas" id="gxCanvas"></canvas>
        <div class="gx-legend" id="gxLegend">${galaxyLegend(g)}</div>
        <div class="gx-tip" id="gxTip" hidden></div>
-       <div class="gx-hint">drag to pan · scroll to zoom · click a star to open it</div>
+       <div class="gx-focus" id="gxFocus" hidden></div>
+       <div class="gx-veil" id="gxVeil"><span>✦ charting the galaxy…</span></div>
+       <div class="gx-hint">drag to pan · pinch or scroll to zoom · click a star to lock on, again to open</div>
      </div>`;
 
   gxCtl = galaxyController(host, g, _gxGraph.key);
@@ -307,16 +312,17 @@ function galaxyLegend(g) {
 function galaxyController(host, g, key) {
   const canvas = host.querySelector("#gxCanvas");
   const ctx = canvas.getContext("2d");
+  const stage = host.querySelector(".gx-stage");
   const tip = host.querySelector("#gxTip");
+  const fcard = host.querySelector("#gxFocus");
   const legendEl = host.querySelector("#gxLegend");
   const nodes = g.nodes, edges = g.edges, adj = g.adj;
 
   const cam = { x: 0, y: 0, z: 0.9 };
   let W = 0, H = 0, dpr = 1;
   let alpha = 1, raf = 0, running = false;
-  let hover = -1, legendPick = null, query = "";
+  let hover = -1, focusI = -1, legendPick = null, query = "";
   const covers = new Map();     // node index -> Image (lazy, only when zoomed in)
-  let firstFit = true, touched = false, settledFit = false;
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
@@ -404,7 +410,8 @@ function galaxyController(host, g, key) {
     bg.addColorStop(0, "#0d1020"); bg.addColorStop(1, "#05060c");
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-    const active = hover >= 0 ? hover : -1;
+    // Hover previews; the lock-on holds when the pointer wanders (or doesn't exist).
+    const active = hover >= 0 ? hover : focusI;
     const near = active >= 0 ? new Set(adj[active]) : null;
     const matched = query ? new Set() : null;
     if (query) for (let i = 0; i < nodes.length; i++) if (nodes[i].title.toLowerCase().includes(query)) matched.add(i);
@@ -437,11 +444,11 @@ function galaxyController(host, g, key) {
       const n = nodes[i];
       const sx = w2sx(n.x), sy = w2sy(n.y);
       if (sx < -40 || sx > W + 40 || sy < -40 || sy > H + 40) continue;
-      const dim =
+      const dim = i !== focusI && (
         (legendPick !== null && n.group !== legendPick) ||
         (matched && !matched.has(i)) ||
-        (active >= 0 && i !== active && near && !near.has(i));
-      const hot = i === active || (matched && matched.has(i)) || (near && near.has(i));
+        (active >= 0 && i !== active && near && !near.has(i)));
+      const hot = i === active || i === focusI || (matched && matched.has(i)) || (near && near.has(i));
       const r = n.r * Math.max(0.8, Math.min(cam.z, 2.2)) * (i === active ? 1.5 : 1);
 
       if (showCovers && !dim) {
@@ -468,6 +475,10 @@ function galaxyController(host, g, key) {
       ctx.fillStyle = i === active ? "#ffffff" : n.color;
       ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
+      if (i === focusI) {   // the locked star wears a ring even while hover is elsewhere
+        ctx.lineWidth = 1.6; ctx.strokeStyle = "#eaf1ff";
+        ctx.beginPath(); ctx.arc(sx, sy, r + 3.5, 0, Math.PI * 2); ctx.stroke();
+      }
       ctx.globalAlpha = 1;
     }
 
@@ -486,6 +497,7 @@ function galaxyController(host, g, key) {
       for (let i = 0; i < nodes.length; i++) if (adj[i].length >= 6) label(i, false);
     }
     if (active >= 0) label(active, true);
+    if (focusI >= 0 && focusI !== active) label(focusI, true);
   }
 
   function coverFor(i) {
@@ -493,21 +505,26 @@ function galaxyController(host, g, key) {
     const src = coverSrc(nodes[i].e, "cover_small");
     if (!src) { covers.set(i, null); return null; }
     const img = new Image(); img.decoding = "async"; img.src = src;
-    img.onload = () => { if (running || alpha < GX_ALPHA_MIN) draw(); };
+    img.onload = () => { if (!running) draw(); };
     covers.set(i, img);
     return img;
   }
 
   // ---- animation loop ----
+  // The whole settle happens behind the veil (.gx-ready is off, the canvas is at
+  // opacity 0): each frame burns a time budget of ticks instead of drawing one
+  // chaotic tick per frame, so the galaxy fades in already formed and centred.
+  // Watching thousands of stars thrash while the springs fight it out was the
+  // single most disorienting thing about this tab.
   function loop() {
-    tick();
+    const t0 = performance.now();
+    do { tick(); } while (alpha > GX_ALPHA_MIN && performance.now() - t0 < 24);
+    if (alpha > GX_ALPHA_MIN) { raf = requestAnimationFrame(loop); return; }
+    running = false; raf = 0;
+    if (focusI >= 0) { cam.x = nodes[focusI].x; cam.y = nodes[focusI].y; }
+    else fitView();
+    stage.classList.add("gx-ready");
     draw();
-    if (alpha > GX_ALPHA_MIN) { raf = requestAnimationFrame(loop); }
-    else {
-      running = false; raf = 0;
-      // Settled and untouched → frame the whole galaxy once, so it lands centred.
-      if (!touched && !settledFit) { settledFit = true; fitView(); draw(); }
-    }
   }
   function start() {
     if (running) return;
@@ -517,11 +534,14 @@ function galaxyController(host, g, key) {
   function reheat(hard) {
     if (hard) for (const n of nodes) { n.vx = n.vy = 0; }
     alpha = Math.max(alpha, 0.7);
+    stage.classList.remove("gx-ready");
     start();
   }
 
   // ---- interaction ----
   let dragging = false, panning = false, downX = 0, downY = 0, moved = 0, downNode = -1;
+  const ptrs = new Map();   // pointerId -> {x, y}; two at once means a pinch, not a tap
+  let pinch = null;         // {d, mx, my} of the previous pinch frame
   function nodeAt(sx, sy) {
     let best = -1, bestD = 18 * 18;
     for (let i = 0; i < nodes.length; i++) {
@@ -536,21 +556,45 @@ function galaxyController(host, g, key) {
     const r = canvas.getBoundingClientRect();
     return [ev.clientX - r.left, ev.clientY - r.top];
   }
+  function pinchState() {
+    const [a, b] = [...ptrs.values()];
+    return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  }
   function onDown(ev) {
     const [x, y] = localXY(ev);
+    ptrs.set(ev.pointerId, { x, y });
+    try { canvas.setPointerCapture(ev.pointerId); } catch (_) { /* pointer already gone */ }
+    if (ptrs.size === 2) {
+      // Second finger landed: this is a pinch now, not a tap-in-progress.
+      pinch = pinchState();
+      dragging = false; panning = false; downNode = -1; tip.hidden = true;
+      return;
+    }
+    if (ptrs.size > 2) return;
     dragging = true; panning = false; downX = x; downY = y; lastX = x; lastY = y; moved = 0;
     downNode = nodeAt(x, y);
-    canvas.setPointerCapture && canvas.setPointerCapture(ev.pointerId);
   }
   function onMove(ev) {
     const [x, y] = localXY(ev);
+    if (ptrs.has(ev.pointerId)) ptrs.set(ev.pointerId, { x, y });
+    if (pinch && ptrs.size >= 2) {
+      // Pinch: zoom about the finger midpoint, and let the midpoint's own travel pan.
+      const now = pinchState();
+      const before = s2w(now.mx, now.my);
+      cam.z = Math.max(0.15, Math.min(6, cam.z * (now.d / pinch.d)));
+      const after = s2w(now.mx, now.my);
+      cam.x += before.x - after.x; cam.y += before.y - after.y;
+      cam.x -= (now.mx - pinch.mx) / cam.z; cam.y -= (now.my - pinch.my) / cam.z;
+      pinch = now;
+      if (!running) draw();
+      return;
+    }
     if (dragging) {
       const dx = x - lastX, dy = y - lastY;
       lastX = x; lastY = y;
       moved += Math.abs(dx) + Math.abs(dy);
       if (moved > 4) panning = true;
       if (panning) {
-        touched = true;
         cam.x -= dx / cam.z; cam.y -= dy / cam.z;
         if (!running) draw();
       }
@@ -566,17 +610,33 @@ function galaxyController(host, g, key) {
   }
   let lastX = 0, lastY = 0;
   function onUp(ev) {
-    const [x, y] = localXY(ev);
-    if (dragging && !panning && downNode >= 0 && downNode === nodeAt(x, y)) {
-      const row = nodes[downNode].row;
-      if (row) openDrawer(row, "games");
+    ptrs.delete(ev.pointerId);
+    if (pinch) {
+      // Ending a pinch must never read as a tap.
+      if (ptrs.size < 2) pinch = null;
+      dragging = false; panning = false; downNode = -1;
+      return;
     }
+    const [x, y] = localXY(ev);
+    if (dragging && !panning) {
+      if (downNode >= 0 && downNode === nodeAt(x, y)) {
+        // First click locks on; a second click on the locked star opens it.
+        if (focusI === downNode) {
+          const row = nodes[downNode].row;
+          if (row) openDrawer(row, "games");
+        } else setFocus(downNode, false);
+      } else if (downNode < 0) setFocus(-1, false);
+    }
+    dragging = false; panning = false; downNode = -1;
+  }
+  function onCancel(ev) {
+    ptrs.delete(ev.pointerId);
+    if (ptrs.size < 2) pinch = null;
     dragging = false; panning = false; downNode = -1;
   }
   function onLeave() { hover = -1; tip.hidden = true; if (!running) draw(); }
   function onWheel(ev) {
     ev.preventDefault();
-    touched = true;
     const [x, y] = localXY(ev);
     const before = s2w(x, y);
     const f = Math.exp(-ev.deltaY * 0.0015);
@@ -585,11 +645,76 @@ function galaxyController(host, g, key) {
     cam.x += before.x - after.x; cam.y += before.y - after.y;
     if (!running) draw();
   }
+  function onKey(ev) {
+    // Esc releases the lock — but not while the drawer is up (its own Esc closes it).
+    if (ev.key === "Escape" && focusI >= 0 && !document.documentElement.classList.contains("modal-open"))
+      setFocus(-1, false);
+  }
+
+  // ---- lock-on focus: persistent highlight + a panel listing the links --------
+  // Hover answers "what is this star"; focus answers "what is it CONNECTED to".
+  // On touch there is no hover at all, so the panel is the whole neighbourhood
+  // story there: tap a star, read its kin by name, tap a name to hop the camera.
+  function setFocus(i, center) {
+    focusI = i;
+    if (i >= 0 && center) {
+      cam.x = nodes[i].x; cam.y = nodes[i].y;
+      if (cam.z < 1.1) cam.z = 1.1;   // hopping from the list should land somewhere readable
+    }
+    focusCard();
+    if (!running) draw();
+  }
+  function focusCard() {
+    if (focusI < 0) { fcard.hidden = true; fcard.innerHTML = ""; return; }
+    const n = nodes[focusI];
+    const links = [];
+    for (const e of edges) {
+      if (e.a === focusI) links.push([e.b, e.w]);
+      else if (e.b === focusI) links.push([e.a, e.w]);
+    }
+    links.sort((a, b) => b[1] - a[1]);
+    const sub = [n.group, n.e && n.e.year ? n.e.year : (n.row && n.row.releaseYear) || ""]
+      .filter(Boolean).join(" · ");
+    fcard.innerHTML =
+      `<div class="gx-fc-head">
+         <div class="gx-fc-name"><b>${escapeHtml(n.title)}</b>${sub ? `<span>${escapeHtml(String(sub))}</span>` : ""}</div>
+         <button class="gx-fc-open" data-open>Open</button>
+         <button class="gx-fc-x" data-close aria-label="Release">✕</button>
+       </div>` +
+      (links.length
+        ? `<div class="gx-fc-sub">${links.length} link${links.length === 1 ? "" : "s"}</div>
+           <div class="gx-fc-links">${links.map(([j]) => {
+             const m = nodes[j];
+             return `<button class="gx-fc-link" data-go="${j}"><i style="background:${m.color}"></i><span>${escapeHtml(m.title)}</span></button>`;
+           }).join("")}</div>`
+        : `<div class="gx-fc-none">No links — a lone star.</div>`);
+    fcard.hidden = false;
+  }
+  fcard.addEventListener("click", (ev) => {
+    const go = ev.target.closest("[data-go]");
+    if (go) { setFocus(Number(go.dataset.go), true); return; }
+    if (ev.target.closest("[data-open]")) {
+      const row = nodes[focusI] && nodes[focusI].row;
+      if (row) openDrawer(row, "games");
+      return;
+    }
+    if (ev.target.closest("[data-close]")) setFocus(-1, false);
+  });
+  // Mousing along the list lights the matching star on the canvas — this IS the
+  // "hover over its connections" the lock-on exists for.
+  fcard.addEventListener("pointerover", (ev) => {
+    const go = ev.target.closest("[data-go]");
+    if (go) { hover = Number(go.dataset.go); if (!running) draw(); }
+  });
+  fcard.addEventListener("pointerout", (ev) => {
+    if (ev.target.closest("[data-go]")) { hover = -1; if (!running) draw(); }
+  });
   function showTip(i, x, y) {
     if (i < 0) { tip.hidden = true; return; }
     const n = nodes[i];
     const sub = [n.group, n.e && n.e.year ? n.e.year : (n.row && n.row.releaseYear) || ""].filter(Boolean).join(" · ");
-    tip.innerHTML = `<b>${escapeHtml(n.title)}</b>${sub ? `<span>${escapeHtml(String(sub))}</span>` : ""}`;
+    tip.innerHTML = `<b>${escapeHtml(n.title)}</b>${sub ? `<span>${escapeHtml(String(sub))}</span>` : ""}` +
+      (i === focusI ? `<span>click again to open</span>` : "");
     tip.hidden = false;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.min(W - tw - 8, Math.max(8, x + 14)) + "px";
@@ -599,10 +724,12 @@ function galaxyController(host, g, key) {
   canvas.addEventListener("pointerdown", onDown);
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onCancel);
   canvas.addEventListener("pointerleave", onLeave);
   canvas.addEventListener("wheel", onWheel, { passive: false });
+  window.addEventListener("keydown", onKey);
   const ro = new ResizeObserver(() => resize());
-  ro.observe(host.querySelector(".gx-stage"));
+  ro.observe(stage);
 
   // Legend acts as a cluster spotlight: click a colour to isolate that cluster,
   // again to release it. The "Other" swatch is a key, not a button (gx-leg-key).
@@ -617,22 +744,23 @@ function galaxyController(host, g, key) {
 
   resize();
   reheat(false);
-  const fit = setTimeout(() => { if (firstFit) { firstFit = false; fitView(); if (!running) draw(); } }, 550);
 
   return {
     key,
     stop() {
       if (raf) cancelAnimationFrame(raf);
-      clearTimeout(fit);
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
       canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
       running = false;
     },
     reheat: () => reheat(true),
+    release: () => setFocus(-1, false),
     setQuery(q) {
       query = String(q || "").trim().toLowerCase();
       if (query) {
@@ -673,4 +801,7 @@ function wireGalaxyToolbar(host, ctl) {
   }
 }
 
-TAB_RESET.galaxy = () => { galaxyState.focus = null; };
+// Focus (the lock-on) lives inside the controller. A deliberate re-entry starts
+// unlocked, but the settled layout is kept — re-simulating on every visit would
+// mean staring at the veil each time.
+TAB_RESET.galaxy = () => { if (gxCtl) gxCtl.release(); };

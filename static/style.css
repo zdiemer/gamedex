@@ -2471,6 +2471,53 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 .gx-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 .gx-canvas:active { cursor: grabbing; }
 
+/* The layout settles unseen; the canvas only fades in once the stars have found their
+   places (gx-ready). Until then the veil names what's happening instead of showing it. */
+.gx-canvas { opacity: 0; transition: opacity 0.5s ease; }
+.gx-ready .gx-canvas { opacity: 1; }
+.gx-veil {
+  position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
+  pointer-events: none; color: rgba(180, 195, 225, 0.6); font-size: 13px;
+  opacity: 1; transition: opacity 0.4s ease;
+}
+.gx-ready .gx-veil { opacity: 0; }
+.gx-veil span { animation: gx-pulse 1.6s ease-in-out infinite; }
+@keyframes gx-pulse { 50% { opacity: 0.4; } }
+
+/* Lock-on panel: the focused star's neighbourhood, spelled out by name. Rows light
+   their star on the canvas on hover — this is the browsable version of "hover to
+   see connections", and on touch it's the only version. */
+.gx-focus {
+  position: absolute; top: 14px; right: 14px; z-index: 3; width: 252px; max-height: 72%;
+  display: flex; flex-direction: column; border-radius: 12px;
+  background: rgba(8, 11, 22, 0.88); backdrop-filter: blur(6px);
+  border: 1px solid rgba(140, 160, 210, 0.25); color: #eaf1ff;
+}
+.gx-fc-head { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px 6px; }
+.gx-fc-name { flex: 1; min-width: 0; }
+.gx-fc-name b { display: block; font-size: 13px; font-weight: 700; line-height: 1.25; }
+.gx-fc-name span { color: rgba(180, 195, 225, 0.8); font-size: 11.5px; }
+.gx-fc-open {
+  flex: none; background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.gx-fc-x {
+  flex: none; background: none; border: 0; color: rgba(180, 195, 225, 0.7);
+  font-size: 13px; line-height: 1; padding: 4px; cursor: pointer; border-radius: 6px;
+}
+.gx-fc-x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.gx-fc-sub { padding: 0 12px 4px; color: rgba(180, 195, 225, 0.55); font-size: 11px; }
+.gx-fc-links { overflow-y: auto; padding: 2px 6px 8px; display: flex; flex-direction: column; gap: 1px; }
+.gx-fc-link {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px;
+  border-radius: 7px; background: none; border: 0; cursor: pointer;
+  color: rgba(226, 232, 246, 0.85); font: inherit; font-size: 12px; text-align: left;
+}
+.gx-fc-link:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.gx-fc-link i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.gx-fc-link span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gx-fc-none { padding: 0 12px 10px; color: rgba(180, 195, 225, 0.7); font-size: 12px; }
+
 .gx-legend {
   position: absolute; left: 14px; bottom: 14px; z-index: 2;
   display: flex; flex-direction: column; gap: 2px; max-height: 46%; overflow-y: auto;
@@ -2508,6 +2555,9 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   .gx-bar { padding: 10px 12px; gap: 8px; }
   .gx-stage { min-height: 62vh; }
   .gx-hint { display: none; }
+  /* The lock-on panel is the whole story on touch (no hover exists): full-width
+     across the top, capped low enough to leave the sky visible under it. */
+  .gx-focus { left: 10px; right: 10px; top: 10px; width: auto; max-height: 46%; }
 }
 
 /* Your favourite game in a group, on that group's own page: the one you rated highest AND
