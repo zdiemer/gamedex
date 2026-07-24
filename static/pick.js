@@ -218,41 +218,21 @@ function budgetTags(r) {
   return t == null ? [] : TIME_BUDGETS.filter((b) => t <= b.m / 60).map((b) => b.label);
 }
 
-/* What Pick is allowed to offer you.
- *
- * The backlog, plus — once the catalogue has been fetched — the 25k games IGDB knows that
- * your sheet doesn't. The "In the sheet" field defaults to "On the sheet" (see
- * PICK_DEFAULT_SHEET), so this pool is a superset that behaves exactly like the old one
- * until you deliberately widen it: Pick still answers "what do I play tonight" out of the
- * box, and a game you don't own can't be tonight's answer.
- *
- * The catalogue half is NOT fetched here. pickEligible() runs on every render and every
- * keystroke in the builder; 2.2MB is not something to trigger from a hot path. renderPicker
- * asks for it once, in the background, and this picks it up when it lands.
+/* What Pick is allowed to offer you: the backlog. Pick answers "what do I play tonight",
+ * so it draws only from games on your sheet — a game you don't own can't be tonight's answer.
  *
  * Not the unplayable, and not the unknowns. "Playable" is tri-state on the sheet — Yes, No,
  * Unknown — and a picker that lands on a game you can't start (no console for it any more,
  * region-locked, disc rot) has answered the wrong question. Unknown goes too: it doesn't
  * mean "probably fine", it means nobody has checked, and being sent to go and check is not
  * a pick. It's the rule challenges.js already plays by, and the one health.js has been
- * telling people the picker follows.
- *
- * Catalogue rows are exempt because the question doesn't reach them: playability is a fact
- * about YOUR copy, and the whole point of a catalogue row is that you don't have one. */
-const pickEligible = () => [
-  ...((DATA.sheets.games || {}).rows || []).filter((r) => !r.completed && r.title && r.playable === "Yes"),
-  ...(typeof catFresh === "function" ? catFresh() : []),
-];
+ * telling people the picker follows. */
+const pickEligible = () =>
+  ((DATA.sheets.games || {}).rows || []).filter((r) => !r.completed && r.title && r.playable === "Yes");
 
 // The pool is the backlog, so a Completed facet would offer one value ("No") — and
 // pickEligible has already answered Playable, so that one would offer "Yes".
 const PICK_SKIP_FIELDS = new Set(["completed", "playable"]);
-// The two answers the "In the sheet" field gives. Named once: applyPreset seeds one of
-// them into every preset, and a typo would silently seed a criterion nothing matches —
-// an empty pool with no error, which is the worst way for this to break.
-const PICK_ON_SHEET = "On the sheet";
-const PICK_NOT_SHEET = "Not on the sheet";
-let _pickCatAsked = false;      // renderPicker fetches the catalogue once, in the background
 // Sheet and IGDB facets arrive with no grouping of their own; the builder's field
 // list is 40-odd entries and unusable as one flat list.
 const PICK_FIELD_GROUP = {
@@ -277,15 +257,6 @@ const PICK_GROUP_ORDER = ["The basics", "Status", "Time & ratings", "Play style"
 function pickExtraFields() {
   const rows = pickEligible();
   return [
-    /* On the sheet, or not? Pick-only, and it has to be: on the Games tab every row is on
-       the sheet by definition, so this would be a facet with one value and a dead end.
-       Here it is the whole point — the pool reaches past the spreadsheet into the IGDB
-       catalogue, and this is the line between "play tonight" and "maybe buy this".
-       type:"text" with words rather than type:"bool", following __nas and every other
-       computed facet: "bool" is reserved for a column the spreadsheet really has, whose
-       values are literally "true"/"false" (and which chip rendering special-cases). */
-    { key: "__pk_sheet", label: "In the sheet", group: "Status", kind: "fn",
-      getVals: (r) => [r._cat ? PICK_NOT_SHEET : PICK_ON_SHEET] },
     { key: "__pk_backlog", label: "Backlog status", kind: "fn", getVals: backlogTags,
       vorder: orderBy(["Never started", "Started but unfinished"]) },
     { key: "__pk_budget", label: "Finishable in", kind: "fn", getVals: budgetTags,
@@ -319,8 +290,8 @@ function pickExtraFields() {
       getVals: (r) => (isObscure(r) ? ["Nobody has heard of it"] : []) },
     { key: "__pk_bday", label: "My birthday", group: "For the hell of it", kind: "fn", getVals: birthdayTags },
     /* isCandidate (challenges.js) as a criterion. Pick's pool is deliberately looser —
-       it allows low-priority, unreleased and catalogue games you don't own — so a bucket
-       handed over from Challenges has to be able to say "and it would really count". */
+       it allows low-priority and unreleased games — so a bucket handed over from
+       Challenges has to be able to say "and it would really count". */
     { key: "__pk_candidate", label: "Challenge candidate", group: "Progress", kind: "fn",
       getVals: (r) => (typeof isCandidate === "function" && isCandidate(r) ? ["Yes"] : ["No"]) },
     // An empty ladder means the column is empty too — offering it would be a dead end.
@@ -675,12 +646,10 @@ function snapPresetVals(node) {
 }
 /* ---- reset, and saved pickers -------------------------------------------
    "Reset" has to mean one specific thing, and the thing is this tab's front door: the
-   default preset, no time budget, no roll. Deliberately NOT an empty tree — that would
-   drop the "On the sheet" chip and hand you 25k games you don't own, which is the one
-   move applyPreset is careful never to make by accident. */
+   default preset, no time budget, no roll. */
 const PICK_DEFAULT_PRESET = "backlog";
 const pickDefaultTree = () =>
-  pickGroup("and", [pkc("__pk_sheet", PICK_ON_SHEET), ...presetById(PICK_DEFAULT_PRESET).build()]);
+  pickGroup("and", presetById(PICK_DEFAULT_PRESET).build());
 /* The tree with the half-built bits taken out. A criterion with no values filters nothing
    and dismissPickPop takes it back the moment you walk away, so it isn't a state worth
    reacting to — without this, clicking "+ Criterion" makes Reset and the whole saved bar
@@ -735,18 +704,7 @@ function applyPicker(p) {
 function applyPreset(id) {
   const p = presetById(id) || PRESETS[0];
   pickState.preset = p.id;
-  /* Every preset starts on the sheet. The pool reaches into the IGDB catalogue now (see
-     pickEligible), and every preset above was written when it couldn't: "Never started"
-     means a game on your shelf you haven't started, not one that isn't in your house, and
-     "what can I finish in 90 minutes" is not a question about a game you'd have to go and
-     buy first.
-
-     Seeded as a real criterion — visible, deletable, sitting in the chip row like any
-     other — rather than as an invisible default. The builder's entire premise is that you
-     can see what it's doing and change it; a hidden clause quietly dropping 25k rows is
-     precisely the thing it was built to replace. Delete the chip, or add "Not on the
-     sheet" beside it, and the catalogue is yours. */
-  pickState.filter = pickGroup("and", [pkc("__pk_sheet", PICK_ON_SHEET), ...p.build()]);
+  pickState.filter = pickGroup("and", p.build());
   pickState.filter.kids.forEach(snapPresetVals);
   pickState.picked = null;
 }
@@ -754,8 +712,6 @@ function applyPreset(id) {
 function pickCard(row) {
   // The REAL grid card, not a bespoke one — so the trailer plays on hover here exactly as
   // it does in the listings (renderPicker hands it to wirePreviewFor).
-  // igdbRecOf, not ENRICH[_k]: a catalogue row carries its record inline and has no match
-  // key, so it would draw a permanent grey placeholder where its cover ought to be.
   const rec = igdbRecOf(row);
   const cs = coverSrc(rec, "cover_big");
   const pend = coverPending(row);
@@ -778,17 +734,8 @@ function pickCard(row) {
 
   // Only promise a trailer when there is one.
   const hint = rec.video ? `<span class="pick-hint">Hover for the trailer</span>` : "";
-  /* A game that isn't on the sheet has no drawer to open: the drawer fetches its detail by
-     match key, and there is no match key for a row the spreadsheet has never had. Send it
-     to IGDB instead — and say so plainly on the card, because "here is a game you could
-     play tonight" and "here is a game you'd have to go and buy" are different answers and
-     the eyebrow is where you read which one you got. */
-  const eyebrow = row._cat
-    ? `${icon("i-sparkle", 13)} Not on your sheet`
-    : `${icon("i-dice", 13)} Your pick`;
-  const details = row._cat
-    ? `<a class="pick-open" href="${escapeHtml(rec.url || "#")}" target="_blank" rel="noopener">View on IGDB ↗</a>`
-    : `<button class="pick-open" id="pickOpen">Full details</button>`;
+  const eyebrow = `${icon("i-dice", 13)} Your pick`;
+  const details = `<button class="pick-open" id="pickOpen">Full details</button>`;
   /* The split-title flair: a subtitled game reads as its series name over the subtitle —
      the over-line small, letterspaced and in the second accent (a different voice from the
      violet eyebrow above it), the subtitle at full display weight. Split on ": " or a
@@ -1050,15 +997,6 @@ function renderPicker() {
     try { n = pickNodeAt(pickPath(pickPop.path)); } catch (_) { /* path went stale */ }
     if (!n || isPickGroup(n)) closePickPop();
   }
-  /* Ask for the catalogue once, here, and never from pickEligible() — that runs on every
-     render and every keystroke in the builder, and this is a 2.2MB fetch. The tab is fully
-     usable without it (the pool is the backlog, which is what the default filter asks for
-     anyway); when it lands, the "In the sheet" field gains its second value and the pool
-     quietly grows. Nothing waits. */
-  if (typeof ensureCatalogue === "function" && !CAT && !_pickCatAsked) {
-    _pickCatAsked = true;
-    ensureCatalogue().then(() => { if (activeTab === "pick") renderPicker(); });
-  }
   const pool = pickPool();
   const mins = pickBudgetMinutes();
   const groups = {};
@@ -1168,9 +1106,7 @@ function renderPicker() {
   if (game) {
     // Same card component as the listings, so it gets the same hover trailer.
     wirePreviewFor(game, pickState.picked);
-    // A catalogue game has no drawer (no match key, nothing to fetch) — its card is a
-    // link to IGDB instead, so leave the click alone rather than open an empty panel.
-    if (!pickState.picked._cat) game.onclick = () => openDrawer(pickState.picked, "games");
+    game.onclick = () => openDrawer(pickState.picked, "games");
     $("#pickReroll").onclick = (e) => { e.stopPropagation(); pickGame(true); nav(); };
     const open = $("#pickOpen");
     if (open && open.tagName === "BUTTON") open.onclick = () => openDrawer(pickState.picked, "games");

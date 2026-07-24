@@ -731,10 +731,10 @@ const CH_CANDIDATES_SHOWN = 5;
    promoting the groupers. The bucket key IS a value of the challenge's groupBy column, so
    pinning that column to it reproduces the bucket exactly rather than approximately.
 
-   Three criteria come along for the ride, because Pick's pool is deliberately wider than a
-   challenge's: it offers catalogue games you don't own, and it doesn't care about priority
-   or release date the way isCandidate does. Without them the roll can hand back a game that
-   wouldn't actually clear anything.
+   The candidate criterion comes along for the ride, because Pick's pool is deliberately
+   wider than a challenge's: it doesn't care about priority or release date the way
+   isCandidate does. Without it the roll can hand back a game that wouldn't actually clear
+   anything.
 
    null when the challenge can't be expressed: a bespoke grouper (One Per Fan Translation),
    or a pool Pick can't reach at all (One Per Platform (Unplayable) is by definition games
@@ -747,7 +747,6 @@ function chPickCriteria(c, key) {
   const field = c.pickBy || c.groupBy;
   if (!field || c.pool || !pickFieldByKey(field)) return null;
   const kids = [
-    pickCond("__pk_sheet", [PICK_ON_SHEET]),
     pickCond("__pk_candidate", ["Yes"]),
     pickCond(field, [String(key)]),
   ];
