@@ -303,7 +303,7 @@ function renderHome() {
     shelf("hNext", `${icon("i-play", 16)} Up next`, upNext.map((r) => homeCard(r, "games"))) +
     shelf("hHold", `${icon("i-clock", 16)} On hold`, onHold.map((r) => homeCard(r, "games",
       r.dateStarted ? `Started ${escapeHtml(fmtDate(r.dateStarted))}` : ""))) +
-    (typeof picrossHomeCardHtml === "function" ? picrossHomeCardHtml() : "") +
+    (typeof dailyHomeCardHtml === "function" ? dailyHomeCardHtml() : "") +
     onThisDay() +
     shelf("hRecent", `${icon("i-trophy", 16)} Recently completed`, recent.map((r) => homeCard(r, "completed",
       r.rating != null ? `You gave it ${Math.round(r.rating * 100)}%` : (r.date ? escapeHtml(fmtDate(r.date)) : "")))) +
@@ -315,8 +315,8 @@ function renderHome() {
     challengeSpotlight();
 
   wireHome(host, playing);
-  if (typeof wirePicrossHome === "function") wirePicrossHome();
-  if (typeof picrossHomeInit === "function") picrossHomeInit();
+  if (typeof wireDailyHome === "function") wireDailyHome();
+  if (typeof dailyHomeInit === "function") dailyHomeInit();
 }
 
 // Click handlers for the hero's own buttons (cover/open/dots).

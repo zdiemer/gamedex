@@ -4271,6 +4271,105 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .px-win { flex-direction: column; text-align: center; }
 }
 
+/* ================= Dexle: the daily guess-the-game ================= */
+.dx-mode { color: var(--accent); font-weight: 700; }
+.dx-clue { margin: 4px 0 18px; }
+
+/* Image clues sit in a fixed frame so the zoom/blur can move without reflowing the page.
+   overflow keeps the zoomed cover's spill; the blur bleeds past its edges, so the shot
+   gets a slight scale to hide the soft border. */
+.dx-frame {
+  overflow: hidden; border-radius: var(--r); border: 1px solid var(--border);
+  background: var(--surface-2); max-width: 560px;
+}
+.dx-cover { aspect-ratio: 3 / 4; max-width: 380px; }
+.dx-shot { aspect-ratio: 16 / 9; }
+.dx-frame img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform .6s var(--ease), filter .6s var(--ease);
+}
+.dx-shot img { transform: scale(1.06); }        /* keeps the blur's soft edge outside the frame */
+.dx-cover.done img { transition-duration: 1.1s; }
+
+.dx-prose {
+  max-width: 640px; margin: 0; padding: 14px 18px; border-left: 3px solid var(--accent);
+  background: var(--surface-2); border-radius: 0 var(--r) var(--r) 0;
+  font-size: 14.5px; line-height: 1.65;
+}
+.dx-prose p { margin: 0 0 8px; }
+.dx-prose p:last-child { margin-bottom: 0; }
+.dx-prose footer { margin-top: 10px; font-size: 12.5px; }
+.dx-held { font-size: 12px; }
+.dx-redact {
+  background: var(--border); color: transparent; border-radius: 3px;
+  padding: 0 1px; user-select: none; letter-spacing: -1px;
+}
+
+.dx-tune { display: flex; align-items: center; gap: 14px; max-width: 560px;
+  padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--surface-2); }
+.dx-play { flex: none; }
+.dx-tune-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.dx-tune-b .muted { font-size: 12px; }
+.dx-tunebar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.dx-tunebar i { display: block; height: 100%; width: 0; background: var(--accent);
+  transition: width .2s linear; }
+
+.dx-dots { display: flex; gap: 6px; margin-bottom: 10px; }
+.dx-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+.dx-dot.miss { background: var(--bad); }
+.dx-dot.skip { background: var(--warn); }
+.dx-dot.hit { background: var(--good); }
+
+.dx-hints { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.dx-hint {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2);
+  font-size: 12.5px;
+}
+.dx-hint i {
+  font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--dim);
+}
+
+.dx-log { margin: 14px 0 0; padding: 0; list-style: none; max-width: 560px; }
+.dx-log li {
+  display: flex; align-items: baseline; gap: 10px; padding: 7px 2px;
+  border-bottom: 1px solid var(--border); font-size: 13.5px;
+}
+.dx-log-t::before { content: "✕"; color: var(--bad); margin-right: 8px; font-size: 12px; }
+.dx-log-t.skip { color: var(--dim); }
+.dx-log-t.skip::before { content: "→"; color: var(--warn); }
+.dx-log-near { font-size: 12px; color: var(--warn); }
+
+/* ---- the Daily games landing page, and the Home pair ---- */
+.dl-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
+.dl-card {
+  display: flex; align-items: center; gap: 16px; width: 100%; text-align: left; cursor: pointer;
+  padding: 18px; border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--surface-2); transition: border-color .16s, transform .16s var(--ease);
+}
+.dl-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.dl-card.done { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.dl-card-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dl-card-b > b { display: flex; align-items: center; gap: 7px; font: 700 15.5px/1.3 var(--display); }
+.dl-card-b .muted { font-size: 12.5px; }
+.dl-card .dx-dots { margin: 6px 0 0; justify-content: center; }
+.dl-home { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dl-dexle-mini {
+  flex: none; width: 86px; min-height: 86px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 5px; padding: 5px;
+  border-radius: 5px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--accent);
+}
+.dl-dexle-mini em {
+  font-style: normal; font-size: 9px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--dim); text-align: center; line-height: 1.25;
+}
+@media (max-width: 760px) {
+  .dl-cards, .dl-home { grid-template-columns: 1fr; }
+}
+
 /* ================= ↑↑↓↓←→←→BA ================= */
 .konami-cv {
   position: fixed; left: 0; bottom: 0; width: 100%; height: 150px;

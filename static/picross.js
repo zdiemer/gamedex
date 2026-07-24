@@ -567,41 +567,9 @@ function pxFillTitles() {
 
 /* The way in. A daily puzzle doesn't deserve a permanent seat in the nav — you play it once
    and it's done — but it does deserve to be the first thing you see on the day you haven't.
-   So it lives on Home, where I land anyway, showing today's state: a thumbnail of the grid
-   as far as I've got, the streak, and whether it's already done. Also in the command palette,
-   and at ?tab=picross for a direct link. */
-function picrossHomeCardHtml() {
-  const done = PX.solved;
-  const started = PX.cells.some((c) => c === 1);
-  const mini = PX.w
-    ? `<span class="px-mini" style="--w:${PX.w}">${PX.cells.map((c) =>
-        `<i class="${c === 1 ? "on" : ""}"></i>`).join("")}</span>`
-    : `<span class="px-mini px-mini-ph"></span>`;
-  const line = done
-    ? `Solved! It was <b>${escapeHtml(String((PX.game || {}).title || "…"))}</b>`
-    : started ? "Half drawn. Finish it."
-    : "A cover from your shelf, hidden in a grid.";
-  return `<section class="h-sect">
-    <div class="h-sect-head"><h2>${icon("i-target", 17)} Daily Picross</h2></div>
-    <button class="px-home${done ? " done" : ""}" id="hPicross">
-      ${mini}
-      <span class="px-home-b">
-        <b>${done ? "Today's puzzle is done" : "Today's puzzle"}</b>
-        <span class="muted">${line}</span>
-      </span>
-      <span class="px-home-s">
-        <b>${pxCurrentStreak()}</b><i>day streak</i>
-      </span>
-      <span class="gr-go">→</span>
-    </button>
-  </section>`;
-}
-
-function wirePicrossHome() {
-  const b = document.getElementById("hPicross");
-  if (b) b.onclick = () => goTab("picross");
-}
-
+   So it lives on Home, where I land anyway — since Dexle arrived the card itself is drawn
+   by dailyHomeCardHtml (dexle.js), which shows both games; this file still owns loading
+   today's Picross state for it. Also in the command palette, and at ?tab=picross. */
 // Home needs today's state before it can draw the card, and it's a small payload.
 let pxMetaLoaded = false;
 async function picrossHomeInit() {

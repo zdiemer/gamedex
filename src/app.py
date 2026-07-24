@@ -32,6 +32,7 @@ from pydantic import BaseModel
 
 import accounts as accounts_mod
 import assetcache as assetcache_mod
+import dexle as dexle_mod
 import itad as itad_mod
 import manualcover as manualcover_mod
 import picross as picross_mod
@@ -917,6 +918,96 @@ def api_picross_guess(body: PicrossGuess):
     norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
     correct = norm(body.title) == norm(puz["game"]["title"])
     return {"ok": True, "correct": correct, "game": puz["game"] if correct else None}
+
+
+# ---- Dexle: the daily guess-the-game --------------------------------------
+DEXLE = dexle_mod.Dexle(os.environ.get("DEXLE_DIR", "/data/dexle"))
+
+
+def _dexle_candidates() -> list[dict]:
+    """The same pool the Picross draws from — owned or finished, with real box art —
+    plus the clue material each mode needs: the sheet's own facts, and my review prose
+    (Games sheet `review`, else the Completed sheet's review/notes, joined on _k)."""
+    if not enricher:
+        return []
+    data = store.snapshot()["data"]
+    light = enricher.get_all_light()
+    completed_prose = {}
+    for r in data.get("completed", {}).get("rows", []):
+        txt = r.get("review") if isinstance(r.get("review"), str) else None
+        txt = txt or (r.get("notes") if isinstance(r.get("notes"), str) else None)
+        if r.get("_k") and txt and txt.strip():
+            completed_prose[r["_k"]] = txt
+    out = []
+    for r in data.get("games", {}).get("rows", []):
+        if not (r.get("owned") or r.get("completed")):
+            continue
+        cover = (light.get(r.get("_k")) or {}).get("cover")
+        if not cover:
+            continue
+        review = r.get("review") if isinstance(r.get("review"), str) and r.get("review").strip() else None
+        out.append({"key": r["_k"], "title": r.get("title"), "platform": r.get("platform"),
+                    "year": r.get("releaseYear"), "cover": cover,
+                    "genre": r.get("genre"), "developer": r.get("developer"),
+                    "franchise": r.get("franchise"),
+                    "review": review or completed_prose.get(r["_k"]),
+                    "rating": r.get("rating")})
+    return out
+
+
+def _dexle_daily() -> dict | None:
+    return DEXLE.daily(
+        _today(), _dexle_candidates(),
+        get_detail=lambda k: (enricher.get_detail(k)[1] if enricher else None),
+        get_ost=lambda k: (enricher.get_secondary("khinsider", k) if enricher else None),
+    )
+
+
+@app.get("/api/dexle/daily")
+def api_dexle_daily():
+    """The day's clue, and nothing that spoils it — the answer stays on the server."""
+    puz = _dexle_daily()
+    if not puz:
+        return {"ok": False, "reason": "no puzzle today"}
+    return {"ok": True, **dexle_mod.Dexle.public(puz)}
+
+
+class DexleGuess(BaseModel):
+    title: str | None = None      # None: a deliberate skip, burning the guess for the hint
+    n: int = 0                    # which guess this is (0-based)
+
+
+@app.post("/api/dexle/guess")
+def api_dexle_guess(body: DexleGuess):
+    """Judge one guess. A wrong one earns the next metadata hint and, when the guessed
+    game shares something with the answer, a warmer/colder nudge. The answer itself only
+    comes back when the round is over — won, or out of guesses."""
+    puz = _dexle_daily()
+    if not puz:
+        return {"ok": False}
+    n = max(0, min(int(body.n), dexle_mod.MAX_GUESSES - 1))
+    norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
+    correct = body.title is not None and norm(body.title) in set(puz["accept"])
+    done = correct or n + 1 >= dexle_mod.MAX_GUESSES
+    out = {"ok": True, "correct": correct, "done": done}
+    if done:
+        out["answer"] = puz["answer"]
+    if not correct:
+        if not done and n < len(puz["hints"]):
+            out["hint"] = puz["hints"][n]
+        if body.title:
+            out["near"] = dexle_mod.Dexle.near(body.title, puz, _dexle_candidates())
+    return out
+
+
+@app.get("/api/dexle/track")
+def api_dexle_track():
+    """The day's soundtrack clip, by indirection: the KHInsider song path has the album
+    name in it, so the browser only ever sees this URL."""
+    puz = _dexle_daily()
+    if not puz or not puz.get("song"):
+        raise HTTPException(status_code=404, detail="no track today")
+    return khinsider_audio(puz["song"])
 
 
 @app.get("/api/uploads")

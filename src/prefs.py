@@ -30,7 +30,8 @@ log = logging.getLogger("gamedex.prefs")
 #   belongs to you rather than to the browser you happened to say it in.
 # pickers: named filter trees from the Pick tab. A picker is minutes of ticking boxes,
 #   which is too much work to keep on one browser.
-KEYS = {"views", "challenges", "picross", "dismissed", "pickers"}
+# dexle: the daily guess-the-game's streak, same shape as picross's.
+KEYS = {"views", "challenges", "picross", "dexle", "dismissed", "pickers"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 
