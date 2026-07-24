@@ -48,6 +48,37 @@ codebase audit.
 
 ## Features
 
+### Fun / interactive (brainstorm 2026-07-24 — Galaxy built; these are the runners-up)
+
+- [ ] **Guess-the-Game — daily + endless quiz suite.** One engine, several modes,
+      each cut from assets already cached: zoomed cover, blurred screenshot that
+      de-blurs on wrong guesses, IGDB `summary` with the title/franchise starred
+      out, **your own review prose with the game name censored** (a mode nobody
+      else can build), "name that soundtrack" from a KHInsider clip, and a
+      **Higher-or-Lower** on Metacritic / SteamSpy `owners` / HLTB / release year /
+      VGChartz `units`. Server picks a daily seed the way Picross does; streaks reuse
+      the same cross-device store. Highest fun-per-effort; slots next to Picross.
+- [ ] **Soundtrack Jukebox.** Promote the per-game KHInsider tracklist (today only
+      inside one drawer) to a lean-back **shuffle radio across every matched OST** —
+      an audio sibling to Attract mode. Feeds the "name that tune" quiz mode, and a
+      **composer view** finally surfaces Wikidata `composers` (captured, almost never
+      shown): "you own 14 Nobuo Uematsu games". Near-zero new data.
+- [ ] **Rank-your-GOAT bracket.** A 32/64-game single-elim bracket seeded from the
+      collection or a facet ("best JRPG", "best thing I finished in 2024"). Vote down
+      to a **personal all-time ranking** + shareable result. Pick says what to *play*;
+      nothing says what you *love most*. Needs only titles + covers.
+- [ ] **"On this day" + animated bar-chart race.** Two cheap wins from the date
+      columns: an **anniversary feed** (finished / bought / released on today's date
+      across years) and a **bar-chart race** of most-owned platform/genre/franchise
+      animating year by year — the Year-in-Review burn-down made kinetic and shareable.
+- [ ] **Taste Fingerprint.** `predict.js` already learns per-genre/dev/franchise
+      coefficients and `reviews.js` learns sentiment words; neither is shown. Surface
+      it as a **"what your collection says about you"** readout: "You're a 12-point
+      JRPG optimist. Your blind spot is shooters. You write 3× more words about games
+      you love." Re-presents model internals already computed.
+
+### The big rewrite and the utilities
+
 - [ ] **The rewrite: wrap IGDB, DB as source of truth** — the sheet stops
       being the canonical copy and the *game* stops being a spreadsheet row:
       the canonical entity is the IGDB record, and personal data (ownership,
