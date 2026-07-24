@@ -24,6 +24,8 @@ const JB = {
   history: [],           // played [{key, slug, ti}] so Prev can walk back
   errors: 0,             // consecutive failures; too many and the radio gives up
   browse: false,         // the composer panel is open
+  volOpen: false,        // the vertical volume popover is up
+  scrub: null,           // 0..1 while a finger is on the timebar; null otherwise
   seq: 0,                // async guard: only the latest pick may touch the dock
 };
 const JBC = {};          // slug -> album record (or null after a failed fetch)
@@ -218,26 +220,32 @@ function jbDraw() {
       <button class="jb-cover" data-jb-open title="Open in library">
         ${cover ? `<img src="${escapeHtml(cover)}" alt="">` : icon("i-music", 22)}
       </button>
-      <div class="jb-meta" data-jb-open>
-        <b>${trk ? escapeHtml(trk.name || "") : "Tuning…"}</b>
-        <span class="muted">${cur ? escapeHtml([cur.row.title, cur.row.platform].filter(Boolean).join(" · ")) : ""}</span>
-        ${composers ? `<span class="jb-composer">${icon("i-music", 10)} ${escapeHtml(composers)}</span>` : ""}
-        <div class="jb-timebar" data-jb-seek><i id="jbTimeFill"></i></div>
+      <div class="jb-meta">
+        <span data-jb-open class="jb-titles">
+          <b>${trk ? escapeHtml(trk.name || "") : "Tuning…"}</b>
+          <span class="muted">${cur ? escapeHtml([cur.row.title, cur.row.platform].filter(Boolean).join(" · ")) : ""}</span>
+          ${composers ? `<span class="jb-composer">${icon("i-music", 10)} ${escapeHtml(composers)}</span>` : ""}
+        </span>
+        <div class="jb-scrub">
+          <span class="jb-time" id="jbTimeCur">0:00</span>
+          <div class="jb-timebar" data-jb-seek><i id="jbTimeFill"></i></div>
+          <span class="jb-time" id="jbTimeDur">–:––</span>
+        </div>
       </div>
-      <div class="jb-side">
-        <div class="jb-ctl">
-          <button data-jb-prev title="Previous">${icon("i-skip-back", 16)}</button>
-          <button data-jb-play title="Play/pause">${icon(playing ? "i-pause" : "i-play", 18)}</button>
-          <button data-jb-next title="Next">${icon("i-skip-fwd", 16)}</button>
-          <button data-jb-dial-toggle class="${JB.composer ? "on" : ""}"
-            title="${JB.composer ? `Playing: ${escapeHtml(JB.composer)}` : "By composer"}">${icon("i-filter", 15)}</button>
-          <button data-jb-close title="Stop the jukebox">${icon("i-close", 15)}</button>
-        </div>
-        <div class="jb-volume">
+      <div class="jb-ctl">
+        <button data-jb-prev title="Previous">${icon("i-skip-back", 16)}</button>
+        <button data-jb-play title="Play/pause">${icon(playing ? "i-pause" : "i-play", 18)}</button>
+        <button data-jb-next title="Next">${icon("i-skip-fwd", 16)}</button>
+        <button data-jb-vol-toggle class="${JB.volOpen || (JB.audio && JB.audio.muted) ? "on" : ""}" title="Volume">
+          ${icon(JB.audio && (JB.audio.muted || JB.audio.volume === 0) ? "i-muted" : "i-volume", 15)}</button>
+        <button data-jb-dial-toggle class="${JB.composer ? "on" : ""}"
+          title="${JB.composer ? `Playing: ${escapeHtml(JB.composer)}` : "By composer"}">${icon("i-filter", 15)}</button>
+        <button data-jb-close title="Stop the jukebox">${icon("i-close", 15)}</button>
+        ${JB.volOpen ? `<div class="jb-volpop">
+          <div class="jb-vtrack" data-jb-vtrack><i id="jbVolFill"
+            style="height:${Math.round((JB.audio && !JB.audio.muted ? JB.audio.volume : 0) * 100)}%"></i></div>
           <button data-jb-mute title="Mute">${icon(JB.audio && JB.audio.muted ? "i-muted" : "i-volume", 14)}</button>
-          <input type="range" class="jb-vol" data-jb-vol min="0" max="1" step="0.05"
-            value="${JB.audio ? JB.audio.volume : 1}" title="Volume">
-        </div>
+        </div>` : ""}
       </div>
     </div>`;
   jbWire(host);
@@ -256,7 +264,15 @@ function jbDrawTime() {
   const fill = document.getElementById("jbTimeFill");
   if (!fill || !JB.audio) return;
   const d = JB.audio.duration;
-  fill.style.width = isFinite(d) && d > 0 ? `${(JB.audio.currentTime / d) * 100}%` : "0";
+  const ok = isFinite(d) && d > 0;
+  // While a finger is on the bar, the bar and clock preview the scrub position —
+  // the audio itself only jumps on release.
+  const frac = JB.scrub != null ? JB.scrub : (ok ? JB.audio.currentTime / d : 0);
+  fill.style.width = `${frac * 100}%`;
+  const cur = document.getElementById("jbTimeCur");
+  if (cur) cur.textContent = fmtClock(JB.scrub != null && ok ? JB.scrub * d : JB.audio.currentTime);
+  const dur = document.getElementById("jbTimeDur");
+  if (dur) dur.textContent = ok ? fmtClock(d) : "–:––";
 }
 
 function jbWire(host) {
@@ -268,16 +284,35 @@ function jbWire(host) {
   host.querySelector("[data-jb-next]").onclick = () => jbNext();
   host.querySelector("[data-jb-prev]").onclick = () => jbPrev();
   host.querySelector("[data-jb-close]").onclick = () => jbStop();
-  host.querySelector("[data-jb-dial-toggle]").onclick = () => { JB.browse = !JB.browse; jbDraw(); };
-  // Volume writes straight to the element — re-rendering the dock mid-drag would
-  // yank the slider out from under the pointer.
-  const vol = host.querySelector("[data-jb-vol]");
-  if (vol) vol.oninput = () => {
-    if (!JB.audio) return;
-    JB.audio.volume = +vol.value;
-    if (JB.audio.muted && +vol.value > 0) { JB.audio.muted = false; jbDraw(); }
-    jbVolSave(JB.audio.volume, JB.audio.muted);
-  };
+  host.querySelector("[data-jb-dial-toggle]").onclick = () => { JB.browse = !JB.browse; JB.volOpen = false; jbDraw(); };
+  host.querySelector("[data-jb-vol-toggle]").onclick = () => { JB.volOpen = !JB.volOpen; jbDraw(); };
+  // The vertical slider writes straight to the audio element and its own fill —
+  // re-rendering the dock mid-drag would yank the track out from under the pointer.
+  const vtrack = host.querySelector("[data-jb-vtrack]");
+  if (vtrack) {
+    const setFrom = (ev) => {
+      if (!JB.audio) return;
+      const r = vtrack.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, 1 - (ev.clientY - r.top) / r.height));
+      JB.audio.volume = frac;
+      JB.audio.muted = false;
+      const fill = document.getElementById("jbVolFill");
+      if (fill) fill.style.height = `${Math.round(frac * 100)}%`;
+      jbVolSave(frac, false);
+    };
+    vtrack.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      setFrom(ev);
+      const move = (e) => setFrom(e);
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        jbDraw();                        // now it's safe to refresh the mute icon state
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+  }
   const mute = host.querySelector("[data-jb-mute]");
   if (mute) mute.onclick = () => {
     if (!JB.audio) return;
@@ -285,6 +320,16 @@ function jbWire(host) {
     jbVolSave(JB.audio.volume, JB.audio.muted);
     jbDraw();
   };
+  // The popover folds when you click anywhere else — it's a flyout, not a panel.
+  if (JB.volOpen) {
+    const away = (ev) => {
+      if (ev.target.closest && (ev.target.closest(".jb-volpop") || ev.target.closest("[data-jb-vol-toggle]"))) return;
+      document.removeEventListener("pointerdown", away, true);
+      JB.volOpen = false;
+      jbDraw();
+    };
+    document.addEventListener("pointerdown", away, true);
+  }
   host.querySelectorAll("[data-jb-dial]").forEach((el) => {
     el.onclick = () => {
       JB.composer = el.dataset.jbDial || null;
@@ -295,13 +340,32 @@ function jbWire(host) {
   host.querySelectorAll("[data-jb-open]").forEach((el) => {
     el.onclick = () => { if (JB.cur) openDrawer(JB.cur.row, "games"); };
   });
+  // Scrubbing: the bar previews the position while the pointer is down and the audio
+  // only jumps on release — live-seeking a redirected CDN stream on every move would
+  // fire a request per pixel.
   const seek = host.querySelector("[data-jb-seek]");
-  if (seek) seek.onclick = (ev) => {
+  if (seek) seek.addEventListener("pointerdown", (ev) => {
     const d = JB.audio && JB.audio.duration;
     if (!isFinite(d) || !d) return;
-    const r = seek.getBoundingClientRect();
-    JB.audio.currentTime = ((ev.clientX - r.left) / r.width) * d;
-  };
+    ev.preventDefault();
+    const frac = (e) => {
+      const r = seek.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    };
+    JB.scrub = frac(ev);
+    jbDrawTime();
+    const move = (e) => { JB.scrub = frac(e); jbDrawTime(); };
+    const up = (e) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const f = frac(e);
+      JB.scrub = null;
+      JB.audio.currentTime = f * d;
+      jbDrawTime();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
 }
 
 // Lock-screen / media-key controls: the whole point of lean-back.
