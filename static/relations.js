@@ -98,25 +98,41 @@ function canonicalGameId(row) {
    unenriched tail — used to be unmergeable: "no id, can't claim it's the same game."
    Which is right in general and wrong in the one case that stings: "No More Heroes
    (Wii)" matched by IGN sitting un-combined next to the Switch copy IGDB identified.
-   So an id-less row may ADOPT a canonical id by name, under a strict rule: every
+   So an id-less row may ADOPT a canonical id by name, under two strict rules: every
    identified games-sheet copy whose folded title matches must resolve to ONE canonical
-   game. A name that genuinely belongs to two games (Resident Evil 4, 2005 and 2023)
-   resolves to two ids and is left alone. */
-function titleGidAdoption(title) {
+   game (a name that genuinely belongs to two games — Resident Evil 4, 2005 and 2023 —
+   resolves to two ids and is left alone), and the row must not PREDATE the game it
+   would join: a port can come a decade late, but it cannot come first. That guard is
+   what keeps "Dark (360, 2009)" out of DARK (2013)'s group while letting
+   "Resident Evil 5 (Xbox One, 2016)" join the 2009 game it re-releases. */
+const _yearOf = (v) => {
+  const m = String(v || "").match(/\d{4}/);
+  return m ? +m[0] : null;
+};
+function titleGidAdoption(row) {
+  const title = row.title || row.game;      // `game`, not `title`, on completed-sheet rows
   if (!title) return undefined;
   if (!_titleGid) {
-    const sets = new Map();
+    const sets = new Map();                 // folded title -> {ids:Set, year: earliest known}
     for (const r of ((DATA.sheets.games || {}).rows || [])) {
       const id = canonicalGameId(r);
       if (!id || !r.title) continue;
       const t = relNorm(r.title);
-      if (!sets.has(t)) sets.set(t, new Set());
-      sets.get(t).add(id);
+      const s = sets.get(t) || { ids: new Set(), year: null };
+      s.ids.add(id);
+      for (const y of [_yearOf(r.releaseYear), _yearOf((ENRICH[r._k] || {}).year)]) {
+        if (y && (!s.year || y < s.year)) s.year = y;
+      }
+      sets.set(t, s);
     }
     _titleGid = new Map();
-    for (const [t, ids] of sets) if (ids.size === 1) _titleGid.set(t, ids.values().next().value);
+    for (const [t, s] of sets) if (s.ids.size === 1) _titleGid.set(t, { id: s.ids.values().next().value, year: s.year });
   }
-  return _titleGid.get(relNorm(title));
+  const hit = _titleGid.get(relNorm(title));
+  if (!hit) return undefined;
+  const ry = _yearOf(row.releaseYear || row.release);
+  if (ry && hit.year && ry < hit.year - 1) return undefined;   // predates the game: not a copy of it
+  return hit.id;
 }
 
 // row → canonical id, memoised — the facet counter asks per column per row, which
@@ -124,8 +140,7 @@ function titleGidAdoption(title) {
 let _gidCache = new WeakMap();
 function cachedGameId(row) {
   if (_gidCache.has(row)) return _gidCache.get(row);
-  // `game`, not `title`, on completed-sheet rows.
-  const id = canonicalGameId(row) || titleGidAdoption(row.title || row.game) || null;
+  const id = canonicalGameId(row) || titleGidAdoption(row) || null;
   _gidCache.set(row, id);
   return id;
 }
