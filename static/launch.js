@@ -426,6 +426,11 @@ function missingOf(row) {
   if (!m.art) out.push("No cover / art");
   if (!m.hltb) out.push("No HLTB");
   if (!m.mc) out.push("No Metacritic");
+  // GameEye only prices physical items, so its absence is only a gap for copies
+  // you actually hold — owned, format Physical or Both.
+  const fmt = String(row.format || "").toLowerCase();
+  if (row.owned && (fmt === "physical" || fmt === "both") && !(ENRICH[row._k] || {}).geUrl)
+    out.push("No GameEye");
   if (!m.igdb && !m.fallback && !m.art && !m.hltb && !m.mc) out.push("Nothing at all");
   return out;
 }
