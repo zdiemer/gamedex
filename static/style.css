@@ -3273,6 +3273,56 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .ch-showall:hover { border-color: var(--accent-line); color: var(--accent); }
 
+/* ---- Recently cleared: the ledger under the grid ------------------------ */
+/* A register, not a shelf: fifteen challenges' worth of covers under the cards would
+   compete with them, and what's being listed is EVENTS. So one hairline-separated line
+   per game — thumbnail, title, the groups it knocked out, the date — and the whole thing
+   stays inside a phone's width by letting the tags wrap and the title truncate. */
+.chled-wrap { max-width: 1180px; margin: 34px auto 0; }
+.chled { list-style: none; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+.chled-row {
+  display: flex; align-items: center; gap: 10px; padding: 5px 12px 5px 6px;
+  border-top: 1px solid var(--border);
+}
+.chled-row:first-child { border-top: none; }
+.chled-row:hover { background: var(--surface-3); }
+.chled-game {
+  display: flex; align-items: center; gap: 9px; min-width: 0; flex: 0 1 320px;
+  background: none; border: none; padding: 4px 6px; border-radius: var(--r-sm);
+  color: var(--text); font-family: inherit; text-align: left; cursor: pointer;
+}
+.chled-game:hover .chled-title { color: var(--accent); }
+.chled-game img, .chled-ph {
+  width: 26px; height: 35px; flex: none; border-radius: 3px; object-fit: cover;
+  background: var(--surface-3); display: flex; align-items: center; justify-content: center;
+}
+.chled-title {
+  font-size: 12.5px; font-weight: 500; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* flex-basis 0, not auto: line breaking happens BEFORE shrinking, against each item's
+   hypothetical size — so a row with wide tag content would break the date onto a line of
+   its own before anything got a chance to shrink. A zero basis can't force that break. */
+.chled-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; flex: 1 1 0; min-width: 0; }
+.chled-tag {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 2px 9px; cursor: pointer; font: 400 11px var(--font); color: var(--text-2);
+  white-space: nowrap; overflow: hidden;
+}
+.chled-tag:hover { border-color: var(--accent-line); color: var(--accent); }
+.chled-tag b { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.chled-tag:hover b { color: inherit; }
+.chled-when { flex: none; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+
+/* On a phone the tags get the second line to themselves: three of them next to a title
+   and a date on a 360px screen leaves nothing legible on any of the four. */
+@media (max-width: 620px) {
+  .chled-row { flex-wrap: wrap; padding: 7px 12px 9px 6px; }
+  .chled-game { flex: 1 1 120px; }   /* small basis, same reason: keeps the date on line one */
+  .chled-tags { order: 3; flex-basis: 100%; padding-left: 6px; }
+}
+
 /* ---- Command palette ---------------------------------------------------- */
 .kbdbtn {
   background: var(--surface); color: var(--dim); border: 1px solid var(--border);

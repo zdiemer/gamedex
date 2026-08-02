@@ -796,6 +796,102 @@ function chBucketList(res, map) {
   return html + more;
 }
 
+/* ---- Recently cleared ----------------------------------------------------
+
+   The cards say how far each challenge has got. None of them says what just HAPPENED —
+   and a bucket falling is the only event this page has. Beat something on the Saturn and
+   three challenges quietly move at once; without a ledger the only way to find that out
+   is to open all of them and read fifteen timelines for a date you recognise.
+
+   So: the last few games that knocked a group out, newest first, across every challenge
+   at once. One line per GAME rather than per clearing — one completion routinely clears
+   its letter, its year and its price at the same time, and three lines about the same
+   game would eat the whole list to say one thing. The groups it cleared ride along as
+   tags, which is also the shortest way to say "this was worth more than it looked". */
+
+const CH_LEDGER_ROWS = 10;   // games listed
+const CH_LEDGER_TAGS = 3;    // groups named per game before the rest become a count
+
+// The three fields a card carries, joined by the unit separator — it can't occur inside
+// any of them, where a space could ("a b" + "c" vs "a" + "b c").
+const chCardKey = (r) => `${r._k || ""}\u001f${r.title}\u001f${r.platform || ""}`;
+
+const chElKey = (el) => `${el.dataset.gk}\u001f${el.dataset.gt}\u001f${el.dataset.gp}`;
+
+// Rows by card key, first one wins: two rows CAN agree on all three (the same game owned
+// twice, physical and digital) and the second must not quietly displace the first.
+// Indexed once per render, not scanned per card: the walked paths can put hundreds of
+// covers on a page, and a .find() apiece is that many passes over all 14k rows.
+function chCardIndex() {
+  const byCard = new Map();
+  for (const r of chRows()) if (!byCard.has(chCardKey(r))) byCard.set(chCardKey(r), r);
+  return byCard;
+}
+
+/* Every bucket-clearing across every challenge, newest first, folded per game.
+
+   Paths already walked count too: a bucket that fell on the lap that closed last month is
+   as recent as one that fell on this lap, and dropping the closed laps would blank the
+   ledger for exactly the challenges doing best.
+
+   Undated completions are left out. They're prehistory (see chHistory) — a quarter of the
+   finished library with no date to be recent by, and putting them at the top of a list
+   headed "recently" would be a lie the ordering can't back up. Ties inside a single day
+   are broken by the replay's own order, so the ledger agrees with the timelines. */
+function chLedger(results) {
+  const ord = new Map(chHistory().map((r, i) => [r, i]));
+  const byGame = new Map();
+  for (const res of results) {
+    for (const cleared of [...res.paths.map((p) => p.cleared), res.cleared]) {
+      for (const [key, rows] of cleared) {
+        const row = rows[0];                       // path order, so [0] is what cleared it
+        if (!row || !row.dateCompleted) continue;
+        const gk = chCardKey(row);
+        let e = byGame.get(gk);
+        if (!e) byGame.set(gk, (e = { row, tags: [] }));
+        e.tags.push({ c: res.c, key });
+      }
+    }
+  }
+  return [...byGame.values()]
+    .sort((a, b) => (ord.get(b.row) ?? -1) - (ord.get(a.row) ?? -1))
+    .slice(0, CH_LEDGER_ROWS);
+}
+
+// "One Per Letter" -> "Letter". The tag already sits under a heading about challenges and
+// next to the bucket it names; saying "one per" eleven times says nothing eleven times.
+const chTagName = (name) => String(name).replace(/^one per\s+/i, "");
+
+function chLedgerHtml(results) {
+  const items = chLedger(results);
+  if (!items.length) return "";
+  const rows = items.map(({ row, tags }) => {
+    const cs = coverSrc(ENRICH[row._k], "cover_small");
+    const art = cs ? `<img src="${cs}" alt="" loading="lazy">`
+      : `<span class="chled-ph">${icon("i-library", 13)}</span>`;
+    const shown = tags.slice(0, CH_LEDGER_TAGS).map(({ c, key }) =>
+      `<button class="chled-tag" data-chgo="${escapeHtml(c.id)}"
+        title="${escapeHtml(`${row.title} cleared ${key} in ${c.name}, ${chWhenLong(row)}`)}">
+        ${glyph(c.icon, 11)}<b>${escapeHtml(String(key))}</b>
+        <span class="muted">${escapeHtml(chTagName(c.name))}</span></button>`).join("");
+    const rest = tags.length - CH_LEDGER_TAGS;
+    return `<li class="chled-row">
+      <button class="chled-game" data-gk="${escapeHtml(String(row._k || ""))}"
+        data-gt="${escapeHtml(String(row.title))}" data-gp="${escapeHtml(String(row.platform || ""))}">
+        ${art}<span class="chled-title">${escapeHtml(String(row.title))}</span>
+      </button>
+      <span class="chled-tags">${shown}${rest > 0 ? `<span class="ch-more">+${rest} more</span>` : ""}</span>
+      <span class="chled-when">${escapeHtml(chWhen(row))}</span>
+    </li>`;
+  }).join("");
+  return `<div class="chled-wrap">
+    <h2 class="ch-sec">Recently cleared <span class="muted">last ${items.length}</span></h2>
+    <p class="ch-hint">The last games to knock a group out, newest first — one game often
+      clears several at once. Tap a game for its details, or a group for its challenge.</p>
+    <ol class="chled">${rows}</ol>
+  </div>`;
+}
+
 function renderChallenges() {
   const host = $("#challenges");
   if (!DATA) return;
@@ -832,9 +928,19 @@ function renderChallenges() {
            <b>New challenge</b>
            <span class="muted">One per anything you can filter by (themes, storefronts, developers, Steam Deck rating).</span>
          </button>
-       </div>`;
+       </div>
+       ${chLedgerHtml(results)}`;
+    const openCh = (id) => { chState.open = id; chState.showAll = null; renderChallenges(); nav(); };
     for (const el of host.querySelectorAll(".ch-card[data-ch]")) {
-      el.onclick = () => { chState.open = el.dataset.ch; chState.showAll = null; renderChallenges(); nav(); };
+      el.onclick = () => openCh(el.dataset.ch);
+    }
+    for (const el of host.querySelectorAll(".chled-tag")) {
+      el.onclick = () => openCh(el.dataset.chgo);
+    }
+    const byCard = chCardIndex();
+    for (const el of host.querySelectorAll(".chled-game")) {
+      const row = byCard.get(chElKey(el));
+      if (row) el.onclick = () => openDrawer(row, "games");
     }
     $("#chNew").onclick = () => chOpenEditor(null);
     return;
@@ -887,20 +993,9 @@ function renderChallenges() {
   for (const el of host.querySelectorAll(".ch-showall")) {
     el.onclick = () => { chState.showAll = el.dataset.showall; renderChallenges(); };
   }
-  /* Indexed once, not scanned per card: the walked paths can put hundreds of covers on
-     this page, and a .find() apiece is that many passes over all 14k rows. The unit
-     separator joins the three fields because it can't occur inside any of them — a
-     space could, and _k "a b" + title "c" would collide with _k "a" + title "b c". */
-  const byCard = new Map();
-  for (const r of chRows()) {
-    // First one wins, exactly as the .find() this replaces did: two rows CAN agree on all
-    // three (the same game owned twice, physical and digital), and the second must not
-    // quietly displace the first.
-    const k = `${r._k || ""}\u001f${r.title}\u001f${r.platform || ""}`;
-    if (!byCard.has(k)) byCard.set(k, r);
-  }
+  const byCard = chCardIndex();
   for (const el of host.querySelectorAll(".ch-chip, .chtl-card")) {
-    const row = byCard.get(`${el.dataset.gk}\u001f${el.dataset.gt}\u001f${el.dataset.gp}`);
+    const row = byCard.get(chElKey(el));
     if (!row) continue;
     el.onclick = () => openDrawer(row, "games");
     // It's the grid's card, so it gets the grid's hover-to-play trailer too. Anything less
