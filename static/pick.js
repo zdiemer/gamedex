@@ -36,7 +36,30 @@ const pickReduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
    has. This remembers whether the sheet is up, so the re-render every edit causes paints
    it back open instead of dropping it mid-build. */
 let pickSheetOpen = false;
+let _sheetReturnFocus = null;
+
+// Same breakpoint the stylesheet uses: below it the sheet is a real modal, above it the
+// wrapper is display:contents and must not claim to be one — so the dialog role comes and
+// goes with the width (renderPicker re-asserts it after every repaint) rather than living
+// in the markup, where desktop screen readers would announce a dialog that has no box.
+const pickSheetMedia = matchMedia("(max-width: 760px)");
+function pickSheetA11y() {
+  const sh = $("#pickSheet");
+  if (!sh) return;
+  if (pickSheetMedia.matches) {
+    sh.setAttribute("role", "dialog");
+    sh.setAttribute("aria-modal", "true");
+    sh.setAttribute("aria-label", "Build the pool");
+  } else {
+    sh.removeAttribute("role");
+    sh.removeAttribute("aria-modal");
+    sh.removeAttribute("aria-label");
+  }
+}
+pickSheetMedia.addEventListener("change", pickSheetA11y);
+
 function pickSheetSet(open) {
+  const was = pickSheetOpen;
   pickSheetOpen = open;
   const sh = $("#pickSheet");
   if (!sh) return;
@@ -49,13 +72,48 @@ function pickSheetSet(open) {
   if (btn) btn.setAttribute("aria-expanded", String(open));
   // Closing walks away from any half-built criterion, exactly like clicking elsewhere.
   if (!open && pickPop.path !== null) dismissPickPop();
+  // The page behind the sheet holds still (drawer.js owns the lock, and knows a desktop
+  // "sheet" has no box to lock for).
+  if (typeof syncScrollLock === "function") syncScrollLock();
+  // Modal focus discipline, phones only: in on open, back to the Criteria pill (or
+  // whoever opened it) on close.
+  if (!pickSheetMedia.matches || open === was) return;
+  if (open) {
+    _sheetReturnFocus = document.activeElement;
+    // Two frames out, not now: the sheet's visibility transition is still at its hidden
+    // starting value on this tick, and focus() refuses an unrendered element.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (pickSheetOpen) ($("#pickSheet .pick-shclose") || $("#pickSheet"))?.focus();
+    }));
+  } else {
+    const rf = _sheetReturnFocus;
+    _sheetReturnFocus = null;
+    if (rf && rf.isConnected) rf.focus({ preventScroll: true });
+  }
 }
 // chrome.js's Escape chain asks this before the drawer: true means "I closed something".
+// One layer per press: an open criterion popover first, then the sheet itself.
 function pickSheetDismiss() {
   if (activeTab !== "pick" || !pickSheetOpen || !$("#pickSheet")) return false;
-  pickSheetSet(false);
+  if (pickPop.path !== null) dismissPickPop();
+  else pickSheetSet(false);
   return true;
 }
+// Tab stays inside the open sheet: it's a modal on a phone, and the page behind it is
+// scroll-locked but still in the tab order. Escape needs nothing here — the popover's
+// keydown handles its own, and chrome.js's chain ends at pickSheetDismiss above.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab" || !pickSheetOpen || !pickSheetMedia.matches) return;
+  const sh = $("#pickSheet");
+  if (!sh) return;
+  const f = [...sh.querySelectorAll("button, a[href], input, select, [tabindex]:not([tabindex='-1'])")]
+    .filter((el) => !el.hidden && !el.disabled && el.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (!sh.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 // How many criterion chips the tree holds, for the Criteria pill's badge — a group is its
 // kids, a criterion is one, so it reads the same at any nesting depth the builder does.
 function pickCritCount(node) {
@@ -473,7 +531,22 @@ function pickRollTile(row, win) {
   const inner = cs
     ? `<img src="${escapeHtml(cs)}" alt=""${pixel ? ` class="pixel"` : ""}>`
     : `<span class="roll-ph">${icon("i-library", 22)}</span>`;
-  return `<div class="roll-tile${win ? " win" : ""}">${inner}</div>`;
+  // A coverless tile is born settled (imgok) — its glyph has no bytes to wait for, and a
+  // shimmer that never ends would read as art that never came.
+  return `<div class="roll-tile${win ? " win" : ""}${cs ? "" : " imgok"}">${inner}</div>`;
+}
+
+/* Six pip faces plus a recessed core cube. The faces' rounded corners open see-through
+   notches at every cube corner — mid-tumble the page showed through them, and the landed
+   face read as a flat rounded square. The core sits a few px inside each face; the
+   notches now show its shaded surface instead of the background, which is exactly what a
+   beveled corner looks like. */
+function pickDieHtml() {
+  return [1, 2, 3, 4, 5, 6].map((f) => {
+    const on = new Set(PICK_PIPS[f]);
+    const pips = Array.from({ length: 9 }, (_, i) => `<i${on.has(i) ? "" : ' class="off"'}></i>`).join("");
+    return `<div class="roll-face rf${f}">${pips}</div><div class="roll-core rc${f}"></div>`;
+  }).join("");
 }
 
 function playPickRoll(picked, pool) {
@@ -489,20 +562,39 @@ function playPickRoll(picked, pool) {
   const draw = () => others.length ? others[Math.floor(Math.random() * others.length)] : picked;
   const seq = Array.from({ length: N }, (_, i) => (i === LAND ? picked : draw()));
 
-  const die = [1, 2, 3, 4, 5, 6].map((f) => {
-    const on = new Set(PICK_PIPS[f]);
-    const pips = Array.from({ length: 9 }, (_, i) => `<i${on.has(i) ? "" : ' class="off"'}></i>`).join("");
-    return `<div class="roll-face rf${f}">${pips}</div>`;
-  }).join("");
-
   host.innerHTML = `<div class="pick-roll">
     <div class="roll-reel-mask">
       <div class="roll-reel" id="pickRollReel">${seq.map((r, i) => pickRollTile(r, i === LAND)).join("")}</div>
       <div class="roll-reel-hi" id="pickRollHi"></div>
     </div>
-    <div class="roll-die-scene"><div class="roll-die" id="pickRollDie">${die}</div></div>
+    <div class="roll-die-scene"><div class="roll-die" id="pickRollDie">${pickDieHtml()}</div></div>
     <div class="roll-word" id="pickRollWord">Rolling…</div>
   </div>`;
+
+  // Covers hold their box until the bytes arrive: a still-loading tile wears a shimmer
+  // pane and its art fades in over it, so a cold cache shimmers instead of popping covers
+  // in one tile at a time mid-spin. Art the session already decoded — usually all of it,
+  // from the grid — appears instantly; pixels you were just looking at shouldn't
+  // reintroduce themselves on a re-roll.
+  host.querySelectorAll(".roll-tile img").forEach((img) => {
+    const tile = img.parentElement;
+    const ok = () => { img.classList.add("ok"); tile.classList.add("imgok"); };
+    if (img.complete && img.naturalWidth) {
+      img.style.transitionDuration = "0s";
+      ok();
+      requestAnimationFrame(() => requestAnimationFrame(() => { img.style.transitionDuration = ""; }));
+    } else {
+      img.onload = ok;
+      // A 404 settles to the same glyph a coverless game gets, not a broken-image icon.
+      img.onerror = () => {
+        const ph = document.createElement("span");
+        ph.className = "roll-ph";
+        ph.innerHTML = icon("i-library", 22);
+        img.replaceWith(ph);
+        tile.classList.add("imgok");
+      };
+    }
+  });
 
   const reel = $("#pickRollReel");
   const winTile = reel.children[LAND];
@@ -833,11 +925,34 @@ function positionPickPop() {
   const pop = $(pkb.sel + " .pk-pop");
   const chip = pop && pop.closest(".pk-chip");
   if (!chip) return;
+  pop.style.position = ""; pop.style.top = ""; pop.style.bottom = "";
   pop.style.left = "0px";                    // measure from the anchored position…
   pop.style.maxHeight = "";
   pop.classList.remove("up");
   const c = chip.getBoundingClientRect();
   const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+  // Below if it fits, above if above fits better, and capped to the room it actually has
+  // either way — it scrolls inside itself, which beats scrolling off-screen.
+  const below = vh - c.bottom - PICK_POP_GAP - PICK_POP_EDGE;
+  const above = c.top - PICK_POP_GAP - PICK_POP_EDGE;
+  const up = pop.offsetHeight > below && above > below;
+
+  /* In the phone sheet the builder scrolls inside .pick-shbody, whose scrollport would
+     clip the pop to a sliver. Going fixed escapes the clip — the OPEN sheet carries no
+     transform, so the viewport is the containing block — and the pop spills out of the
+     sheet, free to take whatever the screen has below (or above) the chip. The sheet
+     still scrolls under it, so it re-anchors on every scroll tick. */
+  const sc = pop.closest(".pick-shbody");
+  if (sc && sc.clientHeight) {
+    pop.style.position = "fixed";
+    pop.style.left = `${Math.round(Math.min(Math.max(c.left, PICK_POP_EDGE), vw - PICK_POP_EDGE - pop.offsetWidth))}px`;
+    pop.style.top = up ? "auto" : `${Math.round(c.bottom + PICK_POP_GAP)}px`;
+    pop.style.bottom = up ? `${Math.round(vh - c.top + PICK_POP_GAP)}px` : "auto";
+    pop.classList.toggle("up", up);
+    pop.style.maxHeight = `${Math.max(PICK_POP_MIN_H, Math.floor(up ? above : below))}px`;
+    sc.onscroll = positionPickPop;
+    return;
+  }
 
   // Sideways: slide it back in, right edge first — a popover pushed off the left is
   // worse than one whose left edge stops at the margin.
@@ -845,12 +960,6 @@ function positionPickPop() {
   if (c.left + pop.offsetWidth > vw - PICK_POP_EDGE) left = vw - PICK_POP_EDGE - pop.offsetWidth - c.left;
   if (c.left + left < PICK_POP_EDGE) left = PICK_POP_EDGE - c.left;
   pop.style.left = `${Math.round(left)}px`;
-
-  // Vertically: below if it fits, above if above fits better, and capped to the room it
-  // actually has either way — it scrolls inside itself, which beats scrolling off-screen.
-  const below = vh - c.bottom - PICK_POP_GAP - PICK_POP_EDGE;
-  const above = c.top - PICK_POP_GAP - PICK_POP_EDGE;
-  const up = pop.offsetHeight > below && above > below;
   pop.classList.toggle("up", up);
   pop.style.maxHeight = `${Math.max(PICK_POP_MIN_H, Math.floor(up ? above : below))}px`;
 }
@@ -1025,7 +1134,7 @@ function renderPicker() {
         ${icon("i-filter", 14)} Criteria${critN ? ` <span class="pick-filters-n">${critN}</span>` : ""}
       </button>
     </div>
-    <div class="pick-shwrap${pickSheetOpen ? " open" : ""}" id="pickSheet" role="dialog" aria-label="Build the pool">
+    <div class="pick-shwrap${pickSheetOpen ? " open" : ""}" id="pickSheet">
       <div class="pick-shhead"><b>Build the pool</b>
         <span class="pick-shcount">${games}</span>
         <button class="pick-shclose" id="pickShClose" aria-label="Close">✕</button>
@@ -1100,6 +1209,7 @@ function renderPicker() {
   // than ending on a Done button and a hunt for the dice.
   $("#pickShGo").onclick = () => { pickSheetSet(false); pickGame(true); nav(); };
   $("#pickBtnM").onclick = () => { pickGame(true); nav(); };
+  pickSheetA11y();          // the sheet was just rebuilt bare; dress it for the width
   positionPickPop();
 
   const game = host.querySelector("#pickGameCard");
@@ -1220,6 +1330,16 @@ function pickPopKeydown(e) {
   }
 }
 
+/* Where a keyboard is on the desk, opening the pop drops focus into its search field so
+   you can just type. On a touch screen that same focus summons the software keyboard over
+   the very popover it would search, so there the container takes the focus instead —
+   tapping the field still works. */
+function focusPickPop() {
+  const q = $("#pkPopSearch");
+  if (q && matchMedia("(hover: hover)").matches) { q.focus(); return; }
+  $(pkb.sel + " .pk-pop")?.focus({ preventScroll: true });
+}
+
 function wirePickBuilder() {
   const host = pkbHost();
   if (!host) return;
@@ -1242,7 +1362,7 @@ function wirePickBuilder() {
       // and leave it renamed after the criterion you abandoned was gone.
       openPickPop([...path, g.kids.length - 1], "field");
       pkb.repaint();
-      $("#pkPopSearch")?.focus();
+      focusPickPop();
       return;
     }
     if (act === "gadd") { pickNodeAt(path).kids.push(pickGroup("or")); pkb.changed(); pkb.repaint(); pkb.sync(); return; }
@@ -1268,7 +1388,7 @@ function wirePickBuilder() {
       }
       return;
     }
-    if (act === "refield") { openPickPop(path, "field"); pkb.repaint(); $("#pkPopSearch")?.focus(); return; }
+    if (act === "refield") { openPickPop(path, "field"); pkb.repaint(); focusPickPop(); return; }
     if (act === "clear") {
       pickNodeAt(path).vals = [];
       pkb.changed(); pkb.repaint(); return;
@@ -1374,4 +1494,14 @@ document.addEventListener("click", () => {
 
 // Landing state (core.js). applyPreset rebuilds filter+preset together and clears the
 // rolled game — hand-assigning either one leaves the two disagreeing about what's shown.
-TAB_RESET.pick = () => { closePickPop(); pickSheetOpen = false; applyPreset(PICK_DEFAULT_PRESET); };
+TAB_RESET.pick = () => {
+  closePickPop();
+  pickSheetOpen = false;
+  // The flag alone isn't enough: the sheet holds the page scroll-locked while its .open
+  // class stands, and nothing repaints #picker between leaving the tab and the next
+  // visit. Drop the class and tell the lock, or the page stays pinned under a sheet
+  // that is no longer showing.
+  $("#pickSheet")?.classList.remove("open");
+  if (typeof syncScrollLock === "function") syncScrollLock();
+  applyPreset(PICK_DEFAULT_PRESET);
+};

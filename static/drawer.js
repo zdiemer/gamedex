@@ -374,6 +374,9 @@ function anyOverlayOpen() {
     || $("#facets").classList.contains("open")
     || !!document.querySelector(".ce-scrim")                        // cover editor
     || !!document.querySelector(".np-scrim")                        // name-a-view/picker prompt
+    // Pick's criteria sheet. clientHeight guards the desktop, where the "sheet" is
+    // display:contents — no box, nothing over the page, nothing to lock for.
+    || !!document.querySelector(".pick-shwrap.open")?.clientHeight
     || (typeof shCur !== "undefined" && shCur >= 0);               // shelf 3D pull
 }
 function syncScrollLock() {

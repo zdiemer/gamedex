@@ -188,6 +188,11 @@ function resetTab(tab) {
 // passing `reset` from there breaks the Back button.
 function switchTab(tab, reset) {
   if (reset) resetTab(tab);
+  // Pick's criteria sheet is a modal over its own tab and nothing else — leaving the tab
+  // closes it through the front door, which also hands back the scroll lock it holds.
+  // pickSheetSet, not pickSheetDismiss: dismiss peels one layer per call, and a criterion
+  // popover open inside the sheet would soak up the only call this makes.
+  if (activeTab === "pick" && tab !== "pick" && typeof pickSheetSet === "function") pickSheetSet(false);
   // A render-dedup counter, not user state — a stale count from the tab you just left
   // would suppress the one repaint the enrichment poll exists to trigger (panels.js).
   lastGroupedCount = -1;
