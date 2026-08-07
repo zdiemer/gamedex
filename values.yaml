@@ -151,7 +151,12 @@ ingress:
 resources:
   requests:
     cpu: 50m
-    memory: 128Mi
+    # Measured steady state is ~1.65Gi, not 128Mi — the parsed catalogue stays
+    # resident, so the old request under-booked the node by an order of
+    # magnitude and let the scheduler stack work on top of memory gamedex was
+    # always going to hold. Request tracks the resident set; the limit below
+    # covers the startup/backfill peak on top of it.
+    memory: 1792Mi
   limits:
     # ~17k rows parsed + held in memory, plus two enrichment backfills, plus the shelf
     # cutting box scans (a 3366x2100 JPEG decodes to ~21MB of pixels and every crop
