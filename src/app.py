@@ -50,6 +50,7 @@ import steam_user as steam_user_mod
 import xbox_user as xbox_user_mod
 import gamerankings as gr_mod
 import og as og_mod
+import screenscraper as screenscraper_mod
 import shelf as shelf_mod
 
 from arcadedb import ArcadeDbClient
@@ -231,6 +232,9 @@ async def lifespan(_: FastAPI):
             "accounts: ADMIN_INITIAL_PASSWORD unset; no admin seeded (login disabled)")
     # After the startup peak (xlsx parse + enrichment backfills), not during it.
     SHELF.warm(delay=90)
+    # And the ScreenScraper boxes behind that again — it's a long, rate-limited crawl
+    # against a daily quota, and nothing on the shelf is waiting for it.
+    SHELF.warm_screenscraper(delay=300)
     if enricher:
         enricher.start()
         logging.getLogger("gamedex").info("IGDB enrichment enabled (backfill=%s)", ENRICH_BACKFILL)
@@ -673,7 +677,24 @@ if _rp.exists():
     logging.getLogger("gamedex").info(
         "shelf: %d real box wraps, %d spine colours",
         len(_resolved.get("wraps", {})), len(_resolved.get("hues", {})))
-SHELF = shelf_mod.Shelf(_resolved, Path(os.environ.get("COVERS_CACHE", "/data/covers")))
+
+# ScreenScraper's per-face box scans. The matching was done offline by
+# tools/resolve_screenscraper.py — this file only says WHICH media each game has, so
+# the images themselves are fetched here, once each, and kept on the volume. Without
+# credentials the manifest is inert: rows() will not claim art the server can't serve.
+_ss = {}
+_ssp = Path(os.environ.get("SCREENSCRAPER_DATA", "/app/data/screenscraper.json"))
+SCREENSCRAPER = screenscraper_mod.ScreenScraper()
+if _ssp.exists() and SCREENSCRAPER.enabled:
+    import json as _json
+    _ss = _json.loads(_ssp.read_text())
+    logging.getLogger("gamedex").info(
+        "shelf: %d screenscraper boxes", len(_ss.get("games", {})))
+elif _ssp.exists():
+    logging.getLogger("gamedex").info(
+        "shelf: screenscraper manifest present but no developer key — ignoring it")
+SHELF = shelf_mod.Shelf(_resolved, Path(os.environ.get("COVERS_CACHE", "/data/covers")),
+                        screenscraper=_ss, ss_client=SCREENSCRAPER)
 
 # Every third-party cover / screenshot / artwork <img> in the UI points at /api/img,
 # and every Internet Archive PDF manual at /api/manual — both cache the bytes here on

@@ -13,13 +13,24 @@ codebase audit.
       Wikidata now hands us 33,902 MobyGames ids for free, so the matching is
       already done. Non-commercial limit is 720/hr (1 per 5s) → ~20h backfill;
       free access is by application.
-- [ ] **ScreenScraper — replace shelf cover art** — the box-scan database:
-      per-region full box scans plus separate front/spine/back faces, keyed by
-      ROM hash or name, which is exactly the art the shelf fakes today from
-      flat covers. Free account required; quotas are per-day with thread
-      limits, so it's a slow backfill like the others. Would supersede the
-      GameTDB/covers-resolved patchwork for shelf rendering, and the same
-      scans feed the editor's box-art slots (see the rewrite's editing item).
+- [x] **ScreenScraper — real box art on the shelf** — shipped 2026-08-07, once the
+      dev key landed. Front, back and spine as separate region-matched photographs.
+      `tools/resolve_screenscraper.py` matches offline; `data/screenscraper.json`
+      records WHICH media each box has, never their URLs, because those carry our
+      credentials. Faces resolve one at a time across sources, so a ScreenScraper
+      front can wear a Cover Project spine. Four things the live API taught us —
+      an exact name must beat the IGDB fingerprint (the picture ranks the WRONG
+      game higher), a colon breaks their search, one region must be chosen for the
+      whole box, and landscape-platform spines arrive lying down — are written up
+      in `docs/shelf-media-and-manuals.md` §7. Read that before changing the
+      matcher; each one was a shipped bug first.
+- [ ] **ScreenScraper — the cartridge, the disc and the manual** — the rest of what
+      the same response already gave us. `resolve_screenscraper.py` stores the
+      `support-2D` ref (cart label / printed disc face) and the `manuel` ref per
+      game, so no new matching or quota is needed: it wants a serving route, the
+      label warped onto the pre-rendered shells (`static/media.js` has been holding
+      `mediaArt().scan` open since July), and the manual slotted in behind the
+      Archive.org reader.
 - [ ] **Decompose `isCandidate` into criteria** — the challenge pool
       (`challenges.js:64`) is five hardcoded conditions: not completed, priority
       above Will Not Play, `playable === "Yes"`, not an untranslated game in a

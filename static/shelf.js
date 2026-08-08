@@ -32,6 +32,15 @@ const shPx = (mm) => Math.round(mm * PX_MM);
 const faceUrl = (k, f, v) =>
   `/api/shelf/face?key=${encodeURIComponent(k)}&face=${f}${v ? `&v=${v}` : ""}`;
 
+/* Does this box have REAL art on its faces — i.e. is /api/shelf/face going to answer?
+ * Three sources say yes: the owner's own upload, a Cover Project wrap, and a
+ * ScreenScraper scan. They differ in where the pixels came from and nowhere else, so
+ * everything downstream of this asks the question once, here, instead of growing a
+ * third arm of the same `||` in five places. The server resolves each FACE separately
+ * behind that endpoint (see shelf.py face()), which is why the browser doesn't have to
+ * know that a ScreenScraper box may be wearing a Cover Project spine. */
+const shHasFaces = (g) => g.src === "wrap" || g.src === "upload" || g.src === "ss";
+
 /* A game with no scanned wrap doesn't get a flat coloured slab — it gets that
  * system's STANDARD spine: the console's brand band up top, the game's title set
  * automatically below. Brand colours are facts; the short label stands in for the
@@ -172,7 +181,7 @@ async function renderShelf() {
     host.innerHTML = `<div class="sh-empty">Reading the shelf…</div>`;
     await loadShelf();
   }
-  const wraps = SHELF.games.filter((g) => g.src === "wrap").length;
+  const wraps = SHELF.games.filter(shHasFaces).length;
   const plats = [...new Set(SHELF.games.map((g) => g.p))].sort();
 
   host.innerHTML = `
@@ -241,7 +250,7 @@ function shelfVisible() {
 // One spine on the flat shelf: a real scanned spine if we have a wrap, otherwise the
 // system's standard spine with the title set automatically.
 function shSpineHtml(g, i) {
-  const real = g.src === "wrap" || g.src === "upload";
+  const real = shHasFaces(g);
   const dims = `width:${shPx(g.case.d)}px;height:${shPx(g.case.h)}px`;
   const t = `title="${escapeHtml(g.t)} · ${escapeHtml(g.p)}${g.done ? " · Beaten" : ""}"`;
   // Beaten-at-a-glance: a check on the top of a finished game's spine. Absolute, so it
@@ -365,7 +374,7 @@ function shBuild(i) {
   // have art (GameTDB's box front, most often). Either way it beats a blank slab.
   const cover = g.cover ? IMG(g.cover, "cover_big") : (g.coverUrl || "");
   el.innerHTML =
-    (g.src === "wrap" || g.src === "upload") ? `
+    shHasFaces(g) ? `
       <div class="sh-face f-front"><img src="${faceUrl(g.k, "front", g.uv)}" alt="" draggable="false"></div>
       <div class="sh-face f-back wrapped"><img src="${faceUrl(g.k, "back", g.uv)}" alt="" draggable="false"></div>
       <div class="sh-face f-left wrapped"><img src="${faceUrl(g.k, "spine", g.uv)}" alt="" draggable="false"></div>
@@ -448,8 +457,13 @@ function shBuild(i) {
   const src =
     g.src === "upload"
       ? `<span class="sh-badge mine">Your upload</span>`
-      : g.src === "wrap"
-        ? `<span class="sh-badge real">Real box${g.region && g.region !== "user" ? " · " + escapeHtml(g.region) : ""}</span>`
+      : g.src === "wrap" || g.src === "ss"
+        // "Real box" plus where it came from, and the printing. `regionOff` means it's
+        // a real box but not YOUR region's — say so rather than let the region code
+        // imply the copy on your shelf.
+        ? `<span class="sh-badge real">Real box${g.artFrom ? " · " + escapeHtml(g.artFrom) : ""}${
+             g.region && g.region !== "user" ? " · " + escapeHtml(g.region.toUpperCase()) : ""}${
+             g.regionOff ? " box" : ""}</span>`
         : g.src === "cover"
           ? `<span class="sh-badge fake">Front only · ${escapeHtml(g.coverFrom || "IGDB")}</span>`
           : `<span class="sh-badge none">No art anywhere</span>`;

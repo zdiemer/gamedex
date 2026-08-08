@@ -2,7 +2,7 @@ image:
   # Built + pushed to GHCR by build.sh; the package is public so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: ghcr.io/zdiemer/gamedex
-  tag: "1.58.111"
+  tag: "1.58.112"
   pullPolicy: IfNotPresent
 
 service:
@@ -99,6 +99,25 @@ itad:
   apiKey: ""            # the plain "Key" on your ITAD app page
   clientId: ""          # OAuth client id (used as a fallback if apiKey is blank)
   country: "US"
+
+# ScreenScraper for real box scans on the Shelf: the front, back and spine of the
+# printed box as separate photographs, plus cartridge/disc scans and manuals.
+# Credentials in values.local.yaml. TWO pairs, and the DEVELOPER one is the gate —
+# every endpoint refuses without it, a user account alone is not enough.
+#   devId/devPassword  a developer key, granted per piece of software on request
+#   user/password      a ScreenScraper account: higher quota, higher-res media
+# Which game each box IS was decided offline (tools/resolve_screenscraper.py ->
+# data/screenscraper.json, baked into the image). These credentials only fetch the
+# images that manifest points at, once each, onto the PVC. Blank = the manifest is
+# ignored entirely and the Shelf behaves exactly as it did before.
+screenscraper:
+  devId: ""
+  devPassword: ""
+  user: ""
+  password: ""
+  # Requests per second for the boot-time warm crawl. A non-contributing account
+  # gets ONE thread; 1/s is polite and finishes a full library overnight.
+  rate: 1
 
 # Third-party asset cache on the PVC. The UI hotlinks a large number of covers,
 # screenshots and artwork from external CDNs (IGDB, GameTDB, VNDB, ArcadeDB, the

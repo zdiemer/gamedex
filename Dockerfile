@@ -23,6 +23,10 @@ COPY static/ /app/static/
 # Which Cover Project scan belongs to each game, and which way up. Decided
 # offline by tools/resolve_covers.py; the scans themselves are fetched lazily.
 COPY data/covers-resolved.json /app/data/covers-resolved.json
+# Which ScreenScraper game each box is, and which media it has. Decided offline by
+# tools/resolve_screenscraper.py; the images are fetched lazily and cached on the PVC.
+# Credential-free by construction (see that tool's docstring) — safe to bake in.
+COPY data/screenscraper.json /app/data/screenscraper.json
 # GameRankings closed in 2019, so this is a frozen archive — baked in, never fetched.
 COPY data/gamerankings.json /app/data/gamerankings.json
 

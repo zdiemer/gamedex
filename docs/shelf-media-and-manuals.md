@@ -1,7 +1,10 @@
 # Openable boxes: cartridges, discs, and manuals
 
-**Status:** deferred (2026-07-13). ScreenScraper's site was down when we went to wire it up.
-Everything below is the state of the investigation, so none of it has to be rediscovered.
+**Status:** the dev key landed (2026-08-07) and the **box art** half is built — see
+*§7 What shipped* at the end. Cartridge/disc scans and ScreenScraper manuals are not wired up
+yet, but the resolver already collects their media refs, so what's left for those is wiring
+rather than discovery. Everything below is the original investigation, kept because it is still
+the map.
 
 **The idea.** A box on the Shelf can be *opened*. The media comes out — a real cartridge or a
 real disc, modelled to look like its actual counterpart — and the manual is there too, readable.
@@ -210,3 +213,134 @@ Measured 2026-07-13:
    - derived cart labels from box art
 4. **Claude:** when the dev key lands, slot ScreenScraper in *above* the derived labels. Everything
    built before it keeps working — it just gets better art.
+
+---
+
+## 7. What shipped (2026-08-07) — the box art
+
+The dev key arrived, so the tier-2 art in §2 is real for the BOX. Cartridge labels, disc faces
+and ScreenScraper manuals are still to come; §7.5 says what's left of them.
+
+### The shape of it
+
+ScreenScraper is unlike Cover Project in the one way that matters: it hands over the faces as
+**separate photographs** (`box-2D`, `box-2D-back`, `box-2D-side`) rather than one flattened
+wrap. All three of the hard problems `tools/resolve_covers.py` exists to solve — which of seven
+regional scans, which print template, which way up — were expected to vanish. Two of them did.
+
+| | |
+|---|---|
+| `src/screenscraper.py` | the client: auth, quota, rate limit, region selection |
+| `tools/resolve_screenscraper.py` | offline matcher → `data/screenscraper.json` (resumable) |
+| `src/shelf.py` | the per-face chain, orientation, the fetch cache, the warm crawl |
+| `static/shelf.js` | `shHasFaces()` — one predicate, three real-art sources |
+
+### Four things the live API taught us that the docs did not
+
+**1. An exact name beats the picture — and the picture is actively wrong.** The plan was to
+prove every hit against the IGDB cover, the way `resolve_covers.py` does. That is correct
+*there*, where Cover Project is a folder of community uploads and the scan and the cover are
+the same printing of the same box. Here the catalogue is curated and keyed by system id, while
+their `box-2D` is frequently a **different regional printing** from the one IGDB holds. So the
+fingerprint can rank the right game below the wrong one. Measured, on Yoshi's Island:
+
+```
+#2163 "Super Mario World 2 - Yoshi's Island"  -0.0569   <- the right game
+#2144 "Super Mario World"                     +0.0505   <- what that design shipped
+```
+
+An exact slug match against *any* of their names is now taken on its own, and no image is
+fetched. Only a fuzzy match has to argue with the picture. Do not invert this again.
+
+**1b. …and the picture can't be trusted to decide alone either.** The first full crawl proved
+the corollary. Of 534 boxes, 30 were picture-decided at the inherited `MIN_SCORE = 0.05`, and
+a large share of those were simply wrong:
+
+```
+exzeusthecompletecollection    +0.069 -> "Clea Complete Collection"
+apexheroinesplatinumedition    +0.137 -> "Dying Light - Platinum Edition"
+blasphemous2                   +0.167 -> "Blasphemous Deluxe Edition"
+clocktowerrewind               +0.105 -> "COGEN - Sword of Rewind"
+```
+
+Every one of those has a name with **no relation** to ours; a weak correlation was the only
+thing arguing for it. The picture is now a confirmer, never a decider: a candidate must ALSO
+have a name relation (`MAX_FUZZY_RANK = 1` — one name contains the other) and clear a much
+higher bar (`MIN_SCORE = 0.20`). This costs a handful of genuinely-right matches (Atari 50's
+"Celebration Expanded" vs their "Anniversary Collection" no longer connects) and that is the
+correct trade: those games keep a correct IGDB cover, which beats a real box belonging to a
+different game.
+
+**2. A colon breaks their search.** `"The Legend of Zelda: A Link to the Past"` returns one
+result object with **no fields** — not an error, not an empty array. Drop the colon and it
+matches immediately. So the resolver walks a ladder of terms (full → depunctuated → head →
+subtitle), pools everything, and short-circuits only on an exact name. The subtitle rung earns
+its place too: "Final Fantasy Mystic Quest" finds nothing, "Mystic Quest" finds it (they file
+it as *Mystic Quest Legend*). Their regional renames are wild — Star Fox is **Starwing**.
+
+**3. One region for the whole box.** Ocarina of Time carries **nine** regional printings of
+each face. Choosing the best available per face is the obvious implementation and it assembles
+a box that never existed: a US front, a European spine, an Australian back. The region is now
+chosen once, from the printings that have a front, and every other face comes from that same
+printing — falling back only when it genuinely lacks one. `regionMatch` records whether you got
+the printing you own, and the shelf card says so rather than implying it.
+
+Two follow-on bugs, both found by *reading the resolved data* rather than trusting it — 88 of
+214 boxes were flagged foreign, which was far too many to be true:
+
+- `REGION_PREF` was missing `Asia` (64 owned games) and `Korea` (3), so they fell through to
+  the **US-first** order — exactly the substitution the per-region box key exists to prevent.
+  A region missing from that table is not a harmless gap.
+- A **worldwide** (`wor`) printing was being called foreign. A region-free Switch card has one
+  printing and it is yours; see `UNIVERSAL_REGIONS`.
+
+`region_matches()` is deliberately a free function of (chosen region, owned region), so a
+stored manifest can be re-judged without re-fetching a single image. That turned what would
+have been a full re-crawl into an in-place pass.
+
+**4. "Which way is up" did not vanish — it moved to the spine.** On a landscape-box platform
+(SNES, N64) the spine arrives as a wide horizontal strip, 400×57, because that is how it lies
+on the flattened box. The 3D case's left wall is 33mm × 133mm. Painted as-is it is a smear.
+`_orient()` fixes it with geometry, not a heuristic: the face's true aspect is known from the
+case dimensions, so it turns the image only when that measurably fits better (log-ratio, so
+"twice as wide" and "half as wide" are the same size of wrong). Genesis and PlayStation spines
+are correctly left alone.
+
+### Faces resolve one at a time, across sources
+
+`Shelf.face()` is a chain, not a tier:
+
+1. the owner's upload
+2. a ScreenScraper photograph of that face
+3. the Cover Project wrap's panel, or a slice of ScreenScraper's own `box-texture`
+4. a face synthesised from the front (hue spine, blurred back)
+
+3 above 4 is the point. The common ScreenScraper game has a front and nothing else — and if
+Cover Project scanned that game's wrap, it has a *real* spine, which beats a coloured
+rectangle. So a box can wear a ScreenScraper front and a Cover Project spine, and the browser
+never learns this: it asks `/api/shelf/face` and the server decides.
+
+### Coverage, and why it is what it is
+
+ScreenScraper is a **retro** database. Spot-checked against the collection: it *has* the modern
+games (Sifu, Helldivers II, Yakuza Kiwami 2 all match by exact name) but holds **no box art**
+for them, so the resolver declines and they keep their Cover Project wrap or IGDB cover. The
+value lands on the retro shelf, which is exactly where the fabricated boxes were.
+
+### The thing that nearly bit
+
+The shelf paints a spine for **every** game with real art, so the first person to scroll would
+otherwise trigger thousands of cold, rate-limited fetches, each parked in a request thread —
+the app stops answering long before the quota does. Two guards: a boot-time warm crawl (serial,
+resumable via `.done` stamps, stops when the quota does) and a **two-concurrent** cap on
+on-demand fetches. Measured: 12 simultaneous requests return in 0.7s serving 2, rather than
+parking 12 threads for 7s. A face you can't have yet is a spine in the right colour.
+
+### 7.5 Still to do
+
+- **Cartridge and disc scans** (`support-2D`). The manifest already stores the ref per game, so
+  no new matching or quota is needed; `static/media.js` has held `mediaArt().scan` open for
+  this since July. Needs a serving route and the label warped onto the pre-rendered shells.
+- **Manuals** (`manuel`, a real PDF on `mediaManuelJeu.php`). Stored per game already. A second
+  source behind the Archive.org reader, useful where Archive has no scan.
+- **Re-run the resolver** when the collection grows; it resumes and only asks about what's new.

@@ -32,6 +32,16 @@ itad:
   clientSecret: ""      # OAuth Client Secret (future user-auth features)
   country: "US"
 
+# Optional — ScreenScraper, for real scanned box art on the Shelf (front, back and
+# spine as separate images) plus cartridge/disc scans and manuals. BOTH pairs matter:
+# the developer key is what unlocks the API at all (request one on their forum), the
+# account raises the daily quota and the resolution of what you get back.
+screenscraper:
+  devId: ""
+  devPassword: ""
+  user: ""              # your screenscraper.fr account
+  password: ""
+
 # Single-admin login. Seeds ONE account on first boot (when the accounts DB is
 # empty). Set a strong initial password, log in, then change it in-app — changing
 # it here afterward does nothing. Blank initialPassword = login disabled.

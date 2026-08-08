@@ -343,6 +343,9 @@ Dropbox…"). `/api/health` returns `503` until that first load completes.
 | `refreshIntervalSeconds` | either | `600` | Poll cadence; re-parses only on change |
 | `igdb.clientId` / `igdb.clientSecret` | local | — | Twitch app creds; enables enrichment |
 | `igdb.backfill` | either | `false` | Slowly enrich every game in the background |
+| `screenscraper.devId` / `screenscraper.devPassword` | local | — | Developer key (granted per app on their forum). Without it the whole feature is off |
+| `screenscraper.user` / `screenscraper.password` | local | — | ScreenScraper account: higher daily quota, higher-res media |
+| `screenscraper.rate` | either | `1` | Requests/second for the boot-time box-art warm crawl |
 | `imageCache.enabled` | either | `true` | Cache hotlinked covers/screenshots/art on the PVC via `/api/img` |
 | `imageCache.maxMb` | either | `500` | On-disk cap for the image cache; oldest-served files evicted past it |
 | `manualCache.enabled` | either | `true` | Cache Internet Archive PDF manuals on the PVC via `/api/manual` |

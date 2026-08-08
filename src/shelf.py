@@ -1,18 +1,26 @@
 """The shelf: the physical games, as objects.
 
 Everything here exists to answer one question — what does this game look like as a
-box you could pick up? Three answers, in descending order of truth:
+box you could pick up? Four answers, in descending order of truth:
 
-    wrap   a Cover Project scan of the real box. We know the front, the spine and
-           the back, because someone photographed them.
-    cover  no scan, but IGDB has the front. We make a spine from the art's dominant
-           hue and a stand-in back.
+    upload a scan the owner supplied by hand. Always wins: it is us being corrected.
+    ss     ScreenScraper's scans of the printed box, one image PER FACE — front,
+           back and spine as separate photographs, region-tagged.
+    wrap   a Cover Project scan of the real box, flattened: one image holding all
+           three faces, which we slice.
+    cover  no scan anywhere, but IGDB has the front. We make a spine from the art's
+           dominant hue and a stand-in back.
     blank  nothing at all (a GP2X Wiz game). A plain case with the title on it.
 
+Those tiers describe a GAME, but the faces are resolved one at a time — a game whose
+only ScreenScraper media is the front still gets the Cover Project spine if it has
+one, and a synthesised one if it doesn't. `face()` is that chain, in order.
+
 The wrap scans are 3-6 MB and there are two thousand of them, so we do NOT fetch
-them up front. `resolve_covers.py` has already decided WHICH scan and WHICH way up,
-offline; this module only fetches a scan when someone actually pulls that game off
-the shelf, cuts it into three faces, and keeps the pieces on disk forever after.
+them up front. `resolve_covers.py` and `resolve_screenscraper.py` have already
+decided WHICH scan (and, for a wrap, which way up), offline; this module only
+fetches when someone actually pulls that game off the shelf — or when the boot-time
+warm pass gets there first — and keeps the pieces on disk forever after.
 """
 
 from __future__ import annotations
@@ -22,6 +30,7 @@ import colorsys
 import io
 import json
 import logging
+import math
 import pathlib
 import threading
 import time
@@ -101,6 +110,11 @@ CUT_VERSION = "3"
 # (v2: honour EXIF orientation.)
 UPLOAD_CUT_VERSION = "2"
 
+# Bump when the ScreenScraper face BUILD changes, to re-fetch and rebuild them. Kept
+# separate from CUT_VERSION so a change to how a Cover Project wrap is sliced doesn't
+# throw away thousands of faces that cost an API quota to fetch.
+SS_VERSION = "1"
+
 # Cover Project's print templates, in millimetres: back | spine | front | height.
 # Kept in step with tools/cp_wrap.py, which is what chose the template offline.
 TEMPLATES = {
@@ -162,6 +176,86 @@ def dominant_hue(im: Image.Image) -> str:
     return "#%02X%02X%02X" % (int(r * 255), int(g * 255), int(b * 255))
 
 
+def _orient(im: Image.Image, want_ar: float) -> Image.Image:
+    """Stand a face up, if it arrived lying down.
+
+    ScreenScraper photographs each face separately, which was supposed to mean no
+    rotation question — and for the front and back it does. The SPINE of a
+    landscape-box platform is the exception, and it is not a rare one: a SNES or N64
+    spine comes back as a WIDE horizontal strip (400x57) because that is how it sits on
+    the flattened box, while the 3D case's left wall is 33mm x 133mm — tall and thin.
+    Painted as-is it is a smear.
+
+    Nothing is guessed here. The face's true aspect is known from the case dimensions
+    we already hold, so the only question is which of two orientations is closer to it,
+    measured in log-ratio so that "twice as wide" and "half as wide" are the same size
+    of wrong. Clockwise, because the strip's LEFT edge is the top of the spine: it puts
+    the title at the top, the way a box reads on a shelf."""
+    ar = im.width / max(im.height, 1)
+    if want_ar <= 0 or ar <= 0:
+        return im
+    as_is = abs(math.log(ar / want_ar))
+    turned = abs(math.log((1 / ar) / want_ar))
+    return im.rotate(-90, expand=True) if turned < as_is - 0.35 else im
+
+
+def _placeholder(im: Image.Image) -> bool:
+    """Is this a chroma-key placeholder rather than a photograph of a box?
+
+    ScreenScraper answers "we have no back for this game" with an IMAGE — a slab of
+    pure #00FF00, two colours in the whole file, HTTP 200, correct aspect ratio. It is
+    indistinguishable from real art to everything except the pixels, and roughly a
+    quarter of the backs sampled were one. Shipped unchecked, the shelf grows green
+    rectangles for backs, which is worse than the blurred-front stand-in it already
+    knows how to make.
+
+    Pure chroma green is the test, not "flat": a real box back can be nearly a single
+    colour, but no printed box is 30% #00FF00 — that is a key colour, and even the
+    green consoles are nowhere near it (the Xbox brand green is #107C10)."""
+    small = im.convert("RGB").resize((32, 32), Image.NEAREST)
+    green = sum(1 for r, g, b in small.getdata() if g > 200 and r < 60 and b < 60)
+    return green > 32 * 32 * 0.30
+
+
+def _decode(raw: bytes, cap: int) -> Image.Image:
+    """Decode an image we didn't choose the size of.
+
+    `maxwidth` is a REQUEST, not a guarantee — a source that ignores it hands back a
+    600 dpi scan, and a 3366x2100 JPEG is 21 MB decoded before a single crop copies it
+    again. That is what OOM-killed this pod at a 512Mi limit (see _cut). draft() makes
+    libjpeg decode at a reduced scale in the first place, which is free: no face is
+    ever shown above 600px, so the detail is thrown away regardless."""
+    im = Image.open(io.BytesIO(raw))
+    im.draft("RGB", (cap, cap))
+    return im.convert("RGB")
+
+
+def _save(im: Image.Image, path: pathlib.Path, quality: int = 84) -> None:
+    """Write one finished face. 600px on the long edge is more than a 250px case can
+    show, and turns a 6 MB scan into ~40 KB. Written to a temp name and renamed, so a
+    reader never catches a half-written JPEG."""
+    long = max(im.size)
+    if long > 600:
+        s = 600 / long
+        im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))),
+                       Image.LANCZOS)
+    tmp = path.with_suffix(".tmp")
+    im.save(tmp, "JPEG", quality=quality, optimize=True)
+    tmp.replace(path)
+
+
+def _derive(front: Image.Image, ch: float, cd: float) -> dict[str, Image.Image]:
+    """The two faces you can honestly make out of a front cover alone.
+
+    The spine is the art's dominant hue at the case's real depth-to-height ratio, so
+    it sits in a row of spines at the right width and the right colour. The back is
+    the front blurred and darkened — not a lie about what the back says, just a
+    surface that reads as "the other side of this box" at a glance."""
+    spine = Image.new("RGB", (max(8, round(front.height * cd / max(ch, 1))), front.height),
+                      _hex(dominant_hue(front)))
+    return {"spine": spine, "back": front.filter(_BLUR).point(lambda p: int(p * 0.42))}
+
+
 # Which template a manually-uploaded WRAP is sliced with, by platform. A user uploads
 # an upright wrap (they orient it themselves with the rotate control), so unlike the
 # Cover Project scans there is no rotated-template weirdness here — just the slice ratio
@@ -210,7 +304,8 @@ def _front_url(e: dict) -> str:
 
 
 class Shelf:
-    def __init__(self, resolved: dict, cache_dir: pathlib.Path):
+    def __init__(self, resolved: dict, cache_dir: pathlib.Path,
+                 screenscraper: dict | None = None, ss_client=None):
         self._wraps = resolved.get("wraps", {})
         self._hues = resolved.get("hues", {})
         self._dir = cache_dir
@@ -222,10 +317,41 @@ class Shelf:
         self._udir.mkdir(parents=True, exist_ok=True)
         self._umanifest = self._udir / "manifest.json"
         self._uploads = self._load_uploads()
+        # ScreenScraper faces get their own directory for the same reason, plus one of
+        # their own: every file in it cost a request against a daily quota, so it must
+        # survive a change to how Cover Project wraps are cut.
+        # No credentials means no way to fetch any of it, and a row that CLAIMS real art
+        # the server can't serve is worse than one that doesn't: the shelf would paint a
+        # wall of black rectangles where the spines should be. Checked once, on `enabled`
+        # rather than `usable()` — a quota spent halfway through the day must not retire
+        # the thousands of faces already sitting on the volume.
+        self._ssc = ss_client
+        self._ss = (screenscraper or {}).get("games", {}) if (ss_client and ss_client.enabled) else {}
+        # On-demand fetching is BOUNDED. /api/shelf/face runs in the request threadpool,
+        # the shelf asks for every visible spine at once, and the client is rate-limited
+        # to about one request a second — so an unbounded "fetch it when asked" parks
+        # dozens of request threads in a queue and the whole app stops answering. Two at
+        # a time, and anything past that is simply left to the warm pass, which will get
+        # there on its own.
+        self._ss_demand = threading.BoundedSemaphore(2)
+        self._sdir = cache_dir / "screenscraper"
+        self._sdir.mkdir(parents=True, exist_ok=True)
         self._locks: dict[str, threading.Lock] = {}
         self._guard = threading.Lock()
         self._invalidate_stale_cache()
         self._recut_uploads_if_stale()
+        self._invalidate_stale_ss()
+        # Games whose ScreenScraper art turned out to be unusable once fetched (their
+        # "no image" placeholder, or a front that failed to decode). Loaded from the
+        # volume so the knowledge survives a restart, and added to as the warm crawl
+        # discovers more. rows() consults it, so this costs one set lookup per game
+        # rather than a filesystem stat. AFTER _invalidate_stale_ss, which may have
+        # just swept the markers along with everything else.
+        #
+        # Built from the KEYS, not from the filenames: safe-naming replaces '/' with
+        # '_' and keys contain underscores of their own, so the mapping does not invert.
+        self._ss_nofront = {k for k in self._ss
+                            if (self._sdir / f"{k.replace('/', '_')}.nofront").exists()}
 
     def _recut_uploads_if_stale(self) -> None:
         """When the upload SLICING changes, re-cut every upload from its stored original
@@ -276,6 +402,23 @@ class Shelf:
         if n:
             log.info("shelf: cut logic changed (v%s) — cleared %d cached faces", CUT_VERSION, n)
 
+    def _invalidate_stale_ss(self) -> None:
+        """Same idea for the ScreenScraper faces, on their own version. Clearing these
+        means re-fetching them, which costs quota — so only a change to how they are
+        BUILT should bump SS_VERSION, never a change elsewhere in the cutting."""
+        stamp = self._sdir / ".ss-version"
+        if stamp.exists() and stamp.read_text().strip() == SS_VERSION:
+            return
+        n = 0
+        for f in (list(self._sdir.glob("*.jpg")) + list(self._sdir.glob("*.done"))
+                  + list(self._sdir.glob("*.nofront"))):
+            f.unlink(missing_ok=True)
+            n += 1
+        stamp.write_text(SS_VERSION)
+        if n:
+            log.info("shelf: screenscraper build changed (v%s) — cleared %d files",
+                     SS_VERSION, n)
+
     # ---------- what's on the shelf ----------
 
     def rows(self, games, enrichment) -> list[dict]:
@@ -295,10 +438,23 @@ class Shelf:
             # Super Famicom then put two Super Famicom boxes on the shelf.
             key = f"{mk}#{(g.get('releaseRegion') or '').strip()}"
             up = self._uploads.get(key)
+            ss = self._ss.get(key)
             w = self._wraps.get(key)
             e = enrichment.get(mk) or {}
             if up:                            # a manual upload wins over everything
                 case, src = up["case"], "upload"
+            # A front is the whole claim: without one there is nothing to show and
+            # nothing to derive the other faces from, so the game keeps whatever tier it
+            # had. resolve_screenscraper.py never writes an entry like that, but rows()
+            # is what decides whether the browser asks for faces, and it costs one
+            # condition to not take the tool's word for it.
+            elif (ss and key not in self._ss_nofront
+                  and ((ss.get("faces") or {}).get("front") or ss.get("texture"))):
+                # ScreenScraper photographs the faces separately, so unlike a wrap it
+                # tells us nothing about the box's SHAPE. The shape comes from the
+                # platform's real case dimensions, which is the more reliable source
+                # anyway — a scan can be trimmed, a Game Boy box is always 92x133x22.
+                case, src = ss["case"], "ss"
             elif w:
                 case, src = w["case"], "wrap"
             else:
@@ -315,7 +471,7 @@ class Shelf:
                 "done": bool(g.get("completed")),
                 "case": case,
                 "src": src,
-                "region": (up or w or {}).get("region") or "",
+                "region": (up or ss or w or {}).get("region") or "",
                 "cover": e.get("cover"),      # IGDB image id, for the fallback front
                 # …and a whole URL when IGDB has no art but another source does. A Wii disc
                 # IGDB never matched still has a real, region-correct box front on GameTDB's
@@ -325,7 +481,21 @@ class Shelf:
                 "coverFrom": "IGDB" if e.get("cover") else _front(e)[1],
                 "hue": self._hues.get(key, "#6E6E78"),   # the spine when we have no scan
                 "uv": (up or {}).get("v"),    # upload version, for cache-busting the faces
-                "backReal": (up or w or {}).get("back_is_real", bool(w)),
+                # Is the back a real photograph, or the front blurred? A wrap always
+                # carries one; ScreenScraper carries one only when someone scanned it,
+                # or when a full box texture came with the game.
+                "backReal": bool(
+                    up.get("back_is_real") if up else
+                    (w or (ss and ("back" in ss.get("faces", {}) or ss.get("texture"))))),
+                # Where the box art came from, for the card's badge. Only meaningful for
+                # the real-art tiers; the fallback front reports itself via coverFrom.
+                "artFrom": "ScreenScraper" if src == "ss" else "",
+                # False when the box we found is a different printing from the one you
+                # own — they had no US Sonic 2, so you are looking at the PAL box. Still
+                # a real box, still worth showing, but the card should not imply it's
+                # yours. Only ScreenScraper knows this; a wrap is region-matched by
+                # resolve_covers.py before it is ever written.
+                "regionOff": bool(src == "ss" and not ss.get("regionMatch", True)),
                 # the upload's own settings, so "Change art" can reopen and re-adjust it
                 "upload": up and {"kind": up.get("kind"), "rotate": up.get("rotate", 0),
                                   "faceRot": up.get("faceRot", 0),
@@ -376,31 +546,181 @@ class Shelf:
             return self._locks.setdefault(key, threading.Lock())
 
     def face(self, key: str, face: str) -> bytes | None:
-        """One face of one box. Cut from the scan the first time it's asked for, then
-        read off disk forever. Two people pulling the same game at once cut it once."""
+        """One face of one box, best available source first. Fetched and cut the first
+        time it's asked for, then read off disk forever. Two people pulling the same
+        game at once cut it once.
+
+        The chain is per FACE, not per game, and the order is the order of truth:
+
+            1. the owner's own upload          — us being corrected
+            2. a ScreenScraper photograph      — that face, actually scanned
+            3. the Cover Project wrap's panel  — that face, cut out of a flat scan
+            4. a face synthesised from the front (hue spine, blurred back)
+
+        3 sits above 4 deliberately: a game whose only ScreenScraper media is the box
+        front still has a REAL spine if Cover Project scanned its wrap, and a real
+        spine beats a coloured rectangle every time."""
         if face not in FACES:
             return None
         safe = key.replace("/", "_")
-        # A manual upload overrides the auto-resolved cover, so it's checked first.
+        # A manual upload overrides everything auto-resolved, so it's checked first.
         if key in self._uploads:
             up = self._udir / f"{safe}.{face}.jpg"
             if up.exists():
                 return up.read_bytes()
-        if key not in self._wraps:
-            return None
-        path = self._dir / f"{safe}.{face}.jpg"
-        if path.exists():
-            return path.read_bytes()
 
-        with self._lock(key):
-            if path.exists():                  # someone else did it while we waited
+        gen = None
+        if key in self._ss:
+            self._ss_build(key, safe)
+            real = self._sdir / f"{safe}.{face}.jpg"
+            if real.exists():
+                return real.read_bytes()
+            gen = self._sdir / f"{safe}.{face}.gen.jpg"
+
+        if key in self._wraps:
+            path = self._dir / f"{safe}.{face}.jpg"
+            if not path.exists():
+                with self._lock(key):
+                    if not path.exists():      # someone else may have done it while we waited
+                        try:
+                            self._cut(key, safe)
+                        except Exception as e:
+                            log.warning("wrap %s: %s", key, e)
+            if path.exists():
                 return path.read_bytes()
-            try:
-                self._cut(key, safe)
-            except Exception as e:
-                log.warning("wrap %s: %s", key, e)
-                return None
-        return path.read_bytes() if path.exists() else None
+
+        return gen.read_bytes() if gen and gen.exists() else None
+
+    # ---------- ScreenScraper faces ----------
+
+    def _ss_build(self, key: str, safe: str, blocking: bool = False) -> None:
+        """Fetch this game's ScreenScraper faces once, then never again.
+
+        Guarded by a `.done` stamp rather than by "does the file exist", because the
+        common case is a game with a front and NOTHING else: without a stamp, every
+        request for its back would hit their API again to rediscover that there isn't
+        one. A quota failure deliberately leaves the stamp unwritten, so tomorrow's
+        boot picks the game back up where this one gave out.
+
+        `blocking` is the warm pass, which is alone and in no hurry. A request handler
+        calls this without it and gives up rather than queue: the face it wanted comes
+        back on the next page load, once the warm pass has been past."""
+        done = self._sdir / f"{safe}.done"
+        if done.exists() or not (self._ssc and self._ssc.usable()):
+            return
+        if not self._ss_demand.acquire(blocking=blocking):
+            return
+        try:
+            with self._lock(key):
+                if done.exists():
+                    return
+                try:
+                    self._ss_fetch(key, safe)
+                except Exception as e:
+                    # QuotaExceeded lands here too, and must NOT stamp: the game has not
+                    # been resolved, it has been postponed.
+                    log.warning("screenscraper %s: %s", key, e)
+                    return
+                done.write_text("1")
+        finally:
+            self._ss_demand.release()
+
+    def _ss_fetch(self, key: str, safe: str) -> None:
+        entry = self._ss[key]
+        case = entry.get("case") or {}
+        cw = float(case.get("w") or DEFAULT_CASE[0])
+        ch = float(case.get("h") or DEFAULT_CASE[1])
+        cd = float(case.get("d") or DEFAULT_CASE[2])
+
+        got: dict[str, Image.Image] = {}
+        for name in FACES:
+            ref = (entry.get("faces") or {}).get(name)
+            if not ref:
+                continue
+            raw = self._ssc.fetch(ref, max_px=900)
+            if raw:
+                try:
+                    im = _decode(raw, 1000)
+                    if _placeholder(im):
+                        continue           # their "no image" image; let the chain fill it
+                    want = (cd if name == "spine" else cw) / max(ch, 1)
+                    got[name] = _orient(im, want)
+                except Exception as e:
+                    log.warning("screenscraper %s %s: %s", key, name, e)
+
+        # A full box TEXTURE is the same thing a Cover Project scan is: back|spine|front
+        # flattened into one image. It only gets fetched when a face is still missing,
+        # and it only fills the missing ones — a photograph of a face beats a slice of a
+        # texture, which may have been trimmed or padded to make a 3D box render.
+        if entry.get("texture") and any(n not in got for n in FACES):
+            raw = self._ssc.fetch(entry["texture"], max_px=1800)
+            if raw:
+                try:
+                    im = _strip(_decode(raw, 1800))
+                    if _placeholder(im):
+                        raise ValueError("placeholder texture")
+                    total = 2 * cw + cd
+                    x1 = round(im.width * cw / total)
+                    x2 = round(im.width * (cw + cd) / total)
+                    panels = {"back": im.crop((0, 0, x1, im.height)),
+                              "spine": im.crop((x1, 0, x2, im.height)),
+                              "front": im.crop((x2, 0, im.width, im.height))}
+                    for name, panel in panels.items():
+                        got.setdefault(name, panel)
+                except Exception as e:
+                    log.warning("screenscraper %s texture: %s", key, e)
+
+        if "front" not in got:
+            # Without a front there is nothing to build a box out of and nothing to
+            # derive the others from. Remember it, so rows() stops offering this game
+            # as one with real art — otherwise the shelf asks for a front that will
+            # never come and paints a broken image where the box should be. Measured at
+            # 0 of 48, but the cost of being wrong is visible and the fix is a set.
+            (self._sdir / f"{safe}.nofront").write_text("1")
+            self._ss_nofront.add(key)
+            return
+        for name, im in got.items():
+            _save(im, self._sdir / f"{safe}.{name}.jpg", 84)
+        # `.gen` marks a face we made up. face() reaches for it only after the Cover
+        # Project wrap has had its turn, so a real panel always wins over a fake one.
+        for name, im in _derive(got["front"], ch, cd).items():
+            if name not in got:
+                _save(im, self._sdir / f"{safe}.{name}.gen.jpg", 82)
+
+    def warm_screenscraper(self, delay: float = 0) -> None:
+        """Fetch every ScreenScraper box we haven't fetched yet, in the background.
+
+        This is not the same shape of problem as warming the wraps. There are ~175
+        wraps and they come off a CDN with no quota; there are thousands of these and
+        every one costs requests against a daily ceiling. So it runs strictly serially
+        behind the client's rate limiter, stops the moment the quota says stop, and is
+        resumable by construction — the `.done` stamps mean the next boot starts where
+        this one stopped rather than at the beginning.
+
+        It has to happen eventually, though, and it may as well be now: the shelf shows
+        a SPINE for every game with real art, so the first person to scroll the shelf
+        would otherwise trigger a thousand cold fetches at once."""
+        if not (self._ssc and self._ssc.enabled):
+            return
+        todo = [k for k in self._ss if not (self._sdir / f"{k.replace('/', '_')}.done").exists()]
+        if not todo:
+            log.info("shelf: all %d screenscraper boxes already fetched", len(self._ss))
+            return
+
+        def run():
+            if delay:
+                time.sleep(delay)
+            for n, k in enumerate(todo, 1):
+                if not self._ssc.usable():
+                    log.info("shelf: screenscraper quota spent — stopped at %d/%d, "
+                             "resuming on the next boot", n, len(todo))
+                    return
+                self._ss_build(k, k.replace("/", "_"), blocking=True)
+                if n % 50 == 0:
+                    log.info("shelf: fetched %d/%d screenscraper boxes", n, len(todo))
+            log.info("shelf: %d screenscraper boxes fetched and cached", len(todo))
+
+        threading.Thread(target=run, name="shelf-warm-ss", daemon=True).start()
 
     # ---------- manual uploads ----------
 
@@ -506,22 +826,11 @@ class Shelf:
                 faces = {n: (p.rotate(turn[n], expand=True) if turn[n] else p)
                          for n, p in faces.items()}
         else:
-            hue = dominant_hue(im)
-            spine = Image.new("RGB", (max(8, round(im.height * cd / ch)), im.height),
-                              _hex(hue))
-            back = im.filter(_BLUR).point(lambda p: int(p * 0.42))
-            faces = {"front": im, "spine": spine, "back": back}
+            faces = {"front": im, **_derive(im, ch, cd)}
 
         safe = key.replace("/", "_")
         for name, piece in faces.items():
-            long = max(piece.size)
-            if long > 600:
-                s = 600 / long
-                piece = piece.resize((max(1, round(piece.width * s)),
-                                      max(1, round(piece.height * s))), Image.LANCZOS)
-            tmp = self._udir / f"{safe}.{name}.tmp"
-            piece.save(tmp, "JPEG", quality=84, optimize=True)
-            tmp.replace(self._udir / f"{safe}.{name}.jpg")
+            _save(piece, self._udir / f"{safe}.{name}.jpg", 84)
 
         # Keep the ORIGINAL upload so "Change art" can reopen it and re-adjust — otherwise
         # we'd only have the sliced faces and couldn't re-drag the spine.
@@ -609,13 +918,4 @@ class Shelf:
         for name, piece in cuts.items():
             if rot.get(name):
                 piece = piece.rotate(rot[name], expand=True)
-            # 600px on the long edge is more than a 250px case can show, and turns a
-            # 6 MB scan into ~40 KB.
-            long = max(piece.size)
-            if long > 600:
-                s = 600 / long
-                piece = piece.resize((round(piece.width * s), round(piece.height * s)),
-                                     Image.LANCZOS)
-            tmp = self._dir / f"{safe}.{name}.tmp"
-            piece.save(tmp, "JPEG", quality=82, optimize=True)
-            tmp.replace(self._dir / f"{safe}.{name}.jpg")
+            _save(piece, self._dir / f"{safe}.{name}.jpg", 82)

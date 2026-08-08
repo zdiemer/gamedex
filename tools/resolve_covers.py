@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures as futures
+import gzip
 import io
 import json
 import pathlib
@@ -150,7 +151,13 @@ def get(url: str, timeout: int = 60) -> bytes | None:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "gamedex/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read()
+            body = r.read()
+            # /api/enrichment/all answers gzipped whatever we asked for, and urllib
+            # does not unwrap it — so this came back as bytes that only LOOKED like a
+            # truncated JSON document, which is a confusing way to find out.
+            if body[:2] == b"\x1f\x8b":
+                body = gzip.decompress(body)
+            return body
     except Exception:
         return None
 

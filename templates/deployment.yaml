@@ -102,6 +102,30 @@ spec:
                 secretKeyRef:
                   name: {{ include "gamedex.fullname" . }}
                   key: igdb-client-secret
+            # ScreenScraper: real box scans for the Shelf. The developer pair is the
+            # gate; without it the baked-in manifest is ignored and nothing changes.
+            - name: SCREENSCRAPER_DEV_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gamedex.fullname" . }}
+                  key: screenscraper-dev-id
+            - name: SCREENSCRAPER_DEV_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gamedex.fullname" . }}
+                  key: screenscraper-dev-password
+            - name: SCREENSCRAPER_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gamedex.fullname" . }}
+                  key: screenscraper-user
+            - name: SCREENSCRAPER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gamedex.fullname" . }}
+                  key: screenscraper-password
+            - name: SCREENSCRAPER_RATE
+              value: {{ (.Values.screenscraper | default dict).rate | default 1 | quote }}
             - name: ENRICH_DB
               value: /data/enrichment.sqlite
             - name: ENRICH_BACKFILL
