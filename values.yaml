@@ -146,8 +146,15 @@ manualCache:
 # declared size on the live PVC, do the one-time Retain → recreate migration (see
 # README "Enlarging the volume"), which is the only data-safe way here.
 persistence:
-  size: 1Gi
-  storageClass: ""        # "" → cluster default (local-path)
+  # 2.6G of actual data. local-path enforced no quota, so 1Gi was a declaration
+  # the volume had already outgrown 2.6x without anything complaining.
+  # truenas-iscsi enforces it for real, so this has to reflect reality.
+  size: 4Gi
+  # iSCSI zvol on the TrueNAS. local-path stamped the PV with a nodeAffinity for
+  # zachd-ubuntu-2, so this could only ever schedule there. ~17,700 small files
+  # make NFS a poor fit; a block device with a local ext4 handles them far
+  # better, and the claim is ReadWriteOnce so RWX was never needed.
+  storageClass: truenas-iscsi
   accessMode: ReadWriteOnce
 
 ingress:
