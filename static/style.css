@@ -5012,11 +5012,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .sh-inside .md-disc { transform: rotateX(0deg) scale(.8); }
 
-/* HINGED — cards and discs. Those cases really do swing open, so the media comes out toward you.
-   It grows on the way out, because a 31mm Switch card seated correctly in its case is too small
-   to look at — coming out of the box is when you get to hold it up. */
+/* HINGED — cards and discs. Those cases really do swing open, so the media comes out toward you:
+   forward in Z and turned a little, at LIFE SIZE. Coming forward is the whole of the effect —
+   the perspective does the rest — because taking a game out of its case does not make it bigger.
+   (It used to grow to two-thirds the case height so a game card was big enough to look at, which
+   brought a Switch card out at nearly four times life. The panel beside the box is where you look
+   at it closely.) */
 .sh-case.open .sh-inside .md-obj {
-  transform: translateZ(84px) translateY(-6px) scale(var(--out, 1)) rotateY(-8deg) rotateX(-6deg);
+  transform: translateZ(84px) translateY(-6px) scale(var(--seat, 1)) rotateY(-8deg) rotateX(-6deg);
 }
 .sh-case.open .sh-inside .md-disc { transform: translateZ(84px) rotateX(0deg) scale(.9); }
 .sh-case.open .sh-inside .md-umd  { transform: translateZ(84px) scale(.9); }
@@ -5030,7 +5033,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    object's own (pre-scale) element box, so the same rule would throw a Game Boy cartridge clear
    of its sleeve and barely lift a SNES one. */
 .sh-case.slide.open .sh-inside .md-obj {
-  transform: translateY(calc(var(--h) * -0.56)) translateZ(calc(var(--depth) / 2)) scale(var(--out, 1));
+  transform: translateY(calc(var(--h) * -0.56)) translateZ(calc(var(--depth) / 2)) scale(var(--seat, 1));
 }
 
 @media (prefers-reduced-motion: reduce) {

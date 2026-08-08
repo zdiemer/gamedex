@@ -145,26 +145,27 @@ const OBJ_SLICES = 8;
 const OBJ_DEPTH = { cart: 13, card: 7, disc: 4, umd: 9 };   // px at the panel's scale
 const OBJ_BASE = 260;                // the element's own size inside a case; see objHtml
 
-/* The two sizes a medium takes INSIDE a case, as scale factors of OBJ_BASE.
+/* How big a medium is INSIDE a case, as a scale factor of OBJ_BASE.
 
    Drawn at a fixed element size and scaled DOWN to its real millimetres, never sized down and
    scaled back up: a 31mm Switch card sized to 40px and then magnified to fill your screen is
    40px of picture stretched, and it looked it.
 
-     seat  the medium's long edge at the shelf's own millimetre scale, which is what makes a Game
-           Boy cartridge fill its little box and a Switch card a stamp in its case. Capped at the
-           case's shorter side, because whatever it is, it FITTED IN THE BOX — a cap that only
-           ever bites on a box we have the wrong height for (the Super Famicom Chrono Trigger
-           case is a tall narrow one, the shelf builds it at the SNES height it knows, and a
-           137mm cartridge then hangs out of both sides of it).
-     out   how big it stands when it comes out: about two-thirds the height of the case, so a
-           game card is something you can actually look at — but never smaller than life, and a
-           SNES cartridge is already most of its box, so it just slides up. */
+   ONE size, and it is life size — the same when the box is shut, when it swings open and when a
+   cartridge slides out of its sleeve, because taking a game out of its case does not make it
+   bigger. Coming out used to magnify it to two-thirds the case height so a game card was
+   something you could look at, and that is a real thing to want, but it made a Switch card come
+   out of its box at nearly four times life. The panel beside the box is where you look at the
+   thing closely; the box itself just has to be honest about how small a game card is.
+
+   Capped at the case's shorter side, because whatever it is, it FITTED IN THE BOX — a cap that
+   only ever bites on a box we have the wrong height for (the Super Famicom Chrono Trigger case
+   is a tall narrow one, the shelf builds it at the SNES height it knows, and a 137mm cartridge
+   then hangs out of both sides of it). */
 function mediaSizing(m, kase) {
   const caseW = (kase && kase.w) || 0, caseH = (kase && kase.h) || 0;
   const fits = caseW && caseH ? Math.min(caseW, caseH) * 0.95 : Infinity;
-  const px = Math.min(m.mm || 100, fits) * PX_MM;
-  return { seat: px / OBJ_BASE, out: Math.max(px, caseH * PX_MM * 0.68) / OBJ_BASE };
+  return { seat: Math.min(m.mm || 100, fits) * PX_MM / OBJ_BASE };
 }
 
 /* Re-seat a medium already in a case, after the box has been re-cut to its art (shFitCase). The
@@ -173,19 +174,17 @@ function mediaSizing(m, kase) {
 function mediaResize(root, platform, kase) {
   const m = mediaFor(platform), obj = root && root.querySelector(".md-obj");
   if (!m || !obj) return;
-  const s = mediaSizing(m, kase);
-  obj.style.setProperty("--seat", s.seat.toFixed(3));
-  obj.style.setProperty("--out", s.out.toFixed(3));
+  obj.style.setProperty("--seat", mediaSizing(m, kase).seat.toFixed(3));
 }
 
 function objHtml(m, src, kase) {
   const kind = m.kind === "umd" ? "umd" : m.kind === "disc" ? "disc" : "cart";
   const slices = Array.from({ length: OBJ_SLICES }, (_, i) =>
     `<i class="md-slice" style="--i:${i + 1}"></i>`).join("");
-  const s = mediaSizing(m, kase);
+  const seat = mediaSizing(m, kase).seat.toFixed(3);
   // The scan is an <img>, not a background: it decides the object's size (object-fit: contain),
   // and the slices' masks are contain-fitted to the same box, so every layer lines up exactly.
-  return `<div class="md-obj ${kind}" style="--scan:url('${escapeHtml(src)}');--depth:${OBJ_DEPTH[kind]}px;--n:${OBJ_SLICES};--base:${OBJ_BASE}px;--seat:${s.seat.toFixed(3)};--out:${s.out.toFixed(3)}">
+  return `<div class="md-obj ${kind}" style="--scan:url('${escapeHtml(src)}');--depth:${OBJ_DEPTH[kind]}px;--n:${OBJ_SLICES};--base:${OBJ_BASE}px;--seat:${seat}">
     <i class="md-plate"></i>${slices}
     <img class="md-face" src="${escapeHtml(src)}" alt="" draggable="false">
   </div>`;
