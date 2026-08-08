@@ -199,6 +199,11 @@ def _orient(im: Image.Image, want_ar: float) -> Image.Image:
     return im.rotate(-90, expand=True) if turned < as_is - 0.35 else im
 
 
+class _NoArt(Exception):
+    """This medium exists but isn't art. Not a failure — an ordinary absence, so it
+    unwinds the build for one face without logging as though something broke."""
+
+
 def _placeholder(im: Image.Image) -> bool:
     """Is this a chroma-key placeholder rather than a photograph of a box?
 
@@ -658,7 +663,11 @@ class Shelf:
                 try:
                     im = _strip(_decode(raw, 1800))
                     if _placeholder(im):
-                        raise ValueError("placeholder texture")
+                        # Expected, and common — a placeholder texture is just this game
+                        # not having one. Raising here logged it at WARNING, which turned
+                        # an ordinary miss into hundreds of lines of alarm during the warm
+                        # crawl and buried the failures that do matter.
+                        raise _NoArt
                     total = 2 * cw + cd
                     x1 = round(im.width * cw / total)
                     x2 = round(im.width * (cw + cd) / total)
@@ -667,6 +676,8 @@ class Shelf:
                               "front": im.crop((x2, 0, im.width, im.height))}
                     for name, panel in panels.items():
                         got.setdefault(name, panel)
+                except _NoArt:
+                    pass
                 except Exception as e:
                     log.warning("screenscraper %s texture: %s", key, e)
 
