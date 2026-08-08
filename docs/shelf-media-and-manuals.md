@@ -1,10 +1,11 @@
 # Openable boxes: cartridges, discs, and manuals
 
-**Status:** the dev key landed (2026-08-07) and the **box art** half is built — see
-*§7 What shipped* at the end. Cartridge/disc scans and ScreenScraper manuals are not wired up
-yet, but the resolver already collects their media refs, so what's left for those is wiring
-rather than discovery. Everything below is the original investigation, kept because it is still
-the map.
+**Status:** built. The dev key landed 2026-08-07 (box art, *§7*) and the cartridges, discs and
+game cards followed on 2026-08-08 (*§8*, which also has why the boxes were the wrong shape).
+ScreenScraper's own manuals are the one piece still only collected, not used. Everything below
+is the original investigation, kept because it is still the map — but note that §3's modelled
+shells and §2's derived cart labels were RETIRED by §8: the scans are of whole objects, not
+labels, so there is nothing left to warp onto a shell.
 
 **The idea.** A box on the Shelf can be *opened*. The media comes out — a real cartridge or a
 real disc, modelled to look like its actual counterpart — and the manual is there too, readable.
@@ -336,11 +337,58 @@ resumable via `.done` stamps, stops when the quota does) and a **two-concurrent*
 on-demand fetches. Measured: 12 simultaneous requests return in 0.7s serving 2, rather than
 parking 12 threads for 7s. A face you can't have yet is a spine in the right colour.
 
-### 7.5 Still to do
+## 8. What shipped (2026-08-08) — the media, and the shape of the box
 
-- **Cartridge and disc scans** (`support-2D`). The manifest already stores the ref per game, so
-  no new matching or quota is needed; `static/media.js` has held `mediaArt().scan` open for
-  this since July. Needs a serving route and the label warped onto the pre-rendered shells.
+### The cartridges and discs are real now
+
+`support-2D` turned out to be better than the plan assumed. It is not a label to warp onto a
+shell — it is a render of the **whole object**, cut out on transparency: the cartridge with its
+shell, the game card with its notch, the printed disc with its hole. So the modelled shells are
+gone (§3, and the 24-frame sprites `tools/render_carts.py` produced): a photograph of the actual
+cartridge beats a generic SNES shell wearing a crop of the box art, and it beats it for 1,039 of
+the 1,318 boxes. What remains synthetic is the fallback **disc** — a disc is a generic object, so
+the cover masked into a silver circle still reads true — and a cartridge platform with no scan
+now shows an empty case rather than an invented one.
+
+| | |
+|---|---|
+| `Shelf.media()` / `warm_media()` | its own fetch, its own `.media.done` stamp, its own `MEDIA_VERSION` — so re-doing the media never costs the boxes a re-crawl, and vice versa |
+| `/api/shelf/media?key=` | WebP **with alpha**; a face is a JPEG, this cannot be |
+| `objHtml()` in `media.js` | the scan, plus a stack of masked silhouettes for thickness |
+
+Two things that were not obvious:
+
+- **The alpha is the feature.** The object is extruded by masking its own PNG silhouette N times
+  down the Z axis (`.md-slice`), so the side wall is exactly the object's shape — notches,
+  chamfers, disc hole and all — for no modelling at all. Store it as JPEG and you have a coaster.
+- **A scan has no ruler in it.** Sized to its container, a 35mm DS card comes out as wide as the
+  122mm box it lives in. `MEDIA[platform].mm` is the medium's real long edge, and everything
+  scales off the case's own millimetres from there.
+
+### The box is the shape of its art
+
+Every case used to be built from a per-platform table of millimetres and the art cropped to fit
+it (`object-fit: cover`). Three ways that was wrong, all of them visible:
+
+- **The table was wrong for the Game Boy.** A GB / GBC / GBA box is SQUARE — their `box-2D`
+  measures 1.000 for every one of them, and a retail box protector is sold as 125 × 125 × 23mm.
+  It was set to 92 × 133, a DVD case's proportions, so a third of every Game Boy cover was cropped
+  away. PS3 and Xbox One were quietly losing 8% the same way.
+- **A table cannot know which printing you own.** The Super Famicom Chrono Trigger box is
+  PORTRAIT where the SNES one is landscape. `shFitCase()` now cuts the box to the front art's own
+  aspect, keeping the platform's height, so a regional printing comes out its own shape.
+- **…and `_orient` was rotating that portrait front onto its side** to make it look more like the
+  table's 191 × 133. It now only ever turns a SPINE, which is the one face that genuinely arrives
+  lying down (§7, point 4). `SS_VERSION = 2` re-crawls for it.
+
+The one place the art is NOT trusted: ScreenScraper's DS and 3DS fronts are squeezed onto a
+canvas with the width and height the wrong way round — a 3DS box is 122 × 137mm (0.891) and every
+one of their fronts measures 1.122, which is 1/0.891 to three decimals. When the art's aspect is
+the RECIPROCAL of the case's, the case wins, and filling the face un-squashes the art at the same
+time. That test is geometry, not a platform list, so it catches whatever else they do this to.
+
+### 8.5 Still to do
+
 - **Manuals** (`manuel`, a real PDF on `mediaManuelJeu.php`). Stored per game already. A second
   source behind the Archive.org reader, useful where Archive has no scan.
 - **Re-run the resolver** when the collection grows; it resumes and only asks about what's new.

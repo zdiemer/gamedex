@@ -75,18 +75,23 @@ FALLBACK_CASE = {
     "Nintendo DS": (125, 137, 12),
     "PlayStation Vita": (105, 137, 12),
     "PlayStation Portable": (105, 170, 14),
-    "Nintendo Game Boy Advance": (92, 133, 22),
-    "Nintendo Game Boy": (92, 133, 22),
-    "Nintendo Game Boy Color": (92, 133, 22),
+    # A Game Boy box is SQUARE, and it was the one shape here that was simply invented:
+    # 92x133 is a DVD case's proportions, so every Game Boy front was cropped by a third
+    # to fit one. Their own art agrees — every box-2D for GB, GBC and GBA measures 1.000
+    # (700x700, 400x400) and the spine strips measure d/h ≈ 0.14. A retail box protector
+    # for these is sold as 125 x 125 x 23mm, so the depth sits between the two.
+    "Nintendo Game Boy Advance": (125, 125, 20),
+    "Nintendo Game Boy": (125, 125, 20),
+    "Nintendo Game Boy Color": (125, 125, 20),
     # The sheet mostly uses shorthands, and a platform missing from this table silently
     # gets a generic DVD case — which is how a fallback SNES box came out portrait.
     # A US SNES box and an N64 box are LANDSCAPE (see TEMPLATE_ROT in tools/cp_wrap.py).
     "SNES": (191, 133, 33),
     "NES": (127, 178, 25),
     "Genesis": (133, 184, 28),
-    "Game Boy": (92, 133, 22),
-    "Game Boy Color": (92, 133, 22),
-    "Game Boy Advance": (92, 133, 22),
+    "Game Boy": (125, 125, 20),
+    "Game Boy Color": (125, 125, 20),
+    "Game Boy Advance": (125, 125, 20),
     "GameCube": (125, 175, 15),
     "Wii": (135, 190, 14),
     "Wii U": (135, 190, 14),
@@ -97,6 +102,24 @@ FALLBACK_CASE = {
     "3DO": (142, 125, 10),
 }
 DEFAULT_CASE = (135, 190, 14)
+# The same table, keyed the way a MATCH KEY spells a platform (lowercased) — see
+# Enricher.key_for. `case_mm` takes either spelling, so the box's shape can be looked
+# up from the sheet's platform name or from the key alone.
+_CASE_LC = {k.lower(): v for k, v in FALLBACK_CASE.items()}
+
+
+def case_mm(platform: str) -> tuple[int, int, int]:
+    """This platform's real case, in millimetres, as (w, h, d).
+
+    Read LIVE rather than out of a resolved manifest. data/screenscraper.json stores a
+    `case` per game, but it is a copy of this table taken when the resolver ran — so a
+    correction here (the Game Boy box is square, not a DVD case) would otherwise reach
+    the fallback boxes and leave every ScreenScraper box wearing the old wrong shape
+    until someone re-ran a tool that costs API quota."""
+    if platform in FALLBACK_CASE:
+        return FALLBACK_CASE[platform]
+    return _CASE_LC.get((platform or "").strip().lower(), DEFAULT_CASE)
+
 
 FACES = ("front", "spine", "back")
 
@@ -112,8 +135,17 @@ UPLOAD_CUT_VERSION = "2"
 
 # Bump when the ScreenScraper face BUILD changes, to re-fetch and rebuild them. Kept
 # separate from CUT_VERSION so a change to how a Cover Project wrap is sliced doesn't
-# throw away thousands of faces that cost an API quota to fetch.
-SS_VERSION = "1"
+# throw away thousands of faces that cost an API quota to fetch. (v2: only the SPINE is
+# ever turned — see _orient. A portrait regional printing was being laid on its side to
+# look more like the platform's usual shape.) This costs a full re-crawl, which is the
+# price of the stored faces being the pixels we serve: it resumes, it is polite, and the
+# media next door are stamped separately so they are not thrown away with it.
+SS_VERSION = "2"
+
+# The physical medium — the cartridge, the game card, the printed disc — on its own
+# version, for the same reason SS_VERSION is separate from CUT_VERSION: it is fetched
+# by its own pass, and re-doing it must not throw away a box that cost quota to build.
+MEDIA_VERSION = "1"
 
 # Cover Project's print templates, in millimetres: back | spine | front | height.
 # Kept in step with tools/cp_wrap.py, which is what chose the template offline.
@@ -177,7 +209,7 @@ def dominant_hue(im: Image.Image) -> str:
 
 
 def _orient(im: Image.Image, want_ar: float) -> Image.Image:
-    """Stand a face up, if it arrived lying down.
+    """Stand a SPINE up, if it arrived lying down.
 
     ScreenScraper photographs each face separately, which was supposed to mean no
     rotation question — and for the front and back it does. The SPINE of a
@@ -190,7 +222,15 @@ def _orient(im: Image.Image, want_ar: float) -> Image.Image:
     we already hold, so the only question is which of two orientations is closer to it,
     measured in log-ratio so that "twice as wide" and "half as wide" are the same size
     of wrong. Clockwise, because the strip's LEFT edge is the top of the spine: it puts
-    the title at the top, the way a box reads on a shelf."""
+    the title at the top, the way a box reads on a shelf.
+
+    THE SPINE ONLY, and that is the whole of v2. Run on the front as well, this asks
+    "is this picture closer to the shape of the platform's case, or to its transpose?"
+    — and a box that was genuinely printed the other way round answers wrongly. The
+    Super Famicom Chrono Trigger box is PORTRAIT where the SNES one is landscape, so
+    its front (275x500) was being turned on its side to look more like the table's
+    191x133. A front and a back arrive upright; there is nothing here for them to gain
+    and a real regional printing to lose."""
     ar = im.width / max(im.height, 1)
     if want_ar <= 0 or ar <= 0:
         return im
@@ -222,7 +262,29 @@ def _placeholder(im: Image.Image) -> bool:
     return green > 32 * 32 * 0.30
 
 
-def _decode(raw: bytes, cap: int) -> Image.Image:
+def _save_cutout(im: Image.Image, path: pathlib.Path) -> None:
+    """Write one physical medium — a cartridge, a card, a disc — keeping its ALPHA.
+
+    That is the whole point of storing it differently from a face: their `support`
+    render is the object cut out on a transparent background, and the transparency is
+    what lets the browser mask its own silhouette and extrude it into a solid. Flattened
+    to JPEG it is a rectangle with a black surround, which is a coaster again.
+
+    WebP rather than PNG, and that is not a small detail: these are photographic renders
+    with a soft edge, so a lossless PNG of one runs 200-550 KB where the same picture is
+    20-80 KB here. It is one image on demand either way, but the box interior should not
+    cost half a megabyte on a phone."""
+    long = max(im.size)
+    if long > 600:
+        s = 600 / long
+        im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))),
+                       Image.LANCZOS)
+    tmp = path.with_suffix(".tmp")
+    im.save(tmp, "WEBP", quality=86, method=4)
+    tmp.replace(path)
+
+
+def _decode(raw: bytes, cap: int, mode: str = "RGB") -> Image.Image:
     """Decode an image we didn't choose the size of.
 
     `maxwidth` is a REQUEST, not a guarantee — a source that ignores it hands back a
@@ -231,8 +293,8 @@ def _decode(raw: bytes, cap: int) -> Image.Image:
     libjpeg decode at a reduced scale in the first place, which is free: no face is
     ever shown above 600px, so the detail is thrown away regardless."""
     im = Image.open(io.BytesIO(raw))
-    im.draft("RGB", (cap, cap))
-    return im.convert("RGB")
+    im.draft("RGB", (cap, cap))       # a no-op on PNG, which is what the media arrives as
+    return im.convert(mode)
 
 
 def _save(im: Image.Image, path: pathlib.Path, quality: int = 84) -> None:
@@ -346,6 +408,7 @@ class Shelf:
         self._invalidate_stale_cache()
         self._recut_uploads_if_stale()
         self._invalidate_stale_ss()
+        self._invalidate_stale_media()
         # Games whose ScreenScraper art turned out to be unusable once fetched (their
         # "no image" placeholder, or a front that failed to decode). Loaded from the
         # volume so the knowledge survives a restart, and added to as the warm crawl
@@ -407,22 +470,50 @@ class Shelf:
         if n:
             log.info("shelf: cut logic changed (v%s) — cleared %d cached faces", CUT_VERSION, n)
 
-    def _invalidate_stale_ss(self) -> None:
-        """Same idea for the ScreenScraper faces, on their own version. Clearing these
-        means re-fetching them, which costs quota — so only a change to how they are
-        BUILT should bump SS_VERSION, never a change elsewhere in the cutting."""
-        stamp = self._sdir / ".ss-version"
-        if stamp.exists() and stamp.read_text().strip() == SS_VERSION:
+    def _restamp(self, stamp: pathlib.Path, version: str, markers: list[str], what: str,
+                 skip: tuple[str, ...] = ()) -> None:
+        """Order a ScreenScraper rebuild WITHOUT emptying the shelf first.
+
+        The wrap cache above deletes its files, and can: they are re-cut from a CDN in
+        seconds. These cost quota — thousands of rate-limited requests, an hour or more
+        of crawling — and deleting them means every box on the shelf falls back to an
+        IGDB cover until the crawl catches up, which is a worse shelf than the one the
+        rebuild is fixing. So a rebuild only drops the `.done` STAMPS. The warm crawl
+        then walks every game again and each face is overwritten in place, so nothing is
+        ever missing: you keep the old picture right up until the new one lands.
+
+        (The one thing this cannot fix is a file the new build would no longer write at
+        all — a face that used to be synthesised and now isn't. Nothing has needed that;
+        if something ever does, it wants a deliberate sweep of its own, not this.)"""
+        if stamp.exists() and stamp.read_text().strip() == version:
             return
         n = 0
-        for f in (list(self._sdir.glob("*.jpg")) + list(self._sdir.glob("*.done"))
-                  + list(self._sdir.glob("*.nofront"))):
-            f.unlink(missing_ok=True)
-            n += 1
-        stamp.write_text(SS_VERSION)
+        for pat in markers:
+            for f in self._sdir.glob(pat):
+                if any(f.name.endswith(s) for s in skip):
+                    continue
+                f.unlink(missing_ok=True)
+                n += 1
+        stamp.write_text(version)
         if n:
-            log.info("shelf: screenscraper build changed (v%s) — cleared %d files",
-                     SS_VERSION, n)
+            log.info("shelf: %s build changed (v%s) — %d games queued for a refresh",
+                     what, version, n)
+
+    def _invalidate_stale_ss(self) -> None:
+        """The faces, on their own version. Only a change to how they are BUILT should
+        bump SS_VERSION, never a change elsewhere in the cutting. `.nofront` goes too: a
+        game we wrote off as having no usable front deserves to be asked again."""
+        # `.media.done` is excluded by name: it is a separate fetch on a separate version,
+        # and sweeping it here would re-spend quota on cartridges already sitting there.
+        self._restamp(self._sdir / ".ss-version", SS_VERSION,
+                      ["*.done", "*.nofront"], "screenscraper", skip=(".media.done",))
+
+    def _invalidate_stale_media(self) -> None:
+        """And the same for the cartridges and discs, on MEDIA_VERSION — so a change to
+        how a medium is trimmed or stored re-fetches the media without touching a single
+        box face."""
+        self._restamp(self._sdir / ".media-version", MEDIA_VERSION,
+                      ["*.media.done"], "screenscraper media")
 
     # ---------- what's on the shelf ----------
 
@@ -456,14 +547,17 @@ class Shelf:
             elif (ss and key not in self._ss_nofront
                   and ((ss.get("faces") or {}).get("front") or ss.get("texture"))):
                 # ScreenScraper photographs the faces separately, so unlike a wrap it
-                # tells us nothing about the box's SHAPE. The shape comes from the
-                # platform's real case dimensions, which is the more reliable source
-                # anyway — a scan can be trimmed, a Game Boy box is always 92x133x22.
-                case, src = ss["case"], "ss"
+                # tells us nothing about the box's SHAPE. This is the STARTING shape —
+                # the platform's real case — and the browser then fits the box to the
+                # front art it actually receives (see shFitCase), which is the only
+                # thing that knows how that particular printing was proportioned.
+                mm = case_mm(g.get("platform"))
+                case = {"w": mm[0], "h": mm[1], "d": mm[2]}
+                src = "ss"
             elif w:
                 case, src = w["case"], "wrap"
             else:
-                mm = FALLBACK_CASE.get(g.get("platform"), DEFAULT_CASE)
+                mm = case_mm(g.get("platform"))
                 case = {"w": mm[0], "h": mm[1], "d": mm[2]}
                 src = "cover" if (e.get("cover") or _front_url(e)) else "blank"
             out.append({
@@ -501,6 +595,13 @@ class Shelf:
                 # yours. Only ScreenScraper knows this; a wrap is region-matched by
                 # resolve_covers.py before it is ever written.
                 "regionOff": bool(src == "ss" and not ss.get("regionMatch", True)),
+                # Is there a scan of the thing INSIDE the box — the cartridge, the game
+                # card, the printed disc? Read off the manifest, not off the disk: the
+                # image is fetched on demand behind /api/shelf/media, exactly like a
+                # face, so this says "ask for it" rather than "it is already here".
+                # Independent of `src`: a game wearing your own uploaded box art still
+                # has ScreenScraper's cartridge sitting inside it.
+                "media": bool(ss and ss.get("support")),
                 # the upload's own settings, so "Change art" can reopen and re-adjust it
                 "upload": up and {"kind": up.get("kind"), "rotate": up.get("rotate", 0),
                                   "faceRot": up.get("faceRot", 0),
@@ -576,8 +677,15 @@ class Shelf:
 
         gen = None
         if key in self._ss:
-            self._ss_build(key, safe)
+            # The file we already have wins over rebuilding it. During a refresh (see
+            # _restamp) every stamp is gone but every face is still there, and asking the
+            # API again to re-learn what is sitting on the disk would park this request
+            # thread behind a rate limiter for a picture it could have served instantly.
+            # The warm crawl is what refreshes these; a request only ever fills a gap.
             real = self._sdir / f"{safe}.{face}.jpg"
+            if real.exists():
+                return real.read_bytes()
+            self._ss_build(key, safe)
             if real.exists():
                 return real.read_bytes()
             gen = self._sdir / f"{safe}.{face}.gen.jpg"
@@ -632,10 +740,16 @@ class Shelf:
 
     def _ss_fetch(self, key: str, safe: str) -> None:
         entry = self._ss[key]
-        case = entry.get("case") or {}
-        cw = float(case.get("w") or DEFAULT_CASE[0])
-        ch = float(case.get("h") or DEFAULT_CASE[1])
-        cd = float(case.get("d") or DEFAULT_CASE[2])
+        # The case comes from the live table, via the platform spelled inside the match
+        # key ("<title>|<platform>|<year>#<region>"), and only falls back to the copy the
+        # resolver stored. Same reason as rows(): a corrected shape has to reach a box
+        # whose manifest entry was written months ago.
+        plat = key.rsplit("#", 1)[0].split("|")[1] if "|" in key else ""
+        stored = entry.get("case") or {}
+        mm = (case_mm(plat) if plat.lower() in _CASE_LC else
+              (stored.get("w") or DEFAULT_CASE[0], stored.get("h") or DEFAULT_CASE[1],
+               stored.get("d") or DEFAULT_CASE[2]))
+        cw, ch, cd = float(mm[0]), float(mm[1]), float(mm[2])
 
         got: dict[str, Image.Image] = {}
         for name in FACES:
@@ -648,8 +762,7 @@ class Shelf:
                     im = _decode(raw, 1000)
                     if _placeholder(im):
                         continue           # their "no image" image; let the chain fill it
-                    want = (cd if name == "spine" else cw) / max(ch, 1)
-                    got[name] = _orient(im, want)
+                    got[name] = _orient(im, cd / max(ch, 1)) if name == "spine" else im
                 except Exception as e:
                     log.warning("screenscraper %s %s: %s", key, name, e)
 
@@ -697,6 +810,103 @@ class Shelf:
         for name, im in _derive(got["front"], ch, cd).items():
             if name not in got:
                 _save(im, self._sdir / f"{safe}.{name}.gen.jpg", 82)
+
+    # ---------- what is inside the box ----------
+
+    def media(self, key: str) -> bytes | None:
+        """The physical medium of one game — the cartridge, the game card, the printed
+        disc — as ScreenScraper rendered it: the whole object, cut out, on transparency.
+
+        Same contract as face(): fetched on first ask, then read off the volume forever,
+        and a 404 until the warm pass has been past. Kept apart from the box faces on
+        purpose — a game can have a cartridge scan and no box art, or the reverse, and
+        neither absence should cost the other a fetch."""
+        if key not in self._ss:
+            return None
+        safe = key.replace("/", "_")
+        path = self._sdir / f"{safe}.media.webp"
+        if not path.exists():
+            self._ss_media_build(key, safe)
+        return path.read_bytes() if path.exists() else None
+
+    def _ss_media_build(self, key: str, safe: str, blocking: bool = False) -> None:
+        """Fetch this game's medium once, then never again. Stamped like the faces, on
+        its own `.media.done`, so a game with no usable support image is asked about
+        exactly once rather than on every request for it.
+
+        Its own lock name, too: a request waiting on the medium must not queue behind
+        the same game's box build (three faces plus a texture), which is a much longer
+        job than the one it came for."""
+        entry = self._ss.get(key) or {}
+        ref = entry.get("support")
+        done = self._sdir / f"{safe}.media.done"
+        if not ref or done.exists() or not (self._ssc and self._ssc.usable()):
+            return
+        if not self._ss_demand.acquire(blocking=blocking):
+            return
+        try:
+            with self._lock(key + "\x00media"):
+                if done.exists():
+                    return
+                try:
+                    raw = self._ssc.fetch(ref, max_px=700)
+                    if raw:
+                        im = _decode(raw, 800, "RGBA")
+                        # Their "no image" answer is an image (see _placeholder), and it
+                        # arrives here too — a slab of chroma green where a cartridge
+                        # should be. Judged on the flattened pixels, since the check is
+                        # about colour and the alpha is what we are keeping.
+                        if _placeholder(im.convert("RGB")):
+                            raise _NoArt
+                        # Trim the transparent margin. The object is what we extrude, and
+                        # a canvas with 40px of nothing down one side extrudes that empty
+                        # strip too — the medium ends up floating off-centre in its box.
+                        box = im.getchannel("A").getbbox()
+                        if box:
+                            im = im.crop(box)
+                        _save_cutout(im, self._sdir / f"{safe}.media.webp")
+                except _NoArt:
+                    pass
+                except Exception as e:
+                    # QuotaExceeded included: postponed, not resolved, so no stamp.
+                    log.warning("screenscraper media %s: %s", key, e)
+                    return
+                done.write_text("1")
+        finally:
+            self._ss_demand.release()
+
+    def warm_media(self, delay: float = 0) -> None:
+        """Fetch every cartridge and disc we haven't got yet, in the background.
+
+        A second crawl in the shape of warm_screenscraper's, and separate from it for
+        the same reason `.media.done` is separate from `.done`: this one is additive —
+        it was switched on long after the boxes were cached — so folding it in would
+        have meant re-fetching thousands of faces we already hold to reach the media
+        sitting next to them."""
+        if not (self._ssc and self._ssc.enabled):
+            return
+        todo = [k for k, e in self._ss.items()
+                if e.get("support")
+                and not (self._sdir / f"{k.replace('/', '_')}.media.done").exists()]
+        if not todo:
+            log.info("shelf: all %d screenscraper media already fetched",
+                     sum(1 for e in self._ss.values() if e.get("support")))
+            return
+
+        def run():
+            if delay:
+                time.sleep(delay)
+            for n, k in enumerate(todo, 1):
+                if not self._ssc.usable():
+                    log.info("shelf: screenscraper quota spent — media stopped at %d/%d, "
+                             "resuming on the next boot", n, len(todo))
+                    return
+                self._ss_media_build(k, k.replace("/", "_"), blocking=True)
+                if n % 50 == 0:
+                    log.info("shelf: fetched %d/%d screenscraper media", n, len(todo))
+            log.info("shelf: %d screenscraper media fetched and cached", len(todo))
+
+        threading.Thread(target=run, name="shelf-warm-media", daemon=True).start()
 
     def warm_screenscraper(self, delay: float = 0) -> None:
         """Fetch every ScreenScraper box we haven't fetched yet, in the background.

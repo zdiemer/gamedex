@@ -360,10 +360,62 @@ function shelfCase() {
   return shEl;
 }
 
+/* THE BOX TAKES THE SHAPE OF THE ART.
+ *
+ * The case starts at the platform's real millimetres, which is a fine guess and only a guess:
+ * printings differ (the Super Famicom Chrono Trigger box is portrait where the SNES one is
+ * landscape) and a table cannot know which one you own. The art does. So the moment the front
+ * image lands we measure it and re-cut the box to its aspect, keeping the case's HEIGHT — that
+ * is the dimension the shelf is built on, and it stays honest per platform.
+ *
+ * Two rules keep it from doing something silly:
+ *
+ *   THE RECIPROCAL. ScreenScraper's DS and 3DS art is squeezed onto a canvas with its width and
+ *   height the wrong way round: a 3DS box is 122x137mm (0.891) and every one of their fronts
+ *   measures 1.122, which is 1/0.891 to three decimals. Fitting the box to THAT gives a landscape
+ *   3DS case, which is not a thing. When the art's aspect is the reciprocal of the case's, the
+ *   case wins — and because the face stretches to fill (object-fit: fill), painting it back into
+ *   the right rectangle un-squashes the art at the same time.
+ *
+ *   THE ABSURD. No printed box front is thinner than a phone or wider than a keyboard, so an
+ *   aspect outside 0.35..2.6 is a broken image, not a box, and is ignored.
+ *
+ * Nothing here crops. Cropping to fit was the old behaviour and it is what quietly ate a third of
+ * every Game Boy cover; a box whose proportions came from a table can only ever cut or squash.
+ *
+ * Only REAL box art gets this. The fallback tier is an IGDB cover — key art, not a photograph of
+ * a box — so a Switch game with no scan keeps its Switch-shaped case and the cover is cropped into
+ * it, the way every cover in the app is. Fitting the box to that would hand one game on the shelf
+ * a shape no copy of it ever had. */
+const SH_AR_MIN = 0.35, SH_AR_MAX = 2.6;
+const SH_RECIPROCAL = 0.06;          // log-space slack: within ~6%, it's a swapped canvas
+
+function shFitCase(el, g, img) {
+  const ar = img.naturalWidth / Math.max(img.naturalHeight, 1);
+  if (!isFinite(ar) || ar < SH_AR_MIN || ar > SH_AR_MAX) return;
+  el.classList.add("fit");                       // …and now the faces fill rather than crop
+
+  const caseAr = g.case.w / Math.max(g.case.h, 1);
+  const w = Math.abs(Math.log(ar) + Math.log(caseAr)) < SH_RECIPROCAL
+    ? g.case.w                                   // swapped canvas: keep the box, unsquash the art
+    : Math.round(g.case.h * ar);
+  const prev = g.fitW ?? g.case.w;
+  g.fitW = w;                                    // remembered, so re-pulling the same box is instant
+  if (w === Math.round(prev)) return;            // the box is already this shape
+  shW = shPx(w);
+  el.style.setProperty("--w", shW + "px");
+  el.style.width = shW + "px";
+  const dims = document.getElementById("shDims");
+  if (dims) dims.textContent = `${w} × ${g.case.h} × ${g.case.d} mm`;
+  // The thing inside was sized against the box's old shape; give it the new one.
+  if (typeof mediaResize === "function") mediaResize(el, g.p, { w, h: g.case.h });
+  if (shCur >= 0) shPaint();                     // the pull animation is mid-flight; keep it centred
+}
+
 function shBuild(i) {
   const g = SHELF.games[i];
   const el = shelfCase();
-  shW = shPx(g.case.w); shH = shPx(g.case.h);
+  shW = shPx(g.fitW ?? g.case.w); shH = shPx(g.case.h);
   el.style.setProperty("--w", shW + "px");
   el.style.setProperty("--h", shH + "px");
   el.style.setProperty("--d", shPx(g.case.d) + "px");
@@ -402,7 +454,11 @@ function shBuild(i) {
      cached, which is the normal case forever after. */
   if (shHasFaces(g)) {
     const front = el.querySelector(".f-front img");
-    if (front && cover) front.onerror = () => { front.onerror = null; front.src = cover; };
+    if (front && cover) front.onerror = () => {
+      front.onerror = null;
+      front.dataset.stand = "1";       // a stand-in: don't cut the box to its shape (shFitCase)
+      front.src = cover;
+    };
     const back = el.querySelector(".f-back img");
     if (back) back.onerror = () => {
       back.onerror = null;
@@ -440,11 +496,12 @@ function shBuild(i) {
      <span class="sh-wall w-t"></span><span class="sh-wall w-b"></span>`
     + ((typeof mediaModelHtml === "function" && mediaFor(g.p)) ? mediaModelHtml(g) : "");
   el.appendChild(inside);
-  if (typeof mountShells === "function") mountShells(inside);
 
   // The case element is REUSED between games. Leave it open and the next box you pull out is
-  // already hanging open — which is exactly what happened.
+  // already hanging open — which is exactly what happened. `fit` is per game for the same reason:
+  // it says "this box has been cut to its art", which the next game has to earn for itself.
   el.classList.remove("open", "slide");
+  el.classList.toggle("fit", g.fitW != null);
 
   /* THE LID IS A SLAB. A real case's cover is a few millimetres of plastic, and a single sliver
      down its free edge didn't sell that from any angle — so the lid gets a full perimeter edge:
@@ -461,7 +518,7 @@ function shBuild(i) {
     // sleeve never held its manual against the lid. The raw Archive URL is the
     // cover cache's key, so no cManual rewrite. A 404 (no PDF cover renderable)
     // removes the layer entirely: no booklet beats a blank slab pretending.
-    const art = typeof mediaArt === "function" ? mediaArt(g.mk) : {};
+    const art = typeof mediaArt === "function" ? mediaArt(g) : {};
     if (typeof opensBy === "function" && opensBy(g.p) === "hinge" && art.manualPdf) {
       const man = document.createElement("span");
       man.className = "sh-manual";
@@ -505,19 +562,32 @@ function shBuild(i) {
     <div class="sh-plat">${escapeHtml(g.p)}${g.done ? ' · <span class="sh-done">Beaten</span>' : ""}</div>
     ${src}
     <dl>
-      <dt>Case</dt><dd>${g.case.w} × ${g.case.h} × ${g.case.d} mm</dd>
+      <dt>Case</dt><dd id="shDims">${g.fitW ?? g.case.w} × ${g.case.h} × ${g.case.d} mm</dd>
       ${g.year ? `<dt>Released</dt><dd>${g.year}</dd>` : ""}
       ${g.series ? `<dt>Series</dt><dd>${escapeHtml(g.series)}</dd>` : ""}
     </dl>
     <div class="sh-acts">
       <button class="sh-btn primary" id="shDetails">Full details</button>
-      ${typeof hasBoxContents === "function" && hasBoxContents(g.mk)
+      ${typeof hasBoxContents === "function" && hasBoxContents(g)
         ? `<button class="sh-btn" id="shOpen">Open the box</button>` : ""}
       ${typeof IS_ADMIN !== "undefined" && IS_ADMIN
         ? `<button class="sh-btn" id="shArt">${g.src === "upload" ? "Change art" : "Add / fix art"}</button>` : ""}
       <button class="sh-btn" id="shBack">← Put it back</button>
     </div>
     <div id="shMedia"></div>`;
+
+  /* Measure whatever front ACTUALLY arrives and re-cut the box to it (see shFitCase) — the real
+     scanned face, or the cover it fell back to when that face isn't fetched yet. Hooked up after
+     the card exists, because the fit rewrites the case dimensions it prints. */
+  const frontImg = shHasFaces(g) ? el.querySelector(".f-front img") : null;
+  if (frontImg) {
+    // NOT from the stand-in. A ScreenScraper face 404s until the warm crawl reaches it, and the
+    // cover that steps in meanwhile is a different shape — fitting the box to that would cut it
+    // to the wrong proportions and, because the fit is remembered, keep it there for the session.
+    const fit = () => { if (!frontImg.dataset.stand) shFitCase(el, g, frontImg); };
+    frontImg.addEventListener("load", fit);
+    if (frontImg.complete && frontImg.naturalWidth) fit();     // already in the browser's cache
+  }
 
   /* On a phone the card is a bottom sheet, and it used to open on top of the very box it
      describes. It now RESTS at its handle, its title and its buttons — everything you need to
@@ -543,7 +613,6 @@ function shBuild(i) {
     openBtn.textContent = opening ? "Close the box" : "Open the box";
     host.innerHTML = opening ? mediaPanelHtml(g) : "";
     if (!opening) return;
-    mountShells(host);
     const man = document.getElementById("mdManual");
     if (man) man.onclick = () => openManual(g);
   };

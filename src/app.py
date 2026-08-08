@@ -235,6 +235,9 @@ async def lifespan(_: FastAPI):
     # And the ScreenScraper boxes behind that again — it's a long, rate-limited crawl
     # against a daily quota, and nothing on the shelf is waiting for it.
     SHELF.warm_screenscraper(delay=300)
+    # …and the cartridges and discs behind THAT. Two crawls, one rate limiter (it is the
+    # client's, and it is thread-safe), so the pair still spends the quota politely.
+    SHELF.warm_media(delay=420)
     if enricher:
         enricher.start()
         logging.getLogger("gamedex").info("IGDB enrichment enabled (backfill=%s)", ENRICH_BACKFILL)
@@ -805,6 +808,22 @@ def api_shelf_face(key: str, face: str):
     if img is None:
         return JSONResponse({"error": "no wrap"}, status_code=404)
     return Response(content=img, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@app.get("/api/shelf/media")
+def api_shelf_media(key: str):
+    """What is INSIDE that box — the cartridge, the game card, the printed disc.
+
+    ScreenScraper's `support` render, cut out on transparency, which is what lets the
+    browser stand it up as an object rather than paste it on a slab — so this one is
+    WebP with an alpha channel, not the JPEG the faces are. Same key-in-the-query rule
+    as the faces, same fetch-once-then-serve-off-the-volume contract, and the same
+    honest 404 while the warm pass is still working its way there."""
+    img = SHELF.media(key)
+    if img is None:
+        return JSONResponse({"error": "no media"}, status_code=404)
+    return Response(content=img, media_type="image/webp",
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 

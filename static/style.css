@@ -3899,6 +3899,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   backface-visibility:hidden; background:#111; }
 .sh-face img { width:100%; height:100%; object-fit:cover; display:block;
   pointer-events:none; -webkit-user-drag:none; user-select:none; }
+/* FILL once the box has been cut to its own art (shFitCase adds .fit). Filling is then a no-op
+   on the front — box and picture are the same shape — where `cover` silently cropped whatever
+   the platform's millimetres disagreed with, which is how a square Game Boy cover lost a third
+   of itself to a DVD-shaped box. And on the one face where the two genuinely differ (a DS/3DS
+   scan squeezed onto a sideways canvas) filling is what puts the art back in its right
+   rectangle. A stand-in IGDB cover never gets here: it keeps `cover`, and gets cropped. */
+.sh-case.fit .sh-face img { object-fit:fill; }
 .sh-case .f-front, .sh-case .f-back { width:var(--w); height:var(--h);
   margin:calc(var(--h) / -2) 0 0 calc(var(--w) / -2); border-radius:2px; }
 .sh-case .f-left, .sh-case .f-right { width:var(--d); height:var(--h);
@@ -4626,137 +4633,69 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .md-src.derived { color: var(--warn); }
 .md-src.none { color: var(--dim); opacity: .7; }
 
-/* ---- cartridges: six real faces, so it turns like an object, not a picture ---- */
-.md-cart {
-  position: relative; width: var(--mw); height: var(--mh);
+/* ---- the object: a real scan, stood up ------------------------------------------
+   The medium arrives as a cut-out on transparency (see media.js), which is flat. Depth is built
+   from SLICES: copies of the object's own silhouette — masked out of the same PNG, so they are
+   exactly its shape, corners, notches, disc hole and all — each pushed a little further back and
+   painted a flat plastic colour. Stack a few and the side of the object is a solid wall.
+
+   Silhouettes, not copies of the picture: the side of a cartridge is grey plastic, and repeating
+   the label down its edge is the thing that reads as fake. The mask is what makes this possible
+   at all — there is no other way to paint "the shape of that image" in CSS. */
+.md-obj {
+  position: relative; width: 100%; height: 100%;
   transform-style: preserve-3d;
-  transform: rotateX(-14deg) rotateY(-22deg);
-  animation: mdTurn 14s linear infinite;
+  transform: rotateX(-11deg) rotateY(-19deg);
+  animation: mdSway 15s ease-in-out infinite;
 }
-@keyframes mdTurn {
-  from { transform: rotateX(-14deg) rotateY(-22deg); }
-  50%  { transform: rotateX(-14deg) rotateY(22deg); }
-  to   { transform: rotateX(-14deg) rotateY(-22deg); }
+@keyframes mdSway {
+  from { transform: rotateX(-11deg) rotateY(-19deg); }
+  50%  { transform: rotateX(-11deg) rotateY(19deg); }
+  to   { transform: rotateX(-11deg) rotateY(-19deg); }
 }
-.md-f { position: absolute; inset: 0; background: var(--shell); }
-.md-f.front  { transform: translateZ(calc(var(--md) / 2)); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
-.md-f.back   { transform: rotateY(180deg) translateZ(calc(var(--md) / 2));
-  background: color-mix(in srgb, var(--shell) 80%, #000); }
-.md-f.top    { height: var(--md); bottom: auto; transform-origin: top;
-  transform: rotateX(90deg) translateZ(calc(var(--md) / -2)) translateY(calc(var(--md) / -2));
-  background: color-mix(in srgb, var(--shell) 88%, #fff); }
-.md-f.bottom { height: var(--md); top: auto; transform-origin: bottom;
-  transform: rotateX(-90deg) translateZ(calc(var(--md) / -2)) translateY(calc(var(--md) / 2));
-  background: color-mix(in srgb, var(--shell) 70%, #000); }
-.md-f.left   { width: var(--md); right: auto; transform-origin: left;
-  transform: rotateY(-90deg) translateZ(calc(var(--md) / -2)) translateX(calc(var(--md) / -2));
-  background: color-mix(in srgb, var(--shell) 78%, #000); }
-.md-f.right  { width: var(--md); left: auto; transform-origin: right;
-  transform: rotateY(90deg) translateZ(calc(var(--md) / -2)) translateX(calc(var(--md) / 2));
-  background: color-mix(in srgb, var(--shell) 78%, #000); }
-
-/* The label. A CROP of the cover — `cover` sizing, not `contain` — because a whole box squashed
-   onto a sticker reads as a misprint, where a crop reads as a label. */
-.md-label {
-  position: absolute; border-radius: 2px;
-  background-size: cover; background-position: center 32%;
-  box-shadow: 0 0 0 1px rgba(0,0,0,.35), inset 0 0 14px rgba(0,0,0,.25);
+/* Every layer is the same box, contain-fitted, so the mask lines up with the <img> to the pixel. */
+.md-obj > i {
+  position: absolute; inset: 0; display: block; pointer-events: none;
+  -webkit-mask: var(--scan) center / contain no-repeat;
+          mask: var(--scan) center / contain no-repeat;
 }
-.md-label.blank {
-  display: grid; place-items: center; background: #d8d4cb; color: #55504a;
-  font: 700 8px/1.2 var(--font); text-align: center; padding: 3px; text-transform: uppercase;
-  letter-spacing: .04em;
+.md-obj .md-face {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; display: block;
+  transform: translateZ(calc(var(--depth) / 2));
+  -webkit-user-drag: none; user-select: none;
+  filter: drop-shadow(0 10px 14px rgba(0,0,0,.45));
 }
-/* ---- the shells, one machine at a time ----------------------------------------
-   These were flags on a generic slab (bezel / grip / notch), and the result was cartridge-shaped
-   without being any particular cartridge. Each is now its own thing, drawn from a reference. */
-
-/* NES — taller than wide, flat top, and the pull INDENT cut into the top-left corner, which is
-   the detail that makes it unmistakable. Label recessed in a shallow well. */
-.md-cart.s-nes .md-f.front, .md-cart.s-nes .md-f.back {
-  clip-path: polygon(0 9%, 9% 9%, 9% 0, 100% 0, 100% 100%, 0 100%);
+/* The slices, front to back. --i runs 1..--n, so the last one lands on the back plate. */
+.md-slice {
+  background: var(--edge, #34363c);
+  transform: translateZ(calc(var(--depth) / 2 - var(--depth) * var(--i) / var(--n)));
 }
-.md-cart.s-nes .md-f.front::after {
-  content: ""; position: absolute; left: 8%; right: 8%; top: 11%; height: 62%;
-  border-radius: 3px; box-shadow: inset 0 1px 4px rgba(0,0,0,.4);
-  background: color-mix(in srgb, var(--shell) 94%, #000);
+/* The other side. You mostly see it as the object sways; it is the back of a cartridge (dark,
+   featureless) or the read side of a disc (silver, and it catches the light). */
+.md-plate {
+  background: var(--plate, #24262b);
+  transform: translateZ(calc(var(--depth) / -2));
 }
-.md-cart.s-nes .md-label { z-index: 2; }
-
-/* SNES — WIDER than tall, softened top corners ("gray rounded front"), grips are ribs running
-   down each LONG EDGE, and the label lives in a deep recessed well that wraps over the top. */
-.md-cart.s-snes .md-f.front, .md-cart.s-snes .md-f.back { border-radius: 10px 10px 3px 3px; }
-.md-cart.s-snes .md-f.front::before {          /* the side grips */
-  content: ""; position: absolute; inset: 12% 0 6%;
-  background:
-    repeating-linear-gradient(180deg, rgba(0,0,0,.20) 0 3px, transparent 3px 8px) left / 11% 100% no-repeat,
-    repeating-linear-gradient(180deg, rgba(0,0,0,.20) 0 3px, transparent 3px 8px) right / 11% 100% no-repeat;
+.md-obj.disc, .md-obj.umd { --edge: #c3c8d0; --plate: #b6bcc6; }
+.md-obj.card { --edge: #2b2d33; }
+/* A disc lies down and turns, the way it does in a case — and its thickness is a couple of
+   millimetres, so the slices read as an edge rather than a rim. */
+.md-obj.disc { transform: rotateX(56deg); animation: mdScanSpin 11s linear infinite; }
+@keyframes mdScanSpin {
+  from { transform: rotateX(56deg) rotateZ(0deg); }
+  to   { transform: rotateX(56deg) rotateZ(360deg); }
 }
-.md-cart.s-snes .md-f.front::after {           /* the recessed label well */
-  content: ""; position: absolute; left: 14%; right: 14%; top: 13%; height: 60%;
-  border-radius: 5px; box-shadow: inset 0 2px 6px rgba(0,0,0,.45);
-  background: color-mix(in srgb, var(--shell) 90%, #000);
+/* The read side's rainbow. Masked to the scan like everything else, screened over the silver. */
+.md-obj.disc .md-plate::after, .md-obj.umd .md-plate::after {
+  content: ""; position: absolute; inset: 0; mix-blend-mode: screen; opacity: .3;
+  background: conic-gradient(from 30deg,
+    rgba(255,0,120,.20), rgba(0,200,255,.20), rgba(120,255,60,.16),
+    rgba(255,220,0,.18), rgba(255,0,120,.20));
 }
-.md-cart.s-snes .md-label { z-index: 2; border-radius: 4px; }
-/* the label wraps over the top edge */
-.md-cart.s-snes .md-f.top { background: color-mix(in srgb, var(--shell) 82%, #000); }
-
-/* N64 — narrow and tall, black, with the ridged flanks. */
-.md-cart.s-n64 .md-f.front, .md-cart.s-n64 .md-f.back { border-radius: 5px 5px 2px 2px; }
-.md-cart.s-n64 .md-f.front::before {
-  content: ""; position: absolute; inset: 8% 0 4%;
-  background:
-    repeating-linear-gradient(180deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px) left / 9% 100% no-repeat,
-    repeating-linear-gradient(180deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px) right / 9% 100% no-repeat;
-}
-.md-cart.s-n64 .md-label { z-index: 2; }
-
-/* Game Boy — taller than wide, and the notch is in the TOP-RIGHT corner. */
-.md-cart.s-gb .md-f.front, .md-cart.s-gb .md-f.back {
-  clip-path: polygon(0 0, 80% 0, 100% 15%, 100% 100%, 0 100%);
-}
-.md-cart.s-gb .md-f.front::after {             /* the ribbed pull grip along the bottom */
-  content: ""; position: absolute; left: 10%; right: 10%; bottom: 5%; height: 12%;
-  background: repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 3px, transparent 3px 7px);
-  border-radius: 2px;
-}
-
-/* GBA — WIDER than tall, nearly all label, and NO notch on the front: the shape detector is a cut
-   on a bottom REAR corner, which you cannot see from here. */
-.md-cart.s-gba .md-f.front, .md-cart.s-gba .md-f.back { border-radius: 4px; }
-.md-cart.s-gba .md-f.front::after {
-  content: ""; position: absolute; left: 6%; right: 6%; bottom: 4%; height: 10%;
-  background: repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 2px, transparent 2px 6px);
-}
-
-/* Genesis — tall, black, with the grip ribs banded across the TOP of the face. */
-.md-cart.s-genesis .md-f.front, .md-cart.s-genesis .md-f.back { border-radius: 7px 7px 2px 2px; }
-.md-cart.s-genesis .md-f.front::before {
-  content: ""; position: absolute; left: 6%; right: 6%; top: 5%; height: 12%;
-  background: repeating-linear-gradient(90deg, rgba(255,255,255,.09) 0 3px, transparent 3px 8px);
-  border-radius: 3px;
-}
-
-/* The flat cards. */
-.md-cart.s-dscard .md-f.front, .md-cart.s-dscard .md-f.back { border-radius: 4px; }
-.md-cart.s-sms .md-f.front, .md-cart.s-sms .md-f.back { border-radius: 3px; }
-/* Switch: small, red, one clipped corner. */
-.md-cart.s-switch .md-f.front, .md-cart.s-switch .md-f.back {
-  clip-path: polygon(0 0, 84% 0, 100% 11%, 100% 100%, 0 100%);
-}
-/* Atari 2600 — thick, and the front is mostly a big ridged block above the label. */
-.md-cart.s-atari .md-f.front::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 13%;
-  background: repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 4px, transparent 4px 10px);
-}
-/* Neo Geo — the big one. */
-.md-cart.s-neogeo .md-f.front, .md-cart.s-neogeo .md-f.back { border-radius: 4px; }
-.md-cart.s-neogeo .md-f.front::before {
-  content: ""; position: absolute; left: 5%; right: 5%; top: 4%; height: 8%;
-  background: repeating-linear-gradient(90deg, rgba(255,255,255,.08) 0 3px, transparent 3px 9px);
-}
-
-.md-cart.card { border-radius: 4px; }
+.md-nothing { font: 600 11px/1 var(--font); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--dim); opacity: .7; }
+.md-stage.empty { border: 1px dashed var(--border); border-radius: var(--r-sm); }
 
 /* ---- discs ---- */
 /* The rainbow is a background LAYER of the disc, screened over the label — not a blended child on
@@ -5035,23 +4974,49 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .sh-wall.w-b { left: 0; bottom: 0; width: 100%; height: var(--wd); transform-origin: center bottom; transform: rotateX(-90deg); }
 
 /* Seated in the box it sits still — the idle turn is for when it's out and being looked at. */
-.sh-inside .md-cart, .sh-inside .md-disc, .sh-inside .md-umd, .sh-inside .md-shell {
+.sh-inside .md-obj, .sh-inside .md-disc, .sh-inside .md-umd {
   animation: none;
   transform: scale(.82);
   transition: transform .9s cubic-bezier(.22,.85,.25,1);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, .6);
 }
-.sh-inside .md-shell {
-  width: min(calc(var(--w) - 14px), calc(var(--h) - 14px));
-  height: min(calc(var(--w) - 14px), calc(var(--h) - 14px));
-  box-shadow: none;                       /* the shell has its own rendered shading */
+/* AND IT ONLY EXISTS WHILE THE BOX IS OPEN — the same answer the inner walls needed, for the
+   same reason. A game card is 2mm thick inside an 11mm case, so its plane and the cover's are a
+   few pixels apart, and Chrome stops sorting two nearly-coplanar layers by depth: the Switch and
+   3DS cards painted straight through the front of a shut box. There is nothing to lose by
+   hiding them, because a closed box has nothing on show. */
+.sh-inside .md-obj, .sh-inside .md-disc, .sh-inside .md-umd { visibility: hidden; }
+.sh-case.open .sh-inside .md-obj,
+.sh-case.open .sh-inside .md-disc,
+.sh-case.open .sh-inside .md-umd { visibility: visible; }
+.sh-inside .md-disc, .sh-inside .md-umd { box-shadow: 0 8px 22px rgba(0, 0, 0, .6); }
+/* THE MEDIUM IS THE SIZE IT REALLY IS. `--mm` is its long edge at the same millimetre scale the
+   case is drawn at (see media.js), so the ratio between the thing and its box is the real one: a
+   Game Boy cartridge nearly fills its little square box, a Switch card is a stamp in the corner
+   of its case, a DS card is smaller still. Given the box to fill instead, every medium came out
+   the width of its case — which is what made the handheld games look enormous.
+
+   AND IT SITS ON THE BACK WALL, pushed forward half its own thickness. The object is modelled
+   about its middle (slices run from +depth/2 to -depth/2, see .md-obj), so dropped straight onto
+   the interior panel HALF OF IT IS BEHIND THE BOX — which is why you could see a cartridge
+   sticking out through the back of a shut case. Half a thickness forward and the whole of it
+   grows INTO the case, where there is room for it. */
+/* Pinned and centred by MARGIN, not by the grid. The element is OBJ_BASE square — deliberately
+   bigger than most of these cases — and `place-items: center` refuses to centre an item that
+   overflows its cell: it falls back to the start corner, so every scaled-down medium sat in the
+   bottom-right of its box instead of in the middle of it. */
+.sh-inside .md-obj {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--base); height: var(--base);
+  margin: calc(var(--base) / -2) 0 0 calc(var(--base) / -2);
+  transform: translateZ(calc(var(--depth) / 2)) scale(var(--seat, 1)) rotateX(0deg) rotateY(0deg);
 }
 .sh-inside .md-disc { transform: rotateX(0deg) scale(.8); }
 
-/* HINGED — cards and discs. Those cases really do swing open, so the media comes out toward you. */
-.sh-case.open .sh-inside .md-cart { transform: translateZ(84px) translateY(-6px) scale(.92) rotateY(-6deg); }
-.sh-case.open:not(.slide) .sh-inside .md-shell {
-  transform: translateZ(84px) translateY(-6px) scale(.92) rotateY(-6deg);
+/* HINGED — cards and discs. Those cases really do swing open, so the media comes out toward you.
+   It grows on the way out, because a 31mm Switch card seated correctly in its case is too small
+   to look at — coming out of the box is when you get to hold it up. */
+.sh-case.open .sh-inside .md-obj {
+  transform: translateZ(84px) translateY(-6px) scale(var(--out, 1)) rotateY(-8deg) rotateX(-6deg);
 }
 .sh-case.open .sh-inside .md-disc { transform: translateZ(84px) rotateX(0deg) scale(.9); }
 .sh-case.open .sh-inside .md-umd  { transform: translateZ(84px) scale(.9); }
@@ -5061,35 +5026,16 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    is behind the cover, so the half still in the box is genuinely occluded by the box — the cart
    doesn't pass through the lid, it emerges from behind it. */
 .sh-case.slide.open .f-front { transform: translateZ(calc(var(--d) / 2)); filter: none; }
-.sh-case.slide.open .sh-inside .md-shell,
-.sh-case.slide.open .sh-inside .md-cart {
-  transform: translateY(-66%) translateZ(4px) scale(.9);
+/* Rise by a fraction of the CASE, as a length — a percentage here would be a percentage of the
+   object's own (pre-scale) element box, so the same rule would throw a Game Boy cartridge clear
+   of its sleeve and barely lift a SNES one. */
+.sh-case.slide.open .sh-inside .md-obj {
+  transform: translateY(calc(var(--h) * -0.42)) translateZ(calc(var(--depth) / 2)) scale(var(--out, 1));
 }
-
-/* The pre-rendered shell: frames on top, the game's warped label underneath (see media.js). */
-.md-shell { position: relative; touch-action: none; cursor: grab; }
-.md-shell.grabbed { cursor: grabbing; }
-.md-frames {
-  position: absolute; inset: 0; pointer-events: none;
-  background-image: var(--sheet);
-  background-size: 2400% 100%;                /* 24 frames across one strip */
-  background-repeat: no-repeat;
-}
-.md-lab {
-  position: absolute; top: 0; left: 0;
-  width: var(--lab); height: var(--lab);
-  transform-origin: 0 0; pointer-events: none;
-  background-size: cover; background-position: center;
-}
-.md-lab.blank {
-  display: grid; place-items: center; text-align: center; padding: 14px;
-  background: #2b2d34; color: #cfd3db;
-  font: 700 20px/1.25 var(--font, system-ui);
-}
-.md-stage .md-shell { width: 100%; height: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sh-case .f-front, .sh-inside .md-cart, .sh-inside .md-disc, .sh-inside .md-shell { transition: none; }
+  .sh-case .f-front, .sh-inside .md-obj, .sh-inside .md-disc { transition: none; }
+  .md-obj { animation: none; }
 }
 
 /* The manual's loading state. A blank white iframe reads as broken; two shimmering pages read as

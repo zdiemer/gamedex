@@ -6,127 +6,118 @@
    thing you'd actually hold comes out — a cartridge with its label, or a disc with its printed
    face — with the instruction booklet behind it.
 
-   THE SHELLS ARE THE POINT. A grey slab with a picture on it isn't a cartridge, it's a coaster.
-   Each machine's cart is a specific object and people know the difference at a glance: the NES's
-   deep front bezel with the label set well back, the SNES's tapered shoulders and ridged grip,
-   the N64's tall shell with finger grooves, the Game Boy's notched corner (the cut that stops you
-   inserting it backwards), the GBA's stubby body that's nearly all label, the flat little cards of
-   the DS and the Switch. Those are drawn as geometry, per platform, from the tables below.
+   THE OBJECT IS A REAL SCAN NOW. ScreenScraper's `support` media is a render of the actual
+   medium — the whole cartridge, the whole game card, the whole printed disc — cut out on a
+   transparent background. We serve it from /api/shelf/media (see shelf.py media()) and stand it
+   up: the scan is the front, a stack of masked silhouettes behind it is the thickness, and a
+   plate at the back is the side you'd see if you turned it over. A few millimetres of depth is
+   all it takes; the object is a card or a cartridge, not a brick.
 
-   THE ART COMES FROM THREE PLACES, in this order:
-     1. a real disc scan from GameTDB (`discArt`) — the genuine printed face, Nintendo optical only
-     2. a real cart/disc scan — reserved for ScreenScraper, which needs a dev key we don't have yet;
-        the field is read here already so that when it lands nothing else has to change
-     3. DERIVED from the box art — crop the cover onto the label. Which is not a cheat: a real cart
-        label usually IS a crop of the cover, so this looks right far more often than it has any
-        business to, and it means no game on the shelf is ever a blank shell.
+   THIS REPLACED THE MODELLED SHELLS. Before the dev key landed, each machine's cartridge was
+   MODELLED — six CSS faces per platform, then 24 pre-rendered frames per shell from
+   tools/render_carts.py, with a crop of the box art warped into the label well by a homography.
+   It was a good likeness and it was still a likeness: a generic SNES cart wearing a piece of the
+   Yoshi's Island box, where the real cart has its own label, its own printing, its own "SNS-YI-USA"
+   under the Nintendo seal. A photograph of the actual thing beats it outright, so the shells,
+   their sprites and their renderer are gone (gamedex 1.58.115).
+
+   What remains synthetic is the DISC, and only when we have no scan: a disc is a generic object —
+   a silver circle with the cover masked into it reads as a disc, because that is largely what a
+   printed disc is. A cartridge is not generic, so a game with no cartridge scan simply has an
+   empty case, and the panel says so.
 
    Loaded after shelf.js; shares its globals. */
 
 // ---- which object a platform actually is -----------------------------------
-// shell: the plastic. label: where the sticker sits, as % of the face. notch: the anti-insert cut.
-/* Every shell below is set from a REAL measurement, not from memory, because the first pass was
-   cartridge-shaped without being any particular cartridge — and the aspect ratios especially were
-   just wrong. What the references actually say:
+/* `kind` decides how the box opens (a bare cartridge slid out of a sleeve; cards and discs were
+   in hinged cases), what the object is called, and — for optical only — what the fallback disc
+   looks like when no scan exists. The shells' geometry used to live here; it doesn't need to,
+   because the scan carries its own shape.
 
-     NES     133 x 120 x 20 mm — TALLER than wide, with a pull indent cut into the TOP-LEFT.
-                                 (I had it wider than tall with a bezel all the way round.)
-     SNES    120 x 110 x 20 mm — WIDER than tall, "gray rounded front", grips are ribs running
-                                 down each LONG EDGE, label in a recessed well that wraps over
-                                 the top. (I had ribs along the bottom, which is a Genesis idea.)
-     N64     116 x  75 x 18 mm — much NARROWER and taller than I drew it; black.
-     GB      65.5 x 57 x 7.5mm — taller than wide, notch in the TOP-RIGHT corner.
-     GBA                       — WIDER than tall, and its notch is on a bottom REAR corner (the
-                                 shape detector that tells the machine which mode to boot), so
-                                 the front face has NO notch at all. I had drawn one.
-
-   Sizes below preserve each cart's true aspect ratio; the absolute px are normalised so they all
-   read at about the same size on screen, since you only ever see one at a time. */
+   `mm` is the one measurement that does NOT come out of the scan: the medium's LONG EDGE in
+   millimetres. The scan is a picture of an object with no ruler in it, so without this every
+   medium is drawn to whatever size its container gives it — and a 35mm DS card comes out nearly
+   as wide as the 122mm box it lives in, which is what "the games are too big for their boxes"
+   is. Set against the case's own millimetres (shelf.js PX_MM), a Game Boy cartridge fills most
+   of its little square box, a Switch card is a stamp in the corner of its case, and a disc is a
+   disc. Approximate to a millimetre or two; the point is the RATIO to the box. */
 const MEDIA = {
-  "NES":                 { kind: "cart", w: 115, h: 128, d: 20, shell: "#b8b3a7", label: [12, 14, 76, 56], shape: "nes" , sprite: "nes" },
-  "Nintendo Entertainment System": { kind: "cart", w: 115, h: 128, d: 20, shell: "#b8b3a7", label: [12, 14, 76, 56], shape: "nes" , sprite: "nes" },
-  /* SNES (North America). Checked against a reference rather than drawn from memory, because
-     the first pass was cartridge-SHAPED and not a SNES cartridge:
-       - it is WIDER THAN TALL (~12cm x 11cm). I had it near-square.
-       - the anti-slip grips are molded ridges running down each LONG EDGE — vertical ribbing
-         on the left and right flanks. I had a horizontal ribbed strip along the bottom, which
-         is a Genesis/N64 idea and not this.
-       - the label sits in a RECESSED WELL with a big corner radius, and wraps over the top
-         edge, so the top of the cart carries a strip of the same label.
-       - the front is the famous "gray rounded front": softened top corners, not the hard
-         taper I gave it. */
-  "SNES":                { kind: "cart", w: 132, h: 121, d: 20, shell: "#b9b5ad", label: [17, 16, 66, 54], shape: "snes" , sprite: "snes" },
-  "Super Nintendo":      { kind: "cart", w: 132, h: 121, d: 20, shell: "#b9b5ad", label: [17, 16, 66, 54], shape: "snes" , sprite: "snes" },
-  "Nintendo 64":         { kind: "cart", w: 92,  h: 135, d: 20, shell: "#33353b", label: [11, 11, 78, 52], shape: "n64" , sprite: "n64" },
-  "Game Boy":            { kind: "cart", w: 105, h: 121, d: 14, shell: "#c8c5bd", label: [11, 13, 78, 58], shape: "gb" , sprite: "gb" },
-  "Game Boy Color":      { kind: "cart", w: 105, h: 121, d: 14, shell: "#c8c5bd", label: [11, 13, 78, 58], shape: "gb" , sprite: "gb" },
-  // Wider than tall, and NO notch on the front — the shape detector is a cut on a bottom REAR
-  // corner, which you never see from here.
-  "Game Boy Advance":    { kind: "cart", w: 140, h: 86,  d: 12, shell: "#5b5f6b", label: [8, 11, 84, 70], shape: "gba" , sprite: "gba" },
-  "Nintendo DS":         { kind: "card", w: 118, h: 102, d: 7,  shell: "#3a3d45", label: [8, 10, 84, 70], shape: "dscard" , sprite: "ds" },
-  "Nintendo 3DS":        { kind: "card", w: 118, h: 102, d: 7,  shell: "#2e3138", label: [8, 10, 84, 70], shape: "dscard" , sprite: "n3ds" },
-  // The Switch card is tiny, red, and its corner is clipped.
-  "Nintendo Switch":     { kind: "card", w: 92,  h: 108, d: 6,  shell: "#c0392b", label: [9, 9, 82, 76], shape: "switch" , sprite: "switch" },
-  "Nintendo Switch 2":   { kind: "card", w: 92,  h: 108, d: 6,  shell: "#8e2a20", label: [9, 9, 82, 76], shape: "switch" , sprite: "switch" },
-  // Genesis: tall, black, and the grip ridges are a band across the top of the face.
-  "Sega Genesis":        { kind: "cart", w: 105, h: 134, d: 20, shell: "#26282d", label: [10, 22, 80, 56], shape: "genesis" , sprite: "genesis" },
-  "Sega Master System":  { kind: "card", w: 128, h: 108, d: 9,  shell: "#26282d", label: [9, 11, 82, 66], shape: "sms" },
-  "Game Gear":           { kind: "cart", w: 118, h: 92,  d: 14, shell: "#2b2d32", label: [9, 11, 82, 68], shape: "gba" },
-  "Virtual Boy":         { kind: "cart", w: 112, h: 116, d: 16, shell: "#7a1f1f", label: [11, 13, 78, 58], shape: "gb" },
-  "Nintendo Virtual Boy":{ kind: "cart", w: 112, h: 116, d: 16, shell: "#7a1f1f", label: [11, 13, 78, 58], shape: "gb" },
-  "Atari 2600":          { kind: "cart", w: 124, h: 100, d: 24, shell: "#2a2622", label: [10, 16, 80, 52], shape: "atari" },
-  "Neo-Geo":             { kind: "cart", w: 142, h: 118, d: 26, shell: "#1f2126", label: [8, 13, 84, 60], shape: "neogeo" },
-  "TurboGrafx-16":       { kind: "card", w: 112, h: 94,  d: 5,  shell: "#3a3d45", label: [7, 8, 86, 78], shape: "dscard" },
-  "WonderSwan":          { kind: "cart", w: 100, h: 100, d: 10, shell: "#4a4d55", label: [11, 11, 78, 66], shape: "gb" },
+  "NES":                 { kind: "cart", mm: 133 },
+  "Nintendo Entertainment System": { kind: "cart", mm: 133 },
+  "SNES":                { kind: "cart", mm: 137 },
+  "Super Nintendo":      { kind: "cart", mm: 137 },
+  "Nintendo 64":         { kind: "cart", mm: 118 },
+  "Game Boy":            { kind: "cart", mm: 65 },
+  "Game Boy Color":      { kind: "cart", mm: 65 },
+  "Game Boy Advance":    { kind: "cart", mm: 57 },
+  "Nintendo DS":         { kind: "card", mm: 35 },
+  "Nintendo 3DS":        { kind: "card", mm: 35 },
+  "New Nintendo 3DS":    { kind: "card", mm: 35 },
+  "Nintendo Switch":     { kind: "card", mm: 31 },
+  "Nintendo Switch 2":   { kind: "card", mm: 31 },
+  "Sega Genesis":        { kind: "cart", mm: 105 },
+  "Sega Master System":  { kind: "card", mm: 100 },
+  "Game Gear":           { kind: "cart", mm: 70 },
+  "Virtual Boy":         { kind: "cart", mm: 100 },
+  "Nintendo Virtual Boy":{ kind: "cart", mm: 100 },
+  "Atari 2600":          { kind: "cart", mm: 100 },
+  "Neo-Geo":             { kind: "cart", mm: 145 },
+  "TurboGrafx-16":       { kind: "card", mm: 78 },
+  "WonderSwan":          { kind: "cart", mm: 45 },
 
-  // Optical. `hub` is the clear centre ring; discs get a sheen and a hole.
-  "PlayStation":         { kind: "disc", size: 150, tint: "#8c8f96" },
-  "PlayStation 2":       { kind: "disc", size: 150, tint: "#2b3a6b" },
-  "PlayStation 3":       { kind: "disc", size: 150, tint: "#7f8286" },
-  "PlayStation 4":       { kind: "disc", size: 150, tint: "#2f6fb5" },
-  "PlayStation 5":       { kind: "disc", size: 150, tint: "#2f6fb5" },
-  "PlayStation Portable":{ kind: "umd",  size: 108, tint: "#3a3d45" },
-  "Nintendo GameCube":   { kind: "disc", size: 112, tint: "#6f42a0", mini: true },   // 8cm mini-disc
-  "Nintendo Wii":        { kind: "disc", size: 150, tint: "#dfe3e8" },
-  "Nintendo Wii U":      { kind: "disc", size: 150, tint: "#4a86c8" },
-  "Xbox":                { kind: "disc", size: 150, tint: "#2e7d32" },
-  "Xbox 360":            { kind: "disc", size: 150, tint: "#5aa02c" },
-  "Xbox One":            { kind: "disc", size: 150, tint: "#2f6fb5" },
-  "Xbox Series X|S":     { kind: "disc", size: 150, tint: "#2f6fb5" },
-  "Sega Dreamcast":      { kind: "disc", size: 150, tint: "#d94f2b" },
-  "Sega Saturn":         { kind: "disc", size: 150, tint: "#6f8296" },
-  "Sega CD":             { kind: "disc", size: 150, tint: "#6f8296" },
-  "3DO":                 { kind: "disc", size: 150, tint: "#6f8296" },
-  "PC":                  { kind: "disc", size: 150, tint: "#8c8f96" },
+  // Optical. A CD is 120mm and everyone knows what one looks like, which is what makes the
+  // GameCube's 80mm mini-disc worth getting right. `size` and `tint` are the fallback disc's
+  // own drawing, used only when there is no scan.
+  "PlayStation":         { kind: "disc", mm: 120, size: 150, tint: "#8c8f96" },
+  "PlayStation 2":       { kind: "disc", mm: 120, size: 150, tint: "#2b3a6b" },
+  "PlayStation 3":       { kind: "disc", mm: 120, size: 150, tint: "#7f8286" },
+  "PlayStation 4":       { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
+  "PlayStation 5":       { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
+  "PlayStation Portable":{ kind: "umd",  mm: 65,  size: 108, tint: "#3a3d45" },
+  "PlayStation Vita":    { kind: "card", mm: 28 },
+  "Nintendo GameCube":   { kind: "disc", mm: 80,  size: 112, tint: "#6f42a0", mini: true },
+  "Nintendo Wii":        { kind: "disc", mm: 120, size: 150, tint: "#dfe3e8" },
+  "Nintendo Wii U":      { kind: "disc", mm: 120, size: 150, tint: "#4a86c8" },
+  "Xbox":                { kind: "disc", mm: 120, size: 150, tint: "#2e7d32" },
+  "Xbox 360":            { kind: "disc", mm: 120, size: 150, tint: "#5aa02c" },
+  "Xbox One":            { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
+  "Xbox Series X|S":     { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
+  "Sega Dreamcast":      { kind: "disc", mm: 120, size: 150, tint: "#d94f2b" },
+  "Sega Saturn":         { kind: "disc", mm: 120, size: 150, tint: "#6f8296" },
+  "Sega CD":             { kind: "disc", mm: 120, size: 150, tint: "#6f8296" },
+  "3DO":                 { kind: "disc", mm: 120, size: 150, tint: "#6f8296" },
+  "PC":                  { kind: "disc", mm: 120, size: 150, tint: "#8c8f96" },
 };
 
 const mediaFor = (platform) => MEDIA[(platform || "").trim()] || null;
 
+// The scan of the medium itself, keyed by BOX (per region, like the faces) — a Japanese copy's
+// cartridge is not the US one's. 404s until the warm crawl reaches that game; every use of it
+// below is written so that a missing image costs nothing but itself.
+const mediaUrl = (k) => `/api/shelf/media?key=${encodeURIComponent(k)}`;
+
 /* Is there anything actually IN the box?
 
-   A derived label on a generic shell is a GUESS, not contents. Offering "open the box" and then
-   showing a shell with a cropped cover stuck to it promises something we haven't got — so the
-   button only appears when we have fetched something real: a genuine disc scan, a genuine media
-   scan (ScreenScraper, when its dev key lands), or the actual manual.
-
-   Once you're in — because there IS a manual — the model still gets its derived label, because
-   the alternative is an empty shell next to the booklet, and that's worse. The provenance line
-   says plainly which it is. */
-function hasBoxContents(mk) {
-  const e = (typeof ENRICH !== "undefined" && ENRICH[mk]) || {};
-  return !!(e.discArt || e.mediaArt || e.manualEmbed);
+   Only real things count. A generated disc is a stand-in, not contents — offering "open the box"
+   to show one promises something we haven't got. So the button appears for a scan of the medium
+   (ScreenScraper), a real printed disc (GameTDB), or the actual manual; and once you're in for
+   one of those, the fallback disc may still stand in for the object, with the provenance line
+   saying plainly which it is. */
+function hasBoxContents(g) {
+  const e = (typeof ENRICH !== "undefined" && ENRICH[g.mk]) || {};
+  return !!(g.media || e.discArt || e.manualEmbed || e.manualPdf);
 }
 
-// The art for the media face, best first.
-function mediaArt(mk) {
-  const e = (typeof ENRICH !== "undefined" && ENRICH[mk]) || {};
+// The art for the medium, best first.
+function mediaArt(g) {
+  const e = (typeof ENRICH !== "undefined" && ENRICH[g.mk]) || {};
   return {
-    // A real scan of the printed disc — GameTDB. Nothing else in the app has this.
+    // The medium itself, scanned: cartridge, card or disc, cut out on transparency.
+    scan: g.media ? mediaUrl(g.k) : null,
+    // A real scan of the printed disc face — GameTDB. Flat art, no shell around it, so it goes
+    // onto the fallback disc rather than standing up as an object of its own.
     disc: cImg(e.discArt) || null,
-    // Reserved for ScreenScraper's `support` media when the dev key lands.
-    scan: cImg(e.mediaArt) || null,
-    // Everything else derives from the cover. A cart label usually IS a crop of the cover,
-    // which is why this holds up.
+    // And the box art, which is all the fallback disc has when neither of those exists.
     cover: coverSrc(e, "cover_big") || null,
     manual: e.manualEmbed || null,
     manualUrl: e.manualUrl || null,
@@ -140,139 +131,71 @@ function mediaArt(mk) {
   };
 }
 
-/* ---- the rendered shells ---------------------------------------------------
+/* ---- the object ------------------------------------------------------------
 
-   Six CSS faces with clip-paths cannot describe a cartridge. A real one has chamfers, draft angles
-   and a recessed label well, so every tweak made it a slightly different wrong shape. So the shells
-   are MODELLED and pre-rendered by tools/render_carts.py: 24 frames of a slow turn, each with the
-   label area punched out to transparent, plus the four corners of that hole in image space.
+   A scan is flat and the thing it shows is not, so it gets extruded. `--depth` millimetres of
+   thickness are built out of SLICES: copies of the object's silhouette, each pushed a little
+   further back in Z, each painted a flat plastic colour. They are silhouettes rather than copies
+   of the picture because the side of a cartridge is grey plastic, not a smeared repeat of its
+   label — and the silhouette comes free from the scan's own alpha, via a mask.
 
-   Here we play the frames and warp the game's own label into the hole with a homography. Because
-   the label goes UNDERNEATH the frame, the shell's bevel and ribs draw over its edges — the label
-   is occluded by the plastic around it for free, which is the thing that sells it.
+   Depth is deliberately small. These are 2-3mm cards and 15mm cartridges seen from slightly off
+   axis; a slab reads as a brick, and the point is only that the object stops being a sticker. */
+const OBJ_SLICES = 8;
+const OBJ_DEPTH = { cart: 13, card: 7, disc: 4, umd: 9 };   // px at the panel's scale
+const OBJ_BASE = 260;                // the element's own size inside a case; see objHtml
 
-   Which way the box opens is decided by what's in it: a bare cart never lived in a hinged case, so
-   retro carts SLIDE OUT of the sleeve; cards (DS, 3DS, Switch) and discs are in hinged cases. */
-const opensBy = (platform) => (mediaFor(platform)?.kind === "cart" ? "slide" : "hinge");
+/* The two sizes a medium takes INSIDE a case, as scale factors of OBJ_BASE.
 
-const _cartMeta = {};
-const cartMeta = (id) => (_cartMeta[id] ||= fetch(`carts/${id}.json`).then((r) => r.json()));
+   Drawn at a fixed element size and scaled DOWN to its real millimetres, never sized down and
+   scaled back up: a 31mm Switch card sized to 40px and then magnified to fill your screen is
+   40px of picture stretched, and it looked it.
 
-/* Map the label element's own rectangle onto the four corners of the punched-out hole.
-
-   This is the projective (not affine) transform — the hole is a quad in perspective, so parallel
-   edges do NOT stay parallel, and a scale+skew cannot reach it. Solve for the 3x3 and hand CSS the
-   matrix3d; the trailing scale() is what turns the element's pixel coords into the unit square the
-   solution is written in. */
-function homography(w, h, q) {
-  const [p0, p1, p2, p3] = q;                                   // TL, TR, BR, BL
-  const dx1 = p1[0] - p2[0], dx2 = p3[0] - p2[0], dx3 = p0[0] - p1[0] + p2[0] - p3[0];
-  const dy1 = p1[1] - p2[1], dy2 = p3[1] - p2[1], dy3 = p0[1] - p1[1] + p2[1] - p3[1];
-  const den = dx1 * dy2 - dx2 * dy1;
-  let g = 0, i = 0;
-  if (Math.abs(den) > 1e-9 && (Math.abs(dx3) > 1e-9 || Math.abs(dy3) > 1e-9)) {
-    g = (dx3 * dy2 - dx2 * dy3) / den;
-    i = (dx1 * dy3 - dx3 * dy1) / den;
-  }
-  const a = p1[0] - p0[0] + g * p1[0], b = p3[0] - p0[0] + i * p3[0], c = p0[0];
-  const d = p1[1] - p0[1] + g * p1[1], e = p3[1] - p0[1] + i * p3[1], f = p0[1];
-  return `matrix3d(${a},${d},0,${g},${b},${e},0,${i},0,0,1,0,${c},${f},0,1)`
-       + ` scale(${1 / w},${1 / h})`;
+     seat  the medium's long edge at the shelf's own millimetre scale, which is what makes a Game
+           Boy cartridge fill its little box and a Switch card a stamp in its case. Capped at the
+           case's shorter side, because whatever it is, it FITTED IN THE BOX — a cap that only
+           ever bites on a box we have the wrong height for (the Super Famicom Chrono Trigger
+           case is a tall narrow one, the shelf builds it at the SNES height it knows, and a
+           137mm cartridge then hangs out of both sides of it).
+     out   how big it stands when it comes out: about two-thirds the height of the case, so a
+           game card is something you can actually look at — but never smaller than life, and a
+           SNES cartridge is already most of its box, so it just slides up. */
+function mediaSizing(m, kase) {
+  const caseW = (kase && kase.w) || 0, caseH = (kase && kase.h) || 0;
+  const fits = caseW && caseH ? Math.min(caseW, caseH) * 0.95 : Infinity;
+  const px = Math.min(m.mm || 100, fits) * PX_MM;
+  return { seat: px / OBJ_BASE, out: Math.max(px, caseH * PX_MM * 0.68) / OBJ_BASE };
 }
 
-const LAB = 200;                     // the label element's own size; the homography does the rest
-
-function shellHtml(m, art, title) {
-  const face = art.scan || art.cover;
-  const lab = face
-    ? `<span class="md-lab" style="background-image:url('${escapeHtml(face)}')"></span>`
-    : `<span class="md-lab blank"><b>${escapeHtml((title || "").slice(0, 24))}</b></span>`;
-  return `<div class="md-shell" data-cart="${m.sprite}"
-    style="--sheet:url('carts/${m.sprite}.png');--lab:${LAB}px">${lab}
-    <span class="md-frames"></span></div>`;
+/* Re-seat a medium already in a case, after the box has been re-cut to its art (shFitCase). The
+   box changes shape when its front lands, and a cartridge sized against the shape it USED to have
+   is the wrong size for the one it is now in. */
+function mediaResize(root, platform, kase) {
+  const m = mediaFor(platform), obj = root && root.querySelector(".md-obj");
+  if (!m || !obj) return;
+  const s = mediaSizing(m, kase);
+  obj.style.setProperty("--seat", s.seat.toFixed(3));
+  obj.style.setProperty("--out", s.out.toFixed(3));
 }
 
-/* Start (or restart) every rendered shell under `root`. Idle sway, and you can grab it and turn it.
-   The interval stops itself once the element leaves the document — boxes get opened and closed a
-   lot, and a timer per open box that never dies is a leak with a long fuse. */
-function mountShells(root) {
-  (root || document).querySelectorAll(".md-shell[data-cart]").forEach(async (el) => {
-    if (el._mounted) return;
-    el._mounted = true;
-    const meta = await cartMeta(el.dataset.cart);
-    const frames = el.querySelector(".md-frames");
-    const lab = el.querySelector(".md-lab");
-
-    /* The label element has to be the SHAPE OF THE WELL it's going into. Leave it square and
-       `background-size: cover` crops the art to a square, which the homography then squashes into
-       a wide well — every GBA label came out stretched. Size it to the well's own aspect and the
-       crop happens in the right proportion, before the warp. */
-    const lw = LAB, lh = Math.round(LAB / meta.aspect);
-    lab.style.width = lw + "px";
-    lab.style.height = lh + "px";
-    let t = 0, grab = null;
-
-    const paint = () => {
-      const i = ((Math.round(t) % meta.frames) + meta.frames) % meta.frames;
-      frames.style.backgroundPosition = `${(i / (meta.frames - 1)) * 100}% 0`;
-      const k = (el.clientWidth || 1) / meta.size;
-      lab.style.opacity = meta.front[i] ? "1" : "0";
-      lab.style.transform = homography(lw, lh, meta.quads[i].map(([x, y]) => [x * k, y * k]));
-    };
-
-    el.addEventListener("pointerdown", (e) => {
-      grab = { x: e.clientX, t };
-      el.setPointerCapture(e.pointerId);
-      el.classList.add("grabbed");
-    });
-    el.addEventListener("pointermove", (e) => {
-      if (!grab) return;
-      t = grab.t + (e.clientX - grab.x) / 9;      // turn it with your finger
-      paint();
-    });
-    const drop = () => { grab = null; el.classList.remove("grabbed"); };
-    el.addEventListener("pointerup", drop);
-    el.addEventListener("pointercancel", drop);
-
-    const tick = setInterval(() => {
-      if (!el.isConnected) return clearInterval(tick);
-      if (grab) return;
-      t += 1;
-      paint();
-    }, 110);
-    paint();
-  });
-}
-
-// ---- the models ------------------------------------------------------------
-function cartHtml(m, art, title) {
-  if (m.sprite) return shellHtml(m, art, title);
-  const face = art.scan || art.cover;
-  const [lx, ly, lw, lh] = m.label;
-  // The label is a CROP of the cover, not the whole cover squashed onto a sticker — a squashed
-  // cover reads as a printing error. Scale it up and pull the middle out.
-  const label = face
-    ? `<span class="md-label" style="left:${lx}%;top:${ly}%;width:${lw}%;height:${lh}%;
-         background-image:url('${escapeHtml(face)}')"></span>`
-    : `<span class="md-label blank" style="left:${lx}%;top:${ly}%;width:${lw}%;height:${lh}%">
-         <b>${escapeHtml((title || "").slice(0, 22))}</b></span>`;
-  // One class per machine — the shell details live in CSS, where each is that console's cart and
-  // not a generic slab with a flag or two flipped.
-  const cls = ["md-cart", m.kind === "card" ? "card" : "", `s-${m.shape || "plain"}`].join(" ");
-  return `<div class="${cls}" style="--mw:${m.w}px;--mh:${m.h}px;--md:${m.d}px;--shell:${m.shell}">
-    <span class="md-f front">${label}</span>
-    <span class="md-f back"></span>
-    <span class="md-f top"></span>
-    <span class="md-f bottom"></span>
-    <span class="md-f left"></span>
-    <span class="md-f right"></span>
+function objHtml(m, src, kase) {
+  const kind = m.kind === "umd" ? "umd" : m.kind === "disc" ? "disc" : "cart";
+  const slices = Array.from({ length: OBJ_SLICES }, (_, i) =>
+    `<i class="md-slice" style="--i:${i + 1}"></i>`).join("");
+  const s = mediaSizing(m, kase);
+  // The scan is an <img>, not a background: it decides the object's size (object-fit: contain),
+  // and the slices' masks are contain-fitted to the same box, so every layer lines up exactly.
+  return `<div class="md-obj ${kind}" style="--scan:url('${escapeHtml(src)}');--depth:${OBJ_DEPTH[kind]}px;--n:${OBJ_SLICES};--base:${OBJ_BASE}px;--seat:${s.seat.toFixed(3)};--out:${s.out.toFixed(3)}">
+    <i class="md-plate"></i>${slices}
+    <img class="md-face" src="${escapeHtml(src)}" alt="" draggable="false">
   </div>`;
 }
 
+/* The fallback disc, for an optical game with no scan of its own: the cover masked into a ring,
+   with a clear hub and a rainbow read side. Not a cheat — a printed disc largely IS the cover in
+   a circle — but the panel says it's derived. */
 function discHtml(m, art) {
-  // A REAL disc scan if we have one; otherwise the cover, masked into the ring — which is what a
-  // printed disc largely is anyway.
-  const face = art.disc || art.scan || art.cover;
+  const face = art.disc || art.cover;
   const kind = m.kind === "umd" ? "md-umd" : "md-disc";
   return `<div class="${kind}${m.mini ? " mini" : ""}"
     style="--ms:${m.size}px;--tint:${m.tint}${face ? `;--face:url('${escapeHtml(face)}')` : ""}">
@@ -285,35 +208,40 @@ function discHtml(m, art) {
   </div>`;
 }
 
-// Just the object, for seating INSIDE the 3D case (see shBuild).
+/* The model, whatever it turns out to be: the scan if we have one, else a fallback disc for an
+   optical game, else nothing at all — because a cartridge we haven't scanned is a cartridge we
+   would have to invent. */
 function mediaModelHtml(g) {
   const m = mediaFor(g.p);
   if (!m) return "";
-  const art = mediaArt(g.mk);
-  return (m.kind === "disc" || m.kind === "umd") ? discHtml(m, art) : cartHtml(m, art, g.t);
+  const art = mediaArt(g);
+  // The box's fitted width when it has one — see shFitCase; the table's, until then.
+  if (art.scan) return objHtml(m, art.scan, { w: g.fitW ?? g.case?.w, h: g.case?.h });
+  return (m.kind === "disc" || m.kind === "umd") ? discHtml(m, art) : "";
 }
 
 /* The panel that appears when you open a box. */
 function mediaPanelHtml(g) {
   const m = mediaFor(g.p);
-  const art = mediaArt(g.mk);
-  if (!m && !art.manual) return "";
+  const art = mediaArt(g);
+  if (!m && !art.manual && !art.manualPdf) return "";
 
-  const model = !m ? ""
-    : (m.kind === "disc" || m.kind === "umd") ? discHtml(m, art) : cartHtml(m, art, g.t);
+  const model = mediaModelHtml(g);
 
-  // Say where the art came from. A derived label is a guess and shouldn't pretend otherwise.
+  // Say where the object came from. A derived disc is a guess and shouldn't pretend otherwise.
   const provenance = !m ? ""
+    : art.scan ? `<span class="md-src real">Real ${mediaWord(m)} scan · ScreenScraper</span>`
     : art.disc ? `<span class="md-src real">Real disc scan · GameTDB</span>`
-    : art.scan ? `<span class="md-src real">Real scan</span>`
-    : art.cover ? `<span class="md-src derived">Label from the box art</span>`
-    : `<span class="md-src none">No art</span>`;
+    : model ? `<span class="md-src derived">Disc face from the box art</span>`
+    : `<span class="md-src none">No scan of the ${mediaWord(m)} yet</span>`;
 
+  // No stage at all for a platform with no physical medium (a PC game with a manual): an empty
+  // case is only worth drawing where there is something that should have been in it.
   return `<div class="md-panel" id="mdPanel">
-    <div class="md-stage">${model}</div>
+    ${!m ? "" : `<div class="md-stage${model ? "" : " empty"}">${model || `<span class="md-nothing">Empty case</span>`}</div>`}
     <div class="md-side">
       ${m ? `<div class="md-what">${escapeHtml(mediaName(m, g.p))}</div>${provenance}` : ""}
-      ${art.manual
+      ${art.manual || art.manualPdf
         ? `<button class="sh-btn primary" id="mdManual">${icon("i-review", 14)} Read the manual</button>
            <span class="md-src">Internet Archive${art.manualPages ? ` · ${art.manualPages} pages` : ""}</span>`
         : `<span class="md-src none">No manual found</span>`}
@@ -327,10 +255,18 @@ const mediaName = (m, platform) =>
   : m.kind === "card" ? "Game card"
   : `${platform} cartridge`;
 
+// The same thing in one lowercase word, for a sentence.
+const mediaWord = (m) =>
+  m.kind === "disc" ? "disc" : m.kind === "umd" ? "UMD" : m.kind === "card" ? "card" : "cartridge";
+
+/* Which way the box opens is decided by what's in it: a bare cart never lived in a hinged case,
+   so retro carts SLIDE OUT of the sleeve; cards (DS, 3DS, Switch) and discs are in hinged cases. */
+const opensBy = (platform) => (mediaFor(platform)?.kind === "cart" ? "slide" : "hinge");
+
 /* The manual itself. The Internet Archive's BookReader pages, zooms and searches a scan already —
    building a PDF viewer to re-render something they already render would be daft. */
 function openManual(g) {
-  const art = mediaArt(g.mk);
+  const art = mediaArt(g);
   if (!art.manual && !art.manualPdf) return;
   // Prefer our PVC-cached PDF in the browser's own viewer: a booklet opened before
   // comes off local disk in a blink. Only when the Archive item has no PDF do we
