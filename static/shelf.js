@@ -392,6 +392,36 @@ function shBuild(i) {
       <div class="sh-face f-left std" style="background:${spineStyle(g.p).base}">${stdSpineHtml(g)}</div>
       <div class="sh-face f-right"></div><div class="sh-face f-top"></div><div class="sh-face f-bottom"></div>`;
 
+  /* A FACE THAT ISN'T THERE YET. /api/shelf/face 404s until the server has fetched and cut
+     that box — which for a ScreenScraper game means waiting for the boot-time warm crawl to
+     reach it, and if their daily quota runs out first, until the NEXT boot's crawl resumes.
+     Without this, those games are strictly worse than before they had real art: the shelf
+     stops drawing the IGDB cover (it thinks there's a real box now) and the case comes out
+     empty. So the front falls back to the cover we already had, and the other two faces just
+     drop their image and let the face's own surface show. Nothing here fires once a box is
+     cached, which is the normal case forever after. */
+  if (shHasFaces(g)) {
+    const front = el.querySelector(".f-front img");
+    if (front && cover) front.onerror = () => { front.onerror = null; front.src = cover; };
+    const back = el.querySelector(".f-back img");
+    if (back) back.onerror = () => {
+      back.onerror = null;
+      // Dropping `wrapped` is what turns the back into the stand-in: the CSS blurs and
+      // darkens any back image that isn't a real scan (.f-back:not(.wrapped) img).
+      back.closest(".f-back").classList.remove("wrapped");
+      if (cover) back.src = cover; else back.remove();
+    };
+    const spine = el.querySelector(".f-left img");
+    if (spine) spine.onerror = () => {
+      const face = spine.closest(".f-left");
+      face.classList.remove("wrapped");
+      face.classList.add("std");
+      face.style.background = spineStyle(g.p).base;
+      face.innerHTML = stdSpineHtml(g);       // the system's standard spine, title and all
+      shFitName(face);
+    };
+  }
+
   /* THE INSIDE OF THE BOX. Built into the 3D case itself, behind the front cover, so when the
      cover swings the media is genuinely in there — not a picture that appears beside the box.
 
