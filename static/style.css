@@ -5030,7 +5030,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    object's own (pre-scale) element box, so the same rule would throw a Game Boy cartridge clear
    of its sleeve and barely lift a SNES one. */
 .sh-case.slide.open .sh-inside .md-obj {
-  transform: translateY(calc(var(--h) * -0.42)) translateZ(calc(var(--depth) / 2)) scale(var(--out, 1));
+  transform: translateY(calc(var(--h) * -0.56)) translateZ(calc(var(--depth) / 2)) scale(var(--out, 1));
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -147,6 +147,11 @@ SS_VERSION = "2"
 # by its own pass, and re-doing it must not throw away a box that cost quota to build.
 MEDIA_VERSION = "1"
 
+# How long a request for a MEDIUM will wait for one of the two fetch permits before
+# giving up (see Shelf.media). Long enough to outlast a crawl's turn, short enough that
+# a request thread is never really parked.
+SS_DEMAND_WAIT = 8.0
+
 # Cover Project's print templates, in millimetres: back | spine | front | height.
 # Kept in step with tools/cp_wrap.py, which is what chose the template offline.
 TEMPLATES = {
@@ -820,16 +825,25 @@ class Shelf:
         Same contract as face(): fetched on first ask, then read off the volume forever,
         and a 404 until the warm pass has been past. Kept apart from the box faces on
         purpose — a game can have a cartridge scan and no box art, or the reverse, and
-        neither absence should cost the other a fetch."""
+        neither absence should cost the other a fetch.
+
+        This one WAITS for its turn, unlike a face. A face request is one of dozens the
+        shelf fires at once, so giving up instantly is the only way it can behave; a
+        medium is one image, asked for because someone just opened one box, and while
+        the two warm crawls are running they hold both fetch permits nearly all the
+        time — so "give up instantly" means "the cartridge you asked for never arrives
+        until the crawl happens to reach it, an hour from now". A permit frees every
+        second or two, so a short wait almost always gets one."""
         if key not in self._ss:
             return None
         safe = key.replace("/", "_")
         path = self._sdir / f"{safe}.media.webp"
         if not path.exists():
-            self._ss_media_build(key, safe)
+            self._ss_media_build(key, safe, wait=SS_DEMAND_WAIT)
         return path.read_bytes() if path.exists() else None
 
-    def _ss_media_build(self, key: str, safe: str, blocking: bool = False) -> None:
+    def _ss_media_build(self, key: str, safe: str, blocking: bool = False,
+                        wait: float = 0) -> None:
         """Fetch this game's medium once, then never again. Stamped like the faces, on
         its own `.media.done`, so a game with no usable support image is asked about
         exactly once rather than on every request for it.
@@ -842,7 +856,9 @@ class Shelf:
         done = self._sdir / f"{safe}.media.done"
         if not ref or done.exists() or not (self._ssc and self._ssc.usable()):
             return
-        if not self._ss_demand.acquire(blocking=blocking):
+        got = (self._ss_demand.acquire(timeout=wait) if wait
+               else self._ss_demand.acquire(blocking=blocking))
+        if not got:
             return
         try:
             with self._lock(key + "\x00media"):
