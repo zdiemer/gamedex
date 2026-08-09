@@ -4642,16 +4642,32 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    Silhouettes, not copies of the picture: the side of a cartridge is grey plastic, and repeating
    the label down its edge is the thing that reads as fake. The mask is what makes this possible
    at all — there is no other way to paint "the shape of that image" in CSS. */
+/* FACE ON, ALWAYS. The object used to be pitched and yawed a little and then swayed between
+   -19deg and +19deg, which showed off the extrusion — and made a rectangular thing (a game card,
+   a cartridge) read as crooked rather than as turned, because there is nothing in the panel for
+   the eye to measure the angle against. Square to the viewer it is parallel with the box it came
+   out of, which is the one alignment that always reads as deliberate. The depth is still there and
+   still does its job wherever the object IS seen at an angle — inside the case, which is itself
+   turned about 24deg (see .sh-case). */
 .md-obj {
   position: relative; width: 100%; height: 100%;
   transform-style: preserve-3d;
-  transform: rotateX(-11deg) rotateY(-19deg);
+  transform: none;
+}
+/* …EXCEPT that a thing which never moves has no thickness. Square to the viewer, the extrusion
+   points straight away from you and you see none of it, so a cartridge in the panel is a sticker.
+   In the PANEL only — where there is no box beside it to be crooked against — it breathes: ±7deg
+   of yaw, a quarter of the old ±19deg, enough to catch the side wall and far too little to read
+   as tilted. The case is deliberately excluded: `.sh-inside` is not inside `.md-panel`, so the
+   seated and slid-out media stay exactly parallel with the box, which is the whole point.
+   Discs are excluded too — they already turn, in their own plane (see .md-obj.disc). */
+.md-panel .md-obj:not(.disc), .md-panel .md-umd {
   animation: mdSway 15s ease-in-out infinite;
 }
 @keyframes mdSway {
-  from { transform: rotateX(-11deg) rotateY(-19deg); }
-  50%  { transform: rotateX(-11deg) rotateY(19deg); }
-  to   { transform: rotateX(-11deg) rotateY(-19deg); }
+  from { transform: rotateY(-7deg); }
+  50%  { transform: rotateY(7deg); }
+  to   { transform: rotateY(-7deg); }
 }
 /* Every layer is the same box, contain-fitted, so the mask lines up with the <img> to the pixel. */
 .md-obj > i {
@@ -4679,12 +4695,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .md-obj.disc, .md-obj.umd { --edge: #c3c8d0; --plate: #b6bcc6; }
 .md-obj.card { --edge: #2b2d33; }
-/* A disc lies down and turns, the way it does in a case — and its thickness is a couple of
-   millimetres, so the slices read as an edge rather than a rim. */
-.md-obj.disc { transform: rotateX(56deg); animation: mdScanSpin 11s linear infinite; }
+/* A disc turns, but it does NOT lie down. It used to be laid back 56deg, which is how a disc sits
+   in an open case — and it is also the thing that made every optical game read as tilted next to a
+   box drawn square. Face on it stays parallel with its box, and the turn survives: a disc spinning
+   about its own axis is what a disc does, and in its own plane it costs no alignment at all. */
+.md-obj.disc { transform: none; animation: mdScanSpin 11s linear infinite; }
 @keyframes mdScanSpin {
-  from { transform: rotateX(56deg) rotateZ(0deg); }
-  to   { transform: rotateX(56deg) rotateZ(360deg); }
+  from { transform: rotateZ(0deg); }
+  to   { transform: rotateZ(360deg); }
 }
 /* The read side's rainbow. Masked to the scan like everything else, screened over the silver. */
 .md-obj.disc .md-plate::after, .md-obj.umd .md-plate::after {
@@ -4713,13 +4731,15 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     radial-gradient(circle at 50% 50%, #e9ecf1 34%, var(--tint) 36%, var(--tint) 100%);
   background-blend-mode: screen, normal, normal;
   box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.14);
-  transform: rotateX(58deg) rotateZ(0deg);
+  /* Face on and spinning in its own plane — same reasoning as .md-obj.disc above: laid back, it
+     was the one thing on the panel that wasn't square with the box. */
+  transform: rotateZ(0deg);
   animation: mdSpin 9s linear infinite;
   transform-style: preserve-3d;
 }
 @keyframes mdSpin {
-  from { transform: rotateX(58deg) rotateZ(0deg); }
-  to   { transform: rotateX(58deg) rotateZ(360deg); }
+  from { transform: rotateZ(0deg); }
+  to   { transform: rotateZ(360deg); }
 }
 .md-disc.mini { }                                  /* the 8cm GameCube disc — sized in JS */
 /* THE OTHER SIDE OF A DISC IS THE DATA SIDE. Turn one over and you get silver, not the label
@@ -4766,9 +4786,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* UMD: a disc that lives inside its own caddy. */
 .md-umd {
   position: relative; width: var(--ms); height: calc(var(--ms) * 1.06); border-radius: 7px;
+  transform: none;                                   /* square with its box, like every medium */
   background: linear-gradient(160deg, #4a4d55, #26282d);
   box-shadow: 0 10px 26px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08);
-  transform: rotateX(-10deg) rotateY(-16deg);
 }
 .md-umd-shell {
   position: absolute; inset: 14% 12% 22%; border-radius: 50%;
@@ -5018,8 +5038,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    (It used to grow to two-thirds the case height so a game card was big enough to look at, which
    brought a Switch card out at nearly four times life. The panel beside the box is where you look
    at it closely.) */
+/* Straight out, not turned out. The medium used to come forward with a rotateY(-8deg)
+   rotateX(-6deg) on it, and against the flat open lid right beside it that reads as CROOKED
+   rather than as three-dimensional — worst on the rectangular media (DS, 3DS, Switch cards),
+   where the eye has the case's own straight edges to measure the angle against; a disc only
+   looked slightly tilted because a turned circle stays a circle. It keeps its own plane, which is
+   the box's plane, and the case's ~24deg is what shows you it has depth. */
 .sh-case.open .sh-inside .md-obj {
-  transform: translateZ(84px) translateY(-6px) scale(var(--seat, 1)) rotateY(-8deg) rotateX(-6deg);
+  transform: translateZ(84px) translateY(-6px) scale(var(--seat, 1));
 }
 .sh-case.open .sh-inside .md-disc { transform: translateZ(84px) rotateX(0deg) scale(.9); }
 .sh-case.open .sh-inside .md-umd  { transform: translateZ(84px) scale(.9); }
@@ -5038,7 +5064,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .sh-case .f-front, .sh-inside .md-obj, .sh-inside .md-disc { transition: none; }
-  .md-obj { animation: none; }
+  /* Every moving medium, at the specificity the panel's own rules use — a bare `.md-obj` here
+     no longer outranks `.md-panel .md-obj:not(.disc)`, so the sway would have survived. */
+  .md-obj, .md-disc, .md-panel .md-obj:not(.disc), .md-panel .md-umd { animation: none; }
 }
 
 /* The manual's loading state. A blank white iframe reads as broken; two shimmering pages read as
