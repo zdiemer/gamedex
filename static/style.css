@@ -5024,7 +5024,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    bigger than most of these cases — and `place-items: center` refuses to centre an item that
    overflows its cell: it falls back to the start corner, so every scaled-down medium sat in the
    bottom-right of its box instead of in the middle of it. */
+/* …AND IT IS AS THICK AS IT REALLY IS. `--cdepth` is the medium's own millimetres at the box's
+   own scale (media.js objDepth); `--depth` is the panel's tuned pixel value, which is right there
+   and wrong here. Re-declaring the variable on the object is all it takes — the face, the slices
+   and the back plate all read `--depth` and all inherit. */
 .sh-inside .md-obj {
+  --depth: var(--cdepth);
   position: absolute; left: 50%; top: 50%;
   width: var(--base); height: var(--base);
   margin: calc(var(--base) / -2) 0 0 calc(var(--base) / -2);

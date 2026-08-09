@@ -42,51 +42,51 @@
    of its little square box, a Switch card is a stamp in the corner of its case, and a disc is a
    disc. Approximate to a millimetre or two; the point is the RATIO to the box. */
 const MEDIA = {
-  "NES":                 { kind: "cart", mm: 133 },
-  "Nintendo Entertainment System": { kind: "cart", mm: 133 },
-  "SNES":                { kind: "cart", mm: 137 },
-  "Super Nintendo":      { kind: "cart", mm: 137 },
-  "Nintendo 64":         { kind: "cart", mm: 118 },
-  "Game Boy":            { kind: "cart", mm: 65 },
-  "Game Boy Color":      { kind: "cart", mm: 65 },
-  "Game Boy Advance":    { kind: "cart", mm: 57 },
-  "Nintendo DS":         { kind: "card", mm: 35 },
-  "Nintendo 3DS":        { kind: "card", mm: 35 },
-  "New Nintendo 3DS":    { kind: "card", mm: 35 },
-  "Nintendo Switch":     { kind: "card", mm: 31 },
-  "Nintendo Switch 2":   { kind: "card", mm: 31 },
-  "Sega Genesis":        { kind: "cart", mm: 105 },
-  "Sega Master System":  { kind: "card", mm: 100 },
-  "Game Gear":           { kind: "cart", mm: 70 },
-  "Virtual Boy":         { kind: "cart", mm: 100 },
-  "Nintendo Virtual Boy":{ kind: "cart", mm: 100 },
-  "Atari 2600":          { kind: "cart", mm: 100 },
-  "Neo-Geo":             { kind: "cart", mm: 145 },
-  "TurboGrafx-16":       { kind: "card", mm: 78 },
-  "WonderSwan":          { kind: "cart", mm: 45 },
+  "NES":                 { kind: "cart", mm: 133, thick: 20 },
+  "Nintendo Entertainment System": { kind: "cart", mm: 133, thick: 20 },
+  "SNES":                { kind: "cart", mm: 137, thick: 19 },
+  "Super Nintendo":      { kind: "cart", mm: 137, thick: 19 },
+  "Nintendo 64":         { kind: "cart", mm: 118, thick: 19 },
+  "Game Boy":            { kind: "cart", mm: 65, thick: 8 },
+  "Game Boy Color":      { kind: "cart", mm: 65, thick: 8 },
+  "Game Boy Advance":    { kind: "cart", mm: 57, thick: 6 },
+  "Nintendo DS":         { kind: "card", mm: 35, thick: 3.8 },
+  "Nintendo 3DS":        { kind: "card", mm: 35, thick: 3.8 },
+  "New Nintendo 3DS":    { kind: "card", mm: 35, thick: 3.8 },
+  "Nintendo Switch":     { kind: "card", mm: 31, thick: 3.4 },
+  "Nintendo Switch 2":   { kind: "card", mm: 31, thick: 3.4 },
+  "Sega Genesis":        { kind: "cart", mm: 105, thick: 16 },
+  "Sega Master System":  { kind: "card", mm: 100, thick: 13 },
+  "Game Gear":           { kind: "cart", mm: 70, thick: 13 },
+  "Virtual Boy":         { kind: "cart", mm: 100, thick: 20 },
+  "Nintendo Virtual Boy":{ kind: "cart", mm: 100, thick: 20 },
+  "Atari 2600":          { kind: "cart", mm: 100, thick: 20 },
+  "Neo-Geo":             { kind: "cart", mm: 145, thick: 26 },
+  "TurboGrafx-16":       { kind: "card", mm: 78, thick: 2.8 },
+  "WonderSwan":          { kind: "cart", mm: 45, thick: 8 },
 
   // Optical. A CD is 120mm and everyone knows what one looks like, which is what makes the
   // GameCube's 80mm mini-disc worth getting right. `size` and `tint` are the fallback disc's
   // own drawing, used only when there is no scan.
-  "PlayStation":         { kind: "disc", mm: 120, size: 150, tint: "#8c8f96" },
-  "PlayStation 2":       { kind: "disc", mm: 120, size: 150, tint: "#2b3a6b" },
-  "PlayStation 3":       { kind: "disc", mm: 120, size: 150, tint: "#7f8286" },
-  "PlayStation 4":       { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
-  "PlayStation 5":       { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
-  "PlayStation Portable":{ kind: "umd",  mm: 65,  size: 108, tint: "#3a3d45" },
-  "PlayStation Vita":    { kind: "card", mm: 28 },
-  "Nintendo GameCube":   { kind: "disc", mm: 80,  size: 112, tint: "#6f42a0", mini: true },
-  "Nintendo Wii":        { kind: "disc", mm: 120, size: 150, tint: "#dfe3e8" },
-  "Nintendo Wii U":      { kind: "disc", mm: 120, size: 150, tint: "#4a86c8" },
-  "Xbox":                { kind: "disc", mm: 120, size: 150, tint: "#2e7d32" },
-  "Xbox 360":            { kind: "disc", mm: 120, size: 150, tint: "#5aa02c" },
-  "Xbox One":            { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
-  "Xbox Series X|S":     { kind: "disc", mm: 120, size: 150, tint: "#2f6fb5" },
-  "Sega Dreamcast":      { kind: "disc", mm: 120, size: 150, tint: "#d94f2b" },
-  "Sega Saturn":         { kind: "disc", mm: 120, size: 150, tint: "#6f8296" },
-  "Sega CD":             { kind: "disc", mm: 120, size: 150, tint: "#6f8296" },
-  "3DO":                 { kind: "disc", mm: 120, size: 150, tint: "#6f8296" },
-  "PC":                  { kind: "disc", mm: 120, size: 150, tint: "#8c8f96" },
+  "PlayStation":         { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#8c8f96" },
+  "PlayStation 2":       { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#2b3a6b" },
+  "PlayStation 3":       { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#7f8286" },
+  "PlayStation 4":       { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#2f6fb5" },
+  "PlayStation 5":       { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#2f6fb5" },
+  "PlayStation Portable":{ kind: "umd",  mm: 65, thick: 4.4,  size: 108, tint: "#3a3d45" },
+  "PlayStation Vita":    { kind: "card", mm: 28, thick: 2.4 },
+  "Nintendo GameCube":   { kind: "disc", mm: 80, thick: 1.2,  size: 112, tint: "#6f42a0", mini: true },
+  "Nintendo Wii":        { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#dfe3e8" },
+  "Nintendo Wii U":      { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#4a86c8" },
+  "Xbox":                { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#2e7d32" },
+  "Xbox 360":            { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#5aa02c" },
+  "Xbox One":            { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#2f6fb5" },
+  "Xbox Series X|S":     { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#2f6fb5" },
+  "Sega Dreamcast":      { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#d94f2b" },
+  "Sega Saturn":         { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#6f8296" },
+  "Sega CD":             { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#6f8296" },
+  "3DO":                 { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#6f8296" },
+  "PC":                  { kind: "disc", mm: 120, thick: 1.2, size: 150, tint: "#8c8f96" },
 };
 
 const mediaFor = (platform) => MEDIA[(platform || "").trim()] || null;
@@ -141,9 +141,36 @@ function mediaArt(g) {
 
    Depth is deliberately small. These are 2-3mm cards and 15mm cartridges seen from slightly off
    axis; a slab reads as a brick, and the point is only that the object stops being a sticker. */
-const OBJ_SLICES = 8;
 const OBJ_DEPTH = { cart: 13, card: 7, disc: 4, umd: 9 };   // px at the panel's scale
 const OBJ_BASE = 260;                // the element's own size inside a case; see objHtml
+
+/* IN A CASE, THE THICKNESS IS THE REAL ONE — and it has to be computed, because a fixed pixel
+   depth cannot be right for both a 31mm Switch card and a 145mm Neo-Geo cartridge. Two things
+   were wrong with `--depth: OBJ_DEPTH[kind]`:
+
+   - It is one number per KIND, while the object's drawn size varies by a factor of four across
+     the platforms of that kind. A game card came out ~40px wide wearing 7px of edge (a 1:6 slab;
+     a real DS card is 1:9) and an SNES cartridge ~160px wide wearing 13px (1:12, where the real
+     one is 1:7). Every medium was thick or thin by a different amount.
+   - `--seat` scales the object with `scale()`, which is `scale3d(s, s, 1)` — X and Y shrink and Z
+     DOES NOT. So the depth wasn't even scaled with the thing it belongs to.
+
+   `thick` is the medium's real thickness in millimetres, and this puts it on screen at the same
+   mm->px scale the box is drawn at, shrunk by however much the seat had to shrink to fit (see
+   mediaSizing's cap). Algebraically it is the depth the object would have if `scale3d(s,s,s)`
+   scaled Z too — done in JS instead, so the panel keeps its own tuned depth. */
+const objDepth = (m, seat) => ((m.thick || 6) / (m.mm || 100)) * OBJ_BASE * seat;
+
+/* HOW MANY SLICES IT TAKES TO STOP LOOKING LIKE SLICES. The side wall is N parallel planes, so
+   the silhouette is really a staircase whose step is (spacing x sin(viewing angle)) — and a case
+   on the shelf is turned about 24deg, which is a lot of sine. At a flat 8 slices a 13px cartridge
+   stepped ~0.65px per slice: on a 2x screen that is a visible 1.3px band at every edge, and the
+   gaps between the planes let the inside of the case show THROUGH the cartridge. Spacing is what
+   matters, not count, so the count follows the depth — sub-half-pixel steps read as one solid
+   wall. Bounded at both ends: never fewer than 8 (a disc is thin but still wants a rim) and never
+   more than 40 (each slice is a masked layer, and this is not where the frame budget should go). */
+const OBJ_STEP = 0.45;
+const objSlices = (depth) => Math.max(8, Math.min(40, Math.ceil(depth / OBJ_STEP)));
 
 /* How big a medium is INSIDE a case, as a scale factor of OBJ_BASE.
 
@@ -174,17 +201,27 @@ function mediaSizing(m, kase) {
 function mediaResize(root, platform, kase) {
   const m = mediaFor(platform), obj = root && root.querySelector(".md-obj");
   if (!m || !obj) return;
-  obj.style.setProperty("--seat", mediaSizing(m, kase).seat.toFixed(3));
+  const seat = mediaSizing(m, kase).seat;
+  obj.style.setProperty("--seat", seat.toFixed(3));
+  // The thickness is a function of the seat, so re-cutting the box re-cuts the edge with it.
+  // (The slice COUNT can't be revised here without rebuilding them — it's chosen in objHtml
+  // from the pre-fit seat, and the fit only ever nudges it.)
+  obj.style.setProperty("--cdepth", objDepth(m, seat).toFixed(2) + "px");
 }
 
 function objHtml(m, src, kase) {
   const kind = m.kind === "umd" ? "umd" : m.kind === "disc" ? "disc" : "cart";
-  const slices = Array.from({ length: OBJ_SLICES }, (_, i) =>
+  const seat = mediaSizing(m, kase).seat;
+  const cdepth = objDepth(m, seat);
+  // One count for both places the object is drawn, taken from whichever is thicker there — the
+  // panel keeps OBJ_DEPTH (it is tuned, and it is the view that looks right), the case gets the
+  // real millimetres.
+  const n = objSlices(Math.max(OBJ_DEPTH[kind], cdepth));
+  const slices = Array.from({ length: n }, (_, i) =>
     `<i class="md-slice" style="--i:${i + 1}"></i>`).join("");
-  const seat = mediaSizing(m, kase).seat.toFixed(3);
   // The scan is an <img>, not a background: it decides the object's size (object-fit: contain),
   // and the slices' masks are contain-fitted to the same box, so every layer lines up exactly.
-  return `<div class="md-obj ${kind}" style="--scan:url('${escapeHtml(src)}');--depth:${OBJ_DEPTH[kind]}px;--n:${OBJ_SLICES};--base:${OBJ_BASE}px;--seat:${seat}">
+  return `<div class="md-obj ${kind}" style="--scan:url('${escapeHtml(src)}');--depth:${OBJ_DEPTH[kind]}px;--cdepth:${cdepth.toFixed(2)}px;--n:${n};--base:${OBJ_BASE}px;--seat:${seat.toFixed(3)}">
     <i class="md-plate"></i>${slices}
     <img class="md-face" src="${escapeHtml(src)}" alt="" draggable="false">
   </div>`;
