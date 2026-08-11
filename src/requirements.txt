@@ -17,7 +17,7 @@ Pillow==11.0.0
 # Manual-cover rendering: rasterise page 1 of a PDF booklet for the shelf's box
 # lid. Ships manylinux wheels with MuPDF bundled, so the "no build toolchain"
 # image promise holds.
-PyMuPDF==1.25.5
+PyMuPDF==1.28.2
 # Single-admin login: password hashing (salt embedded in the hash). manylinux
 # wheels, so the "no build toolchain" image promise holds.
 bcrypt==4.2.1
