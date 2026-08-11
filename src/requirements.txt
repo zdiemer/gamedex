@@ -20,4 +20,4 @@ Pillow==11.0.0
 PyMuPDF==1.25.5
 # Single-admin login: password hashing (salt embedded in the hash). manylinux
 # wheels, so the "no build toolchain" image promise holds.
-bcrypt==4.2.1
+bcrypt==4.3.0
