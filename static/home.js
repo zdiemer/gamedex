@@ -166,6 +166,26 @@ function onThisDay() {
 }
 
 // The three challenges you're closest to finishing.
+/* Painted one frame LATE, on purpose. computeChallenge runs every challenge over the whole
+   collection, and this section — three cards, ~1.6 KB of HTML, below the fold — measured at
+   795ms of renderHome's ~1040ms. That was the single biggest thing standing between a cold
+   load and box art on screen. Home now renders an empty slot for it and fills it after the
+   browser has painted, so nothing above it waits on a number that nobody has scrolled to
+   yet. The handlers are wired here rather than in wireHome for the same reason: the buttons
+   do not exist when wireHome runs. */
+const CHAL_SLOT = `<div id="hChalSlot"></div>`;
+
+function fillChallengeSpotlight() {
+  const slot = document.getElementById("hChalSlot");
+  if (!slot) return;
+  slot.innerHTML = challengeSpotlight();
+  const all = slot.querySelector("#hChalAll");
+  if (all) all.onclick = (e) => { e.stopPropagation(); goTab("challenges"); };
+  slot.querySelectorAll(".h-chal[data-chal]").forEach((el) => {
+    el.onclick = () => goTab("challenges", () => { chState.open = el.dataset.chal; });
+  });
+}
+
 function challengeSpotlight() {
   if (typeof CHALLENGES === "undefined") return "";
   const live = CHALLENGES.map(computeChallenge).filter((r) => r.total && r.remaining.size);
@@ -312,11 +332,22 @@ function renderHome() {
     shelf("hOrder", `${icon("i-package", 16)} On order`, orders.map((r) => homeCard(r, "onOrder",
       [r.orderedDate ? `Ordered ${escapeHtml(fmtDate(r.orderedDate))}` : "", r.vendor ? escapeHtml(String(r.vendor)) : ""]
         .filter(Boolean).join(" · ")))) +
-    challengeSpotlight();
+    CHAL_SLOT;
 
   wireHome(host, playing);
+  // Two frames out: one to paint what we just wrote, one to run the expensive part.
+  requestAnimationFrame(() => requestAnimationFrame(fillChallengeSpotlight));
   if (typeof wireDailyHome === "function") wireDailyHome();
   if (typeof dailyHomeInit === "function") dailyHomeInit();
+
+  /* Ask for THESE games' covers now, instead of waiting for the whole-library map.
+     maybeEnrich was wired into the grid (table.js) and search, but never here — so the
+     landing page, the one page everybody sees first, was the only listing with no
+     page-scoped fetch at all. Measured: every cover on Home appeared at once at t=8.3s,
+     when /api/enrichment/all finally landed behind a dozen other calls; the batch POST
+     answers ~150 keys in 39ms. cardRows already holds exactly what's on screen — the
+     shelves, the poster grid AND the hero — so there is nothing to re-derive. */
+  maybeEnrich([...homeState.cardRows.values()]);
 }
 
 // Click handlers for the hero's own buttons (cover/open/dots).

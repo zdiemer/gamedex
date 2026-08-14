@@ -48,6 +48,30 @@ _FACET_LIGHT = ("cover", "coverUrl", "genres", "themes", "gameModes", "userRatin
                 "developers", "publishers", "franchises", "criticRating", "criticCount",
                 "igdbId", "source", "stores", "url", "confidence", "name")
 
+# Fields the WHOLE-LIBRARY map doesn't ship. get_light (per key) still returns every one of
+# them, so anything on screen has them a POST away — which is the whole point: these are read
+# by surfaces that show a handful of games at a time, never by a facet, a sort, a stat or the
+# model, so shipping 14,955 copies of them bought nothing.
+#
+# Two kinds, both established by grepping every reader in static/ rather than by intuition:
+#
+#   * Nine with NO reader in the codebase at all — vgcUrl, ostName/ostType/ostTracks,
+#     wrSeconds, coopUrl, manualName, gtdbUrl, gtdbId. Several have comments upstairs
+#     explaining the UI they were added for; that UI reads a different field (the ♫ marker
+#     goes off ostUrl, not ostName). Left in the per-key tier rather than deleted outright,
+#     so restoring one is a line in this set, not an archaeology exercise.
+#   * The Shelf's booklet/disc fields (manualUrl, manualEmbed, manualPages, discArt) and
+#     `stores`. `stores` alone is 1.9 MB of the 19.6 — the biggest single field in the map —
+#     and its only reader is launchTarget(), which runs on the drawer, the hero and the
+#     Pick card: three surfaces showing one game each.
+#
+# `owners` looks like it belongs here and does NOT: /api/hilo/daily reads it off this very
+# map, server-side (app.py). It stays.
+_BULK_DROP = frozenset({
+    "vgcUrl", "ostName", "ostType", "ostTracks", "wrSeconds", "coopUrl", "manualName",
+    "gtdbUrl", "gtdbId", "manualUrl", "manualEmbed", "manualPages", "discArt", "stores",
+})
+
 # Longest the whole-library light map (get_all_light) is served stale while a backfill is
 # actively writing. Steady state (no writes) serves it forever off total_changes; this just
 # caps how often the ~3s rebuild runs when total_changes is ticking every match.
@@ -773,6 +797,27 @@ class Enricher:
         with self._db_lock:
             return self._db.total_changes
 
+    # The cover chain and nothing else — the exact fields coverSrc() walks, in the order it
+    # walks them (static/enrich.js). Everything else in the light map is for facets, sorts,
+    # stats and the model, none of which any pixel is waiting on.
+    _COVER_LIGHT = ("cover", "coverUrl", "vgcCover", "adbCover", "gtdbCover",
+                    "thumbyCover", "vnCover")
+
+    def get_all_covers(self):
+        """What the grid needs to paint, and only that: ~0.33 MB gzipped against the light
+        map's 2.9. Small enough to fetch from the document head and have in hand before the
+        sheet itself lands, which is the difference between covers at 3.5s and covers at
+        under 1s. Projected off get_all_light so it shares that cache rather than opening a
+        second expensive scan of the same tables. Games with no art at all are omitted, not
+        sent empty — `k in ENRICH` is how the UI decides to stop shimmering a placeholder,
+        and a cover-less entry here would stop the shimmer with nothing to show for it."""
+        out = {}
+        for mk, d in self.get_all_light().items():
+            c = {f: d[f] for f in self._COVER_LIGHT if d.get(f)}
+            if c:
+                out[mk] = c
+        return out
+
     def get_all_light(self):
         now = time.monotonic()
         # Cache check + a snapshot of the raw rows, both under the lock (the fetch is fast);
@@ -792,11 +837,12 @@ class Enricher:
                 (extract, self._db.execute(
                     f"SELECT match_key,data FROM {src} WHERE status='matched'").fetchall())
                 for src, extract in _SECONDARY_LIGHT.items() if src in self._secondary]
+        bulk_facets = [f for f in _FACET_LIGHT if f not in _BULK_DROP]
         out = {}
         for mk, data, manual in enr_rows:
             if data:
                 d = json.loads(data)
-                out[mk] = {f: d.get(f) for f in _FACET_LIGHT}
+                out[mk] = {f: d.get(f) for f in bulk_facets}
                 vid = _light_video(d)
                 out[mk]["video"] = vid
                 out[mk]["rel"] = _light_relations(d)
@@ -809,7 +855,9 @@ class Enricher:
         for extract, rows in sec_rows:
             for mk, data in rows:
                 if data:
-                    out.setdefault(mk, {}).update(extract(json.loads(data)))
+                    out.setdefault(mk, {}).update(
+                        {k: v for k, v in extract(json.loads(data)).items()
+                         if k not in _BULK_DROP})
         self._all_light_ver = ver
         self._all_light_ts = now
         self._all_light_cache = out

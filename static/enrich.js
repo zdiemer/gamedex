@@ -65,6 +65,14 @@ let ENRICH_STATS = null;           // last /api/enrichment stats — Health's ma
    server has matched SO FAR. That is the honest moment to filter: it's the best
    answer available, and each later poll refines it (see loadAllEnrichment). */
 let ENRICH_READY = false;          // the bulk map has landed once — or failed to
+/* Resolves when the FIRST page-scoped batch lands, and boot waits on it before starting the
+   whole-library map (app.js). Measured, and not what priority:"low" suggested: the batch POST
+   went out at t=1.9s and its 18 KB answer did not come back until t=7.1s — the same
+   millisecond the 2.9 MB map finished. A fetch priority is a hint about which request to
+   START; it does not stop a multi-MB response already in flight from starving a small one
+   behind it. So the covers on the page you are looking at arrived no sooner than if nobody
+   had asked for them separately at all. Ask small-then-big instead of hinting. */
+let ENRICH_BATCH_DONE = null;
 let ENRICH_WAITING = false;        // ...and a render is holding out for it (see renderAll)
 let ENRICH_SOURCES = [];           // enabled secondary sources (hltb, metacritic, gameye)
 const ENRICH = {};                 // matchKey -> light enrichment
@@ -124,11 +132,32 @@ function coverCell(row) {
   return `<span class="cover-ph${coverPending(row) ? " skel" : ""}"></span>`;
 }
 
+/* The cover-only map from /api/covers, merged in before the first render (app.js). Entries
+   are stamped `_cov` so the two readers that care can tell "I have this game's art" from "I
+   have this game's data": maybeEnrich must still fetch it — the drawer and the Pick card
+   want stores, hltb, the lot — and coverPending must stop shimmering, because the art is
+   here and that is the whole question a placeholder is asking. */
+async function applyCoverMap() {
+  const pre = window.__boot && window.__boot.covers;
+  if (window.__boot) window.__boot.covers = null;
+  try {
+    const res = await (pre || fetch("api/covers"));
+    if (!res || !res.ok) return;
+    const j = await res.json();
+    if (j.enabled === false) return;
+    for (const [k, v] of Object.entries(j.items || {})) {
+      ENRICH[k] = Object.assign(ENRICH[k] || {}, v, { _cov: 1 });
+    }
+    if (j.noMatch) NO_MATCH = new Set(j.noMatch);
+    _enrichEpoch++;
+  } catch (_) { /* a slower page, not a broken one */ }
+}
+
 // Queue enrichment for any on-screen rows we haven't asked about yet.
 function maybeEnrich(rows) {
   if (!ENRICH_ENABLED) return;
   const need = [...new Set(rows.map((r) => r._k).filter(Boolean))]
-    .filter((k) => !(k in ENRICH) && !ENRICH_REQUESTED.has(k));
+    .filter((k) => (!(k in ENRICH) || ENRICH[k]._cov) && !ENRICH_REQUESTED.has(k));
   if (need.length) postEnrich(need);
 }
 
@@ -148,9 +177,25 @@ async function postEnrich(keys) {
     // loadUploads, and if this page-scoped response lands after that it would wipe it — the
     // manual box art flashing in then vanishing. Object.assign keeps client-only fields
     // (uploadCover, and any wl:/rec: seed) while taking the server's. Matches loadAllEnrichment.
-    for (const [k, v] of Object.entries(j.items || {})) { ENRICH[k] = Object.assign(ENRICH[k] || {}, v); changed = true; }
+    for (const [k, v] of Object.entries(j.items || {})) {
+      ENRICH[k] = Object.assign(ENRICH[k] || {}, v);
+      delete ENRICH[k]._cov;                              // fully hydrated now, not just art
+      changed = true;
+    }
     updateEnrichStatus(j.stats);
-    if (changed) { _enrichEpoch++; resetSearchCache(); patchEnrichedCells(); }   // in-place: no flicker
+    // In-place: no flicker. patchEnrichedCells only knows #grid/#tbody, so Home — which
+    // paints its own cards and has its own patcher — needs saying explicitly, or the
+    // covers this batch just fetched sit in the map with nothing to draw them.
+    if (changed) {
+      _enrichEpoch++;
+      resetSearchCache();
+      patchEnrichedCells();
+      if (activeTab === "home" && typeof patchHomeCovers === "function") patchHomeCovers();
+      // Pick has no in-place patcher and one card to draw, so a re-render is the cheap
+      // option. It only fires for the row renderPicker itself just asked about.
+      else if (activeTab === "pick" && typeof renderPicker === "function") renderPicker();
+    }
+    if (ENRICH_BATCH_DONE) { const done = ENRICH_BATCH_DONE; ENRICH_BATCH_DONE = null; done(); }
     if (j.pending && j.pending.length) {                    // still resolving — poll
       clearTimeout(enrichTimer);
       enrichTimer = setTimeout(() => postEnrich(j.pending), 2500);

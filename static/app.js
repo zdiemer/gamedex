@@ -95,12 +95,36 @@ function renderAll() {
   // A filter that reads enrichment cannot be answered before enrichment is here.
   ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
   if (ENRICH_WAITING) { renderEnrichWait(); return; }
-  renderFacets();
+  // The LIST first, the sidebar a frame later. Profiled: the first render of the Games tab
+  // spent 615ms of its 1453ms in renderFacets — 42 columns recounted across 14,842 rows —
+  // while renderTable, the thing you actually came to look at, takes 69ms. The counts are
+  // memoised now (filters.js) so this is a first-visit cost, but it was 615ms spent ahead of
+  // the content every time the collection or the filters moved. Nothing in renderTable reads
+  // what renderFacets writes, so the order was never load-bearing.
+  //
   // Completed shows every finished game individually — each episode of a series
   // stands on its own rather than collapsing into one collection card. (The
   // collection is still reachable: a member's drawer links up to it.)
   currentFiltered = filterRows(null);
   renderTable(currentFiltered);
+  scheduleFacets();
+}
+
+/* One pending sidebar build at a time. render() can fire several times in a burst (a tab
+   switch that also restores a filter, an enrichment poll landing mid-paint); without this
+   each one would queue its own 600ms recount and they would run back to back. */
+let _facetFrame = null;
+function scheduleFacets() {
+  if (_facetFrame !== null) cancelAnimationFrame(_facetFrame);
+  _facetFrame = requestAnimationFrame(() => {
+    _facetFrame = requestAnimationFrame(() => {
+      _facetFrame = null;
+      // The tab can change between scheduling this and running it — switch to Home or Stats
+      // in that window and renderFacets would read tabState[activeTab].combine off undefined.
+      // A sidebar for a tab that no longer has one is not wanted anyway.
+      if (tabState[activeTab]) renderFacets();
+    });
+  });
 }
 
 /* ---- filters that arrive before their data ------------------------------
@@ -489,10 +513,20 @@ function resetDerived() {
 // ---- boot ---------------------------------------------------------------
 async function load() {
   showSkeletons();
+  // Both of these were already asked for in the document head (index.html), before a single
+  // shell script had run. Take those; only fall back to a fetch here if the block is absent
+  // (a cached older index.html, or the page served some other way).
+  const first = (window.__boot && window.__boot.data) || fetch("api/data", { cache: "no-cache" });
+  if (window.__boot) window.__boot.data = null;
+  Promise.resolve(first).catch(() => {});   // awaited below; this only silences the warning
   await loadMe();               // admin state first, so nothing renders an admin-only control to the public
   let payload = null;
   for (let attempt = 0; attempt < 40; attempt++) {
-    const res = await fetch("api/data", { cache: "no-store" });
+    // "no-cache", not "no-store": revalidate every time (the sheet can change under us),
+    // but let the ETag turn an unchanged sheet into a 304 and reuse the stored body
+    // instead of re-downloading 1.2 MB. "no-store" forbade keeping a copy at all.
+    // The head's fetch resolves to null if it failed outright; fall back to a fresh one.
+    const res = (attempt === 0 ? await first : null) || await fetch("api/data", { cache: "no-cache" });
     if (res.ok) { payload = await res.json(); break; }
     if (res.status === 503) { $("#count").textContent = "Loading your library…"; await sleep(1500); continue; }
     throw new Error(`api/data returned ${res.status}`);
@@ -506,8 +540,20 @@ async function load() {
   ENRICH_SOURCES = en && en.sources ? Object.keys(en.sources) : [];
   if (ENRICH_ENABLED) updateEnrichStatus(en);
   setFreshness();
+  // Covers BEFORE the first render, not after it. The head asked for them at ~60ms and they
+  // are a fraction of the sheet's size, so by now this is almost always already resolved —
+  // awaiting it costs nothing and buys a first paint with real box art on it instead of a
+  // grid of placeholders that fill in seconds later.
+  await applyCoverMap();
   restoreFromURL();             // restore tab/filters/sort/view + any deep-linked game drawer
-  loadAllEnrichment();          // global covers + IGDB facets (polls during backfill)
+  /* The whole-library map (global covers + IGDB facets, polls during backfill) — started
+     AFTER the page-scoped batch that restoreFromURL just fired has answered, or 2.5s,
+     whichever comes first. It is a few MB and nothing on screen needs it; letting it start
+     first meant its download sat in front of the 18 KB request for the covers actually
+     being looked at, and both finished together at t≈7s. The timeout is the escape hatch
+     for the pages that never issue a batch at all. */
+  new Promise((resolve) => { ENRICH_BATCH_DONE = resolve; setTimeout(resolve, 6000); })
+    .then(loadAllEnrichment);
   loadRomm();                   // which games we can actually play in the browser
   // Hours, achievements, ownership and the platform wishlist are the account owner's
   // own data — the server now returns an empty shell to the public, so only fetch them

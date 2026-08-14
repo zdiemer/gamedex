@@ -265,7 +265,11 @@ function chTopDevelopers() {
 }
 // Called when the sheet reloads (app.js, panels.js): every cache here is derived from
 // rows that just changed underneath it.
-const chReset = () => { _chTopDevs = null; _chPct = null; _chHist = null; };
+const chReset = () => {
+  _chTopDevs = null; _chPct = null; _chHist = null;
+  _chComputed = new WeakMap();      // the computed results ride on those caches
+  _chGroupCols.clear();             // its columns close over field objects these caches rebuild
+};
 
 const CH_FRANCHISE_CONTENDERS = new Set([
   "Final Fantasy", "Final Fantasy Tactics", "Chocobo", "Mana", "SaGa", "Dragon Quest",
@@ -506,7 +510,23 @@ function chReplay(c, groupsOf, universeKeys, poolKeys) {
   return { paths, cur };
 }
 
+/* 17 challenges × ~24ms each = ~400ms, paid in full on every visit to the tab and again by
+   Home's spotlight, for an answer that only moves when the collection or the enrichment
+   does. Keyed on the challenge object and the enrich epoch; chReset (which runs on every
+   data reload) drops it, and so does a custom challenge being edited. */
+let _chComputed = new WeakMap();
+let _chComputedEpoch = -1;
+
 function computeChallenge(c) {
+  if (_chComputedEpoch !== _enrichEpoch) { _chComputedEpoch = _enrichEpoch; _chComputed = new WeakMap(); }
+  const hit = _chComputed.get(c);
+  if (hit) return hit;
+  const out = _computeChallenge(c);
+  _chComputed.set(c, out);
+  return out;
+}
+
+function _computeChallenge(c) {
   const rows = chRows();
   const domain = c.domain || (() => true);
   const clear = c.clear || domain;

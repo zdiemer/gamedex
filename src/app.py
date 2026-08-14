@@ -1172,7 +1172,10 @@ def api_shelf_original(key: str):
                     headers={"Cache-Control": "no-store"})
 
 
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# Level 6, not the default 9: 2-3x faster to compress for ~1-2% more bytes, which is the
+# right trade for bodies built per request. The two hand-rolled byte caches above already
+# chose 6 for the same reason.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 @app.get("/api/health")
@@ -1186,22 +1189,64 @@ def health():
     )
 
 
+# The sheet, cached ALREADY GZIPPED — the same medicine /api/enrichment/all got, for the
+# same disease. Returning the dict made FastAPI run jsonable_encoder over ~16.7k rows,
+# json.dumps them, then gzip 8 MB, on EVERY page load: measured at a flat ~1.05s of server
+# CPU per request against the live pod, for a body that is a pure function of the sheet.
+#
+# Keyed like the neighbour: an exact version when nothing is moving, plus a TTL so a live
+# backfill (which ticks change_count on every match) re-serialises at most once every 20s
+# instead of once per request. The volatile part is only meta.enrichment/meta.catalogue —
+# the stats — and the client has a live source for those in /api/enrichment/stats, so
+# serving them up to 20s stale here costs nothing.
+_data_cache: dict = {"ver": None, "ts": 0.0, "body": None, "etag": None}
+_DATA_TTL = 20.0
+
+
 @app.get("/api/data")
-def data():
+def data(request: Request):
     snap = store.snapshot()
     if not store.ready:
         return JSONResponse(
             status_code=503,
             content={"status": "loading", "meta": snap["meta"], "sheets": {}},
         )
-    meta = dict(snap["meta"])
-    meta["enrichment"] = enricher.stats() if enricher else {"enabled": False}
-    # The catalogue's generation rides along here so the client can ask for
-    # /api/catalogue?g=<generation> — a URL it can cache for a day (see api_catalogue).
-    # It cannot learn the generation from the catalogue endpoint itself without
-    # defeating the point of the cache key.
-    meta["catalogue"] = catalogue.stats() if catalogue else {"enabled": False}
-    return {"meta": meta, "sheets": snap["data"]}
+    ver = (
+        snap["meta"].get("sourceHash"),
+        enricher.change_count() if enricher else 0,
+        catalogue.generation if catalogue else None,
+    )
+    now = time.monotonic()
+    c = _data_cache
+    if c["body"] is not None and (c["ver"] == ver or now - c["ts"] < _DATA_TTL):
+        body, etag = c["body"], c["etag"]
+    else:
+        meta = dict(snap["meta"])
+        meta["enrichment"] = enricher.stats() if enricher else {"enabled": False}
+        # The catalogue's generation rides along here so the client can ask for
+        # /api/catalogue?g=<generation> — a URL it can cache for a day (see api_catalogue).
+        # It cannot learn the generation from the catalogue endpoint itself without
+        # defeating the point of the cache key.
+        meta["catalogue"] = catalogue.stats() if catalogue else {"enabled": False}
+        payload = {"meta": meta, "sheets": snap["data"]}
+        # ensure_ascii/allow_nan match what FastAPI's own JSONResponse did, so the bytes
+        # are the ones this endpoint has always sent (the rows are already plain
+        # str/float/bool/int by the time parse.py is done — jsonable_encoder was a
+        # pass-through here, and `default` is only a safety net for a future type).
+        body = gzip.compress(json.dumps(payload, separators=(",", ":"), ensure_ascii=False,
+                                        allow_nan=False, default=str).encode("utf-8"), 6)
+        etag = '"%s-%s"' % (ver[0] or "0", ver[1])
+        c.update(ver=ver, ts=now, body=body, etag=etag)
+    # A repeat visit re-downloaded all 1.2 MB of this for want of five lines. The sheet
+    # changes when the spreadsheet does — minutes to days apart — so the common case is a
+    # 304 and no body at all.
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+    # Pre-gzipped: declare it so the gzip middleware leaves it alone and the browser inflates
+    # it transparently (every browser sends Accept-Encoding: gzip).
+    return Response(content=body, media_type="application/json",
+                    headers={"Content-Encoding": "gzip", "Content-Length": str(len(body)),
+                             "ETag": etag, "Cache-Control": "no-cache"})
 
 
 class KeyBatch(BaseModel):
@@ -1251,6 +1296,35 @@ def enrichment_all():
     # it transparently (every browser sends Accept-Encoding: gzip).
     return Response(content=body, media_type="application/json",
                     headers={"Content-Encoding": "gzip", "Content-Length": str(len(body))})
+
+
+# Covers alone, pre-gzipped like its big sibling. Fetched from the document head (index.html)
+# rather than from boot code, so it is in flight before the 41 shell scripts have even been
+# parsed and is usually in hand before /api/data finishes. The whole-library map still comes,
+# later and unhurried, for the facets and the model.
+_covers_cache: dict = {"ver": None, "ts": 0.0, "body": None, "etag": None}
+
+
+@app.get("/api/covers")
+def covers(request: Request):
+    if not enricher:
+        return {"enabled": False, "items": {}}
+    now = time.monotonic()
+    ver = enricher.change_count()
+    c = _covers_cache
+    if c["body"] is not None and (c["ver"] == ver or now - c["ts"] < _ENRICH_ALL_TTL):
+        body, etag = c["body"], c["etag"]
+    else:
+        payload = {"enabled": True, "items": enricher.get_all_covers(),
+                   "noMatch": enricher.resolved_no_match()}
+        body = gzip.compress(json.dumps(payload, separators=(",", ":")).encode("utf-8"), 6)
+        etag = '"c-%s"' % ver
+        c.update(ver=ver, ts=now, body=body, etag=etag)
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+    return Response(content=body, media_type="application/json",
+                    headers={"Content-Encoding": "gzip", "Content-Length": str(len(body)),
+                             "ETag": etag, "Cache-Control": "no-cache"})
 
 
 # Full IGDB detail for a bare IGDB id (a wishlisted game we don't own has no

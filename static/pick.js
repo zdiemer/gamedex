@@ -1180,6 +1180,12 @@ function renderPicker() {
       ${icon("i-dice", 16)} ${pickState.picked && pool.includes(pickState.picked) ? "Re-roll" : "Pick for me"}
     </button></div>`;
 
+  // The pick card composes launchHtml, which reads `stores` — a field the whole-library map
+  // no longer ships (see _BULK_DROP in enrich.py), because three surfaces showing one game
+  // each are not worth 1.9 MB on every page load. Ask for this one game's; postEnrich
+  // re-renders the picker when it lands, and the button appears.
+  if (pickState.picked && typeof maybeEnrich === "function") maybeEnrich([pickState.picked]);
+
   // "Custom filter" is a readout of where you've ended up, not a thing you can
   // choose — selecting it should leave the tree you built alone.
   $("#pickPreset").onchange = (e) => {

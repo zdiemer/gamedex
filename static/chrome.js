@@ -568,7 +568,11 @@ function showToast(msg, ico) {
    which the server gates too — this only decides what's shown. */
 async function loadMe() {
   try {
-    const r = await fetch("api/me");
+    // The head already asked (index.html). Take that answer once; any later call — the
+    // login/logout paths re-run this — goes to the network as before.
+    const pre = window.__boot && window.__boot.me;
+    if (pre) window.__boot.me = null;
+    const r = (await pre) || await fetch("api/me");
     if (r.ok) { ME = await r.json(); IS_ADMIN = !!ME.authenticated; }
   } catch (_) { /* offline: stay public */ }
   applyAdminUI();

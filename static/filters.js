@@ -126,6 +126,10 @@ function rowHaystack(row, cols) {
 // sheet-only and immutable) and re-derived when enrichment lands, since ENRICH fills in
 // after the first paint. Cheap: unmatched rows return "" without touching the vocab.
 let _enrichEpoch = 0;
+// Per-column facet counts, keyed on the identity of the row array they were counted from.
+let _facetCounts = new Map();
+let _facetCountEpoch = -1;
+let _facetCountGrouping = null;
 const _genreHay = new WeakMap();
 const EMPTY_HAY = { s: "", words: [] };
 function searchGenreHay(row) {
@@ -284,22 +288,38 @@ function renderFacets() {
   // (no IGDB match) each count as their own group, same as the listing shows them.
   const grouping = typeof combineOn === "function" && combineOn()
     && typeof cachedGameId === "function";
+  /* The counting below is the sidebar's whole cost — ~445ms of the 485ms this function used
+     to take, because it walks every row of every column and, with combine on, builds a
+     gid|value string per item to dedupe on (~565k of them). None of it can change unless the
+     pool a column counts against changes, so key the result on exactly that: the array
+     filterRows(col.key) handed back (identity — filterRows already caches), plus the epoch
+     and the grouping flag. A tab switch, an enrichment poll or a repaint with nothing
+     touched now reuses the maps instead of rebuilding them. */
+  const cacheOk = _facetCountEpoch === _enrichEpoch && _facetCountGrouping === grouping;
+  if (!cacheOk) { _facetCounts = new Map(); _facetCountEpoch = _enrichEpoch; _facetCountGrouping = grouping; }
   for (const col of facetCols()) {
     // Count values across rows filtered by the OTHER facets + search.
     const base = filterRows(col.key);
-    const counts = new Map();
-    const seenGV = grouping ? new Set() : null;
-    let solo = 0;
-    for (const row of base) {
-      const gid = grouping ? (cachedGameId(row) || `r${solo++}`) : null;
-      for (const it of rowFacetItems(row, col)) {
-        if (grouping) {
-          const gv = gid + "|" + it.key;
-          if (seenGV.has(gv)) continue;
-          seenGV.add(gv);
+    const cached = _facetCounts.get(col.key);
+    let counts;
+    if (cached && cached.base === base) {
+      counts = new Map(cached.counts);      // copied: the selected-values pass below mutates it
+    } else {
+      counts = new Map();
+      const seenGV = grouping ? new Set() : null;
+      let solo = 0;
+      for (const row of base) {
+        const gid = grouping ? (cachedGameId(row) || `r${solo++}`) : null;
+        for (const it of rowFacetItems(row, col)) {
+          if (grouping) {
+            const gv = gid + "|" + it.key;
+            if (seenGV.has(gv)) continue;
+            seenGV.add(gv);
+          }
+          counts.set(it.key, (counts.get(it.key) || 0) + 1);
         }
-        counts.set(it.key, (counts.get(it.key) || 0) + 1);
       }
+      _facetCounts.set(col.key, { base, counts: new Map(counts) });
     }
     const selected = st.facets[col.key] || new Set();
     // Always include selected values even if their current count is 0.

@@ -515,8 +515,26 @@ const gamesFacetCols = () => {
 // every row resolves to exactly Yes or No, giving the sidebar a real "No" option to click.
 const BOOL_NEGATABLE = new Set(["vr", "dlc", "wishlisted"]);
 
-// A row's facet values as [{key, raw}] — scalar → one, arrays → many, bucket → one label.
+/* Per-(row, col) memo, invalidated wholesale when enrichment moves. renderFacets asks this
+   question 42 columns × 14,842 rows = ~565k times per sidebar repaint, and the answer for a
+   given row and column cannot change between epochs — yet it was recomputed from scratch on
+   every keystroke, every facet click and every enrichment poll, at 268ms a time. A WeakMap
+   keyed on the row object means rows that fall out of the collection take their entry with
+   them. Same shape as the _genreHay cache in filters.js. */
+let _rfiEpoch = -1;
+let _rfiMemo = new WeakMap();
+
 function rowFacetItems(row, col) {
+  if (_rfiEpoch !== _enrichEpoch) { _rfiEpoch = _enrichEpoch; _rfiMemo = new WeakMap(); }
+  let byCol = _rfiMemo.get(row);
+  if (byCol === undefined) { byCol = new Map(); _rfiMemo.set(row, byCol); }
+  let hit = byCol.get(col.key);
+  if (hit === undefined) { hit = _rowFacetItems(row, col); byCol.set(col.key, hit); }
+  return hit;
+}
+
+// A row's facet values as [{key, raw}] — scalar → one, arrays → many, bucket → one label.
+function _rowFacetItems(row, col) {
   if (col.kind === "fn") {                    // computed, possibly multi-valued
     return (col.getVals(row) || []).map((x) => ({ key: String(x), raw: x }));
   }

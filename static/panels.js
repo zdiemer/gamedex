@@ -595,6 +595,7 @@ async function loadAllEnrichment() {
     let changed = false;
     for (const [k, v] of Object.entries(j.items || {})) {
       ENRICH[k] = Object.assign(ENRICH[k] || {}, v);
+      delete ENRICH[k]._cov;                              // the cover-only seed is superseded
       changed = true;
     }
     // The rows we looked up and found nothing for. They will never get a cover, so
