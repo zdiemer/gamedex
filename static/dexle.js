@@ -455,7 +455,7 @@ async function loadDexle() {
     if (!dxLoad()) { DX.guesses = []; DX.hints = []; DX.done = false; DX.won = false; DX.answer = null; }
     renderDexle();
     if (activeTab === "daily") renderDaily();
-    if (activeTab === "home") renderHome();
+    if (activeTab === "home") patchHomeDaily();
   } catch (_) {
     DX.failed = true; DX.loaded = true; renderDexle();
   }
@@ -473,7 +473,7 @@ async function dexleMetaInit() {
     DX.date = j.date; DX.mode = j.mode; DX.clue = j.clue; DX.maxGuesses = j.maxGuesses || 6;
     DX.loaded = true;
     dxLoad();
-    if (activeTab === "home") renderHome();
+    if (activeTab === "home") patchHomeDaily();
     if (activeTab === "daily") renderDaily();
   } catch (_) { /* the card just shows a placeholder */ }
 }

@@ -259,6 +259,77 @@ function patchHomeCovers() {
   });
 }
 
+/* Recommendations come from the server (IGDB's similar-games, crossed with your backlog);
+   predictions are computed here from your own ratings. Both rotate daily from their full
+   pool rather than always showing the same top 18.
+
+   Split out of renderHome so RECS landing in its own fetch can rebuild THIS SHELF instead
+   of the whole page — see patchHomeRecs. */
+function recShelfRows() {
+  return dailyStable((RECS || []).map((rec) => {
+    const row = hRows().find((r) => String(r._k || "") === rec.key);
+    return row ? { row, rec } : null;
+  }).filter(Boolean), 18, "recs", (x) => x.rec.key);
+}
+
+function recShelfHtml(recRows) {
+  return shelf("hRecs", `${icon("i-star", 16)} Because you liked…`, recRows.map(({ row, rec }) =>
+    homeCard(row, "games", `<span class="h-why">Like ${escapeHtml(rec.because.slice(0, 2).join(" & "))}</span>`)));
+}
+
+/* The four fetches that land AFTER Home's first paint — /api/recommendations and the three
+   daily puzzles' state — each used to call renderHome(), which rewrites host.innerHTML and
+   so destroys and recreates every <img> on the page. That was invisible while covers didn't
+   arrive until t=8.3s: the rebuilds all happened before there was anything to destroy. Now
+   that the first paint has real box art on it (see applyCoverMap, app.js), those same four
+   rebuilds are four visible wipe-and-reload flashes on a cold load. Each of them changes one
+   section, so each of them now repaints one section. */
+function patchHomeRecs() {
+  const slot = document.getElementById("hRecsSlot");
+  if (!slot || activeTab !== "home") return;
+  const recRows = recShelfRows();
+  slot.innerHTML = recShelfHtml(recRows);
+  // The click registry is keyed sheet + match key (see renderHome); these are new cards.
+  if (homeState.cardRows) for (const { row } of recRows) homeState.cardRows.set("games:" + String(row._k || ""), row);
+  wireHomeCards(slot);
+  // These rows were not on screen at first paint, so nothing has asked for their covers.
+  if (typeof maybeEnrich === "function") maybeEnrich(recRows.map((x) => x.row));
+}
+
+/* One retry for a cover that failed to load, wired once at boot.
+
+   Home paints ~140 covers in a single burst, and a browser under pressure drops some of
+   them (measured in the pod's headless Chromium: 42 of 142 came back ERR_INSUFFICIENT_
+   RESOURCES, all below the fold). That used to heal by accident — the late renderHome()
+   rebuilt every <img>, which is a fresh load attempt for the ones that had failed. Now that
+   nothing rebuilds the page, a dropped image would stay a dropped image for the session, so
+   the retry has to be asked for rather than fallen into.
+
+   Capture phase: `error` from an <img> does not bubble. Once per element, a second later —
+   a burst that exhausted the browser's sockets is over by then, and one retry cannot turn a
+   genuinely dead URL into a loop. */
+let _coverRetryWired = false;
+function wireCoverRetry() {
+  if (_coverRetryWired) return;
+  _coverRetryWired = true;
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.src) return;
+    if (!img.classList.contains("card-cover") && !img.classList.contains("h-hero-cover")) return;
+    if (img.dataset.retried) return;
+    img.dataset.retried = "1";
+    const src = img.src;
+    setTimeout(() => { if (img.isConnected) img.src = src; }, 1000);
+  }, true);
+}
+
+function patchHomeDaily() {
+  const slot = document.getElementById("hDailySlot");
+  if (!slot || activeTab !== "home") return;
+  slot.innerHTML = typeof dailyHomeCardHtml === "function" ? dailyHomeCardHtml() : "";
+  if (typeof wireDailyHome === "function") wireDailyHome();
+}
+
 function renderHome() {
   const host = $("#home");
   if (!DATA) return;
@@ -278,13 +349,7 @@ function renderHome() {
   // anything. What's actually informative is when you ordered it and from whom.
   const orders = grp(hOrders().slice()).sort(byDateDesc("orderedDate")).slice(0, 18);
 
-  // Recommendations come from the server (IGDB's similar-games, crossed with
-  // your backlog); predictions are computed here from your own ratings. Both
-  // rotate daily from their full pool rather than always showing the same top 18.
-  const recRows = dailyStable((RECS || []).map((rec) => {
-    const row = hRows().find((r) => String(r._k || "") === rec.key);
-    return row ? { row, rec } : null;
-  }).filter(Boolean), 18, "recs", (x) => x.rec.key);
+  const recRows = recShelfRows();
 
   // The lead section: a grid of big poster cards right under the hero. Rotate six out of the
   // top ~60 predicted so it's a fresh set daily but always from the strongest picks.
@@ -316,14 +381,13 @@ function renderHome() {
       <div class="h-picks">${loved.map(({ r, p }) =>
         homeCard(r, "games", `<span class="h-why">~${Math.round(p.score * 100)}% predicted</span>`)).join("")}</div>
     </section>` : "") +
-    shelf("hRecs", `${icon("i-star", 16)} Because you liked…`, recRows.map(({ row, rec }) =>
-      homeCard(row, "games", `<span class="h-why">Like ${escapeHtml(rec.because.slice(0, 2).join(" & "))}</span>`))) +
+    `<div id="hRecsSlot">${recShelfHtml(recRows)}</div>` +
     shelf("hPlaying", `${icon("i-play", 16)} Now playing`, playing.map((r) => homeCard(r, "games",
       r.playingProgress != null ? `${Math.round(+r.playingProgress * 100)}% through` : ""))) +
     shelf("hNext", `${icon("i-play", 16)} Up next`, upNext.map((r) => homeCard(r, "games"))) +
     shelf("hHold", `${icon("i-clock", 16)} On hold`, onHold.map((r) => homeCard(r, "games",
       r.dateStarted ? `Started ${escapeHtml(fmtDate(r.dateStarted))}` : ""))) +
-    (typeof dailyHomeCardHtml === "function" ? dailyHomeCardHtml() : "") +
+    `<div id="hDailySlot">${typeof dailyHomeCardHtml === "function" ? dailyHomeCardHtml() : ""}</div>` +
     onThisDay() +
     shelf("hRecent", `${icon("i-trophy", 16)} Recently completed`, recent.map((r) => homeCard(r, "completed",
       r.rating != null ? `You gave it ${Math.round(r.rating * 100)}%` : (r.date ? escapeHtml(fmtDate(r.date)) : "")))) +
@@ -417,9 +481,11 @@ function loadHeroShot(playing) {
     .catch(() => {});
 }
 
-function wireHome(host, playing) {
+/* Card clicks + shelf arrows for a SCOPE — the whole page from wireHome, or one repainted
+   section from patchHomeRecs. Both need exactly this and nothing else. */
+function wireHomeCards(scope) {
   // Any card / hero button opens the game.
-  host.querySelectorAll("[data-hk]").forEach((el) => {
+  scope.querySelectorAll("[data-hk]").forEach((el) => {
     const k = el.dataset.hk, sheetKey = el.dataset.hs;
     const src = sheetKey === "completed" ? hCompleted() : sheetKey === "onOrder" ? hOrders() : hRows();
     // Prefer the row the shelf actually rendered (possibly a group row) over a
@@ -431,12 +497,17 @@ function wireHome(host, playing) {
     // leaving it out meant the feature looked broken to anyone who never left it.
     if (row && el.classList.contains("card")) wirePreviewFor(el, row);
   });
-  host.querySelectorAll(".h-arrow").forEach((el) => {
+  scope.querySelectorAll(".h-arrow").forEach((el) => {
     el.onclick = () => {
       const shelfEl = document.getElementById(el.dataset.scroll);
       if (shelfEl) shelfEl.scrollBy({ left: +el.dataset.dir * shelfEl.clientWidth * 0.8, behavior: "smooth" });
     };
   });
+}
+
+function wireHome(host, playing) {
+  wireCoverRetry();
+  wireHomeCards(host);
   const pickMore = $("#hPickMore");
   // Land on an already-rolled game, not the empty builder — switchTab paints the picker (which
   // seeds the default backlog filter), then pickGame() rolls one and re-renders with the result.

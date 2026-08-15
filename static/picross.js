@@ -581,7 +581,7 @@ async function picrossHomeInit() {
     if (!j.ok) return;
     PX.date = j.date; PX.w = j.w; PX.h = j.h; PX.rows = j.rows; PX.cols = j.cols;
     if (!pxLoad()) PX.cells = new Array(PX.w * PX.h).fill(0);
-    if (activeTab === "home") renderHome();          // repaint with the real state
+    if (activeTab === "home") patchHomeDaily();          // repaint with the real state
   } catch (_) { /* the card just shows an empty grid */ }
 }
 

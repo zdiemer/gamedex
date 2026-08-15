@@ -150,7 +150,9 @@ async function loadRecs() {
     const res = await fetch("api/recommendations");
     const j = await res.json();
     RECS = j.items || [];
-    if (activeTab === "home") renderHome();
+    // The "Because you liked…" shelf and nothing else — a full renderHome() here rebuilt
+    // every <img> on the page, which now means wiping the covers that already painted.
+    if (activeTab === "home") patchHomeRecs();
   } catch (_) { RECS = []; }
 }
 

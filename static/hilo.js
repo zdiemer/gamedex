@@ -339,7 +339,7 @@ async function loadHilo() {
     hlLoad();                    // a half-run day resumes where it stood
     renderHilo();
     if (activeTab === "daily") renderDaily();
-    if (activeTab === "home") renderHome();
+    if (activeTab === "home") patchHomeDaily();
   } catch (_) {
     HL.failed = true; HL.loaded = true; renderHilo();
   }
@@ -355,7 +355,7 @@ async function hiloMetaInit() {
     if (!j.ok) { HL.failed = true; HL.loaded = true; return; }
     hlAdopt(j);
     hlLoad();
-    if (activeTab === "home") renderHome();
+    if (activeTab === "home") patchHomeDaily();
     if (activeTab === "daily") renderDaily();
   } catch (_) { /* the card just shows a placeholder */ }
 }
