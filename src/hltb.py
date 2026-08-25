@@ -1,9 +1,13 @@
 """HowLongToBeat client.
 
-HLTB guards search behind a per-session anti-bot handshake: GET /api/bleed/init
-returns {token, hpKey, hpVal}; the search POST to /api/bleed must echo them as
-`x-auth-token` / `x-hp-key` / `x-hp-val` headers AND embed a honeypot body field
-`{[hpKey]: hpVal}`. The token is reused across searches and refreshed on a 403.
+HLTB guards search behind a per-session anti-bot handshake: GET
+/api/search/site/init returns {token, hpKey, hpVal}; the search POST to
+/api/search/site must echo them as `x-auth-token` / `x-hp-key` / `x-hp-val`
+headers AND embed a honeypot body field `{[hpKey]: hpVal}`. The token is
+reused across searches and refreshed on a 403. The route rotates every so
+often (/api/search, /api/seek, /api/bleed, now /api/search/site) — when
+every lookup starts 404ing, pull the site's _next chunks and grep for
+`api/`; the shape has outlived every rename.
 Rate limited to 1/s. Matching reuses the ported MatchValidator.
 """
 
@@ -50,7 +54,7 @@ class HltbClient:
     def _init_session(self):
         with self._lock:
             self._limiter.wait()
-            r = requests.get(f"{_BASE}/api/bleed/init?t={int(time.time() * 1000)}",
+            r = requests.get(f"{_BASE}/api/search/site/init?t={int(time.time() * 1000)}",
                              headers=self._base_headers(), timeout=30)
             r.raise_for_status()
             j = r.json()
@@ -80,7 +84,7 @@ class HltbClient:
         headers = {**self._base_headers(), "Content-Type": "application/json",
                    "x-auth-token": s["token"], "x-hp-key": s["hpKey"], "x-hp-val": s["hpVal"]}
         self._limiter.wait()
-        resp = requests.post(f"{_BASE}/api/bleed", data=json.dumps(body), headers=headers, timeout=30)
+        resp = requests.post(f"{_BASE}/api/search/site", data=json.dumps(body), headers=headers, timeout=30)
         if resp.status_code == 403 and retry:   # token expired — refresh once
             self._init_session()
             return self._do_search(title, retry=False)
