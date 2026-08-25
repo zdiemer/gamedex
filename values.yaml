@@ -1,7 +1,7 @@
 image:
-  # Built + pushed to GHCR by build.sh; the package is public so every node
+  # Built + pushed to the in-cluster registry by build.sh, so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
-  repository: ghcr.io/zdiemer/gamedex
+  repository: registry.zachd.duckdns.org/zdiemer/gamedex
   tag: "1.58.132"
   pullPolicy: IfNotPresent
 

@@ -309,15 +309,14 @@ kubectl create namespace games                   # once (shared with romm)
 cp values.local.yaml.example values.local.yaml
 $EDITOR values.local.yaml                        # paste the Dropbox link
 
-docker login ghcr.io -u zdiemer                  # PAT with write:packages
-./build.sh                                       # build + push to ghcr.io/zdiemer/gamedex
-# First push only: set the GHCR package to Public
+docker login registry.zachd.duckdns.org -u zdiemer                  # PAT with write:packages
+./build.sh                                       # build + push to registry.zachd.duckdns.org/zdiemer/gamedex
 #   https://github.com/users/zdiemer/packages/container/gamedex/settings
 ./upgrade.sh                                     # helm upgrade --install + rollout
 ```
 
 The cluster is multi-node with no in-cluster registry, so the image ships via
-**GHCR** (a public package) rather than being side-loaded into each node's
+the **in-cluster registry** (`selfhosted/infra/registry`) rather than being side-loaded into each node's
 containerd — that lets the single replica schedule onto any node and pull
 anonymously.
 
@@ -329,7 +328,7 @@ Dropbox…"). `/api/health` returns `503` until that first load completes.
 
 - Changed **app code / Dockerfile / static assets** → bump `image.tag` in
   `values.yaml` (and `Chart.yaml` `appVersion`), then `./build.sh` (build +
-  push to GHCR) and `./upgrade.sh`. Bumping the tag guarantees every node pulls
+  push to the registry) and `./upgrade.sh`. Bumping the tag guarantees every node pulls
   the new image; reusing a tag can leave nodes on a cached layer.
 - Changed **only chart values** (e.g. the Dropbox link, refresh interval) →
   `./upgrade.sh` alone.
@@ -352,7 +351,7 @@ Dropbox…"). `/api/health` returns `503` until that first load completes.
 | `manualCache.maxMb` | either | `1024` | On-disk cap for the manual cache; oldest-served files evicted past it |
 | `persistence.size` | either | `1Gi` | PVC for the SQLite IGDB cache, shelf cuts, and asset caches (see *Enlarging the volume*) |
 | `ingress.host` | either | `games.zachd.duckdns.org` | Public hostname |
-| `image.tag` | either | `0.2.0` | GHCR image tag `build.sh` pushes |
+| `image.tag` | either | `0.2.0` | registry image tag `build.sh` pushes |
 
 ## Troubleshooting
 

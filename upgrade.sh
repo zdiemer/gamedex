@@ -8,7 +8,7 @@
 #
 # NOTE: if you changed anything under src/, static/, or the Dockerfile, bump the
 # tag (Chart.yaml appVersion + values.yaml image.tag move together) and run
-# ./build.sh first — it pushes to ghcr.io/zdiemer/gamedex. imagePullPolicy is
+# ./build.sh first — it pushes to registry.zachd.duckdns.org/zdiemer/gamedex. imagePullPolicy is
 # IfNotPresent, so reusing a tag will NOT re-pull.
 
 set -euo pipefail
