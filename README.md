@@ -1,3 +1,19 @@
+<div align="center">
+
+<img src="docs/banner.png" alt="gamedex" width="100%">
+
+[![build](https://img.shields.io/github/actions/workflow/status/zdiemer/gamedex/build.yml?style=flat-square&label=build)](https://github.com/zdiemer/gamedex/actions/workflows/build.yml)
+![License](https://img.shields.io/github/license/zdiemer/gamedex?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Vanilla JS](https://img.shields.io/badge/Vanilla%20JS-no%20build-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
+![IGDB](https://img.shields.io/badge/IGDB-metadata-9147FF?style=flat-square&logo=igdb&logoColor=white)
+![k3s](https://img.shields.io/badge/k3s-self--hosted-FFC61C?style=flat-square&logo=k3s&logoColor=black)
+
+**[games.diemer.codes](https://games.diemer.codes)**
+
+</div>
+
 # gamedex
 
 A tiny, unauthenticated webapp that mirrors the **Games Master List** workbook
@@ -24,6 +40,31 @@ This repo is self-contained: the app *and* its Helm chart live here together, an
 `./build.sh` + `./upgrade.sh` deploy it. It runs on the k3s cluster described in
 [zdiemer/selfhosted](https://github.com/zdiemer/selfhosted), which tracks this repo
 as a submodule at `games/gamedex/` pinned to the deployed commit.
+
+## Screenshots
+
+Shot from the live site, which is unauthenticated by design. The order sheet's
+address, order and tracking columns are stripped server-side and never reach
+the browser, so they cannot appear here either.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/shots/home.jpg" alt="The home dashboard"><br>
+<sub><b>Home</b> — continue playing, and what you'd probably love next.</sub></td>
+<td width="50%"><img src="docs/shots/games.jpg" alt="The games grid"><br>
+<sub><b>My Games</b> — the collection as a cover wall, faceted.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/shots/galaxy.jpg" alt="The galaxy view"><br>
+<sub><b>Galaxy</b> — 3,000 stars, 9,313 links, coloured by franchise.</sub></td>
+<td width="50%"><img src="docs/shots/drawer.jpg" alt="The detail drawer"><br>
+<sub><b>Detail</b> — the click-through drawer with IGDB metadata.</sub></td>
+</tr>
+</table>
+
+The shelf, recommendations and phone layouts are in
+[`docs/shots/`](docs/shots/); re-capture with
+[`docs/capture/capture.py`](docs/capture/capture.py).
 
 ## Lineage
 
