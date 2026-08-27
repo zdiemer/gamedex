@@ -26,6 +26,7 @@ back "on the NAS" because its DLC's name matched. Those systems say "not indexed
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import pathlib
@@ -203,6 +204,22 @@ def read_system(folder: str, cache: dict) -> tuple[set, set, dict]:
     return exact, squashed, meta
 
 
+def unwrap(body: bytes) -> bytes:
+    """/api/data answers pre-gzipped, and answers that way to everyone.
+
+    The endpoint caches the compressed bytes precisely so it never serialises the payload
+    twice, so it sets Content-Encoding: gzip whatever the client asked for. Browsers inflate
+    that transparently; urllib asks for identity, is ignored, and hands back bytes that only
+    LOOK like a truncated JSON document — which is a confusing way to find out, and doubly so
+    here, where the caller (upgrade.sh, nas_cron.sh) treats a failure as non-fatal and the
+    app just keeps serving the previous index.
+
+    Sniffed rather than read off Content-Encoding, matching resolve_covers.get: the header is
+    the surprising part, and the magic number is true whether or not anyone declared it.
+    """
+    return gzip.decompress(body) if body[:2] == b"\x1f\x8b" else body
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default=os.environ.get("GAMEDEX_URL", "https://games.zachd.duckdns.org"))
@@ -217,7 +234,7 @@ def main() -> int:
 
     t0 = time.time()
     with urllib.request.urlopen(f"{args.url}/api/data", timeout=120) as r:
-        rows = json.loads(r.read())["sheets"]["games"]["rows"]
+        rows = json.loads(unwrap(r.read()))["sheets"]["games"]["rows"]
 
     have = {p.name for p in ROOT.iterdir() if p.is_dir()}
     by_norm = {norm(f): f for f in have}

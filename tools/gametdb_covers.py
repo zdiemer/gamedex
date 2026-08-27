@@ -27,6 +27,7 @@ Usage:  python3 tools/gametdb_covers.py --api https://games.zachd.duckdns.org
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import pathlib
 import re
@@ -72,7 +73,13 @@ def get(url: str, timeout: int = 60) -> bytes | None:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "gamedex/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read()
+            body = r.read()
+            # The same trap resolve_covers.get documents: gamedex's own /api/data answers
+            # gzipped whatever we asked for, and urllib does not unwrap it. This reads that
+            # endpoint too, so it needs the same unwrapping.
+            if body[:2] == b"\x1f\x8b":
+                body = gzip.decompress(body)
+            return body
     except Exception:
         return None
 
