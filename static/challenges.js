@@ -381,6 +381,15 @@ const CHALLENGES = [
     keySort: (k, rows) => rows[0].datePurchased, sortDesc: true,
   },
   {
+    /* The odd one out, and the reason fixedKeys exists: every other challenge asks what a
+       game IS, and this one asks when you finished it. So it has no candidates to offer —
+       any game clears any day, you just have to beat it on the day — and its buckets are
+       the calendar rather than whatever the collection happens to contain. */
+    id: "completedday", icon: "i-calendar", name: "One Per Day of the Year",
+    blurb: "Beat a game on every day of the calendar, February 29th included. The year doesn't matter, only the day it landed on.",
+    groupBy: "dateCompleted|dayofyear",
+  },
+  {
     id: "price", icon: "i-trend", name: "One Per Purchase Price",
     blurb: "Beat a game bought at every whole-dollar price point.",
     groupBy: "purchasePrice|unit",
@@ -534,13 +543,30 @@ function _computeChallenge(c) {
   const universe = c.universe || clear;
   const groupsOf = chGroupsOf(c);
 
+  /* Buckets known before the fact.
+
+     Almost every challenge discovers its buckets from the collection, and has to: there is
+     no "One Per Platform" rung for a console you own nothing on. A few don't. The calendar
+     has 366 days whether or not you have ever finished anything on the 29th of February,
+     and which day a game clears is decided by the day you finish it rather than by the
+     game — so no unplayed game can be nominated for one, and a bucket vocabulary derived
+     from the rows would contain only the days already cleared, i.e. 100% forever.
+
+     Those challenges hand over their key list instead. Every bucket in it is reachable
+     (anything you beat on the day clears it), so it also stands in for the candidate pool
+     in the replay, and the buckets left over are simply shown empty. */
+  const gcol = c.groupBy ? chGroupCol(c.groupBy) : null;
+  const fixedKeys = gcol && gcol.allKeys ? gcol.allKeys() : null;
+
   // The buckets this challenge is even about. Without this, a completion could
   // "clear" a bucket outside the challenge — beating a game on PC would count
   // toward the Unplayable challenge even though PC has no unplayable games.
-  const universeKeys = new Set();
-  for (const r of rows) {
-    if (!universe(r)) continue;
-    for (const k of groupsOf(r)) universeKeys.add(k);
+  const universeKeys = new Set(fixedKeys || []);
+  if (!fixedKeys) {
+    for (const r of rows) {
+      if (!universe(r)) continue;
+      for (const k of groupsOf(r)) universeKeys.add(k);
+    }
   }
 
   // Every bucket still holding an unplayed candidate, and the candidates in it.
@@ -556,15 +582,18 @@ function _computeChallenge(c) {
     list.sort((a, b) => (combinedRating(b) ?? 0) - (combinedRating(a) ?? 0));
   }
 
-  const { paths, cur } = chReplay(c, groupsOf, universeKeys, new Set(candidates.keys()));
+  // The buckets this path can still reach: normally the ones still holding an unplayed
+  // candidate, and every bucket at all where the vocabulary is fixed.
+  const reachable = fixedKeys ? universeKeys : new Set(candidates.keys());
+  const { paths, cur } = chReplay(c, groupsOf, universeKeys, reachable);
 
   // Remaining: every bucket in the pool this path hasn't cleared yet.
   const remaining = new Map();
-  for (const [k, list] of candidates) if (!cur.cleared.has(k)) remaining.set(k, list);
+  for (const k of reachable) if (!cur.cleared.has(k)) remaining.set(k, candidates.get(k) || []);
 
   const total = cur.cleared.size + remaining.size;
   return {
-    c, paths, remaining, total,
+    c, paths, remaining, total, fixed: !!fixedKeys,
     cleared: cur.cleared,       // key -> rows, in the order the buckets fell
     pathFrom: cur.first ? cur.first.dateCompleted || null : null,
     completedThisPath: cur.games,
@@ -572,10 +601,18 @@ function _computeChallenge(c) {
   };
 }
 
+/* The challenge's own key order wins; failing that the grouping column may carry one
+   (the calendar knows January comes before February, and it is the only thing that does). */
+function chKeySort(c) {
+  if (c.keySort) return c.keySort;
+  const col = c.groupBy ? chGroupCol(c.groupBy) : null;
+  return col && col.keySort ? col.keySort : null;
+}
+
 // Order buckets for display: the challenge's own key order, else biggest first.
 function chSortBuckets(res, map) {
   const entries = [...map.entries()];
-  const ks = res.c.keySort;
+  const ks = chKeySort(res.c);
   entries.sort((a, b) => {
     if (ks) {
       const x = ks(a[0], a[1]), y = ks(b[0], b[1]);
@@ -646,8 +683,12 @@ function chGameChip(row, note) {
    across the container, because a line drawn across the container cannot wrap — each node's
    rail segment reaches half the gap either side, so the segments meet and read as one
    continuous line within a row, and every row starts its own. */
-const CH_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const CH_MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"];
+// The same twelve, short. Derived rather than typed out a second time: the day-of-year
+// buckets spell them in full and the timeline prints them abbreviated, and two hand-written
+// tables of the same twelve words are two chances to disagree.
+const CH_MONTHS = CH_MONTH_NAMES.map((m) => m.slice(0, 3));
 
 // "2024-10-20" -> "Oct 24". Parsed off the string, not through Date: these are plain
 // calendar days out of the sheet and constructing a Date would drag a timezone into it
@@ -797,12 +838,23 @@ function chBucketList(res, map) {
   if (!entries.length) {
     return `<div class="ch-empty">Nothing left. Challenge complete.</div>`;
   }
+  /* Nothing to nominate for any of them: the bucket keys are all there is to show, and
+     366 full-width cards each announcing "0 candidates" is a great deal of furniture built
+     around an absence. They become chips instead, and the cap comes off with them — a chip
+     costs a slot in a wrapping row, which is what made the cap worth having. */
+  if (entries.every(([, rows]) => !rows.length)) {
+    return `<div class="ch-keys">` + entries
+      .map(([key]) => `<span class="ch-key">${escapeHtml(String(key))}</span>`).join("") + `</div>`;
+  }
+
   const show = chState.showAll === "todo" ? entries : entries.slice(0, CH_BUCKETS_SHOWN);
   const html = show.map(([key, rows]) => {
     const games = rows.slice(0, CH_CANDIDATES_SHOWN).map((r) => chGameChip(r)).join("");
     const extra = rows.length > CH_CANDIDATES_SHOWN
       ? `<span class="ch-more">+${rows.length - CH_CANDIDATES_SHOWN} more</span>` : "";
-    const canPick = !!chPickCriteria(res.c, key);
+    // A grouping key still resolves as a Pick criterion when the bucket is empty, but
+    // rolling it can only ever come back with nothing.
+    const canPick = !!rows.length && !!chPickCriteria(res.c, key);
     return `<div class="ch-bucket">
       <div class="ch-bucket-head"><h4>${escapeHtml(String(key))}</h4>
         <span class="muted">${rows.length} candidate${rows.length !== 1 ? "s" : ""}</span>
@@ -975,6 +1027,11 @@ function renderChallenges() {
   // ("all time"); on a later path it means the batch it opened in.
   const from = res.pathFrom ? fmtDate(res.pathFrom)
     : (res.paths.length ? "Prehistory" : "All time");
+  // A fixed vocabulary means the bucket depends on the completion rather than the game, so
+  // there is no shortlist to rank and promising one would be a lie.
+  const todoHint = res.fixed
+    ? "The buckets nothing has landed in yet. Any game clears any of them, so there's nothing to shortlist: it's the day you finish on that counts."
+    : "Top-rated candidates for each, five shown. Tap any game for details.";
   host.innerHTML =
     `<div class="ch-detail">
        <button class="ch-back" id="chBack">← All challenges</button>
@@ -997,7 +1054,7 @@ function renderChallenges() {
          <div><b>${res.completedThisPath.toLocaleString()}</b><span>games completed ${res.paths.length ? "this path" : "overall"}</span></div>
        </div>
        <h2 class="ch-sec">Still to do <span class="muted">${res.remaining.size}</span></h2>
-       <p class="ch-hint">Top-rated candidates for each, five shown. Tap any game for details.</p>
+       <p class="ch-hint">${todoHint}</p>
        <div class="ch-buckets">${chBucketList(res, res.remaining)}</div>
        <h2 class="ch-sec">Cleared <span class="muted">${res.cleared.size}</span></h2>
        ${chClearedTimeline(res)}
@@ -1071,6 +1128,25 @@ const chStoreCustom = (list) => prefsSave("challenges", list.slice(0, 40));
    groups by it, and "pick me one" pins it as a Pick criterion — the bucket reproduces
    exactly because it's the same column answering both times. */
 
+/* The calendar, as a bucket vocabulary. Unlike every other grouping, this one is known
+   in full before a single game is beaten: there are 366 days and February 29th is one of
+   them, whether or not anything has ever landed on it. February gets 29 because the
+   buckets are year agnostic — the day exists, it's just rarer than the others.
+
+   Written out rather than walked with a Date, for the reason chShortDate gives: these are
+   plain calendar days and constructing a Date drags a timezone in behind them. */
+const CH_MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const CH_DAY_KEYS = CH_MONTH_NAMES.flatMap((m, i) =>
+  Array.from({ length: CH_MONTH_DAYS[i] }, (_, d) => `${m} ${d + 1}`));
+const CH_DAY_ORDER = new Map(CH_DAY_KEYS.map((k, i) => [k, i]));
+
+// "2024-03-05" -> "March 5". Off the string, and null for anything that isn't a date.
+function chDayKey(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || ""));
+  const name = m && CH_MONTH_NAMES[+m[2] - 1];
+  return name ? `${name} ${+m[3]}` : null;
+}
+
 const CH_TITLE_KEYS = new Set(["title", "game", "__g_title"]);
 const CH_NUMERIC = new Set(["rating", "money", "hours", "int", "number", "year"]);
 const chIsoOf = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
@@ -1089,6 +1165,13 @@ const CH_TRANSFORMS = [
     apply: (vals) => vals.map((v) => (chIsoOf(v) || "").slice(0, 4)) },
   { id: "month", label: "by month", fits: (c) => c.type === "date",
     apply: (vals) => vals.map((v) => chMonth(chIsoOf(v))) },
+  { id: "dayofyear", label: "by day of the year", fits: (c) => c.type === "date",
+    apply: (vals) => vals.map((v) => chDayKey(chIsoOf(v))),
+    // The one transform whose value range is a closed set: it hands the challenge the whole
+    // calendar (see fixedKeys in _computeChallenge) and the order to read it in, because
+    // no amount of sorting by bucket size will ever put January before February.
+    keys: () => CH_DAY_KEYS,
+    sort: (k) => (CH_DAY_ORDER.has(k) ? CH_DAY_ORDER.get(k) : 1e9) },
   { id: "unit", label: "whole units", fits: (c) => CH_NUMERIC.has(c.type),
     apply: (vals, r, c) => vals.map((v) => chWholeUnit(v, c)) },
   { id: "band10", label: "10% bands", fits: (c) => c.type === "rating",
@@ -1162,6 +1245,10 @@ function chGroupCol(key) {
     type: "text", facet: true, virtual: true, enriched: false, grouper: true, kind: "fn",
     getVals: (r) => (tf.apply(raw(r), r, base) || []).filter((v) => v != null && v !== "").map(String),
   };
+  // A transform that knows its own full range passes both facts along: the complete bucket
+  // list, and the order those buckets belong in.
+  if (tf.keys) col.allKeys = tf.keys;
+  if (tf.sort) col.keySort = tf.sort;
   _chGroupCols.set(key, col);
   return col;
 }
