@@ -25,6 +25,7 @@ const resetRelations = () => {
   _byIgdb = null; _completedSet = null; _relById = null;
   _gamesByGid = null; _gidCache = new WeakMap(); _titleGid = null;
   _fam = null; _famEpoch = -1; _famOf = new WeakMap(); _famDone = null; _famDoneEpoch = -1;
+  _box = null; _boxEpoch = -1;
 };
 
 // The completed sheet's rows, by object identity — for telling a beaten episode apart
@@ -82,14 +83,17 @@ const relNorm = (s) => String(s || "").toLowerCase()
    edge either row knows about goes into the same disjoint set, and the middle game joins
    them without anyone having to own it.
 
-   REMAKES are not edges. Resident Evil 4 (2023) and Final Fantasy VII Remake are new games
-   that happen to share a name with an old one; you play both, you rate both. Same line the
-   grouped view draws, drawn once more here.
+   REMAKES are edges too, which is where this parts company with the grouped view below.
+   That view has to keep Resident Evil 4 (2005) and (2023) as two cards, because they are two
+   things to click. This question is a different one — "have I played this already" — and its
+   honest answer is yes for Persona 3 FES once you have beaten Reload, and for Super Mario 64
+   DS once you have beaten Super Mario 64. A few remakes really are new games (Black Mesa
+   against Half-Life) and this will call those played; that is the trade, made knowingly.
 
    The edges come from the light map (src/enrich.py::_light_relations): `versions` points
-   down at a game's ports and remasters, `parentId` and `versionParentId` point up at what
-   it is a version OF. */
-const VERSION_TYPES = new Set(["Port", "Remaster", "Expanded edition"]);
+   down at a game's ports, remasters and remakes, `parentId` and `versionParentId` point up
+   at what it is a version OF. */
+const VERSION_TYPES = new Set(["Port", "Remaster", "Remake", "Expanded edition"]);
 let _fam = null, _famEpoch = -1;
 
 function versionFamily() {
@@ -145,14 +149,46 @@ function beatenFamilies() {
   return (_famDone = m);
 }
 
-/* The copy of this game you already beat, if you beat one — a remaster, a port, the
-   Definitive Edition, on any machine. Null for a game you have genuinely never played,
-   and null for the beaten copy itself (a row is not another version of itself). */
-function playedAnotherVersion(row) {
+/* Compilations, which are the OTHER way a game gets played without its own row ever being
+   ticked: you beat Pikmin 1+2 on the Switch, and the GameCube Pikmin sitting in the backlog
+   is a game you have finished. `contents` (the light map again) lists what a bundle holds.
+
+   Deliberately one-way, and deliberately NOT a family: beating the compilation counts for
+   each game in it, but beating one game in it says nothing about the other five, and a union
+   would claim exactly that — finish Halo 3 and the whole Master Chief Collection goes green.
+   Resolved through the family so a bundle listing "Pikmin" is matched by the Pikmin row you
+   own whichever port it is. */
+let _box = null, _boxEpoch = -1;
+function beatenBundleContents() {
+  if (_box && _boxEpoch === _enrichEpoch) return _box;
+  const m = new Map(), fam = versionFamily();
+  const claim = (r) => {
+    for (const id of ((ENRICH[r._k] || {}).rel || {}).contents || []) {
+      const f = fam.find(id);
+      if (f && !m.has(f)) m.set(f, r);
+    }
+  };
+  for (const r of ((DATA.sheets.games || {}).rows || [])) if (r.completed) claim(r);
+  for (const r of ((DATA.sheets.completed || {}).rows || [])) claim(r);
+  _boxEpoch = _enrichEpoch;
+  return (_box = m);
+}
+
+/* Have you played this game already, whatever this particular row says?
+
+   Two ways to have done it, and they read differently on the page, so the answer names
+   which: `version` — you beat it in another box, a remaster, a port, the Definitive
+   Edition, on any machine; `bundle` — it came inside a compilation you finished. Null for
+   a game you have genuinely never played, and null for the copy that did the beating (a
+   row is not another version of itself). */
+function alreadyPlayed(row) {
   const f = familyOf(row);
   if (!f) return null;
   const won = beatenFamilies().get(f);
-  return won && won !== row ? won : null;
+  if (won && won !== row) return { game: won, how: "version" };
+  const box = beatenBundleContents().get(f);
+  if (box && box !== row) return { game: box, how: "bundle" };
+  return null;
 }
 
 // ---- grouped view --------------------------------------------------------

@@ -78,11 +78,11 @@ _BULK_DROP = frozenset({
 _ALL_LIGHT_TTL = 20.0
 
 
-# The relationship keys that mean "the same game in another form". A port and a remaster
-# are the game again; DLC, expansions, episodes and bundles are PARTS of it or boxes around
-# it, and folding those together would say you had played Borderlands because you finished
-# one of its DLCs.
-_VERSION_KEYS = ("ports", "remasters", "expandedGames")
+# The relationship keys that mean "the same game in another form". A port, a remaster and a
+# remake are the game again; DLC, expansions, episodes and bundles are PARTS of it or boxes
+# around it, and folding those together would say you had played Borderlands because you
+# finished one of its DLCs.
+_VERSION_KEYS = ("ports", "remasters", "expandedGames", "remakes")
 
 
 def _light_relations(rec):
@@ -115,9 +115,19 @@ def _light_relations(rec):
     makes the PSP copy and the NES copy one game (static/relations.js). Sent only when
     non-empty — 2.4k of 15k rows have any, and an empty list on the rest is 200KB of nothing.
 
-    Remakes are deliberately NOT in it. A remaster is the same game again; a remake can be a
-    different one (Resident Evil 4, Final Fantasy VII), which is the same line the grouped
-    view already draws."""
+    Remakes count as versions here, which is the one place this parts company with the
+    grouped view below: a card you click has to stay two cards for Resident Evil 4 (2005) and
+    (2023), but "have I played this already" answers yes for Persona 3 FES when you have
+    beaten Reload, and for Super Mario 64 DS when you have beaten Super Mario 64. The cost of
+    the call is a handful of remakes that really are new games (Black Mesa against Half-Life);
+    the benefit is the ~70 rows that are honestly the same game twice.
+
+    `contents` is the other half of the bundle question: the ids inside a compilation, from
+    IGDB's reverse lookup (the forward `bundles` field on a member game is far sparser — Super
+    Mario 64's record does not mention 3D All-Stars, but 3D All-Stars lists all three of its
+    games). Only 339 rows have any, so it rides for ~10KB gzipped. Kept SEPARATE from
+    `versions` on purpose, and used one-way: beating Pikmin 1+2 means you played Pikmin, but
+    beating Pikmin does not mean you played the compilation."""
     rel = (rec or {}).get("relations") or {}
     if not rel:
         return None
@@ -133,6 +143,10 @@ def _light_relations(rec):
                        if isinstance(x, dict) and x.get("id")})
     if versions:
         out["versions"] = versions
+    contents = sorted({x["id"] for x in (rel.get("bundleContents") or [])
+                       if isinstance(x, dict) and x.get("id")})
+    if contents:
+        out["contents"] = contents
     return out
 
 
