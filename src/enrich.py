@@ -78,6 +78,13 @@ _BULK_DROP = frozenset({
 _ALL_LIGHT_TTL = 20.0
 
 
+# The relationship keys that mean "the same game in another form". A port and a remaster
+# are the game again; DLC, expansions, episodes and bundles are PARTS of it or boxes around
+# it, and folding those together would say you had played Borderlands because you finished
+# one of its DLCs.
+_VERSION_KEYS = ("ports", "remasters", "expandedGames")
+
+
 def _light_relations(rec):
     """Just enough of the graph for the grid: what KIND of entry this is, and
     the id of its parent — the grouped view folds ports into the game they're a
@@ -96,18 +103,37 @@ def _light_relations(rec):
     Auto V (1020) is `version_parent`, it has no parent_game at all, and a bundle is not in
     the catalogue for the browser to look up from the other side. Without this field the
     library owns 239064, 1020 looks like a game nobody here has ever played, and the tab
-    recommends him Grand Theft Auto V."""
+    recommends him Grand Theft Auto V.
+
+    `versions` is the same fact pointing DOWNWARD: the ids of the ports, remasters and
+    expanded editions IGDB hangs off this game. A parent id alone only walks one way, and
+    one hop — which is not enough to tell that two rows are the same game. The sheet's
+    "Final Fantasy II (NES)" is IGDB 16474 and its "Final Fantasy II (PSP)" is 380633,
+    whose parent is 145817, the WonderSwan remaster — a game that is on nobody's shelf and
+    therefore in no light map. The two rows meet only in the MIDDLE: 16474 lists 145817
+    among its remasters, 380633 names it as its parent, and joining those two edges is what
+    makes the PSP copy and the NES copy one game (static/relations.js). Sent only when
+    non-empty — 2.4k of 15k rows have any, and an empty list on the rest is 200KB of nothing.
+
+    Remakes are deliberately NOT in it. A remaster is the same game again; a remake can be a
+    different one (Resident Evil 4, Final Fantasy VII), which is the same line the grouped
+    view already draws."""
     rel = (rec or {}).get("relations") or {}
     if not rel:
         return None
     parent = rel.get("parent") or {}
     vparent = rel.get("versionParent") or {}
-    return {
+    out = {
         "type": rel.get("gameTypeLabel"),
         "versionParentId": vparent.get("id"),
         "parent": parent.get("name"),
         "parentId": parent.get("id"),
     }
+    versions = sorted({x["id"] for k in _VERSION_KEYS for x in (rel.get(k) or [])
+                       if isinstance(x, dict) and x.get("id")})
+    if versions:
+        out["versions"] = versions
+    return out
 
 
 def _light_video(rec):

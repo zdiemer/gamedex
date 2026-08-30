@@ -2707,6 +2707,13 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 .fr-mark { width: 14px; flex: none; text-align: center; font-size: 12px; font-weight: 700; color: var(--dim); }
 .fr-done .fr-mark, .fr-game.fr-done .fr-mark { color: var(--good); }
 .fr-game.fr-playing .fr-mark { color: var(--accent-2); }
+/* Beaten, but not on this row — a tick you have to look twice at, which is exactly the
+   confidence it deserves. Dimmed like the games you don't own, not green like the ones
+   you finished here. */
+.fr-game.fr-alt { opacity: .7; }
+.fr-game.fr-alt:hover { opacity: 1; }
+.fr-game.fr-alt .fr-mark { color: var(--dim); font-weight: 400; }
+.fr-next .fr-skip { font-size: 11.5px; margin-top: 7px; line-height: 1.5; }
 .fr-game.fr-missing { opacity: .55; }
 .fr-game.fr-missing:hover { opacity: 1; }
 .fr-game-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }

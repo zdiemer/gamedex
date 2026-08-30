@@ -73,9 +73,24 @@ function groupIndex(kind) {
       String(b.releaseDate || b.releaseYear || "")));
     const done = games.filter((x) => x.completed).length;
     const owned = games.filter((x) => x.owned).length;
-    // What to play next: the earliest unfinished game you can actually play.
-    const next = games.find((x) => !x.completed && (typeof isCandidate === "function" ? isCandidate(x) : x.owned))
-      || games.find((x) => !x.completed);
+    /* What to play next: the earliest unfinished game you can actually play — and NOT one
+       you have already played in another box. Release order alone offered Final Fantasy II
+       on the NES to someone who beat it on the PSP: a different row, a different IGDB id,
+       an unticked Completed box, and the same game. relations.js walks IGDB's port /
+       remaster / edition graph to decide that (playedAnotherVersion), so the pick skips
+       every copy of something already finished and lands on the first game in the group
+       that is genuinely new. Remakes don't count as the same game — see versionFamily(). */
+    const alt = (x) => (typeof playedAnotherVersion === "function" ? playedAnotherVersion(x) : null);
+    const unfinished = games.filter((x) => !x.completed);
+    const fresh = unfinished.filter((x) => !alt(x));
+    const next = fresh.find((x) => (typeof isCandidate === "function" ? isCandidate(x) : x.owned))
+      || fresh[0];
+    // The one it stepped OVER, so the page can say why. Only worth naming when it really is
+    // earlier than the pick — a later skip isn't what the eye was going to ask about, and
+    // with no pick at all the "nothing new left" line below says it better.
+    const passed = unfinished.find((x) => alt(x));
+    const skipped = next && passed && games.indexOf(passed) < games.indexOf(next)
+      ? { game: passed, played: alt(passed) } : null;
 
     /* What a group is actually WORTH knowing, aggregated over its members: how you rate
        it against the critics, the hours it has already taken and the hours still in it,
@@ -93,7 +108,11 @@ function groupIndex(kind) {
     const yrs = games.map((x) => +x.releaseYear).filter((y) => y > 1900);
 
     out.push({
-      name, games, done, owned, next, pct: games.length ? done / games.length : 0,
+      name, games, done, owned, next, skipped,
+      // Nothing left that you haven't played in some form — a different thing from
+      // finishing the group, and worth saying rather than showing an empty space.
+      allPlayed: !next && unfinished.length > 0,
+      pct: games.length ? done / games.length : 0,
       avgRating: mean(rated), nRated: rated.length,
       avgCritic: mean(crits),
       played, left, spent,
@@ -226,10 +245,22 @@ function playedHoursOf(g) {
   return t != null && t !== "" ? +t : null;
 }
 
+// A row's name, whichever sheet it came from — the Completed sheet calls it `game`.
+const altName = (r) => String((r && (r.title || r.game)) || "");
+
 function groupGameRow(g, i) {
   const cs = coverSrc(ENRICH[g._k], "cover_small");
-  const state = g.completed ? "done" : g.playingStatus ? "playing" : g.owned ? "owned" : "missing";
-  const mark = { done: "✓", playing: "▶", owned: "•", missing: "" }[state];
+  /* "alt" is the state the sheet has no column for: you never finished THIS row, but you
+     finished the game — on another machine, in a remaster, out of a compilation. A dimmed
+     tick rather than a green one, because it isn't this copy you beat, and hovering says
+     which one was. It's also what explains why Play next stepped over this line. */
+  const other = g.completed ? null
+    : (typeof playedAnotherVersion === "function" ? playedAnotherVersion(g) : null);
+  const state = g.completed ? "done" : g.playingStatus ? "playing"
+    : other ? "alt" : g.owned ? "owned" : "missing";
+  const mark = { done: "✓", playing: "▶", alt: "✓", owned: "•", missing: "" }[state];
+  const altWhy = other
+    ? ` title="You beat ${escapeHtml(altName(other))}${other.platform ? ` on ${escapeHtml(String(other.platform))}` : ""}"` : "";
   const bits = [g.platform, g.releaseYear].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ");
   const score = g.rating != null
     ? `<span class="${ratingClass(g.rating)}">${Math.round(g.rating * 100)}</span>` : "";
@@ -245,7 +276,7 @@ function groupGameRow(g, i) {
     `<span class="muted" title="${mine != null ? "Your completion time" : "Estimated time to beat"}">${
       mine != null ? "" : "~"}${escapeHtml(fmtHours(t))}</span>`;
   return `<button class="fr-game fr-${state}" data-fg="${escapeHtml(String(g._k || ""))}" data-fi="${i}">
-    <span class="fr-mark">${mark}</span>
+    <span class="fr-mark"${altWhy}>${mark}</span>
     ${cs ? `<img loading="lazy" src="${escapeHtml(cs)}" alt="">` : `<span class="fr-ph">${icon("i-library", 16)}</span>`}
     <span class="fr-game-t"><b>${escapeHtml(String(g.title))}</b><span class="muted">${bits}</span></span>
     <span class="fr-game-x">${time}${score}</span>
@@ -286,6 +317,14 @@ function renderGroups() {
         ${s.next ? `<div class="fr-next">
           <span class="h-eyebrow">Play next</span>
           ${groupGameRow(s.next, s.games.indexOf(s.next))}
+          ${s.skipped ? `<p class="fr-skip muted">Skipping ${escapeHtml(String(s.skipped.game.title))}${
+            s.skipped.game.platform ? ` (${escapeHtml(String(s.skipped.game.platform))})` : ""
+          } — you beat ${escapeHtml(altName(s.skipped.played))}${
+            s.skipped.played.platform ? ` on ${escapeHtml(String(s.skipped.played.platform))}` : ""}.</p>` : ""}
+        </div>` : s.allPlayed ? `<div class="fr-next">
+          <span class="h-eyebrow">Play next</span>
+          <p class="fr-skip muted">Nothing new left — every unfinished game here is one
+             you've already played in another form.</p>
         </div>` : ""}
         <h2 class="ch-sec">In release order</h2>
         <div class="fr-games">${s.games.map((x, i) => groupGameRow(x, i)).join("")}</div>

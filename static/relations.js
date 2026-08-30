@@ -24,6 +24,7 @@ let _byIgdb = null, _completedSet = null, _gamesByGid = null, _titleGid = null;
 const resetRelations = () => {
   _byIgdb = null; _completedSet = null; _relById = null;
   _gamesByGid = null; _gidCache = new WeakMap(); _titleGid = null;
+  _fam = null; _famEpoch = -1; _famOf = new WeakMap(); _famDone = null; _famDoneEpoch = -1;
 };
 
 // The completed sheet's rows, by object identity — for telling a beaten episode apart
@@ -65,6 +66,94 @@ function relRowState(r) {
 const relNorm = (s) => String(s || "").toLowerCase()
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .replace(/[^a-z0-9]/g, "");
+
+/* ---- version families ----------------------------------------------------
+
+   "Have I already played this game, in some other box?" — which is a different question
+   from "is this the same row", and a different one again from the grouped view below.
+
+   The grouped view folds a PORT into its parent and stops there, because a card is a thing
+   you click and two cards that open different games must stay two cards. This walks
+   further: ports, remasters and expanded editions are all the same game again, however
+   many hops apart, so they go in one family. Final Fantasy II on the NES (16474) and on
+   the PSP (380633) are three hops and two nodes apart — 380633 → 145817 (the WonderSwan
+   remaster, which is on no shelf here) ← 16474 — and neither row can see the other
+   without walking THROUGH a game the collection doesn't have. Union-find does that: every
+   edge either row knows about goes into the same disjoint set, and the middle game joins
+   them without anyone having to own it.
+
+   REMAKES are not edges. Resident Evil 4 (2023) and Final Fantasy VII Remake are new games
+   that happen to share a name with an old one; you play both, you rate both. Same line the
+   grouped view draws, drawn once more here.
+
+   The edges come from the light map (src/enrich.py::_light_relations): `versions` points
+   down at a game's ports and remasters, `parentId` and `versionParentId` point up at what
+   it is a version OF. */
+const VERSION_TYPES = new Set(["Port", "Remaster", "Expanded edition"]);
+let _fam = null, _famEpoch = -1;
+
+function versionFamily() {
+  if (_fam && _famEpoch === _enrichEpoch) return _fam;
+  const par = new Map();
+  const find = (x) => {
+    if (!par.has(x)) par.set(x, x);
+    let r = x;
+    while (par.get(r) !== r) r = par.get(r);
+    while (par.get(x) !== r) { const n = par.get(x); par.set(x, r); x = n; }
+    return r;
+  };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) par.set(ra, rb); };
+  for (const k in ENRICH) {
+    const e = ENRICH[k];
+    const id = e && e.igdbId;
+    if (!id) continue;
+    find(id);
+    const r = e.rel;
+    if (!r) continue;
+    for (const v of r.versions || []) union(id, v);
+    if (r.parentId != null && VERSION_TYPES.has(r.type)) union(id, r.parentId);
+    if (r.versionParentId != null) union(id, r.versionParentId);
+  }
+  _famEpoch = _enrichEpoch;
+  return (_fam = { find: (id) => (id == null ? null : find(id)) });
+}
+
+// The family a row belongs to, or null when nothing identified it. Memoised per row —
+// the group index asks once per row per axis, which is eight sweeps of the sheet.
+let _famOf = new WeakMap();
+function familyOf(row) {
+  if (_famOf.has(row)) return _famOf.get(row);
+  const id = (ENRICH[row._k] || {}).igdbId;
+  const f = id ? versionFamily().find(id) : null;
+  _famOf.set(row, f);
+  return f;
+}
+
+// family -> a row you have BEATEN in it, across both sheets. The row, not a flag: the
+// only useful way to say "skip this one" is to name the copy you actually played.
+let _famDone = null, _famDoneEpoch = -1;
+function beatenFamilies() {
+  if (_famDone && _famDoneEpoch === _enrichEpoch) return _famDone;
+  const m = new Map();
+  const add = (r) => {
+    const f = familyOf(r);
+    if (f && !m.has(f)) m.set(f, r);
+  };
+  for (const r of ((DATA.sheets.games || {}).rows || [])) if (r.completed) add(r);
+  for (const r of ((DATA.sheets.completed || {}).rows || [])) add(r);
+  _famDoneEpoch = _enrichEpoch;
+  return (_famDone = m);
+}
+
+/* The copy of this game you already beat, if you beat one — a remaster, a port, the
+   Definitive Edition, on any machine. Null for a game you have genuinely never played,
+   and null for the beaten copy itself (a row is not another version of itself). */
+function playedAnotherVersion(row) {
+  const f = familyOf(row);
+  if (!f) return null;
+  const won = beatenFamilies().get(f);
+  return won && won !== row ? won : null;
+}
 
 // ---- grouped view --------------------------------------------------------
 // Rows sharing an IGDB id are the same game. So are PORTS and their parent: IGDB
