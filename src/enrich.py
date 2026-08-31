@@ -42,8 +42,12 @@ _IGDB_LIGHT = ("igdbId", "cover", "coverUrl", "source", "rating", "year", "genre
 # outside opinion toward the mean in proportion to how few people are behind it, so a
 # score without its count is a score it has to take at face value. Two votes and two
 # thousand looked identical from here until they were sent. See predict.js.
+# `year` is IGDB's first_release_date, i.e. when the game ORIGINALLY came out, which is
+# not what the sheet's Release Date says for a re-release: the sheet dates the copy you
+# own (The Mysterious Murasame Castle on 3DS Virtual Console, 2014) and this dates the
+# game (1986). RNG's era split needs the second one, and it is one small int per game.
 _FACET_LIGHT = ("cover", "coverUrl", "genres", "themes", "gameModes", "userRating",
-                "userRatingCount",
+                "userRatingCount", "year",
                 "perspectives", "keywords", "engines", "ageRating",
                 "developers", "publishers", "franchises", "criticRating", "criticCount",
                 "igdbId", "source", "stores", "url", "confidence", "name")

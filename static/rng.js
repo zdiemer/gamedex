@@ -40,13 +40,28 @@ const rngState = { picks: { aaa: null, indie: null, retro: null }, toGo: false }
    which is why this is its own constant and not a reuse of that facet. */
 const RNG_RETRO_BEFORE = 2006;
 
-// Year from whichever field the sheet has: the games sheet carries releaseYear and
-// releaseDate, the completed sheet only `release`. 0 means nobody knows.
-const rngYear = (r) => {
+/* When the GAME came out, which is not always when your copy did. The sheet dates the
+   copy — The Mysterious Murasame Castle sits on the sheet as a 2014 Nintendo 3DS row,
+   because that's the Virtual Console release you own — and dating a 1986 Famicom Disk
+   System game to 2014 put it in the modern slots. IGDB's first_release_date knows the
+   difference, so the earlier of the two wins.
+
+   Earlier, not "IGDB always": a remake is its own IGDB entry with its own date (RE4 2023
+   is 2023, not 2005), and a row that matched the wrong entry can only ever pull the date
+   backwards, never forwards. Measured over a 900-game sample it moves 1.1% of modern
+   games to retro, every one of them a genuine re-release — Zero Wing on PC, Sonic 2 on
+   XBLA, Super 3D Noah's Ark. */
+const rngSheetYear = (r) => {
   const y = +r.releaseYear;
   if (y) return y;
   const d = r.releaseDate || r.release;
   return typeof d === "string" ? (+d.slice(0, 4) || 0) : 0;
+};
+const rngYear = (r) => {
+  const sheet = rngSheetYear(r);
+  const igdb = +((ENRICH[r._k] || {}).year) || 0;
+  if (!sheet) return igdb;
+  return igdb && igdb < sheet ? igdb : sheet;
 };
 
 /* ---- AAA or indie -------------------------------------------------------
@@ -109,35 +124,40 @@ const rngStemHit = (list, name) =>
 const rngIsMajor = (name) => rngStemHit(RNG_MAJORS, name);
 const rngIsIndieLabel = (name) => rngStemHit(RNG_INDIE_LABELS, name);
 
-/* Everything short of a named publisher that says "small". Checked only AFTER the
-   majors, deliberately: "the developer is also the publisher" is true of Nintendo
-   and Rockstar as well as of a one-person studio, and it only means indie when
-   nobody big is on the box. */
-function rngIndieSignals(r, pubs) {
-  if (pubs.some(rngIsIndieLabel)) return true;
-  if (unifiedGenreVals(r).includes("Indie")) return true;
-  const e = ENRICH[r._k] || {};
-  if ((e.keywords || []).some((k) => /\bindie\b/i.test(String(k)))) return true;
-  const devs = new Set(unifiedDevVals(r).map(normCompany));
-  if (pubs.length && devs.size && pubs.some((p) => p && devs.has(p))) return true;
-  // Shops that only carry small games.
-  if (r.digitalPlatform === "itch.io" || String(r.platform || "").startsWith("Playdate")) return true;
-  return false;
-}
+/* How many people IGDB has seen play it. AAA is a budget, and no field records a budget,
+   but reach is downstream of one: the flagships are the games thousands of people rated.
+   Elden Ring 2206, Mario Odyssey 1836, Ghost of Tsushima 1074, Helldivers II 297. Against
+   Roguebook at 12 and Murasame Castle at 10.
 
+   40 is where the boundary reads right — Forspoken, Hyrule Warriors: Definitive Edition,
+   Twisted Metal and Tearaway Unfolded sit just inside it, MudRunner and Tropico 3 just
+   outside. Not criticCount, which looked like the same signal and isn't: IGDB's critic
+   aggregate is sparse and arbitrary (LocoCycle has 10, Zelda: Tears of the Kingdom has 6),
+   so gating on it let games nobody has played in on the strength of ten reviews. */
+const RNG_AAA_MIN_AUDIENCE = 40;
+const rngAudience = (r) => (ENRICH[r._k] || {}).userRatingCount || 0;
+
+/* AAA or indie, in the order the evidence actually settles it.
+
+   A major publisher is NECESSARY but not SUFFICIENT, which is the whole correction here:
+   these companies publish flagships and they also publish two-hour eShop re-releases, and
+   the old rule called both AAA. So the majors list picks out who could fund a big game,
+   and the audience threshold asks whether this particular one was.
+
+   Indie evidence outranks the major, because a big publisher DISTRIBUTING a small game
+   doesn't make the game big. Stardew Valley ships with 505 Games on the box and was
+   landing in AAA on that alone; Terraria, Subnautica, Fez, Spelunky, Prison Architect and
+   Mark of the Ninja all did the same through 505, Microsoft Studios or Paradox. The two
+   overrides between them move 35 games and every one belongs on the indie side.
+
+   Everything else is indie by default, so the old "indie signals" (self-published, an
+   itch.io release, an indie keyword) are gone: they all resolved to the fallback anyway,
+   and only the two that can beat a major still change an answer. */
 function rngTier(r) {
   const pubs = unifiedPubVals(r).map(normCompany).filter(Boolean);
-  if (pubs.some(rngIsMajor)) return "aaa";
-  if (rngIndieSignals(r, pubs)) return "indie";
-  /* Nobody big is on the box and nothing here says "small" either. That's the long
-     tail — one-person studios, tiny labels, storefront-only releases — so it goes to
-     indie, and AAA stays the high-precision slot: a game is in it because a publisher
-     with a budget put it there, not because nothing ruled it out.
-
-     This was a scale test (a Metacritic score meant AAA) and it was badly wrong:
-     metacriticOf falls through to a GameRankings dump, so four out of five games in
-     the library have a "score" and the AAA slot filled up with obscure AA JRPGs. */
-  return "indie";
+  if (pubs.some(rngIsIndieLabel)) return "indie";
+  if (unifiedGenreVals(r).includes("Indie")) return "indie";
+  return (pubs.some(rngIsMajor) && rngAudience(r) >= RNG_AAA_MIN_AUDIENCE) ? "aaa" : "indie";
 }
 
 /* ---- the house rules ----------------------------------------------------
