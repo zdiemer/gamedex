@@ -522,6 +522,30 @@ const pickResultKey = () => (pickModeRng()
   ? RNG_SLOTS.map((sl) => (rngState.picks[sl.id] || {})._k || "-").join(",")
   : ((pickState.picked || {})._k || "-"));
 
+/* An enrichment batch landed. What the picker does about it depends on the mode and on
+   whether anything on screen is actually waiting for it.
+
+   `mine` is true when the batch carried a game the picker is showing, false for the
+   whole-library backfill poll.
+
+   The rule that matters: do NOT rebuild unless something on screen is waiting. A rebuild
+   replaces the .card nodes, and preview.js's autoplay tour holds the card it is playing —
+   rebuild them mid-tour and the tour stops partway through. The 45-second backfill poll
+   was doing that on every tick. */
+function pickEnrichLanded(mine) {
+  if (!pickModeRng()) {
+    // The single pick composes launchHtml, which reads this game's `stores` — a field the
+    // whole-library map drops on purpose. Only the game's own batch can supply it, and
+    // only a re-render puts the button on the card.
+    if (mine) renderPicker();
+    return;
+  }
+  // RNG's cards carry no launch button, so nothing here needs the DOM rebuilt — except a
+  // skeleton, which is waiting for exactly this batch in order to become real cards.
+  if ($("#pickResult .rng-slot.loading")) renderPicker();
+  else rngPatch();
+}
+
 const pickShowsKey = (k) => (pickModeRng()
   ? RNG_SLOTS.some((sl) => (rngState.picks[sl.id] || {})._k === k)
   : !!(pickState.picked && pickState.picked._k === k));

@@ -659,7 +659,7 @@ async function loadAllEnrichment() {
          had landed. It matters now: RNG's slots are decided by publishers, genres and
          IGDB's rating count, none of which exist before this, so the tab paints a
          skeleton until it arrives (rngLoading) and this is what releases it. */
-      else if (activeTab === "pick") renderPicker();
+      else if (activeTab === "pick") pickEnrichLanded(false);
       else {
         /* If a filter or a sort on screen reads this map, the row list itself may be wrong —
            not just the covers in it. It was computed against whatever the map held at the

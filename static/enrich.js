@@ -213,9 +213,8 @@ async function postEnrich(keys) {
          to fire on every batch, so the background library poll repainted the tab every
          2.5 seconds: covers re-faded on a loop, and a roll in flight was replaced by its
          own result mid-spin. pickShowsKey (pick.js) is the test. */
-      else if (activeTab === "pick" && typeof renderPicker === "function"
-               && typeof pickShowsKey === "function"
-               && Object.keys(j.items || {}).some(pickShowsKey)) renderPicker();
+      else if (activeTab === "pick" && typeof pickEnrichLanded === "function"
+               && Object.keys(j.items || {}).some(pickShowsKey)) pickEnrichLanded(true);
     }
     if (ENRICH_BATCH_DONE) { const done = ENRICH_BATCH_DONE; ENRICH_BATCH_DONE = null; done(); }
     if (j.pending && j.pending.length) {                    // still resolving — poll

@@ -466,27 +466,8 @@ function rngSlotHtml(slot, pool) {
     : (cstat === "complete" || rowCompleted(row)) ? " done" : "");
   const card = `<div class="${cls}" data-rngcard="${slot.id}">${cover}${vrBadgeHtml(row)}<div class="card-body">${cardBodyHtml(row)}</div></div>`;
 
-  /* The copy you'd actually reach for. Physical is the one thing this mode weights the
-     roll on, so the card says whether that's what won rather than leaving you to open the
-     drawer — and a game that's playable without being owned has to say so too, or the
-     badge would call an emulated ROM "Digital" and read as a copy you have. */
-  const copy = !row.owned
-    ? `<span class="rng-copy none">${icon("i-alert", 11)} ${row.wishlisted ? "Wishlisted" : "Not owned"}</span>`
-    : rngOwnedPhysical(row)
-      ? `<span class="rng-copy phys">${icon("i-package", 11)} On the shelf</span>`
-      : `<span class="rng-copy">${icon("i-play", 11)} Digital</span>`;
-  /* How long it takes to beat, right on the card. It's the question that decides whether
-     tonight's pick is tonight's pick, and it was a click away in the drawer. playtimeOf is
-     the same chain the rest of the app uses (HowLongToBeat, then VNDB for visual novels,
-     then the sheet's own estimate), and it stays off the card entirely when nothing knows
-     — a blank clock reads as "zero hours", which is worse than not saying. */
-  const hrs = playtimeOf(row);
-  const time = hrs != null
-    ? `<span class="chip rng-time" title="How long to beat">${icon("i-clock", 11)} ${escapeHtml(fmtHours(hrs))}</span>`
-    : "";
-  const chips = [row.platform, rngYear(row) || null, row.genre]
-    .filter((x) => x != null && x !== "")
-    .map((x) => `<span class="chip">${escapeHtml(String(x))}</span>`).join("");
+  const copy = rngCopyChip(row);
+  const time = rngTimeChip(row);
 
   return box(`<div class="rng-art">${card}</div>
     <div class="rng-body">
@@ -498,6 +479,35 @@ function rngSlotHtml(slot, pool) {
       </div>
     </div>`);
 }
+
+/* The copy you'd actually reach for. Physical is the one thing this mode weights the roll
+   on, so the card says whether that's what won rather than leaving you to open the drawer,
+   and a game that's playable without being owned has to say so too, or the badge would
+   call an emulated ROM "Digital" and read as a copy you have. */
+function rngCopyChip(row) {
+  if (!row.owned)
+    return `<span class="rng-copy none">${icon("i-alert", 11)} ${row.wishlisted ? "Wishlisted" : "Not owned"}</span>`;
+  return rngOwnedPhysical(row)
+    ? `<span class="rng-copy phys">${icon("i-package", 11)} On the shelf</span>`
+    : `<span class="rng-copy">${icon("i-play", 11)} Digital</span>`;
+}
+
+/* How long it takes to beat. It's the question that decides whether tonight's pick is
+   tonight's pick, and it was a click away in the drawer. playtimeOf is the same chain the
+   rest of the app uses (HowLongToBeat, then VNDB for visual novels, then the sheet's own
+   estimate), and the chip stays off the card entirely when nothing knows: a blank clock
+   reads as "zero hours", which is worse than not saying. It arrives with enrichment, so
+   rngPatch re-renders this row rather than leaving a card that never learns. */
+function rngTimeChip(row) {
+  const hrs = playtimeOf(row);
+  return hrs != null
+    ? `<span class="chip rng-time" title="How long to beat">${icon("i-clock", 11)} ${escapeHtml(fmtHours(hrs))}</span>`
+    : "";
+}
+
+const rngChipsHtml = (row) => [row.platform, rngYear(row) || null, row.genre]
+  .filter((x) => x != null && x !== "")
+  .map((x) => `<span class="chip">${escapeHtml(String(x))}</span>`).join("");
 
 // A slot mid-load: the same box, the same eyebrow, and a shimmer where the count, the
 // cover and the title will be. Shaped like the card it becomes, so nothing jumps.
@@ -524,6 +534,48 @@ function rngResultHtml() {
     return `<div class="pick-empty">Nothing in your library clears all three slots with these criteria.</div>`;
   }
   return `<div class="rng-grid">${RNG_SLOTS.map((s) => rngSlotHtml(s, pools[s.id])).join("")}</div>`;
+}
+
+/* An enrichment batch landed and real cards are already on screen. Update what moved
+   instead of rebuilding the grid.
+
+   Rebuilding is what the autoplay tour cannot survive: preview.js walks the .card elements
+   and holds the one it is playing, so replacing those nodes mid-tour strands it and the
+   tour stops partway through the three. A backfill poll every 45 seconds was doing exactly
+   that. So the .card stays put and only its contents change — the counts, a cover that has
+   just arrived, the score badges in the body, and the chip row, which carries the time to
+   beat and therefore only fills in once HowLongToBeat has answered. */
+function rngPatch() {
+  const host = $("#pickResult");
+  if (!host) return;
+  const pools = rngPools();
+  for (const s of RNG_SLOTS) {
+    const el = host.querySelector(`.rng-slot[data-slot="${s.id}"]`);
+    if (!el) continue;
+    const n = el.querySelector(".rng-n");
+    if (n) n.textContent = pools[s.id].length.toLocaleString();
+    const row = rngState.picks[s.id];
+    if (!row) continue;
+    const rec = igdbRecOf(row);
+    const cs = coverSrc(rec, "cover_big");
+    // A placeholder that can stop being one. Swapped in place so the .card around it,
+    // which is what the tour is holding, is the same node it was.
+    const ph = el.querySelector(".rng-art .card-cover.ph");
+    if (cs && ph) {
+      const img = document.createElement("img");
+      img.className = "card-cover" + (coverIsPixelArt(rec, cs) ? " pixel" : "");
+      img.alt = "";
+      img.src = cs;
+      ph.replaceWith(img);
+    }
+    const body = el.querySelector(".rng-art .card-body");
+    if (body) body.innerHTML = cardBodyHtml(row);
+    const chips = el.querySelector(".rng-chips");
+    if (chips) chips.innerHTML = rngCopyChip(row) + rngTimeChip(row) + rngChipsHtml(row);
+  }
+  const total = RNG_SLOTS.reduce((a, s) => a + pools[s.id].length, 0);
+  const c = document.querySelector("#picker .pick-count");
+  if (c) c.textContent = `${total.toLocaleString()} game${total === 1 ? "" : "s"} in pool`;
 }
 
 function wireRngResult() {
