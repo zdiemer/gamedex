@@ -180,11 +180,14 @@ const rngIsStoryGame = (r) => unifiedGenreVals(r).some((g) => RNG_STORY_GENRES.h
 
 /* franchise -> every entry we know of, as {year, done}. Built from BOTH sheets: the
    games sheet knows what's sitting unplayed, the completed sheet knows what's been
-   finished (including games long since off the shelf). Memoised per DATA, so a
-   reloaded spreadsheet rebuilds it. */
-let _rngSeries = null, _rngSeriesFor = null;
+   finished (including games long since off the shelf).
+
+   Keyed on _enrichEpoch as well as DATA, because unifiedFranchiseVals reads IGDB's
+   franchises on top of the sheet's column — so this index genuinely changes as
+   enrichment lands, and one built early knows about far fewer series than it should. */
+let _rngSeries = null, _rngSeriesFor = null, _rngSeriesEpoch = null;
 function rngSeriesIndex() {
-  if (_rngSeries && _rngSeriesFor === DATA) return _rngSeries;
+  if (_rngSeries && _rngSeriesFor === DATA && _rngSeriesEpoch === _enrichEpoch) return _rngSeries;
   const m = new Map();
   const add = (r, done) => {
     const y = rngYear(r);
@@ -197,7 +200,7 @@ function rngSeriesIndex() {
   };
   for (const r of ((DATA.sheets.games || {}).rows || [])) if (r.title) add(r, !!r.completed);
   for (const r of ((DATA.sheets.completed || {}).rows || [])) add(r, true);
-  _rngSeriesFor = DATA;
+  _rngSeriesFor = DATA; _rngSeriesEpoch = _enrichEpoch;
   return (_rngSeries = m);
 }
 
@@ -292,12 +295,19 @@ const rngAllowed = (r) =>
    other mode silently shrinking a roll you can't see the criteria for is worse than
    not offering the filter at all — the slots' own rules are the whole story here.
 
-   Recomputed when the sheet reloads or the last enrichment source lands: rngTier reads
-   publishers and genres that only exist once IGDB has answered, so a pool cached across
-   that would be sorting games by what we knew before the data arrived. */
-let _rngPools = null, _rngPoolsFor = null, _rngPoolsDone = null, _rngPoolsToGo = null;
+   Keyed on _enrichEpoch, the counter every other memo in this app uses (filters.js owns
+   it; catalogue, recs, relations, similar and challenges all key off it). Nearly every
+   rule here reads enrichment — the tier reads publishers, the language and series rules
+   read genres and franchises, the on-the-go knob reads the Deck rating — so the pools
+   really do change as batches land.
+
+   This was keyed on ENRICH_COMPLETE, which is a boolean that is already true when the
+   bulk map is still filling in, so the cache never invalidated: the counts on screen
+   were computed against whatever enrichment happened to have arrived by the first paint,
+   and were out by about a thousand games. */
+let _rngPools = null, _rngPoolsFor = null, _rngPoolsEpoch = null, _rngPoolsToGo = null;
 function rngPools() {
-  if (_rngPools && _rngPoolsFor === DATA && _rngPoolsDone === ENRICH_COMPLETE
+  if (_rngPools && _rngPoolsFor === DATA && _rngPoolsEpoch === _enrichEpoch
       && _rngPoolsToGo === rngState.toGo) return _rngPools;
   const out = { aaa: [], indie: [], retro: [] };
   for (const r of pickEligible()) {
@@ -309,7 +319,7 @@ function rngPools() {
     if (y < RNG_RETRO_BEFORE) out.retro.push(r);
     else out[rngTier(r)].push(r);
   }
-  _rngPoolsFor = DATA; _rngPoolsDone = ENRICH_COMPLETE; _rngPoolsToGo = rngState.toGo;
+  _rngPoolsFor = DATA; _rngPoolsEpoch = _enrichEpoch; _rngPoolsToGo = rngState.toGo;
   return (_rngPools = out);
 }
 
