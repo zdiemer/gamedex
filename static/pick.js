@@ -11,7 +11,12 @@
    shape the sidebar filters have always had — so the builder inherits the grid's
    entire vocabulary for free: sheet columns, IGDB (themes, keywords, perspective),
    and the constructed facets (predicted rating, playtime, sales). See pickFields(). */
-const pickState = { filter: null, preset: "backlog", picked: null };
+const pickState = { filter: null, preset: "backlog", picked: null, mode: "one" };
+/* Two ways to answer "what do I play". "one" is this file: a single game out of the
+   pool. "rng" is rng.js: three at once, one modern AAA, one modern indie, one retro,
+   over the same pool and the same criteria builder. The mode is which RESULT you get,
+   not a second set of state — everything above the result area is shared. */
+const pickModeRng = () => pickState.mode === "rng";
 let _completedFranchises = null;
 const completedFranchises = () => (_completedFranchises ||=
   new Set(((DATA.sheets.completed || {}).rows || []).flatMap((r) => unifiedFranchiseVals(r))));
@@ -502,6 +507,10 @@ function pickAdoptMinutes(m) {
   if (m && TIME_BUDGETS.some((b) => b.m === m) && pickBudgetMinutes() !== m) pickSetBudget(m);
 }
 function pickGame(roll) {
+  // The single-game entry point, and the two outside callers (Home's "pick another",
+  // the challenge hand-off) mean a single game — so asking for one IS asking for this
+  // mode, rather than quietly rolling three because that's where the tab was left.
+  pickState.mode = "one";
   const pool = pickPool();
   pickState.picked = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   // The roll is a reveal, not a re-render: play it into the result slot and let it
@@ -549,6 +558,36 @@ function pickDieHtml() {
   }).join("");
 }
 
+/* Covers hold their box until the bytes arrive: a still-loading tile wears a shimmer
+   pane and its art fades in over it, so a cold cache shimmers instead of popping covers
+   in one tile at a time mid-spin. Art the session already decoded — usually all of it,
+   from the grid — appears instantly; pixels you were just looking at shouldn't
+   reintroduce themselves on a re-roll.
+
+   Its own function because RNG mode's three reels are the same tiles wanting the same
+   behaviour (rng.js), and a second copy would be a second answer to when a cover fades. */
+function pickWireRollTiles(host) {
+  host.querySelectorAll(".roll-tile img").forEach((img) => {
+    const tile = img.parentElement;
+    const ok = () => { img.classList.add("ok"); tile.classList.add("imgok"); };
+    if (img.complete && img.naturalWidth) {
+      img.style.transitionDuration = "0s";
+      ok();
+      requestAnimationFrame(() => requestAnimationFrame(() => { img.style.transitionDuration = ""; }));
+    } else {
+      img.onload = ok;
+      // A 404 settles to the same glyph a coverless game gets, not a broken-image icon.
+      img.onerror = () => {
+        const ph = document.createElement("span");
+        ph.className = "roll-ph";
+        ph.innerHTML = icon("i-library", 22);
+        img.replaceWith(ph);
+        tile.classList.add("imgok");
+      };
+    }
+  });
+}
+
 function playPickRoll(picked, pool) {
   const host = $("#pickResult");
   if (!host) { renderPicker(); return; }
@@ -571,30 +610,7 @@ function playPickRoll(picked, pool) {
     <div class="roll-word" id="pickRollWord">Rolling…</div>
   </div>`;
 
-  // Covers hold their box until the bytes arrive: a still-loading tile wears a shimmer
-  // pane and its art fades in over it, so a cold cache shimmers instead of popping covers
-  // in one tile at a time mid-spin. Art the session already decoded — usually all of it,
-  // from the grid — appears instantly; pixels you were just looking at shouldn't
-  // reintroduce themselves on a re-roll.
-  host.querySelectorAll(".roll-tile img").forEach((img) => {
-    const tile = img.parentElement;
-    const ok = () => { img.classList.add("ok"); tile.classList.add("imgok"); };
-    if (img.complete && img.naturalWidth) {
-      img.style.transitionDuration = "0s";
-      ok();
-      requestAnimationFrame(() => requestAnimationFrame(() => { img.style.transitionDuration = ""; }));
-    } else {
-      img.onload = ok;
-      // A 404 settles to the same glyph a coverless game gets, not a broken-image icon.
-      img.onerror = () => {
-        const ph = document.createElement("span");
-        ph.className = "roll-ph";
-        ph.innerHTML = icon("i-library", 22);
-        img.replaceWith(ph);
-        tile.classList.add("imgok");
-      };
-    }
-  });
+  pickWireRollTiles(host);
 
   const reel = $("#pickRollReel");
   const winTile = reel.children[LAND];
@@ -1122,11 +1138,33 @@ function renderPicker() {
      anything it said, which is exactly when the dropdown starts reading "Custom filter". */
   const saveable = !pickState.preset;
 
-  const games = `${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"}`;
+  // RNG mode rolls three at once, so the counts and the button copy come from the
+  // slots rather than from the pool (see `shown` below).
+  const rng = pickModeRng();
+  if (rng) rngPrune();
+  const rngN = rng ? RNG_SLOTS.reduce((n, sl) => n + rngPools()[sl.id].length, 0) : 0;
+  const rollable = rng ? rngN : pool.length;
+  const hasResult = rng ? rngHasPicks() : (pickState.picked && pool.includes(pickState.picked));
+  const rollLabel = rng ? (hasResult ? "Roll all three again" : "Roll all three") : "Pick for me";
+
+  const modes = `<div class="pick-modes" role="group" aria-label="How many games to pick">
+    ${[["one", "One game", "i-dice"], ["rng", "RNG", "i-layers"]].map(([m, lbl, ic]) =>
+      `<button type="button" class="pick-mode${pickState.mode === m ? " on" : ""}" data-mode="${m}"
+         aria-pressed="${pickState.mode === m}">${icon(ic, 14)} ${lbl}</button>`).join("")}
+    ${rng ? `<span class="pick-modenote">One modern AAA, one modern indie, one retro.</span>` : ""}
+  </div>`;
+
+  /* The count every control quotes. In RNG mode it's the three slots' totals, not the
+     pool: the slots apply their own rules on top (owned, no DLC, priority, language,
+     series order), so "12,736 games" over a roll that can only reach 5,405 of them is
+     a number that reads as a promise and isn't one. */
+  const shown = rng ? rngN : pool.length;
+  const games = `${shown.toLocaleString()} game${shown === 1 ? "" : "s"}`;
   const sumLabel = pickState.preset
     ? (presetById(pickState.preset) || PRESETS[0]).label : "Custom filter";
   const critN = pickCritCount(pickState.filter);
   host.innerHTML = `
+    ${modes}
     <div class="pick-mtop">
       <span class="pick-msum">${escapeHtml(sumLabel)} · ${games}</span>
       <button class="pick-crit" id="pickCrit" type="button"
@@ -1151,7 +1189,7 @@ function renderPicker() {
                 `<option value="${b.m}"${b.m === mins ? " selected" : ""}>${escapeHtml(b.label)}</option>`).join("")}
             </select>
           </label>
-          <button id="pickBtn" class="pick-btn">${icon("i-dice", 16)} Pick for me</button>
+          <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} ${rollLabel}</button>
           <span class="pick-count">${games} in pool</span>
           ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
           <label class="pick-anim" title="Play a dice-roll animation when picking a game">
@@ -1166,25 +1204,29 @@ function renderPicker() {
         </div>` : ""}
         <div class="pick-builder" id="pickBuilder">${pickGroupHtml(pickState.filter, [])}</div>
       </div>
-      <button class="pick-shgo" id="pickShGo" type="button"${pool.length ? "" : " disabled"}>
-        ${icon("i-dice", 16)} ${pool.length
-          ? `Roll from ${pool.length === 1 ? "this 1 game" : `these ${pool.length.toLocaleString()} games`}`
-          : "Nothing matches these criteria"}
+      <button class="pick-shgo" id="pickShGo" type="button"${rollable ? "" : " disabled"}>
+        ${icon("i-dice", 16)} ${!rollable
+          ? (rng ? "Nothing fits these slots" : "Nothing matches these criteria")
+          : rng
+            ? `Roll three from these ${rngN.toLocaleString()} games`
+            : `Roll from ${pool.length === 1 ? "this 1 game" : `these ${pool.length.toLocaleString()} games`}`}
       </button>
     </div>
     <div class="pick-shback" id="pickShBack"${pickSheetOpen ? "" : " hidden"}></div>
-    <div class="pick-result" id="pickResult">${pickState.picked && pool.includes(pickState.picked)
-      ? pickCard(pickState.picked)
-      : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>
-    <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button">
-      ${icon("i-dice", 16)} ${pickState.picked && pool.includes(pickState.picked) ? "Re-roll" : "Pick for me"}
+    <div class="pick-result${rng ? " rng" : ""}" id="pickResult">${rng
+      ? rngResultHtml()
+      : pickState.picked && pool.includes(pickState.picked)
+        ? pickCard(pickState.picked)
+        : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>
+    <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button"${rollable ? "" : " disabled"}>
+      ${icon("i-dice", 16)} ${rng ? (hasResult ? "Roll again" : "Roll all three") : (hasResult ? "Re-roll" : "Pick for me")}
     </button></div>`;
 
   // The pick card composes launchHtml, which reads `stores` — a field the whole-library map
   // no longer ships (see _BULK_DROP in enrich.py), because three surfaces showing one game
   // each are not worth 1.9 MB on every page load. Ask for this one game's; postEnrich
   // re-renders the picker when it lands, and the button appears.
-  if (pickState.picked && typeof maybeEnrich === "function") maybeEnrich([pickState.picked]);
+  if (!rng && pickState.picked && typeof maybeEnrich === "function") maybeEnrich([pickState.picked]);
 
   // "Custom filter" is a readout of where you've ended up, not a thing you can
   // choose — selecting it should leave the tree you built alone.
@@ -1196,7 +1238,15 @@ function renderPicker() {
   // can negate, widen, or drag into an OR, and the dropdown says "Custom filter" because
   // by then that is exactly what it is.
   $("#pickTime").onchange = (e) => { closePickPop(); pickSetBudget(+e.target.value); renderPicker(); nav(); };
-  $("#pickBtn").onclick = () => { pickGame(true); nav(); };
+  const roll = () => { rng ? rngRollAll(true) : pickGame(true); nav(); };
+  $("#pickBtn").onclick = roll;
+  host.querySelectorAll(".pick-mode").forEach((el) => {
+    el.onclick = () => {
+      if (pickState.mode === el.dataset.mode) return;
+      pickState.mode = el.dataset.mode;
+      closePickPop(); renderPicker(); nav();
+    };
+  });
   const anim = $("#pickAnim");
   if (anim) anim.onchange = (e) => {
     if (e.target.checked) localStorage.removeItem(PICK_ANIM_KEY);
@@ -1213,10 +1263,12 @@ function renderPicker() {
   $("#pickShBack").onclick = () => pickSheetSet(false);
   // The sheet's CTA IS the roll — building criteria flows straight into a pick rather
   // than ending on a Done button and a hunt for the dice.
-  $("#pickShGo").onclick = () => { pickSheetSet(false); pickGame(true); nav(); };
-  $("#pickBtnM").onclick = () => { pickGame(true); nav(); };
+  $("#pickShGo").onclick = () => { pickSheetSet(false); roll(); };
+  $("#pickBtnM").onclick = roll;
   pickSheetA11y();          // the sheet was just rebuilt bare; dress it for the width
   positionPickPop();
+
+  if (rng) { wireRngResult(); return; }
 
   const game = host.querySelector("#pickGameCard");
   if (game) {
