@@ -9,11 +9,11 @@
      * one modern indie game  (2006 or later, small)
      * one retro game         (before 2006)
 
-   It is not a second picker. It reads pickPool(), so the criteria builder, the
-   time budget and the saved pickers all still apply and narrow all three slots
-   at once; what this file adds is the split into three, and five house rules
-   that a "pick me something to actually play" list needs and the general picker
-   deliberately doesn't have (see rngAllowed).
+   It shares the tab but not its controls. The criteria builder, the "start from"
+   preset, the time budget and the saved pickers all belong to the single pick and
+   are not rendered here; this mode rolls the whole backlog, split three ways, under
+   five house rules the general picker deliberately doesn't have (see rngAllowed).
+   Which means what the three slot counts say is exactly what it rolls from.
 
    Loaded straight after pick.js, whose globals it shares (pickState, pickPool,
    pickRollTile, pickAnimOn, DATA, ENRICH, openDrawer, …). challenges.js loads
@@ -234,18 +234,20 @@ const rngAllowed = (r) =>
   !!r.owned && !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r);
 
 /* ---- the three pools ----------------------------------------------------
-   Recomputed when the criteria change, the sheet reloads, or the last enrichment
-   source lands — rngTier reads publishers and genres that only exist once IGDB has
-   answered, so a pool cached across that would be sorting games by what we knew
-   before the data arrived. */
-let _rngPools = null, _rngPoolsKey = "", _rngPoolsFor = null, _rngPoolsDone = null;
+   Straight off pickEligible() (the backlog, playable, unfinished) rather than
+   pickPool(): RNG mode shows no criteria builder, no preset and no saved pickers, so
+   there is nothing on screen that could be narrowing this. A filter left behind on the
+   other mode silently shrinking a roll you can't see the criteria for is worse than
+   not offering the filter at all — the slots' own rules are the whole story here.
+
+   Recomputed when the sheet reloads or the last enrichment source lands: rngTier reads
+   publishers and genres that only exist once IGDB has answered, so a pool cached across
+   that would be sorting games by what we knew before the data arrived. */
+let _rngPools = null, _rngPoolsFor = null, _rngPoolsDone = null;
 function rngPools() {
-  if (!pickState.filter) pickState.filter = pickGroup();
-  const key = pickEncode(pickState.filter);
-  if (_rngPools && _rngPoolsKey === key && _rngPoolsFor === DATA && _rngPoolsDone === ENRICH_COMPLETE)
-    return _rngPools;
+  if (_rngPools && _rngPoolsFor === DATA && _rngPoolsDone === ENRICH_COMPLETE) return _rngPools;
   const out = { aaa: [], indie: [], retro: [] };
-  for (const r of pickPool()) {
+  for (const r of pickEligible()) {
     if (!rngAllowed(r)) continue;
     const y = rngYear(r);
     // No release year, no slot: a game that can't say which side of 2006 it's on
@@ -254,7 +256,7 @@ function rngPools() {
     if (y < RNG_RETRO_BEFORE) out.retro.push(r);
     else out[rngTier(r)].push(r);
   }
-  _rngPoolsKey = key; _rngPoolsFor = DATA; _rngPoolsDone = ENRICH_COMPLETE;
+  _rngPoolsFor = DATA; _rngPoolsDone = ENRICH_COMPLETE;
   return (_rngPools = out);
 }
 
@@ -291,9 +293,9 @@ function rngRoll(slotId) {
 }
 const rngHasPicks = () => RNG_SLOTS.some((s) => rngState.picks[s.id]);
 
-/* A pick only survives while it still answers the criteria. Editing the builder,
-   or a sheet reload, can move a game out of its pool — showing it anyway would be
-   the picker telling you it picked something the pool doesn't contain. */
+/* A pick only survives while it's still in its slot. A sheet reload can finish a game,
+   sell it, or move its year across the 2006 line — showing it anyway would be the
+   picker telling you it picked something the slot doesn't contain. */
 function rngPrune() {
   const pools = rngPools();
   for (const s of RNG_SLOTS) {
@@ -412,8 +414,14 @@ function wireRngResult() {
    A roll token guards against a second click (or a criteria change) landing an old
    roll on top of new state, and the per-slot re-roll spins one column in place while
    the other two cards sit still. */
-const RNG_REEL_N = 26, RNG_REEL_LAND = 21;
-const RNG_REEL_BASE = 1700, RNG_REEL_STAGGER = 450;
+/* Fourteen tiles, landing on the eleventh. It was 26 and the reels were unwatchable:
+   three of them meant 78 covers requested at once, which on a cold cache is enough
+   network and decode work to visibly stutter the spin, and 21 tiles of travel in 1.7s
+   is roughly two and a half times the single roll's speed — fast enough that the reel
+   read as a blur with a cut rather than as something slowing down. Fourteen each puts
+   the tile count back level with the one-game roll and halves the distance. */
+const RNG_REEL_N = 14, RNG_REEL_LAND = 10;
+const RNG_REEL_BASE = 1500, RNG_REEL_STAGGER = 400, RNG_REEL_TAIL = 340;
 let _rngRollN = 0;
 
 function rngReelHtml(pool, picked) {
@@ -439,6 +447,17 @@ function rngSpin(mask, dur) {
     { transform: `translateY(${-target * 0.36}px)`, filter: "blur(6px)", offset: .42 },
     { transform: `translateY(${-target}px)`, filter: "blur(0)" },
   ], { duration: dur, easing: "cubic-bezier(.16,.8,.18,1)", fill: "forwards" });
+}
+
+/* A column stops: light its frame and put the winner's NAME under it. `.named` is what
+   makes that readable — the resting style is a small letterspaced caps label, which is
+   right for "Rolling…" and turns a game title into an unreadable stripe. */
+function rngLockSlot(el, picked) {
+  el.classList.add("locked");
+  const hi = el.querySelector(".rng-reel-hi");
+  if (hi) hi.classList.add("lit");
+  const w = el.querySelector(".rng-word");
+  if (w) { w.textContent = picked.title; w.classList.add("named"); }
 }
 
 // The picker rebuilds wholesale when a roll lands, so the cards are fresh nodes —
@@ -476,16 +495,14 @@ function playRngRoll(pools) {
     rngSpin(el.querySelector(".rng-reel-mask"), dur);
     setTimeout(() => {
       if (_rngRollN !== my) return;
-      el.classList.add("locked");
-      const hi = el.querySelector(".rng-reel-hi"); if (hi) hi.classList.add("lit");
-      const w = el.querySelector(".rng-word"); if (w) w.textContent = rngState.picks[s.id].title;
+      rngLockSlot(el, rngState.picks[s.id]);
     }, dur - 40);
   });
 
   setTimeout(() => {
     if (_rngRollN !== my || activeTab !== "pick") return;
     rngLandCards(live.map((s) => s.id));
-  }, last + 420);
+  }, last + RNG_REEL_TAIL);
 }
 
 function playRngSlotRoll(el, slot, picked, pool) {
@@ -499,12 +516,10 @@ function playRngSlotRoll(el, slot, picked, pool) {
   rngSpin(el.querySelector(".rng-reel-mask"), dur);
   setTimeout(() => {
     if (_rngRollN !== my) return;
-    el.classList.add("locked");
-    const hi = el.querySelector(".rng-reel-hi"); if (hi) hi.classList.add("lit");
-    const w = el.querySelector(".rng-word"); if (w) w.textContent = picked.title;
+    rngLockSlot(el, picked);
   }, dur - 40);
   setTimeout(() => {
     if (_rngRollN !== my || activeTab !== "pick") return;
     rngLandCards([slot.id]);
-  }, dur + 420);
+  }, dur + RNG_REEL_TAIL);
 }

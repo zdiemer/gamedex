@@ -506,6 +506,26 @@ function pickSetBudget(m) {
 function pickAdoptMinutes(m) {
   if (m && TIME_BUDGETS.some((b) => b.m === m) && pickBudgetMinutes() !== m) pickSetBudget(m);
 }
+/* Which games the picker is showing right now: one in single mode, up to three in RNG.
+   enrich.js re-renders this tab when an enrichment batch lands, and it needs to know
+   whether the batch touched anything on screen — every batch used to repaint the tab,
+   including the whole-library background poll, which meant the cards redrew every 2.5
+   seconds for as long as the library was still resolving and a roll in progress got
+   wiped out from under itself. */
+/* What the result area was last built for. The cards carry a pop-in animation, and an
+   enrichment repaint rebuilds the same games' DOM — which replayed that pop every time a
+   source landed, so the picker looked like it was redrawing itself on a loop. The class
+   that carries the animation is now only put on when these are actually different games
+   from the ones that were on screen a moment ago. */
+let _pickDrawnFor = "";
+const pickResultKey = () => (pickModeRng()
+  ? RNG_SLOTS.map((sl) => (rngState.picks[sl.id] || {})._k || "-").join(",")
+  : ((pickState.picked || {})._k || "-"));
+
+const pickShowsKey = (k) => (pickModeRng()
+  ? RNG_SLOTS.some((sl) => (rngState.picks[sl.id] || {})._k === k)
+  : !!(pickState.picked && pickState.picked._k === k));
+
 function pickGame(roll) {
   // The single-game entry point, and the two outside callers (Home's "pick another",
   // the challenge hand-off) mean a single game — so asking for one IS asking for this
@@ -1109,6 +1129,30 @@ function pickGroupHtml(node, path) {
   </div>`;
 }
 
+/* The mode switch and the animation toggle are the only two controls both templates
+   render, so they're the only two that get wired in both. Leaving the phone sheet open
+   across a mode change would strand a modal over a tab that no longer has one. */
+function wirePickModes(host) {
+  host.querySelectorAll(".pick-mode").forEach((el) => {
+    el.onclick = () => {
+      if (pickState.mode === el.dataset.mode) return;
+      pickState.mode = el.dataset.mode;
+      closePickPop();
+      pickSheetSet(false);
+      renderPicker();
+      nav();
+    };
+  });
+}
+function wirePickAnim() {
+  const anim = $("#pickAnim");
+  if (!anim) return;
+  anim.onchange = (e) => {
+    if (e.target.checked) localStorage.removeItem(PICK_ANIM_KEY);
+    else localStorage.setItem(PICK_ANIM_KEY, "0");
+  };
+}
+
 function renderPicker() {
   pkbUse(PICK_TAB_BUILDER);   // the challenge editor borrows the builder; take it back
   const host = $("#picker");
@@ -1123,20 +1167,6 @@ function renderPicker() {
     if (!n || isPickGroup(n)) closePickPop();
   }
   const pool = pickPool();
-  const mins = pickBudgetMinutes();
-  const groups = {};
-  PRESETS.forEach((s) => { (groups[s.group] = groups[s.group] || []).push(s); });
-  const opts = Object.entries(groups).map(([g, ss]) =>
-    `<optgroup label="${escapeHtml(g)}">${ss.map((s) =>
-      `<option value="${s.id}"${s.id === pickState.preset ? " selected" : ""}>${escapeHtml(s.label)}</option>`).join("")}</optgroup>`).join("");
-
-  const saved = savedPickers();
-  const isDef = pickIsDefault();
-  /* A preset already has a name, and it's a better one than you'd type — so there's
-     nothing to save until you've said something the preset doesn't. That moment has a
-     name already too: pickEdited() empties pickState.preset as soon as you change
-     anything it said, which is exactly when the dropdown starts reading "Custom filter". */
-  const saveable = !pickState.preset;
 
   // RNG mode rolls three at once, so the counts and the button copy come from the
   // slots rather than from the pool (see `shown` below).
@@ -1156,13 +1186,64 @@ function renderPicker() {
 
   /* The count every control quotes. In RNG mode it's the three slots' totals, not the
      pool: the slots apply their own rules on top (owned, no DLC, priority, language,
-     series order), so "12,736 games" over a roll that can only reach 5,405 of them is
+     series order), so "12,736 games" over a roll that can only reach 5,438 of them is
      a number that reads as a promise and isn't one. */
   const shown = rng ? rngN : pool.length;
   const games = `${shown.toLocaleString()} game${shown === 1 ? "" : "s"}`;
+  // New games since the last paint, or the same ones redrawn? (see pickResultKey)
+  const rk = pickResultKey();
+  const fresh = rk !== _pickDrawnFor ? " fresh" : "";
+  _pickDrawnFor = rk;
+
+  /* RNG mode renders none of the pool chrome: no preset, no time budget, no builder,
+     no saved pickers, and none of the phone sheet that houses them (see rngPools —
+     it rolls the backlog whole). Two separate templates rather than one riddled with
+     conditionals, because what they have in common is three controls and a result.
+
+     It returns before the single pick's own setup below, which is the point: none of
+     the preset optgroups, the saved-picker list or the criteria count is work RNG mode
+     has any use for. */
+  if (rng) {
+    host.innerHTML = `
+      ${modes}
+      <div class="pick-controls rng-controls">
+        <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} ${rollLabel}</button>
+        <span class="pick-count">${games} in pool</span>
+        <label class="pick-anim" title="Play a slot-machine animation when rolling">
+          <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation
+        </label>
+      </div>
+      <div class="pick-result rng${fresh}" id="pickResult">${rngResultHtml()}</div>
+      <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button"${rollable ? "" : " disabled"}>
+        ${icon("i-dice", 16)} ${hasResult ? "Roll again" : "Roll all three"}
+      </button></div>`;
+    settleCachedCovers(host);
+    const rollAll = () => { rngRollAll(true); nav(); };
+    $("#pickBtn").onclick = rollAll;
+    $("#pickBtnM").onclick = rollAll;
+    wirePickModes(host);
+    wirePickAnim();
+    wireRngResult();
+    return;
+  }
+
+  const mins = pickBudgetMinutes();
+  const groups = {};
+  PRESETS.forEach((s) => { (groups[s.group] = groups[s.group] || []).push(s); });
+  const opts = Object.entries(groups).map(([g, ss]) =>
+    `<optgroup label="${escapeHtml(g)}">${ss.map((s) =>
+      `<option value="${s.id}"${s.id === pickState.preset ? " selected" : ""}>${escapeHtml(s.label)}</option>`).join("")}</optgroup>`).join("");
+  const saved = savedPickers();
+  const isDef = pickIsDefault();
+  /* A preset already has a name, and it's a better one than you'd type — so there's
+     nothing to save until you've said something the preset doesn't. That moment has a
+     name already too: pickEdited() empties pickState.preset as soon as you change
+     anything it said, which is exactly when the dropdown starts reading "Custom filter". */
+  const saveable = !pickState.preset;
   const sumLabel = pickState.preset
     ? (presetById(pickState.preset) || PRESETS[0]).label : "Custom filter";
   const critN = pickCritCount(pickState.filter);
+
   host.innerHTML = `
     ${modes}
     <div class="pick-mtop">
@@ -1213,15 +1294,14 @@ function renderPicker() {
       </button>
     </div>
     <div class="pick-shback" id="pickShBack"${pickSheetOpen ? "" : " hidden"}></div>
-    <div class="pick-result${rng ? " rng" : ""}" id="pickResult">${rng
-      ? rngResultHtml()
-      : pickState.picked && pool.includes(pickState.picked)
-        ? pickCard(pickState.picked)
-        : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>
+    <div class="pick-result${fresh}" id="pickResult">${hasResult
+      ? pickCard(pickState.picked)
+      : `<div class="pick-empty">${pool.length ? "Hit “Pick for me” to roll a game." : "Nothing matches this filter."}</div>`}</div>
     <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button"${rollable ? "" : " disabled"}>
-      ${icon("i-dice", 16)} ${rng ? (hasResult ? "Roll again" : "Roll all three") : (hasResult ? "Re-roll" : "Pick for me")}
+      ${icon("i-dice", 16)} ${hasResult ? "Re-roll" : "Pick for me"}
     </button></div>`;
 
+  settleCachedCovers(host);
   // The pick card composes launchHtml, which reads `stores` — a field the whole-library map
   // no longer ships (see _BULK_DROP in enrich.py), because three surfaces showing one game
   // each are not worth 1.9 MB on every page load. Ask for this one game's; postEnrich
@@ -1238,20 +1318,10 @@ function renderPicker() {
   // can negate, widen, or drag into an OR, and the dropdown says "Custom filter" because
   // by then that is exactly what it is.
   $("#pickTime").onchange = (e) => { closePickPop(); pickSetBudget(+e.target.value); renderPicker(); nav(); };
-  const roll = () => { rng ? rngRollAll(true) : pickGame(true); nav(); };
+  const roll = () => { pickGame(true); nav(); };
   $("#pickBtn").onclick = roll;
-  host.querySelectorAll(".pick-mode").forEach((el) => {
-    el.onclick = () => {
-      if (pickState.mode === el.dataset.mode) return;
-      pickState.mode = el.dataset.mode;
-      closePickPop(); renderPicker(); nav();
-    };
-  });
-  const anim = $("#pickAnim");
-  if (anim) anim.onchange = (e) => {
-    if (e.target.checked) localStorage.removeItem(PICK_ANIM_KEY);
-    else localStorage.setItem(PICK_ANIM_KEY, "0");
-  };
+  wirePickModes(host);
+  wirePickAnim();
   const reset = $("#pickReset");
   if (reset) reset.onclick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); renderPicker(); nav(); };
   wirePickSaved();
@@ -1267,8 +1337,6 @@ function renderPicker() {
   $("#pickBtnM").onclick = roll;
   pickSheetA11y();          // the sheet was just rebuilt bare; dress it for the width
   positionPickPop();
-
-  if (rng) { wireRngResult(); return; }
 
   const game = host.querySelector("#pickGameCard");
   if (game) {

@@ -37,6 +37,23 @@ function markCoverLoaded(e) {
 }
 document.addEventListener("load", markCoverLoaded, true);
 document.addEventListener("error", markCoverLoaded, true);
+/* A cover the browser has ALREADY decoded must not fade in again. img.card-cover starts
+   at opacity 0 and waits for a load event, which is right the first time a card is built
+   and wrong every time it is rebuilt: the <img> element is new, the bytes are not, and
+   the event still arrives a frame or more later — so the card blinks. Any surface that
+   re-renders cards in place (the picker, which enrichment repaints as sources land) calls
+   this straight after writing its HTML. The double rAF restores the transition only once
+   the browser has painted the opaque state, so the suppression can't leak into the fade
+   of a cover that really is arriving late. */
+function settleCachedCovers(root) {
+  (root || document).querySelectorAll("img.card-cover:not(.loaded)").forEach((img) => {
+    if (!(img.complete && img.naturalWidth)) return;
+    const prev = img.style.transitionDuration;
+    img.style.transitionDuration = "0s";
+    img.classList.add("loaded");
+    requestAnimationFrame(() => requestAnimationFrame(() => { img.style.transitionDuration = prev; }));
+  });
+}
 // Cover URL: fallback sources give a full coverUrl; IGDB gives an image id.
 // Cover: IGDB image id, else a fallback source's full URL, else the art the
 // gated sources bring — an arcade cabinet scan or a VN cover beats a blank box.
@@ -191,9 +208,14 @@ async function postEnrich(keys) {
       resetSearchCache();
       patchEnrichedCells();
       if (activeTab === "home" && typeof patchHomeCovers === "function") patchHomeCovers();
-      // Pick has no in-place patcher and one card to draw, so a re-render is the cheap
-      // option. It only fires for the row renderPicker itself just asked about.
-      else if (activeTab === "pick" && typeof renderPicker === "function") renderPicker();
+      /* Pick has no in-place patcher and few cards to draw, so a re-render is the cheap
+         option — but ONLY when this batch touched a game the picker is showing. It used
+         to fire on every batch, so the background library poll repainted the tab every
+         2.5 seconds: covers re-faded on a loop, and a roll in flight was replaced by its
+         own result mid-spin. pickShowsKey (pick.js) is the test. */
+      else if (activeTab === "pick" && typeof renderPicker === "function"
+               && typeof pickShowsKey === "function"
+               && Object.keys(j.items || {}).some(pickShowsKey)) renderPicker();
     }
     if (ENRICH_BATCH_DONE) { const done = ENRICH_BATCH_DONE; ENRICH_BATCH_DONE = null; done(); }
     if (j.pending && j.pending.length) {                    // still resolving — poll
