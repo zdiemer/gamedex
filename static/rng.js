@@ -152,20 +152,24 @@ const rngPriorityOk = (r) => priorityRank(r.priority) !== 1;
 /* Playable without reading the original language. English is tri-state on the sheet
    (None / Partial / Full; blank means it was English to begin with) and a text-heavy
    genre is the part that makes an untranslated game unplayable rather than merely
-   foreign — a shmup doesn't care what language it's in.
+   foreign — a shmup doesn't care what language it's in. A full translation is a
+   translation: those never reach the genre test at all.
 
-   Stricter than challenges.js's is_playable_by_language in two ways, both on purpose:
-   Partial counts as untranslated (a half-patched JRPG is exactly the trap), and the
-   genre test reads the UNIFIED genres (sheet + IGDB) rather than the sheet's single
-   genre cell. A false exclusion here costs one game out of thousands; a false
-   inclusion costs you the evening. */
+   Partial counts as unreadable, which is the one place this is stricter than
+   challenges.js's is_playable_by_language. A half-patched JRPG is exactly the trap,
+   and the 38 games it costs are 14 Turn-Based RPGs, 6 Action RPGs and 2 visual novels.
+
+   The genre, though, is the SHEET's own cell and not the unified sheet+IGDB set. IGDB
+   hangs a broad "Adventure" or "Strategy" on plenty of games that are nothing of the
+   sort, so reading the union quietly excluded Bomberman GB 3, Itadaki Street DS and
+   Densetsu no Stafy — a puzzle game, a board game and a platformer, none of which
+   needs a word of Japanese. The sheet's genre is one deliberate value per game, which
+   is the right vocabulary for a question about how much text a game puts on screen. */
 const RNG_UNREADABLE = new Set(["None", "Partial"]);
 function rngLanguageOk(r) {
   if (!RNG_UNREADABLE.has(r.english)) return true;
   if (typeof CH_TEXT_GENRES === "undefined") return true;
-  const g = new Set(unifiedGenreVals(r));
-  for (const t of CH_TEXT_GENRES) if (g.has(t)) return false;
-  return true;
+  return !CH_TEXT_GENRES.has(r.genre);
 }
 
 /* Genres where the story is the game, so entry N assumes entry N-1. Everything else
