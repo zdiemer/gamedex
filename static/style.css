@@ -1901,6 +1901,12 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   color: var(--muted); font-size: 12.5px;
 }
 .pick-anim input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+/* The animation toggle is a preference; this one changes which games can come up, so
+   it reads as a filter that is ON rather than as another quiet setting. */
+.pick-togo:has(input:checked) {
+  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+  border-radius: 999px; padding: 4px 12px; margin: -4px 0;
+}
 
 /* ---- the dice-roll reveal ------------------------------------------------
    A slot-reel of covers under a tumbling die, both easing to a stop on the winner. Lives in

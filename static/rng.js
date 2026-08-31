@@ -12,7 +12,8 @@
    It shares the tab but not its controls. The criteria builder, the "start from"
    preset, the time budget and the saved pickers all belong to the single pick and
    are not rendered here; this mode rolls the whole backlog, split three ways, under
-   four house rules the general picker deliberately doesn't have (see rngAllowed).
+   four house rules the general picker deliberately doesn't have (see rngAllowed),
+   plus the "playable on the go" knob when you turn it on (see rngToGoOk).
    Which means what the three slot counts say is exactly what it rolls from.
 
    Loaded straight after pick.js, whose globals it shares (pickState, pickPool,
@@ -29,7 +30,9 @@ const RNG_SLOTS = [
     hint: "Released before 2006" },
 ];
 const rngSlot = (id) => RNG_SLOTS.find((s) => s.id === id);
-const rngState = { picks: { aaa: null, indie: null, retro: null } };
+// toGo: the "playable on the go" knob (see rngToGoOk). Off by default, and it rides in
+// the URL like the mode does, so a link carries the roll you were actually looking at.
+const rngState = { picks: { aaa: null, indie: null, retro: null }, toGo: false };
 
 /* The modern/retro line. Not eraTags' "Retro (pre-2000)": that bucket is about the
    century, and this one is about the hardware — 2006 is the 360/PS3/Wii line, so
@@ -227,6 +230,48 @@ function rngSeriesOk(r) {
   return true;
 }
 
+/* ---- playable on the go -------------------------------------------------
+   A knob, not a rule: off by default, and when it's on all three slots narrow to games
+   you could actually start on a train. Three questions, because "portable" means three
+   different things depending on what the game runs on.
+
+   1. A PC game has to be Deck-playable, and we take Valve's own word for it: the deck
+      rating (steamx.py, via Valve's compatibility endpoint) has to say Verified or
+      Playable. Unsupported is out, and so is no rating at all — which is also how
+      non-Steam PC games are excluded, since no Steam appid means no rating, and that
+      was the simplification asked for. It leaves ~2,400 of the 3,880 PC games in.
+
+   2. Every other platform is a question about the HARDWARE, and the honest list is the
+      short one: what you can't take with you. Handhelds are portable by definition, and
+      a Deck emulates everything up to the PS2/GameCube/Wii/Wii U era, so the exclusions
+      are the home consoles too recent to emulate plus a handful of set-top oddities.
+      An unlisted platform stays, which is the right default for a library with 145 of
+      them and a long tail of one-game machines.
+
+   3. Two genres are out however they run: VR needs a headset, and point-and-click wants
+      a mouse and a table. Both are sheet/IGDB facts, so neither needs inference. */
+const RNG_PC_PLATFORMS = new Set(["pc", "mac os", "linux"]);
+const RNG_DECK_OK = new Set(["Verified", "Playable"]);
+const RNG_NOT_PORTABLE = new Set([
+  // Home consoles with no practical Deck emulation.
+  "PlayStation 3", "PlayStation 4", "PlayStation 5", "PlayStation Network",
+  "Xbox", "Xbox 360", "Xbox One", "Xbox Series X|S",
+  // Needs a headset and a room (the VR rule below catches most of these anyway).
+  "Oculus Quest",
+  // Not a machine you carry, whatever else it is.
+  "DVD Player", "Pioneer LaserActive", "Nuon", "Action Max", "Dedicated Console",
+  "Amazon Fire TV", "Sega Pico", "Zeebo", "Mainframe",
+]);
+
+function rngToGoOk(r) {
+  if (r.vr) return false;
+  if (unifiedGenreVals(r).includes("Point-and-Click")) return false;
+  const plat = String(r.platform || "");
+  if (RNG_PC_PLATFORMS.has(plat.toLowerCase()))
+    return RNG_DECK_OK.has((ENRICH[r._k] || {}).deck);
+  return !RNG_NOT_PORTABLE.has(plat);
+}
+
 /* DLC is the same rule wearing a different hat: an expansion needs the game it
    expands, which is a prerequisite by definition. It's a sheet column, so this one
    needs no inference.
@@ -237,7 +282,8 @@ function rngSeriesOk(r) {
    half the library to answer a question Playable had already answered. Owning a
    physical copy still counts for something, but as odds (rngWeightOf), not as a gate. */
 const rngAllowed = (r) =>
-  !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r);
+  !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r)
+  && (!rngState.toGo || rngToGoOk(r));
 
 /* ---- the three pools ----------------------------------------------------
    Straight off pickEligible() (the backlog, playable, unfinished) rather than
@@ -249,9 +295,10 @@ const rngAllowed = (r) =>
    Recomputed when the sheet reloads or the last enrichment source lands: rngTier reads
    publishers and genres that only exist once IGDB has answered, so a pool cached across
    that would be sorting games by what we knew before the data arrived. */
-let _rngPools = null, _rngPoolsFor = null, _rngPoolsDone = null;
+let _rngPools = null, _rngPoolsFor = null, _rngPoolsDone = null, _rngPoolsToGo = null;
 function rngPools() {
-  if (_rngPools && _rngPoolsFor === DATA && _rngPoolsDone === ENRICH_COMPLETE) return _rngPools;
+  if (_rngPools && _rngPoolsFor === DATA && _rngPoolsDone === ENRICH_COMPLETE
+      && _rngPoolsToGo === rngState.toGo) return _rngPools;
   const out = { aaa: [], indie: [], retro: [] };
   for (const r of pickEligible()) {
     if (!rngAllowed(r)) continue;
@@ -262,7 +309,7 @@ function rngPools() {
     if (y < RNG_RETRO_BEFORE) out.retro.push(r);
     else out[rngTier(r)].push(r);
   }
-  _rngPoolsFor = DATA; _rngPoolsDone = ENRICH_COMPLETE;
+  _rngPoolsFor = DATA; _rngPoolsDone = ENRICH_COMPLETE; _rngPoolsToGo = rngState.toGo;
   return (_rngPools = out);
 }
 
@@ -309,6 +356,15 @@ function rngPrune() {
     const p = rngState.picks[s.id];
     if (p && !pools[s.id].includes(p)) rngState.picks[s.id] = null;
   }
+}
+
+/* Turning the knob is a change to the pool, not to the picks: whatever still qualifies
+   stays on screen (rngPrune drops the rest), so switching it on tells you which of the
+   three you could have taken with you rather than silently re-rolling all of them. */
+function rngSetToGo(on) {
+  if (rngState.toGo === on) return;
+  rngState.toGo = on;
+  renderPicker();
 }
 
 function rngRollAll(roll) {

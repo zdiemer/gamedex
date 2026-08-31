@@ -1209,6 +1209,9 @@ function renderPicker() {
       <div class="pick-controls rng-controls">
         <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} ${rollLabel}</button>
         <span class="pick-count">${games} in pool</span>
+        <label class="pick-anim pick-togo" title="Steam Deck verified or playable, handhelds, and anything a Deck can emulate. No VR, no point-and-click.">
+          <input type="checkbox" id="rngToGo"${rngState.toGo ? " checked" : ""}> Playable on the go
+        </label>
         <label class="pick-anim" title="Play a slot-machine animation when rolling">
           <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation
         </label>
@@ -1221,6 +1224,7 @@ function renderPicker() {
     const rollAll = () => { rngRollAll(true); nav(); };
     $("#pickBtn").onclick = rollAll;
     $("#pickBtnM").onclick = rollAll;
+    $("#rngToGo").onchange = (e) => { rngSetToGo(e.target.checked); nav(); };
     wirePickModes(host);
     wirePickAnim();
     wireRngResult();

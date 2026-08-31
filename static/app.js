@@ -254,7 +254,12 @@ function syncURL(push) {
     else if (pickState.filter && pickState.filter.kids.length) p.set("fb", pickEncode(pickState.filter));
     // One game or three (rng.js). Only the non-default rides in the link, so every
     // picker URL ever shared still opens on the single-game mode it was written for.
-    if (pickState.mode === "rng") p.set("pm", "rng");
+    if (pickState.mode === "rng") {
+      p.set("pm", "rng");
+      // The "playable on the go" knob narrows all three slots, so a shared RNG link
+      // has to carry it or it describes a different roll than the one on screen.
+      if (rngState.toGo) p.set("go", "1");
+    }
   } else if (activeTab === "groups") {
     if (groupState.kind) p.set("g", groupState.kind);
     if (groupState.open) p.set("gk", groupState.open);
@@ -321,6 +326,7 @@ function applyStateFromURL() {
       // After the tree exists, never before: this writes a criterion into it.
       pickAdoptMinutes(+(p.get("mins") || 0));
       pickState.mode = p.get("pm") === "rng" ? "rng" : "one";
+      rngState.toGo = p.get("go") === "1";
     }
     if (tab === "challenges") {
       chState.open = p.get("ch") || null;
