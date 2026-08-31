@@ -2063,6 +2063,9 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   background: var(--surface-3); color: var(--muted); border: 1px solid var(--border);
 }
 .rng-copy.phys { background: var(--good-soft); color: var(--good); border-color: transparent; }
+/* Playable but not on the shelf. Dimmer than the other two rather than alarming: it's a
+   real answer to "what do I play", just not a copy you can go and pick up. */
+.rng-copy.none { background: none; color: var(--dim); border-style: dashed; }
 .rng-acts { display: flex; gap: 7px; flex-wrap: wrap; padding-top: 2px; }
 .rng-re, .rng-open {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2091,8 +2094,15 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
    column instead of a strip. */
 .rng-slot.spinning { border-color: var(--border); }
 /* Tall enough that the spinning column is close to the height of the card that
-   replaces it, so the grid doesn't lurch when the reels hand over. */
+   replaces it, so the grid doesn't lurch when the reels hand over.
+
+   --reel-tile is the tile's share of the column width, declared once here because TWO
+   things have to agree on it: the tiles themselves, and the frame that lights up around
+   the winner. The frame used to be its own hardcoded rectangle (left/right 12%, height
+   62%) over tiles that are 66% wide with a 3:4 ratio, so it was a box of the wrong size
+   in the wrong place, which is exactly what it looked like. */
 .rng-reel-mask {
+  --reel-tile: 66%;
   position: relative; height: 400px; overflow: hidden;
   -webkit-mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
   mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
@@ -2106,11 +2116,20 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
    rather than all of it: at full width the tile was TALLER than the window it spins in,
    so you never saw a whole cover go past — only a sliver, which is why the spin read as
    noise. Two-thirds leaves roughly two covers in view, which is what a reel looks like. */
-.rng-reel .roll-tile { width: 66%; height: auto; aspect-ratio: 3 / 4; }
+.rng-reel .roll-tile { width: var(--reel-tile); height: auto; aspect-ratio: 3 / 4; }
+/* The same box as a tile — same width, same 3:4 — scaled up a touch so it reads as a
+   frame AROUND the winner rather than a border drawn on top of its edge. Centred on the
+   mask, which is where the reel stops, so it lands on the cover every time and at every
+   column width. */
 .rng-reel-hi {
-  position: absolute; left: 12%; right: 12%; top: 50%; height: 62%;
-  transform: translateY(-50%);
-  border: 2px solid var(--slot, var(--accent)); border-radius: 12px;
+  position: absolute; left: 50%; top: 50%;
+  width: var(--reel-tile); aspect-ratio: 3 / 4;
+  transform: translate(-50%, -50%);
+  /* An outline rather than a border, because outline-offset gives the SAME gap on all
+     four sides. Scaling the box up instead spread it proportionally, so a 3:4 frame sat
+     further from the top and bottom edges than from the sides. */
+  border-radius: var(--r-sm);
+  outline: 2px solid var(--slot, var(--accent)); outline-offset: 5px;
   box-shadow: 0 0 26px color-mix(in srgb, var(--slot, var(--accent)) 45%, transparent);
   opacity: 0; transition: opacity .25s var(--ease); pointer-events: none;
 }
@@ -3852,8 +3871,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   /* The reels are the exception: a spinning column wants its full width back. */
   .rng-slot.spinning { display: block; }
   .rng-slot.spinning .rng-head { margin-bottom: 12px; }
-  .rng-reel-mask { height: 300px; }
-  .rng-reel .roll-tile { width: 46%; }
+  .rng-reel-mask { height: 300px; --reel-tile: 46%; }
   /* The phone hides .pick-controls' button and count, because in single-pick mode that
      row lives inside the bottom sheet and the sticky bar carries the roll. RNG has no
      sheet: this row is on the page, so the count comes back (the button doesn't — the

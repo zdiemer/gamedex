@@ -12,7 +12,7 @@
    It shares the tab but not its controls. The criteria builder, the "start from"
    preset, the time budget and the saved pickers all belong to the single pick and
    are not rendered here; this mode rolls the whole backlog, split three ways, under
-   five house rules the general picker deliberately doesn't have (see rngAllowed).
+   four house rules the general picker deliberately doesn't have (see rngAllowed).
    Which means what the three slot counts say is exactly what it rolls from.
 
    Loaded straight after pick.js, whose globals it shares (pickState, pickPool,
@@ -229,9 +229,15 @@ function rngSeriesOk(r) {
 
 /* DLC is the same rule wearing a different hat: an expansion needs the game it
    expands, which is a prerequisite by definition. It's a sheet column, so this one
-   needs no inference. */
+   needs no inference.
+
+   Ownership is deliberately NOT a rule. Playable is the sheet's own answer to "can I
+   actually start this", and it says Yes to plenty of games that aren't on the shelf —
+   emulated, on the NAS, in a subscription. Requiring `owned` on top of it threw away
+   half the library to answer a question Playable had already answered. Owning a
+   physical copy still counts for something, but as odds (rngWeightOf), not as a gate. */
 const rngAllowed = (r) =>
-  !!r.owned && !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r);
+  !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r);
 
 /* ---- the three pools ----------------------------------------------------
    Straight off pickEligible() (the backlog, playable, unfinished) rather than
@@ -261,7 +267,8 @@ function rngPools() {
 }
 
 /* ---- the roll -----------------------------------------------------------
-   Owned physical copies get three times the tickets in the two modern slots. Not
+   Owned physical copies get three times the tickets in the two modern slots; everything
+   else (a digital copy, or a game that's playable without being owned) gets one. Not
    "physical, or digital only if there are no physical" — with a shelf this size that
    rule means a digital game is never picked at all, and "prefer" doesn't mean never.
    The retro slot rolls flat: a retro shelf is physical almost by definition, so
@@ -353,11 +360,15 @@ function rngSlotHtml(slot, pool) {
     : (cstat === "complete" || rowCompleted(row)) ? " done" : "");
   const card = `<div class="${cls}" data-rngcard="${slot.id}">${cover}${vrBadgeHtml(row)}<div class="card-body">${cardBodyHtml(row)}</div></div>`;
 
-  // The copy you'd actually reach for. It's the one preference this mode weights the
-  // roll on, so the card says which one won rather than leaving you to open the drawer.
-  const copy = rngOwnedPhysical(row)
-    ? `<span class="rng-copy phys">${icon("i-package", 11)} On the shelf</span>`
-    : `<span class="rng-copy">${icon("i-play", 11)} Digital</span>`;
+  /* The copy you'd actually reach for. Physical is the one thing this mode weights the
+     roll on, so the card says whether that's what won rather than leaving you to open the
+     drawer — and a game that's playable without being owned has to say so too, or the
+     badge would call an emulated ROM "Digital" and read as a copy you have. */
+  const copy = !row.owned
+    ? `<span class="rng-copy none">${icon("i-alert", 11)} ${row.wishlisted ? "Wishlisted" : "Not owned"}</span>`
+    : rngOwnedPhysical(row)
+      ? `<span class="rng-copy phys">${icon("i-package", 11)} On the shelf</span>`
+      : `<span class="rng-copy">${icon("i-play", 11)} Digital</span>`;
   const chips = [row.platform, rngYear(row) || null, row.genre]
     .filter((x) => x != null && x !== "")
     .map((x) => `<span class="chip">${escapeHtml(String(x))}</span>`).join("");
