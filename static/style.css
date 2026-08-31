@@ -1721,6 +1721,13 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 }
 .pick-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(124, 92, 255, .45); }
 .pick-btn:active { transform: translateY(0); }
+/* A roll you can't take yet (the pool is still loading, or nothing matches). It kept its
+   full accent and its hover lift while doing nothing, which reads as a broken button
+   rather than a waiting one. Matches .pick-shgo[disabled], the phone's copy of it. */
+.pick-btn[disabled] {
+  filter: saturate(.35) brightness(.8); box-shadow: none; cursor: default;
+}
+.pick-btn[disabled]:hover { transform: none; box-shadow: none; }
 .pick-count { color: var(--dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 /* Only rendered when there's something to undo, so it never sits there greyed out asking
    to be read as a control you can't use. */
@@ -2072,6 +2079,13 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 /* Playable but not on the shelf. Dimmer than the other two rather than alarming: it's a
    real answer to "what do I play", just not a copy you can go and pick up. */
 .rng-copy.none { background: none; color: var(--dim); border-style: dashed; }
+/* Time to beat. A chip like the platform and year beside it, but with the clock and a
+   touch of accent, because it's the one of them that decides whether you start tonight. */
+.rng-time {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--accent); background: var(--accent-soft); border-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
 .rng-acts { display: flex; gap: 7px; flex-wrap: wrap; padding-top: 2px; }
 .rng-re, .rng-open {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2086,6 +2100,16 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 /* rng-off, not `empty`: .empty is the grid's own empty state (grid-column: 1 / -1,
    64px of padding), and a slot wearing it stretched across all three columns. */
 .rng-slot.rng-off { border-style: dashed; box-shadow: none; background: none; }
+/* Mid-load. The slot keeps its box and its eyebrow — which slot it is was never in doubt —
+   and shimmers where the count, the cover and the title are still being decided. Shaped
+   like the card it becomes, so the grid doesn't jump when the real one arrives. */
+.rng-slot.loading .rng-n { width: 34px; height: 11px; border-radius: 999px; }
+.rng-skel-art { width: 100%; aspect-ratio: 3 / 4; border-radius: var(--r); }
+.rng-slot.loading .rng-body { gap: 0; padding-top: 14px; }
+.rng-slot.loading .skel-line { height: 12px; }
+.rng-slot.loading .skel-line:first-child { width: 85%; }
+/* The pool count while it is still being counted: a shimmer, never a zero. */
+.pick-count.skel { display: inline-block; width: 108px; height: 12px; border-radius: 999px; }
 .rng-blank {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; text-align: center; min-height: 240px; padding: 12px;

@@ -402,6 +402,7 @@ function rngSetToGo(on) {
 }
 
 function rngRollAll(roll) {
+  if (rngLoading()) return;
   const pools = rngPools();
   for (const s of RNG_SLOTS) rngRoll(s.id);
   if (roll && rngHasPicks() && pickAnimOn() && !pickReduced()) playRngRoll(pools);
@@ -409,6 +410,7 @@ function rngRollAll(roll) {
 }
 
 function rngRollOne(slotId, roll) {
+  if (rngLoading()) return;
   const pool = rngPools()[slotId] || [];
   rngRoll(slotId);
   const host = document.querySelector(`#pickResult .rng-slot[data-slot="${slotId}"]`);
@@ -416,6 +418,20 @@ function rngRollOne(slotId, roll) {
     playRngSlotRoll(host, rngSlot(slotId), rngState.picks[slotId], pool);
   else renderPicker();
 }
+
+/* Has the data these slots are DECIDED by actually arrived? Which slot a game lands in
+   reads its publishers, its genres and IGDB's rating count, and its era reads IGDB's
+   first release year — all of it in the bulk enrichment map. Before that map lands the
+   answer to every slot is zero, and a slot that says "Nothing in your library fits this
+   slot" while it is still reading is not empty, it is lying. So the tab shimmers instead,
+   and loadAllEnrichment re-renders it on arrival (panels.js).
+
+   ENRICH_READY, not ENRICH_COMPLETE: complete means the SERVER has finished backfilling
+   every source, which can be false for hours; ready means the map is here, which is when
+   these answers stop moving. It is also set in a finally block, so a failed fetch releases
+   the skeleton rather than shimmering forever. */
+const rngLoading = () =>
+  typeof ENRICH_ENABLED !== "undefined" && ENRICH_ENABLED && !ENRICH_READY;
 
 /* ---- the cards ----------------------------------------------------------
    Three columns, each one an eyebrow saying which slot it is, the REAL grid card
@@ -459,6 +475,15 @@ function rngSlotHtml(slot, pool) {
     : rngOwnedPhysical(row)
       ? `<span class="rng-copy phys">${icon("i-package", 11)} On the shelf</span>`
       : `<span class="rng-copy">${icon("i-play", 11)} Digital</span>`;
+  /* How long it takes to beat, right on the card. It's the question that decides whether
+     tonight's pick is tonight's pick, and it was a click away in the drawer. playtimeOf is
+     the same chain the rest of the app uses (HowLongToBeat, then VNDB for visual novels,
+     then the sheet's own estimate), and it stays off the card entirely when nothing knows
+     — a blank clock reads as "zero hours", which is worse than not saying. */
+  const hrs = playtimeOf(row);
+  const time = hrs != null
+    ? `<span class="chip rng-time" title="How long to beat">${icon("i-clock", 11)} ${escapeHtml(fmtHours(hrs))}</span>`
+    : "";
   const chips = [row.platform, rngYear(row) || null, row.genre]
     .filter((x) => x != null && x !== "")
     .map((x) => `<span class="chip">${escapeHtml(String(x))}</span>`).join("");
@@ -466,7 +491,7 @@ function rngSlotHtml(slot, pool) {
   return box(`<div class="rng-art">${card}</div>
     <div class="rng-body">
       <h3 title="${escapeHtml(String(row.title))}">${escapeHtml(String(row.title))}</h3>
-      <div class="rng-chips">${copy}${chips}</div>
+      <div class="rng-chips">${copy}${time}${chips}</div>
       <div class="rng-acts">
         <button class="rng-re" data-reroll="${slot.id}">${icon("i-refresh", 13)} Re-roll</button>
         <button class="rng-open" data-open="${slot.id}">Details</button>
@@ -474,7 +499,25 @@ function rngSlotHtml(slot, pool) {
     </div>`);
 }
 
+// A slot mid-load: the same box, the same eyebrow, and a shimmer where the count, the
+// cover and the title will be. Shaped like the card it becomes, so nothing jumps.
+function rngSkeletonHtml(slot) {
+  return `<div class="rng-slot loading" data-slot="${slot.id}" style="--slot: ${slot.tint}">
+    <div class="rng-head">
+      <span class="rng-eye">${icon(slot.icon, 12)} ${escapeHtml(slot.label)}</span>
+      <span class="rng-n skel"></span>
+    </div>
+    <div class="rng-art"><div class="rng-skel-art skel"></div></div>
+    <div class="rng-body">
+      <div class="skel skel-line"></div>
+      <div class="skel skel-line short"></div>
+    </div>
+  </div>`;
+}
+
 function rngResultHtml() {
+  if (rngLoading())
+    return `<div class="rng-grid">${RNG_SLOTS.map(rngSkeletonHtml).join("")}</div>`;
   const pools = rngPools();
   const total = RNG_SLOTS.reduce((n, s) => n + pools[s.id].length, 0);
   if (!total) {
@@ -485,7 +528,7 @@ function rngResultHtml() {
 
 function wireRngResult() {
   const host = $("#pickResult");
-  if (!host) return;
+  if (!host || rngLoading()) return;
   host.querySelectorAll("[data-rngcard]").forEach((el) => {
     const row = rngState.picks[el.dataset.rngcard];
     if (!row) return;

@@ -1168,13 +1168,18 @@ function renderPicker() {
   }
   const pool = pickPool();
 
-  // RNG mode rolls three at once, so the counts and the button copy come from the
-  // slots rather than from the pool (see `shown` below).
+  /* RNG mode rolls three at once, so the counts and the button copy come from the slots
+     rather than from the pool (see `shown` below) — except while the enrichment map is
+     still arriving, when the slots have no answer yet and asking for one would only get
+     three zeroes. rngLoading holds the whole thing back: no pooling, no pruning, and the
+     controls say nothing they'd have to take back. */
   const rng = pickModeRng();
-  if (rng) rngPrune();
-  const rngN = rng ? RNG_SLOTS.reduce((n, sl) => n + rngPools()[sl.id].length, 0) : 0;
-  const rollable = rng ? rngN : pool.length;
-  const hasResult = rng ? rngHasPicks() : (pickState.picked && pool.includes(pickState.picked));
+  const loading = rng && rngLoading();
+  if (rng && !loading) rngPrune();
+  const rngN = (rng && !loading) ? RNG_SLOTS.reduce((n, sl) => n + rngPools()[sl.id].length, 0) : 0;
+  const rollable = loading ? 0 : (rng ? rngN : pool.length);
+  const hasResult = loading ? false
+    : rng ? rngHasPicks() : (pickState.picked && pool.includes(pickState.picked));
   const rollLabel = rng ? (hasResult ? "Roll all three again" : "Roll all three") : "Pick for me";
 
   const modes = `<div class="pick-modes" role="group" aria-label="How many games to pick">
@@ -1189,7 +1194,8 @@ function renderPicker() {
      series order), so "12,736 games" over a roll that can only reach 5,438 of them is
      a number that reads as a promise and isn't one. */
   const shown = rng ? rngN : pool.length;
-  const games = `${shown.toLocaleString()} game${shown === 1 ? "" : "s"}`;
+  // A shimmer, not "0 games in pool": the pool isn't empty, it isn't counted yet.
+  const games = loading ? "" : `${shown.toLocaleString()} game${shown === 1 ? "" : "s"}`;
   // New games since the last paint, or the same ones redrawn? (see pickResultKey)
   const rk = pickResultKey();
   const fresh = rk !== _pickDrawnFor ? " fresh" : "";
@@ -1208,9 +1214,9 @@ function renderPicker() {
       ${modes}
       <div class="pick-controls rng-controls">
         <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} ${rollLabel}</button>
-        <span class="pick-count">${games} in pool</span>
+        <span class="pick-count${loading ? " skel" : ""}">${loading ? "" : `${games} in pool`}</span>
         <label class="pick-anim pick-togo" title="Steam Deck verified or playable, handhelds, and anything a Deck can emulate. No VR, no point-and-click.">
-          <input type="checkbox" id="rngToGo"${rngState.toGo ? " checked" : ""}> Playable on the go
+          <input type="checkbox" id="rngToGo"${rngState.toGo ? " checked" : ""}${loading ? " disabled" : ""}> Playable on the go
         </label>
         <label class="pick-anim" title="Play a slot-machine animation when rolling">
           <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation

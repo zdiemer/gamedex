@@ -655,7 +655,12 @@ async function loadAllEnrichment() {
       // first render before it lands can't dedupe (Hollow Knight shows once per platform). Re-run
       // when the map arrives (and as a backfill refines it); renderSearch debounces the rebuild.
       else if (activeTab === "search") renderSearch();
-      else if (activeTab !== "pick") {
+      /* Pick was excluded from every branch here, so the picker never heard that the map
+         had landed. It matters now: RNG's slots are decided by publishers, genres and
+         IGDB's rating count, none of which exist before this, so the tab paints a
+         skeleton until it arrives (rngLoading) and this is what releases it. */
+      else if (activeTab === "pick") renderPicker();
+      else {
         /* If a filter or a sort on screen reads this map, the row list itself may be wrong —
            not just the covers in it. It was computed against whatever the map held at the
            time, which on a shared link is nothing at all. But a full renderAll rebuilds every
