@@ -447,8 +447,25 @@ const igdbFacetCols = () =>
         { key: "__missing", label: "Missing data", type: "text", facet: true, virtual: true, kind: "fn", getVals: missingOf },
       ]
     : [];
+/* Which console a recommendation is FOR — the one facet Recommend could never offer.
+   It lives here rather than in IGDB_FACET_DEFS because those read the enrichment map, and
+   the map has no `platforms`: it would be a second, permanently empty "Platform" facet on
+   the Games tab, sitting next to the sheet's real one. This reads `_igdb.platforms`, which
+   only a catalogue row carries, so it is scoped to the tab whose rows are catalogue rows.
+
+   `enriched: false` for the same reason the ROM library facet says it: the values arrive
+   inline with the catalogue payload, so selecting one does not have to wait on enrichment.
+   Distinct from the `platform` COLUMN on a rec card, which is the single storefront
+   platform /api/games/meta fills in per visible page — this is every platform IGDB knows,
+   known for every row at once, which is what a facet needs to be honest. */
+const recsFacetCols = () => [
+  { key: "__cat_plat", label: "Platform", type: "text", facet: true, virtual: true,
+    enriched: false, source: "platforms" },
+];
+
 // Bucketed facets available on the Games tab (playtime + Metacritic).
 function extraFacetCols(tab = activeTab) {
+  if (tab === "recs") return recsFacetCols();
   if (tab !== "games") return [];
   return [
     { key: "__playtime", label: "Playtime", type: "text", facet: true, virtual: true, kind: "bucket", buckets: PLAYTIME_BUCKETS, getVal: playtimeOf },

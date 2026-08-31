@@ -2,7 +2,7 @@ image:
   # Built + pushed to the in-cluster registry by build.sh, so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: registry.zachd.duckdns.org/zdiemer/gamedex
-  tag: "1.58.145"
+  tag: "1.58.146"
   pullPolicy: IfNotPresent
 
 service:

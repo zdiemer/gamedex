@@ -69,7 +69,11 @@ _CATALOGUE_RICH = (
     "fields id,checksum,genres.name,themes.name,game_modes.name,"
     "player_perspectives.name,keywords.name,game_engines.name,"
     "involved_companies.company.name,involved_companies.developer,"
-    "involved_companies.publisher,franchise.name,franchises.name;"
+    "involved_companies.publisher,franchise.name,franchises.name,"
+    # Every platform the game ever shipped on, re-releases included. Pass 1 can't carry
+    # this — it's a nested field, and paying for it across 370k games to describe the 336k
+    # nothing will ever rank is the trade this two-pass split exists to avoid.
+    "platforms.name;"
 )
 
 # Keywords that describe the SHOP or the PLUMBING, not the game. Drawn from a census of the
@@ -853,6 +857,20 @@ class IgdbClient:
             "developers": sorted(set(devs)),
             "publishers": sorted(set(pubs)),
             "franchises": self._franchises_of(c),
+            # IGDB's own names, deliberately unnormalised. The obvious move is to fold them
+            # onto the sheet's vocabulary with constants.PLATFORM_NAMES, and it is a trap:
+            # that map is built for FORWARD verification ("does this IGDB list contain the
+            # SNES?") and read backwards it is ambiguous — "super nintendo entertainment
+            # system" is an alias of both SNES and BS-X, "turbografx-16/pc engine" of both
+            # TurboGrafx-16 and SuperGrafx. Folding through it would silently misfile the
+            # exact platforms this facet exists to find.
+            #
+            # The cost is IGDB's regional twins: a game can be filed under "Family Computer"
+            # and/or "Nintendo Entertainment System". Measured on a 400-game sample of the
+            # pre-2007 catalogue, picking only the western name misses 18% of the SNES set —
+            # mostly Japan-only releases. Facets are multi-select and OR together, so that
+            # is one extra click, not a wrong answer.
+            "platforms": sorted({p["name"] for p in c.get("platforms", []) if p.get("name")}),
         }
 
     def enrichment_from_result(self, c):

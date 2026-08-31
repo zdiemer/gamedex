@@ -88,6 +88,10 @@ function hydrateCatalogue(j) {
       perspectives: pull(g, "persp"), developers: pull(g, "devs"),
       publishers: pull(g, "pubs"), franchises: pull(g, "frans"),
       keywords: pull(g, "keywords"), engines: pull(g, "engines"),
+      // Every platform IGDB lists, re-releases included — so a NES game carries Wii and
+      // 3DS alongside the NES. That breadth is the point: the question a rec answers is
+      // "can I play this?", not "what did it launch on?".
+      platforms: pull(g, "plats"),
       url: g[F.slug] ? `https://www.igdb.com/games/${g[F.slug]}` : null,
       source: "igdb",
     };

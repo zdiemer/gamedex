@@ -75,6 +75,13 @@ _SCOREABLE_SQL = (
 # STORES_VERSION and friends in enrich.py.
 # v2: parent_id / version_parent_id, for "is this an edition of a game I already own?"
 LEAN_VERSION = "2"
+# The same idea for pass 2, and it needs its own knob because the two passes notice change
+# differently. Pass 1 re-reads every row on a full sweep, so LEAN_VERSION only has to force
+# that sweep early. Pass 2 re-reads a row when IGDB's `checksum` moves — and adding a field
+# HERE moves nothing on IGDB's side, so without this every existing row would keep its old
+# tag blob forever and the new field would never arrive. Bump to re-tag all 34k.
+# v2: platforms, for the Recommend tab's console facet.
+RICH_VERSION = "2"
 FULL_CRAWL_DAYS = 7
 # Wait for the boot peak (xlsx parse, enrichment backfills) to pass before adding 740
 # requests to it — the same courtesy SHELF.warm(delay=90) pays.
@@ -101,6 +108,9 @@ _VOCAB = [
     ("genres", "genres"), ("themes", "themes"), ("modes", "gameModes"),
     ("persp", "perspectives"), ("devs", "developers"), ("pubs", "publishers"),
     ("frans", "franchises"), ("keywords", "keywords"), ("engines", "engines"),
+    # Which consoles a game shipped on. Interning earns its keep hardest here: ~200 distinct
+    # platform names cover all 34k games, and most games list several.
+    ("plats", "platforms"),
 ]
 # Derived, not restated: the column order and the vocab order are the same fact, and
 # writing it twice is one edit away from silently shipping every game's genres under
@@ -169,6 +179,13 @@ class Catalogue:
     def _days_since_full(self):
         # A new lean field is as good as never having crawled: every row is missing it.
         if self._kv_get("lean_version") != LEAN_VERSION:
+            return 10 ** 6
+        # A new RICH field forces the full crawl too, and not because pass 1 needs it —
+        # `generation` does. It is the client's cache key, it is bumped only on a completed
+        # full crawl, and the payload is served to the browser under it for a day. Re-tag on
+        # a watermark pass alone and the new field lands in the DB behind a cache key nobody
+        # refetches, so it would not reach a browser until the weekly sweep came round.
+        if self._kv_get("rich_version") != RICH_VERSION:
             return 10 ** 6
         last = self._kv_get("full_crawled")
         if not last:
@@ -358,6 +375,17 @@ class Catalogue:
         because `updated_at` gets bumped by bulk re-indexing that changes nothing we
         store.
         """
+        # A new field in the rich record is invisible to that checksum — IGDB's row didn't
+        # change, ours did — so retire every stored checksum once and let the ordinary
+        # "checksum moved" path do the re-fetch. `rich` itself is left alone on purpose:
+        # payload() keeps serving the old tags for the couple of minutes the re-tag takes,
+        # rather than blanking the catalogue mid-crawl.
+        if self._kv_get("rich_version") != RICH_VERSION:
+            with self._db_lock:
+                self._db.execute(f"UPDATE catalogue SET rich_checksum=NULL WHERE {_SCOREABLE_SQL}")
+                self._db.commit()
+            self._kv_set("rich_version", RICH_VERSION)
+            log.info("catalogue: rich version -> %s, re-tagging every scoreable game", RICH_VERSION)
         with self._db_lock:
             need = [r[0] for r in self._db.execute(
                 f"SELECT igdb_id FROM catalogue WHERE {_SCOREABLE_SQL}"
