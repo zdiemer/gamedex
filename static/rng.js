@@ -472,7 +472,7 @@ function rngSlotHtml(slot, pool) {
   return box(`<div class="rng-art">${card}</div>
     <div class="rng-body">
       <h3 title="${escapeHtml(String(row.title))}">${escapeHtml(String(row.title))}</h3>
-      <div class="rng-chips">${copy}${time}${chips}</div>
+      <div class="rng-chips">${copy}${time}${rngChipsHtml(row)}</div>
       <div class="rng-acts">
         <button class="rng-re" data-reroll="${slot.id}">${icon("i-refresh", 13)} Re-roll</button>
         <button class="rng-open" data-open="${slot.id}">Details</button>
