@@ -41,10 +41,14 @@ for the nav badge.
 TRAPS
 -----
 * **Cold-start alert storm.** On an empty database all ~7,000 entries are "new". Without
-  care the feature introduces itself with several hundred alerts. The first crawl seeds
-  `first_seen` from the release date and stamps kv `seeded_at`; alerts are suppressed for
-  anything first seen during that seed. Same discipline as Catalogue.generation refusing
-  to name a half-built table.
+  care the feature introduces itself with several hundred alerts. Each source stamps kv
+  `<source>_seeded_at` when it finishes walking its listing, and a release only alerts if
+  it turned up AFTER the source that carries it finished. Same discipline as
+  Catalogue.generation refusing to name a half-built table.
+
+  Deliberately PER SOURCE. A global gate meant one slow or blocked source suppressed
+  every alert indefinitely — romhack.ing rate-limited us on the day this shipped, and
+  Romhack Plaza had been fully seeded for hours with nothing able to fire.
 
 * **`english` in the served rows is a LABEL, not a code.** parse.py applies
   _VALUE_LABELS at parse time, so the values are "None" / "Partial" / "Full", never
@@ -327,6 +331,7 @@ class TranslationWatch:
         self._payload_memo = None
         self._db = sqlite3.connect(db_path, check_same_thread=False)
         self._init_db()
+        self._backfill_seed_stamps()
 
     # -- schema --------------------------------------------------------------
 
@@ -364,6 +369,19 @@ class TranslationWatch:
         self._db.execute("CREATE INDEX IF NOT EXISTS tw_rel_seen ON releases(first_seen DESC)")
         self._db.execute("CREATE INDEX IF NOT EXISTS tw_games_igdb ON games(igdb_id)")
         self._db.commit()
+
+    def _backfill_seed_stamps(self):
+        """Give an already-seeded source its completion timestamp.
+
+        `<source>_seeded_at` arrived after `<source>_seeded`, so a database seeded by an
+        earlier build has the flag and not the stamp — and _alertable would then never
+        fire for it, because the seed will not run again to set it. Everything already in
+        the table is back-catalogue by definition, so "now" is the correct stamp.
+        """
+        for source in ("rhdi", "plaza"):
+            if self._kv_int(f"{source}_seeded", 0) and not self._kv_get(f"{source}_seeded_at"):
+                self._kv_set(f"{source}_seeded_at", _now())
+                log.info("translations: stamped %s seed completion (migrated)", source)
 
     # -- kv ------------------------------------------------------------------
 
@@ -510,6 +528,11 @@ class TranslationWatch:
             self._kv_set(cursor_key, 1 if exhausted else page + 1)
             if exhausted:
                 self._kv_set(f"{source}_seeded", 1)
+                # The timestamp, not just the flag: a release ingested DURING the seed is
+                # back-catalogue and must never alert, while one that arrives after it is
+                # genuinely new. Without this the two are indistinguishable.
+                if not self._kv_get(f"{source}_seeded_at"):
+                    self._kv_set(f"{source}_seeded_at", _now())
         elif seeding and page > start:
             # Keep the ground we did cover, but resume ON the page that failed.
             self._kv_set(cursor_key, page)
@@ -1047,7 +1070,14 @@ class TranslationWatch:
         The sheet's `english` is a LABEL ("None"/"Partial"/"Full"), and an ABSENT value
         means the game shipped in English — that must never alert.
         """
-        if not sheet_row or not self.seeded:
+        if not sheet_row:
+            return None
+        # Per SOURCE, not globally. `seeded` is only true once EVERY enabled source has
+        # walked its listing to the end, so one source being slow or blocked used to mean
+        # no alert could ever fire — including for a source that finished days ago. A
+        # release is alertable when the source it came from has finished seeding AND it
+        # turned up after that finished.
+        if not self._alertable(rel):
             return None
         status = (rel.get("status") or "").lower()
         tags = {t.lower() for t in rel.get("tags") or []}
@@ -1063,6 +1093,15 @@ class TranslationWatch:
         if sheet_row.get("wishlisted"):
             return "wishlist"
         return None
+
+    def _alertable(self, item):
+        """True when this release post-dates the seed of a source that carries it."""
+        first_seen = item.get("firstSeen") or ""
+        for src in {s.get("name") for s in item.get("sources") or []}:
+            done = self._kv_int(f"{src}_seeded_at", 0)
+            if done and first_seen > _iso(done):
+                return True
+        return False
 
     def payload(self, limit=500):
         """The /api/translations body: alerts pinned, then the feed, newest first.
