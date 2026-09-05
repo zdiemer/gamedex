@@ -24,6 +24,9 @@ const DEFAULT_SORT = {
   onOrder: [{ key: "orderedDate", dir: "desc", type: "date" }],
   wishlist: [{ key: "dateAdded", dir: "desc", type: "date" }],   // newest wish first, per buildWishlistSheet
   recs: [{ key: "recScore", dir: "desc", type: "number" }],      // "best of both" (recsBoth)
+  // A feed answers "what is new", so it opens on the release date. Alphabetical is the
+  // wrong first impression for a tab whose whole point is recency.
+  translations: [{ key: "released", dir: "desc", type: "date" }],
 };
 
 const PLAYING_RANK = { "Playing": 0, "On Hold": 1, "Up Next": 2 };

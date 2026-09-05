@@ -68,6 +68,12 @@ function twRow(item) {
     if (g.genres && !e.genres) e.genres = g.genres;
     if (g.summary && !e.summary) e.summary = g.summary;
   }
+  // Unmatched releases still have art: Romhack Plaza's own .webp, which is durable
+  // (romhack.ing's thumbnails expire in 300s and never leave the server). coverSrc
+  // already prefers e.cover — the IGDB id — and falls back to e.coverUrl through
+  // /api/img, so a game IGDB never matched still gets a picture instead of a
+  // placeholder that reads as "broken".
+  if (item.coverUrl && !e.cover && !e.coverUrl) e.coverUrl = item.coverUrl;
   const mine = item.mine;
   return {
     title: item.title,
@@ -118,6 +124,10 @@ async function loadTranslations(force) {
   } finally {
     _twBusy = false;
   }
+  // The gate fires this and returns false, painting "Checking what's been translated…".
+  // Nothing else is waiting on the promise, so without an explicit repaint here the tab
+  // sits on that message forever — the feed only appeared if you navigated away and back.
+  if (activeTab === "translations") renderAll();
 }
 
 const twMsg = (html) =>

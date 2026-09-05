@@ -120,6 +120,9 @@ const SORT_MENUS = {
     "recScore", "predicted", "confidence", "voters",
     "title", "platform", "releaseYear",
   ],
+  translations: [
+    "released", "title", "platform", "status", "quality", "genre", "releaseYear",
+  ],
 };
 // The sheet's own headers read as filing-cabinet labels ("Date Purchased"); in a
 // sort menu you want the thing first. Completed's keys land on the same labels as
