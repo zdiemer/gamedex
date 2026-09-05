@@ -2097,6 +2097,39 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
 .rng-open { background: var(--surface-3); color: var(--text); }
 .rng-open:hover { border-color: var(--accent-line); color: var(--accent); }
 
+/* ---- a pinned slot ----
+   Held by a game you're already playing, so it doesn't roll. It reads as the settled one
+   of the three: the slot's own tint on the border and a wash of it behind the card, which
+   is the same colour its eyebrow already uses — so "this column is spoken for" is said in
+   the language the grid was speaking anyway, not with a second alarm colour. */
+.rng-slot.rng-pinned {
+  border-color: color-mix(in srgb, var(--slot, var(--accent)) 55%, transparent);
+  background: linear-gradient(170deg,
+    color-mix(in srgb, var(--slot, var(--accent)) 9%, var(--surface-2)), var(--surface));
+}
+.rng-n.pinned {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--slot, var(--accent));
+  font: 800 10px var(--font); letter-spacing: .1em; text-transform: uppercase;
+}
+/* The status the pin is a claim about, stated on the card: pinning is only offered for a
+   game the sheet marks Playing, so the chip is what makes that rule visible. */
+.rng-copy.playing {
+  background: color-mix(in srgb, var(--slot, var(--accent)) 16%, transparent);
+  color: var(--slot, var(--accent)); border-color: transparent;
+}
+/* The other way to pin: every game you're playing, in a native select so the phone gets
+   its own picker for free. Sits under the actions, quiet until you want it. */
+.rng-pinsel { margin-top: 9px; }
+.rng-pinsel select {
+  width: 100%; max-width: 100%;
+  background: var(--surface-3); color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 999px;
+  padding: 6px 10px; font: 600 11px var(--font); cursor: pointer;
+}
+.rng-pinsel select:hover { border-color: var(--accent-line); color: var(--accent); }
+.rng-blank .rng-pinsel { width: 100%; max-width: 260px; }
+
 /* rng-off, not `empty`: .empty is the grid's own empty state (grid-column: 1 / -1,
    64px of padding), and a slot wearing it stretched across all three columns. */
 .rng-slot.rng-off { border-style: dashed; box-shadow: none; background: none; }

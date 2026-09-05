@@ -1200,23 +1200,25 @@ function renderPicker() {
   const rng = pickModeRng();
   const loading = rng && rngLoading();
   if (rng && !loading) rngPrune();
-  const rngN = (rng && !loading) ? RNG_SLOTS.reduce((n, sl) => n + rngPools()[sl.id].length, 0) : 0;
+  // The free slots' pools, not all three: a pinned slot is holding a game you're playing
+  // and doesn't roll, so neither the count nor the button speaks for it (see rng.js).
+  const rngN = (rng && !loading) ? rngPoolCount() : 0;
   const rollable = loading ? 0 : (rng ? rngN : pool.length);
   const hasResult = loading ? false
     : rng ? rngHasPicks() : (pickState.picked && pool.includes(pickState.picked));
-  const rollLabel = rng ? (hasResult ? "Roll all three again" : "Roll all three") : "Pick for me";
+  const rollLabel = rng ? rngRollLabel() : "Pick for me";
 
   const modes = `<div class="pick-modes" role="group" aria-label="How many games to pick">
     ${[["one", "One game", "i-dice"], ["rng", "RNG", "i-layers"]].map(([m, lbl, ic]) =>
       `<button type="button" class="pick-mode${pickState.mode === m ? " on" : ""}" data-mode="${m}"
          aria-pressed="${pickState.mode === m}">${icon(ic, 14)} ${lbl}</button>`).join("")}
-    ${rng ? `<span class="pick-modenote">One modern AAA, one modern indie, one retro.</span>` : ""}
+    ${rng ? `<span class="pick-modenote">One modern AAA, one modern indie, one retro. Pin what you're playing and the roll fills the rest.</span>` : ""}
   </div>`;
 
-  /* The count every control quotes. In RNG mode it's the three slots' totals, not the
-     pool: the slots apply their own rules on top (owned, no DLC, priority, language,
-     series order), so "12,736 games" over a roll that can only reach 5,438 of them is
-     a number that reads as a promise and isn't one. */
+  /* The count every control quotes. In RNG mode it's the slots' totals, not the pool: the
+     slots apply their own rules on top (owned, no DLC, priority, language, series order)
+     and a pinned slot rolls nothing at all, so "12,736 games" over a roll that can only
+     reach 5,438 of them is a number that reads as a promise and isn't one. */
   const shown = rng ? rngN : pool.length;
   // A shimmer, not "0 games in pool": the pool isn't empty, it isn't counted yet.
   const games = loading ? "" : `${shown.toLocaleString()} game${shown === 1 ? "" : "s"}`;
@@ -1248,7 +1250,7 @@ function renderPicker() {
       </div>
       <div class="pick-result rng${fresh}" id="pickResult">${rngResultHtml()}</div>
       <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button"${rollable ? "" : " disabled"}>
-        ${icon("i-dice", 16)} ${hasResult ? "Roll again" : "Roll all three"}
+        ${icon("i-dice", 16)} ${rollLabel}
       </button></div>`;
     settleCachedCovers(host);
     const rollAll = () => { rngRollAll(true); nav(); };
