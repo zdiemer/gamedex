@@ -928,15 +928,48 @@ class TranslationWatch:
                 return hit["igdbId"]
         return None
 
+    # IGDB indexes ROM hacks and fan edits as first-class entries, which is precisely the
+    # collision an exact-title match with the platform dropped invites: the MSX "Final
+    # Fantasy" translation matched "Final Fantasy ++", a Mod whose parent is the real
+    # game. normalize() strips the "++", so it read as an exact title match.
+    _MOD, _DLC, _EXPANSION, _BUNDLE, _EPISODE, _SEASON = 5, 1, 2, 3, 6, 7
+    _NOT_STANDALONE = frozenset((_MOD, _DLC, _EXPANSION, _BUNDLE, _EPISODE, _SEASON))
+
+    def _is_standalone_game(self, igdb_id):
+        """Is this a game in its own right, or a mod/DLC/bundle hanging off one?
+
+        One extra request, and worth it: the relaxed rung fires rarely (6 of 350 clusters
+        here) and it is the rung most likely to land on a romhack. The search itself
+        cannot answer this — _FIELDS asks for `category`, which IGDB has retired and now
+        silently returns nothing for, so candidates carry no type at all.
+        """
+        try:
+            rows = self._igdb._post("games", f"fields game_type; where id = {int(igdb_id)};")
+        except Exception as exc:
+            log.warning("translations: game_type lookup for %s failed: %s", igdb_id, exc)
+            return True                      # don't reject on our own error
+        if not rows:
+            return True
+        return rows[0].get("game_type") not in self._NOT_STANDALONE
+
     def _relaxed_match(self, title, facts):
-        """Platform-relaxed, exact-title-only, requiring publisher or franchise
-        corroboration.
+        """Platform-relaxed and exact-title-only, for a real standalone game.
 
         This rescues Famicom Disk System / X68000 / PC-98 / SuperGrafx titles whose IGDB
         platform name doesn't line up with the site's. It is strictly NARROWER than
         IgdbClient.match's own rule on the title axis and only trades away the platform
         check — the axis that failed. match()'s rule is tuned for spreadsheet rows and
         must not be loosened for everybody to serve this one case.
+
+        Two guards, both learned from a real false positive:
+
+        * Corroboration has to have actually compared something. verify_franchise returns
+          True when BOTH sides are empty, so "exact title + franchise_matched" was
+          satisfied by a candidate with no franchises and a source with no publisher —
+          which is to say, by nothing.
+        * The candidate has to be a standalone game, not a Mod. Romhack Plaza never
+          supplies a publisher, so for its rows an exact title is all there is, and IGDB's
+          romhack entries collide with exactly those titles.
         """
         search = getattr(self._igdb, "search_candidates", None)
         if not search:
@@ -956,11 +989,18 @@ class TranslationWatch:
             frans = [f["name"] for f in c.get("franchises", []) if f.get("name")]
             info = self._validator.validate(
                 game, [n for n in names if n], None, None, [p for p in pubs if p], None, frans)
-            if not (info.exact and (info.publisher_matched or info.franchise_matched)):
+            if not info.exact:
+                continue
+            # Non-vacuous only: franchise_matched is True when neither side HAS one.
+            corroborated = info.publisher_matched or (info.franchise_matched and any(frans))
+            if facts["publisher"] and not corroborated:
                 continue
             if best is None or info.match_score > best_info.match_score:
                 best, best_info = c, info
         if best is None:
+            return None, 0
+        if not self._is_standalone_game(best.get("id")):
+            log.info("translations: relaxed match for %r rejected — not a standalone game", title)
             return None, 0
         return self._igdb.enrichment_from_result(best), best_info.match_score
 
