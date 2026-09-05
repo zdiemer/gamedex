@@ -206,6 +206,17 @@ class IgdbClient:
         body = f'search "{processed}"; {_FIELDS} limit 25;'
         return self._post("games", body)
 
+    def search_candidates(self, title: str):
+        """The raw candidate list for `title`, before any acceptance rule is applied.
+
+        match() below decides acceptance with a rule tuned for spreadsheet rows, and that
+        rule must not be loosened for everyone. translations.py needs a different one —
+        exact title plus publisher or franchise, with the platform check dropped, for
+        Japan-only games whose IGDB platform name doesn't line up with a romhack site's —
+        so it takes the candidates and judges them itself.
+        """
+        return self._search(title) or []
+
     def match(self, title, platform=None, release_year=None,
               developer=None, publisher=None, franchise=None):
         """Return (enrichment_dict, score) for the best acceptable candidate, or
@@ -218,7 +229,7 @@ class IgdbClient:
             publisher=publisher,
             franchise=franchise,
         )
-        candidates = self._search(title) or []
+        candidates = self.search_candidates(title)
         best = None
         best_info = None
         for c in candidates:

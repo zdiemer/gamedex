@@ -160,6 +160,23 @@ spec:
               value: {{ .Values.igdb.cooptimus | quote }}
             - name: KHINSIDER_ENABLED
               value: {{ .Values.igdb.khinsider | quote }}
+            # Translation Watch (src/translations.py). Off unless asked for: it is a new
+            # outbound crawl against two volunteer-run community sites. No secrets —
+            # both sources are unauthenticated.
+            - name: TRANSLATIONS_ENABLED
+              value: {{ (.Values.translations | default dict).enabled | default false | quote }}
+            - name: TRANSLATIONS_DB
+              value: /data/translations.sqlite
+            - name: TRANSLATION_POLL_INTERVAL
+              value: {{ (.Values.translations | default dict).pollInterval | default 21600 | quote }}
+            - name: TRANSLATION_SOURCES
+              value: {{ (.Values.translations | default dict).sources | default "rhdi,plaza" | quote }}
+            - name: TRANSLATION_DETAIL_BUDGET
+              value: {{ (.Values.translations | default dict).detailBudget | default 400 | quote }}
+            - name: TRANSLATION_MATCH_BUDGET
+              value: {{ (.Values.translations | default dict).matchBudget | default 60 | quote }}
+            - name: TRANSLATIONS_NSFW
+              value: {{ (.Values.translations | default dict).includeNsfw | default false | quote }}
             - name: GAMESPOT_API_KEY
               valueFrom:
                 secretKeyRef:

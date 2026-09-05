@@ -5816,3 +5816,30 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .hz-matches .muted { font-weight: 500; color: var(--muted); }
 .hz-pill.hz-match { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border-soft); }
 .hz-pill.hz-match b { color: var(--text); font-weight: 600; }
+
+/* ---- Translation Watch (translations.js) --------------------------------
+   The alert strip sits ABOVE the shared listing chrome rather than inside it: these
+   are games already in the collection that just became playable, and the whole point
+   is that they can't scroll away behind a facet filter. */
+.tw-alerts {
+  margin: 0 0 18px; padding: 14px 16px;
+  border: 1px solid var(--accent, #6ea8fe); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 8%, transparent);
+}
+.tw-alerts h3 {
+  font: 700 15px/1.3 var(--display); color: var(--text);
+  margin: 0 0 10px; display: flex; align-items: center; gap: 8px;
+}
+.tw-alerts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tw-alert { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; font-size: 13px; }
+.tw-alert a { color: var(--text); text-decoration: none; border-bottom: 1px solid transparent; }
+.tw-alert a:hover { border-bottom-color: currentColor; }
+.tw-alert-meta { color: var(--muted); }
+.tw-chip {
+  font: 600 10px/1 var(--display); letter-spacing: .03em; text-transform: uppercase;
+  padding: 3px 6px; border-radius: 4px; background: var(--chip-bg, rgba(128,128,128,.18));
+  color: var(--muted);
+}
+/* Machine translations are labelled, not hidden — somebody's MTL patch may be the only
+   way to read a game, but you should never mistake one for a human translation. */
+.tw-chip-machine { background: color-mix(in srgb, orange 22%, transparent); color: var(--text); }

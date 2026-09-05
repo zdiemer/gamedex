@@ -52,6 +52,7 @@ import gamerankings as gr_mod
 import og as og_mod
 import screenscraper as screenscraper_mod
 import shelf as shelf_mod
+import translations as translations_mod
 
 from arcadedb import ArcadeDbClient
 from catalogue import Catalogue
@@ -92,6 +93,16 @@ ENRICH_DB = os.environ.get("ENRICH_DB", "/data/enrichment.sqlite")
 ENRICH_BACKFILL = os.environ.get("ENRICH_BACKFILL", "false").lower() in ("1", "true", "yes")
 CATALOGUE_DB = os.environ.get("CATALOGUE_DB", "/data/catalogue.sqlite")
 _on = lambda name, default="true": os.environ.get(name, default).lower() in ("1", "true", "yes")
+
+# Translation Watch — see translations.py. Off by default: it is a new outbound crawl
+# against two volunteer-run community sites, which should be a decision rather than a
+# surprise on the next deploy. TRANSLATION_MATCH_BUDGET is the important knob — the IGDB
+# rate limiter is shared with the enrichment workers and the catalogue crawl.
+TRANSLATIONS_DB = os.environ.get("TRANSLATIONS_DB", "/data/translations.sqlite")
+TRANSLATION_POLL_INTERVAL = int(os.environ.get("TRANSLATION_POLL_INTERVAL", "21600"))
+TRANSLATION_SOURCES = os.environ.get("TRANSLATION_SOURCES", "rhdi,plaza")
+TRANSLATION_DETAIL_BUDGET = int(os.environ.get("TRANSLATION_DETAIL_BUDGET", "400"))
+TRANSLATION_MATCH_BUDGET = int(os.environ.get("TRANSLATION_MATCH_BUDGET", "60"))
 
 # Single-admin login. The account is seeded once from the environment (first boot
 # only); everything after is the in-app change-password screen. COOKIE_SECURE is
@@ -245,6 +256,11 @@ async def lifespan(_: FastAPI):
         catalogue.start()
         logging.getLogger("gamedex").info(
             "IGDB catalogue enabled (generation=%d)", catalogue.generation)
+    if translations:
+        translations.start()
+        logging.getLogger("gamedex").info(
+            "Translation Watch enabled (sources=%s, seeded=%s)",
+            TRANSLATION_SOURCES, translations.seeded)
     PSYNC.start()
     yield
     store.stop()
@@ -252,6 +268,8 @@ async def lifespan(_: FastAPI):
         enricher.stop()
     if catalogue:
         catalogue.stop()
+    if translations:
+        translations.stop()
     PSYNC.stop()
 
 
@@ -727,6 +745,22 @@ if enricher:
     # Same idiom as appid_override: the enricher pre-warms covers so pulling a
     # box off the shelf never waits on a cold archive.org download.
     enricher.manual_cover_warm = MANUAL_COVERS.warm
+
+# Translation Watch. Constructed down here rather than up with the other singletons
+# because it needs `enricher` AND `store` AND `catalogue`, and because a resolved game's
+# fallback cover is served through IMG_CACHE, which only exists a few lines above.
+translations = (
+    translations_mod.TranslationWatch(
+        _igdb, TRANSLATIONS_DB,
+        store=store, enricher=enricher, catalogue=catalogue,
+        sources=TRANSLATION_SOURCES,
+        poll_interval=TRANSLATION_POLL_INTERVAL,
+        detail_budget=TRANSLATION_DETAIL_BUDGET,
+        match_budget=TRANSLATION_MATCH_BUDGET,
+        include_nsfw=_on("TRANSLATIONS_NSFW", "false"),
+    )
+    if _igdb.configured and _on("TRANSLATIONS_ENABLED", "false") else None
+)
 
 
 def _served_from_cache(cache, u: str, media_type: str):
@@ -1228,6 +1262,9 @@ def data(request: Request):
         # It cannot learn the generation from the catalogue endpoint itself without
         # defeating the point of the cache key.
         meta["catalogue"] = catalogue.stats() if catalogue else {"enabled": False}
+        # Rides along so the nav badge knows its unseen-alert count without a second
+        # request — same reasoning as the catalogue generation above.
+        meta["translations"] = translations.stats() if translations else {"enabled": False}
         payload = {"meta": meta, "sheets": snap["data"]}
         # ensure_ascii/allow_nan match what FastAPI's own JSONResponse did, so the bytes
         # are the ones this endpoint has always sent (the rows are already plain
@@ -1492,6 +1529,45 @@ def recommendations():
     )
     _recs.update({"hash": src_hash, "matched": matched, "gen": gen, "data": data})
     return {"enabled": True, **data}
+
+
+# ---- Translation Watch ------------------------------------------------------
+# Memoized like /api/recommendations: the payload only moves when a poll lands, the
+# spreadsheet changes, or the sheet cross-reference is re-derived.
+_tw_cache = {"hash": None, "polled": None, "data": None}
+
+
+@app.get("/api/translations")
+def api_translations():
+    """Newly English-translated games. `alerts` are the ones you already own."""
+    if not translations:
+        return {"enabled": False, "items": [], "alerts": []}
+    src_hash = store.snapshot()["meta"].get("sourceHash") if store.ready else None
+    polled = translations._kv_int("polled_at", 0)
+    if _tw_cache["data"] and _tw_cache["hash"] == src_hash and _tw_cache["polled"] == polled:
+        return _tw_cache["data"]
+    data = translations.payload()
+    _tw_cache.update({"hash": src_hash, "polled": polled, "data": data})
+    return data
+
+
+@app.post("/api/translations/poll")
+def api_translations_poll(user: dict = Depends(require_admin)):
+    """Wake the watcher now instead of waiting out the poll interval."""
+    if not translations:
+        return JSONResponse(status_code=404, content={"error": "translations disabled"})
+    translations.kick()
+    return {"ok": True}
+
+
+@app.post("/api/translations/seen")
+def api_translations_seen(user: dict = Depends(require_admin)):
+    """Clear the unseen-alert badge."""
+    if not translations:
+        return JSONResponse(status_code=404, content={"error": "translations disabled"})
+    translations.mark_seen()
+    _tw_cache["data"] = None
+    return {"ok": True}
 
 
 # Built once per crawl generation and held as serialized bytes: interning 34k games is

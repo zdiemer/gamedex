@@ -28,6 +28,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#hilo").hidden = mode !== "hilo";
   $("#daily").hidden = mode !== "daily";
   $("#recs").hidden = mode !== "recs";
+  $("#translations").hidden = mode !== "translations";
   // Leaving a daily-game tab mid-practice falls back to today's round, so Home and
   // the Daily page never mistake a practice round for the daily (mirrors shelfTeardown).
   if (mode !== "dexle" && typeof dexleTeardown === "function") dexleTeardown();
@@ -59,9 +60,9 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
 // The Recommend loading/empty panel: show #recs and hide the listing chrome (recsReady()
 // painted the message). Recommend isn't in SPECIAL_TABS — it's only "special" while its
 // catalogue data isn't ready yet — so this stands in for setSpecialMode's special branch.
-function recsGate() {
+function recsGate(host = "recs") {
   setSpecialMode(null);                       // hide the other special hosts, reset base state
-  $("#recs").hidden = false;
+  $("#" + host).hidden = false;
   $(".resultbar").hidden = true;
   document.querySelector(".facets").style.display = "none";
   $("#tablewrap").hidden = true; $("#gridwrap").hidden = true; $("#timeline").hidden = true;
@@ -91,7 +92,16 @@ function renderAll() {
   // loading/empty panel into #recs and we hold the special layout; once ready it has built
   // the sheet and we fall through to the ordinary listing path below.
   if (activeTab === "recs" && !recsReady()) { recsGate(); return; }
+  // Translation Watch rides the same path: a synthetic sheet once its feed has loaded,
+  // a message panel until then (translations.js).
+  if (activeTab === "translations" && !translationsReady()) { recsGate("translations"); return; }
   setSpecialMode(null);
+  // …but unlike Recommend, its host stays visible ON the listing path too: it holds the
+  // alert strip, which is pinned above the grid precisely so it cannot scroll away.
+  if (activeTab === "translations") {
+    const host = $("#translations");
+    host.hidden = !host.innerHTML;
+  }
   // A filter that reads enrichment cannot be answered before enrichment is here.
   ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
   if (ENRICH_WAITING) { renderEnrichWait(); return; }
@@ -311,7 +321,8 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "wishlist", "search", "galaxy"].includes(tab) ? tab : "home";
+         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "wishlist", "search", "galaxy",
+         "translations"].includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   if ((tab === "wishlist" || tab === "health") && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";

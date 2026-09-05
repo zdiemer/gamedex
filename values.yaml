@@ -2,7 +2,7 @@ image:
   # Built + pushed to the in-cluster registry by build.sh, so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: registry.zachd.duckdns.org/zdiemer/gamedex
-  tag: "1.58.148"
+  tag: "1.59.0"
   pullPolicy: IfNotPresent
 
 service:
@@ -212,3 +212,35 @@ nas:
 admin:
   username: "zachd"
   initialPassword: ""
+
+# ---------------------------------------------------------------------------
+# Translation Watch — a feed of newly English-translated games (src/translations.py).
+#
+# Polls two active ROM-translation sites (romhack.ing and Romhack Plaza), keeps English
+# releases, resolves each to a game in IGDB, and flags the ones already in the
+# collection whose sheet `english` column says None or Partial — i.e. a game you own
+# that just became playable.
+#
+# Needs no credentials: both sources are unauthenticated. The chart default is `true`
+# because this deployment asked for it; it is still worth knowing that turning it on
+# starts an outbound crawl against two volunteer-run community sites, and that the first
+# few days are spent walking ~7,000 back-catalogue entries at the budgets below.
+translations:
+  enabled: true
+  # Seconds between passes. The sites get a handful of listing pages per pass; the
+  # expensive part is the one-time backfill, which is budgeted below.
+  pollInterval: 21600
+  # Which sources to poll. "rhdi" is romhack.ing (~7,000 translations, the primary),
+  # "plaza" is Romhack Plaza (~350 English, a smaller second opinion).
+  sources: "rhdi,plaza"
+  # romhack.ing only exposes a patch's LANGUAGE on its detail page, so English-ness
+  # costs one request per entry — ~7,000 of them on a cold database. This caps how many
+  # are fetched per pass, so the backfill spreads over days instead of hammering the
+  # site. The feed is useful long before the backfill finishes.
+  detailBudget: 400
+  # IGDB searches per pass. This is the important one: the IGDB rate limiter is a single
+  # shared instance, so an unbounded matcher here would starve the enrichment workers
+  # and the catalogue crawl.
+  matchBudget: 60
+  # A real slice of the PC-98 catalogue is adult. Off means those never reach the page.
+  includeNsfw: false
