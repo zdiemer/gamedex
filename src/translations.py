@@ -8,8 +8,8 @@ finally finishes translating it.
 
 This module closes that loop. It polls the two active ROM-translation sites, keeps
 English releases, resolves each one to the underlying GAME in IGDB, and cross-references
-the result against the collection so that "a game you own just became playable" is an
-alert rather than one row in a feed of seven thousand.
+the result against the collection so that "a game on your sheet just became playable" is
+an alert rather than one row in a feed of seven thousand.
 
 SHAPE
 -----
@@ -71,8 +71,13 @@ TRAPS
   lives under both SEGA_32X and SEGA_CD).
 
 * **An Addendum is not a translation.** It is a patch layered on somebody else's
-  translation, and it must never fire the owned-game alert. Nor must an Improvement,
-  which retranslates a game that was already in English.
+  translation, and it must never fire an alert. Nor must an Improvement, which
+  retranslates a game that was already in English.
+
+* **The alert bar is being ON THE SHEET, not owning a copy.** The owned subset is
+  overwhelmingly games that shipped in English — 9 of the 1,107 rows marked
+  untranslated — so gating on `owned` pointed the whole feature at nine games. The
+  tier (alert / wishlist / tracked) still records which it is.
 """
 
 from __future__ import annotations
@@ -1128,11 +1133,18 @@ class TranslationWatch:
         english = sheet_row.get("english")
         if english not in ("None", "Partial"):
             return None
+        # Being ON THE SHEET is the bar, not owning a copy. The collection is a catalogue
+        # of games worth knowing about, and the owned subset is overwhelmingly stuff that
+        # shipped in English: of 1,107 rows marked untranslated, 9 are owned and 1,083 are
+        # neither owned nor wishlisted. Requiring `owned` aimed this feature at nine games.
+        #
+        # The tier still says which it is, because "the copy on my shelf is now readable"
+        # and "a game I catalogued years ago is now readable" are different news.
         if sheet_row.get("owned"):
             return "alert"
         if sheet_row.get("wishlisted"):
             return "wishlist"
-        return None
+        return "tracked"
 
     def _alertable(self, item):
         """True when this release post-dates the seed of a source that carries it."""

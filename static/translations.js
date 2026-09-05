@@ -5,8 +5,8 @@
  * The sheet's `english` column (None / Partial / Full, blank = natively English) says
  * WHETHER a game is playable. It cannot say WHEN that changed. This tab is the other
  * half: the two active ROM-translation sites, filtered to English, resolved to IGDB, and
- * joined back to the collection — so a Japan-only game you own, marked english: None for
- * years, announces itself the week somebody finishes translating it.
+ * joined back to the collection — so a Japan-only game on your sheet, marked english:
+ * None for years, announces itself the week somebody finishes translating it.
  *
  * IT IS A REAL LISTING TAB, not a special page — the same trick recs.js plays. Rows go
  * into a synthetic `DATA.sheets.translations`, so the facet sidebar, search, grid/table,
@@ -141,21 +141,36 @@ const twMsg = (html) =>
 function twAlertsHtml() {
   const alerts = (TRANSLATIONS && TRANSLATIONS.alerts) || [];
   if (!alerts.length) return "";
-  const cards = alerts.map((a) => {
+  // Owned first: "the copy on my shelf is now readable" outranks "a game I catalogued
+  // years ago is now readable", even though both are worth telling you about.
+  const RANK = { alert: 0, wishlist: 1, tracked: 2 };
+  const TIER_LABEL = { alert: "owned", wishlist: "on your wishlist", tracked: "on your sheet" };
+  const sorted = [...alerts].sort(
+    (a, b) => (RANK[(a.mine || {}).tier] ?? 9) - (RANK[(b.mine || {}).tier] ?? 9));
+  const cards = sorted.map((a) => {
+    const tier = (a.mine || {}).tier;
     const was = a.mine && a.mine.english === "Partial" ? "was partially translated" : "had no translation";
     const who = (a.authors || []).join(", ");
     const machine = a.machine ? ` <span class="tw-chip tw-chip-machine">machine translated</span>` : "";
+    const owned = tier === "alert" ? ` <span class="tw-chip tw-chip-owned">owned</span>` : "";
     const link = a.sources[0] ? a.sources[0].url : "#";
     return `<li class="tw-alert">
       <a href="${link}" target="_blank" rel="noopener">
-        <strong>${escapeHtml(a.title)}</strong></a>
-      <span class="tw-alert-meta">${escapeHtml(a.platform || "")} — ${was}${
+        <strong>${escapeHtml(a.title)}</strong></a>${owned}
+      <span class="tw-alert-meta">${escapeHtml(a.platform || "")} — ${escapeHtml(TIER_LABEL[tier] || "on your sheet")}, ${was}${
         who ? `, translated by ${escapeHtml(who)}` : ""}</span>${machine}
     </li>`;
   }).join("");
   const n = alerts.length;
+  const nOwned = alerts.filter((a) => (a.mine || {}).tier === "alert").length;
+  // Lead with the owned count when there is one — it is the strongest version of the
+  // claim — and fall back to the collection-wide phrasing otherwise.
+  const head = nOwned
+    ? `${nOwned} game${nOwned === 1 ? "" : "s"} you own just became playable in English${
+        n > nOwned ? ` (+${n - nOwned} more on your sheet)` : ""}`
+    : `${n} game${n === 1 ? "" : "s"} on your sheet just became playable in English`;
   return `<div class="tw-alerts">
-    <h3>${icon("i-sparkle", 16)} ${n} game${n === 1 ? "" : "s"} you own just became playable in English</h3>
+    <h3>${icon("i-sparkle", 16)} ${escapeHtml(head)}</h3>
     <ul>${cards}</ul>
   </div>`;
 }
