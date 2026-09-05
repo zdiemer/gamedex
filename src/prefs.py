@@ -32,7 +32,9 @@ log = logging.getLogger("gamedex.prefs")
 #   which is too much work to keep on one browser.
 # dexle: the daily guess-the-game's streak, same shape as picross's.
 # hilo: the daily higher-or-lower's record (best run, days played).
-KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers"}
+# pins: RNG slots held by a game you're already playing, so the phone and the desktop
+#   agree about which of the three lanes are still free to roll.
+KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers", "pins"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

@@ -240,6 +240,10 @@ const PREFS_KEYS = {
   // Named filter trees from the Pick tab — {name, fb, desc}, where fb is the same packed
   // tree a ?fb= link carries, so there's no second format to keep in step.
   pickers: "gamedex.pickers",
+  // RNG slots pinned to a game you're playing — [{slot, key}], at most one per slot
+  // (rng.js). Which playthroughs are under way is the same answer on every device, and
+  // it outlives the browser you happened to pin it in.
+  pins: "gamedex.pins",
 };
 
 const prefsLocal = (key) => {

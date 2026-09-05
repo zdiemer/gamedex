@@ -16,6 +16,11 @@
    plus the "playable on the go" knob when you turn it on (see rngToGoOk).
    Which means what the three slot counts say is exactly what it rolls from.
 
+   A slot can also be PINNED to a game you're already playing, in which case it doesn't
+   roll at all and the roll button says so (see the pins section below). Three slots is
+   a shape for the next stretch, and most of the time one or two of those lanes are
+   already filled by a playthrough in progress.
+
    Loaded straight after pick.js, whose globals it shares (pickState, pickPool,
    pickRollTile, pickAnimOn, DATA, ENRICH, openDrawer, …). challenges.js loads
    later in index.html, so the one thing borrowed from it — CH_TEXT_GENRES — is
@@ -159,6 +164,15 @@ function rngTier(r) {
   if (unifiedGenreVals(r).includes("Indie")) return "indie";
   return (pubs.some(rngIsMajor) && rngAudience(r) >= RNG_AAA_MIN_AUDIENCE) ? "aaa" : "indie";
 }
+
+/* Which of the three a game belongs to, era first: before 2006 is retro whoever published
+   it, and the tier only decides the modern half. null when nothing knows the year — that
+   game has no slot (see rngPools), and the pin menus put it under "other" rather than
+   guessing which lane it fills. */
+const rngSlotOf = (r) => {
+  const y = rngYear(r);
+  return !y ? null : (y < RNG_RETRO_BEFORE ? "retro" : rngTier(r));
+};
 
 /* ---- the house rules ----------------------------------------------------
    pickPool() has already answered "is it in the backlog" and "is it playable"
@@ -312,6 +326,93 @@ const rngAllowed = (r) =>
   !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r)
   && (!rngState.toGo || rngToGoOk(r));
 
+/* ---- pinned slots: the playthrough you already started -------------------
+   Three slots is a shape for the next stretch — a modern one, an indie one and a retro
+   one on the go at once — and a shape you're halfway into already. So a slot can be
+   pinned to a game, and a pinned slot doesn't roll: "Roll all three" becomes "Roll the
+   other two", the pinned game stays exactly where it is, and its pool drops out of the
+   count the roll quotes, because none of it is reachable.
+
+   Only a game the sheet marks Playing can be pinned. That column is where "what am I
+   actually playing" already lives, and this mode has no business inventing a second
+   answer to it — Up Next and On Hold are the other two things it says, and a slot held
+   by a game you've shelved is a slot that never rolls again.
+
+   The pins live in prefs (extras.js, server-backed with a localStorage mirror) rather
+   than in the tab's URL: a pin is a fact about the next few weeks, not about the link
+   you shared, and it has to be the same on the phone and on the desktop. Stored as
+   [{slot, key}] — the row's match key, never the row, because every sheet reload builds
+   new row objects and a held one would go stale the first time the data refreshed. */
+const rngIsPlaying = (r) => r.playingStatus === "Playing" && !r.completed;
+
+// Pinnable games: the sheet's own Playing list, in title order so the menus are stable
+// between renders. Deliberately NOT filtered by pickEligible or the house rules — you're
+// playing it, which settles every question those rules ask.
+const rngPlayingRows = () =>
+  ((DATA.sheets.games || {}).rows || [])
+    .filter((r) => r.title && rngIsPlaying(r))
+    .sort((a, b) => String(a.title).localeCompare(String(b.title)));
+
+const rngPinList = () => (typeof prefsLocal === "function" ? prefsLocal("pins") : []);
+
+/* slot -> match key. A pin naming a slot that doesn't exist is dropped rather than kept:
+   the three slots are a fixed set, and a stale entry from an older shape must not hold a
+   column that can no longer be reached. */
+function rngPinKeys() {
+  const out = { aaa: null, indie: null, retro: null };
+  for (const p of rngPinList()) if (p && p.key && p.slot in out) out[p.slot] = p.key;
+  return out;
+}
+const rngPinSig = () => {
+  const k = rngPinKeys();
+  return RNG_SLOTS.map((s) => k[s.id] || "-").join(",");
+};
+const rngIsPinned = (slotId) => !!rngPinKeys()[slotId];
+const rngFreeSlots = () => RNG_SLOTS.filter((s) => !rngIsPinned(s.id));
+
+// Match key -> row, over the games sheet. Rebuilt when the sheet is, which is the only
+// thing that can change the answer (a pin is resolved on every render).
+let _rngByKey = null, _rngByKeyFor = null;
+function rngRowByKey(k) {
+  if (!_rngByKey || _rngByKeyFor !== DATA) {
+    _rngByKey = new Map();
+    for (const r of ((DATA.sheets.games || {}).rows || [])) if (r._k) _rngByKey.set(r._k, r);
+    _rngByKeyFor = DATA;
+  }
+  return _rngByKey.get(k) || null;
+}
+
+/* Write a pin (or clear one with key = null). A game can only hold one slot, so pinning
+   it somewhere new MOVES it rather than leaving the old lane stuck on a game that is
+   also showing two columns over. */
+function rngPin(slotId, key) {
+  const rest = rngPinList().filter((p) => p && p.slot !== slotId && p.key !== key);
+  prefsSave("pins", key ? [...rest, { slot: slotId, key }] : rest);
+  renderPicker();
+}
+
+/* Resolve every pin against the sheet, and drop the ones that no longer hold up: the game
+   was removed, or finished, or the Playing flag came off it. A pin is a claim about what
+   you're playing, so when the sheet stops saying that, the slot goes back to rolling —
+   the alternative is a lane silently held forever by a game you finished in March.
+
+   Returns nothing; it writes rngState.picks for the pinned slots, which is what puts the
+   pinned game on screen through the same card, patch and drawer paths as a rolled one. */
+function rngSyncPins() {
+  const keys = rngPinKeys();
+  const stale = [];
+  for (const s of RNG_SLOTS) {
+    const k = keys[s.id];
+    if (!k) continue;
+    const row = rngRowByKey(k);
+    if (row && rngIsPlaying(row)) rngState.picks[s.id] = row;
+    else stale.push(k);
+  }
+  // One write for however many went stale, and only when something actually did — this
+  // runs on every render, and an unconditional save would be a PUT per repaint.
+  if (stale.length) prefsSave("pins", rngPinList().filter((p) => p && !stale.includes(p.key)));
+}
+
 /* ---- the three pools ----------------------------------------------------
    Straight off pickEligible() (the backlog, playable, unfinished) rather than
    pickPool(): RNG mode shows no criteria builder, no preset and no saved pickers, so
@@ -329,21 +430,27 @@ const rngAllowed = (r) =>
    bulk map is still filling in, so the cache never invalidated: the counts on screen
    were computed against whatever enrichment happened to have arrived by the first paint,
    and were out by about a thousand games. */
-let _rngPools = null, _rngPoolsFor = null, _rngPoolsEpoch = null, _rngPoolsToGo = null;
+let _rngPools = null, _rngPoolsFor = null, _rngPoolsEpoch = null, _rngPoolsToGo = null,
+    _rngPoolsPins = null;
 function rngPools() {
+  const pins = rngPinSig();
   if (_rngPools && _rngPoolsFor === DATA && _rngPoolsEpoch === _enrichEpoch
-      && _rngPoolsToGo === rngState.toGo) return _rngPools;
+      && _rngPoolsToGo === rngState.toGo && _rngPoolsPins === pins) return _rngPools;
+  const pinned = new Set(Object.values(rngPinKeys()).filter(Boolean));
   const out = { aaa: [], indie: [], retro: [] };
   for (const r of pickEligible()) {
     if (!rngAllowed(r)) continue;
-    const y = rngYear(r);
+    // A pinned game is spoken for, and it can be pinned to a slot other than the one it
+    // classifies into — so it comes out of ALL three pools rather than just its own, or
+    // a free slot could roll the game already sitting two columns over.
+    if (pinned.has(r._k)) continue;
     // No release year, no slot: a game that can't say which side of 2006 it's on
     // would have to be guessed into one, and a guess is not a rule.
-    if (!y) continue;
-    if (y < RNG_RETRO_BEFORE) out.retro.push(r);
-    else out[rngTier(r)].push(r);
+    const id = rngSlotOf(r);
+    if (id) out[id].push(r);
   }
   _rngPoolsFor = DATA; _rngPoolsEpoch = _enrichEpoch; _rngPoolsToGo = rngState.toGo;
+  _rngPoolsPins = pins;
   return (_rngPools = out);
 }
 
@@ -374,6 +481,9 @@ function rngWeightedPick(pool, weight) {
 // Re-rolling a slot and getting the same game back reads as a broken button, so the
 // game on screen sits out its own re-roll whenever there's anything else to land on.
 function rngRoll(slotId) {
+  // A pinned slot is not a slot that rolls. Guarded here rather than only at the two call
+  // sites so nothing added later can roll one out from under you by accident.
+  if (rngIsPinned(slotId)) return rngState.picks[slotId];
   const pool = rngPools()[slotId] || [];
   const prev = rngState.picks[slotId];
   const from = (prev && pool.length > 1) ? pool.filter((r) => r !== prev) : pool;
@@ -383,10 +493,17 @@ const rngHasPicks = () => RNG_SLOTS.some((s) => rngState.picks[s.id]);
 
 /* A pick only survives while it's still in its slot. A sheet reload can finish a game,
    sell it, or move its year across the 2006 line — showing it anyway would be the
-   picker telling you it picked something the slot doesn't contain. */
+   picker telling you it picked something the slot doesn't contain.
+
+   Pins go first and are then left alone: a pinned game is held by your say-so rather than
+   by the pool, it isn't IN the pool (rngPools drops it), and the rules the pool applies —
+   priority, series order, the on-the-go knob — are about choosing a game, not about one
+   you're already playing. */
 function rngPrune() {
+  rngSyncPins();
   const pools = rngPools();
   for (const s of RNG_SLOTS) {
+    if (rngIsPinned(s.id)) continue;
     const p = rngState.picks[s.id];
     if (p && !pools[s.id].includes(p)) rngState.picks[s.id] = null;
   }
@@ -401,16 +518,31 @@ function rngSetToGo(on) {
   renderPicker();
 }
 
+/* What the roll button does, said out loud. It stops being "all three" the moment a slot
+   is pinned, and a button that still promised three while rolling one would be the tab
+   describing a different roll than the one it performs. */
+function rngRollLabel() {
+  const free = rngFreeSlots();
+  if (!free.length) return "All three slots are pinned";
+  const again = free.some((s) => rngState.picks[s.id]);
+  if (free.length === 1) return again ? "Roll the free slot again" : "Roll the free slot";
+  if (free.length === 2) return again ? "Roll the other two again" : "Roll the other two";
+  return again ? "Roll all three again" : "Roll all three";
+}
+
 function rngRollAll(roll) {
   if (rngLoading()) return;
   const pools = rngPools();
-  for (const s of RNG_SLOTS) rngRoll(s.id);
-  if (roll && rngHasPicks() && pickAnimOn() && !pickReduced()) playRngRoll(pools);
+  const free = rngFreeSlots();
+  if (!free.length) return;                  // everything is pinned; nothing to roll
+  for (const s of free) rngRoll(s.id);
+  if (roll && free.some((s) => rngState.picks[s.id]) && pickAnimOn() && !pickReduced())
+    playRngRoll(pools);
   else renderPicker();
 }
 
 function rngRollOne(slotId, roll) {
-  if (rngLoading()) return;
+  if (rngLoading() || rngIsPinned(slotId)) return;
   const pool = rngPools()[slotId] || [];
   rngRoll(slotId);
   const host = document.querySelector(`#pickResult .rng-slot[data-slot="${slotId}"]`);
@@ -436,12 +568,19 @@ const rngLoading = () =>
 /* ---- the cards ----------------------------------------------------------
    Three columns, each one an eyebrow saying which slot it is, the REAL grid card
    (so the hover trailer works here exactly as it does in the listings), and the
-   two things you'd do next: roll this one again, or go and read about it. */
+   two things you'd do next: roll this one again, or go and read about it.
+
+   A pinned column is the same card with the roll taken out of it: the count in the
+   eyebrow says "Pinned" instead of a pool it can't reach, the chip row says you're
+   playing it, and Re-roll becomes Unpin. */
 function rngSlotHtml(slot, pool) {
   const row = rngState.picks[slot.id];
+  const pinned = rngIsPinned(slot.id);
   const head = `<div class="rng-head">
       <span class="rng-eye">${icon(slot.icon, 12)} ${escapeHtml(slot.label)}</span>
-      <span class="rng-n" title="Games in this slot's pool">${pool.length.toLocaleString()}</span>
+      ${pinned
+        ? `<span class="rng-n pinned" title="Pinned to a game you're playing — this slot doesn't roll">${icon("i-pin", 11)} Pinned</span>`
+        : `<span class="rng-n" title="Games in this slot's pool">${pool.length.toLocaleString()}</span>`}
     </div>`;
   const box = (inner, cls = "") =>
     `<div class="rng-slot${cls}" data-slot="${slot.id}" style="--slot: ${slot.tint}">${head}${inner}</div>`;
@@ -451,6 +590,7 @@ function rngSlotHtml(slot, pool) {
         <span class="rng-blank-ico">${icon(pool.length ? "i-dice" : "i-alert", 24)}</span>
         <p>${pool.length ? "Roll to fill this slot." : "Nothing in your library fits this slot."}</p>
         <span class="rng-hint">${escapeHtml(slot.hint)}</span>
+        ${rngPinMenuHtml(slot.id)}
       </div>`, " rng-off");
   }
 
@@ -469,15 +609,53 @@ function rngSlotHtml(slot, pool) {
   const copy = rngCopyChip(row);
   const time = rngTimeChip(row);
 
+  /* Pin, on the card in front of you, but only when the sheet already calls this one
+     Playing — the button can't make that true, and a pin that didn't mean "in progress"
+     would be a second, quieter status column nobody maintains. Everything else you might
+     want to pin is in the menu below, which lists the rest of the Playing games. */
+  const acts = pinned
+    ? `<button class="rng-open" data-unpin="${slot.id}">${icon("i-pin", 13)} Unpin</button>
+       <button class="rng-open" data-open="${slot.id}">Details</button>`
+    : `<button class="rng-re" data-reroll="${slot.id}">${icon("i-refresh", 13)} Re-roll</button>
+       ${rngIsPlaying(row)
+         ? `<button class="rng-open" data-pinnow="${slot.id}" title="Hold this slot: it stops rolling until you unpin it">${icon("i-pin", 13)} Pin</button>`
+         : ""}
+       <button class="rng-open" data-open="${slot.id}">Details</button>`;
+
   return box(`<div class="rng-art">${card}</div>
     <div class="rng-body">
       <h3 title="${escapeHtml(String(row.title))}">${escapeHtml(String(row.title))}</h3>
-      <div class="rng-chips">${copy}${time}${rngChipsHtml(row)}</div>
-      <div class="rng-acts">
-        <button class="rng-re" data-reroll="${slot.id}">${icon("i-refresh", 13)} Re-roll</button>
-        <button class="rng-open" data-open="${slot.id}">Details</button>
-      </div>
-    </div>`);
+      <div class="rng-chips">${pinned ? rngPlayingChip() : ""}${copy}${time}${rngChipsHtml(row)}</div>
+      <div class="rng-acts">${acts}</div>
+      ${pinned ? "" : rngPinMenuHtml(slot.id)}
+    </div>`, pinned ? " rng-pinned" : "");
+}
+
+const rngPlayingChip = () =>
+  `<span class="rng-copy playing">${icon("i-play", 11)} Now playing</span>`;
+
+/* The other way in: every game the sheet marks Playing, so a lane can be filled by a
+   playthrough that started long before this tab rolled anything.
+
+   Two groups, because which slot a game fits is inferred (rngSlotOf) and inference gets
+   things wrong — the ones this slot would have rolled come first, and the rest are still
+   listed rather than hidden. Pinning from a slot pins to THAT slot whatever the classifier
+   thought, because the three lanes are yours to shape and a game with no known year would
+   otherwise be pinnable nowhere at all. */
+function rngPinMenuHtml(slotId) {
+  const rows = rngPlayingRows().filter((r) => !Object.values(rngPinKeys()).includes(r._k));
+  if (!rows.length) return "";
+  const opt = (r) => `<option value="${escapeHtml(String(r._k))}">${escapeHtml(String(r.title))}${
+    r.platform ? ` · ${escapeHtml(String(r.platform))}` : ""}</option>`;
+  const fits = rows.filter((r) => rngSlotOf(r) === slotId);
+  const rest = rows.filter((r) => rngSlotOf(r) !== slotId);
+  return `<div class="rng-pinsel">
+      <select data-pin="${slotId}" aria-label="Pin a game you're playing to this slot">
+        <option value="">Pin a game you're playing…</option>
+        ${fits.length ? `<optgroup label="Fits this slot">${fits.map(opt).join("")}</optgroup>` : ""}
+        ${rest.length ? `<optgroup label="Other games you're playing">${rest.map(opt).join("")}</optgroup>` : ""}
+      </select>
+    </div>`;
 }
 
 /* The copy you'd actually reach for. Physical is the one thing this mode weights the roll
@@ -525,12 +703,22 @@ function rngSkeletonHtml(slot) {
   </div>`;
 }
 
+/* What a roll can actually reach: the free slots' pools. A pinned slot's pool is real
+   enough, but nothing in it can be rolled while the pin holds, so counting it would quote
+   a number the button can't deliver. */
+function rngPoolCount() {
+  const pools = rngPools();
+  return rngFreeSlots().reduce((n, s) => n + pools[s.id].length, 0);
+}
+
 function rngResultHtml() {
   if (rngLoading())
     return `<div class="rng-grid">${RNG_SLOTS.map(rngSkeletonHtml).join("")}</div>`;
   const pools = rngPools();
   const total = RNG_SLOTS.reduce((n, s) => n + pools[s.id].length, 0);
-  if (!total) {
+  // An empty library empties the grid — unless a slot is pinned, in which case there IS
+  // something to show and hiding it would lose the card holding the pin.
+  if (!total && rngFreeSlots().length === RNG_SLOTS.length) {
     return `<div class="pick-empty">Nothing in your library clears all three slots with these criteria.</div>`;
   }
   return `<div class="rng-grid">${RNG_SLOTS.map((s) => rngSlotHtml(s, pools[s.id])).join("")}</div>`;
@@ -552,7 +740,10 @@ function rngPatch() {
   for (const s of RNG_SLOTS) {
     const el = host.querySelector(`.rng-slot[data-slot="${s.id}"]`);
     if (!el) continue;
-    const n = el.querySelector(".rng-n");
+    const pinned = rngIsPinned(s.id);
+    // A pinned slot's eyebrow says "Pinned", not a count — leave it alone rather than
+    // overwriting the badge with the pool it isn't rolling from.
+    const n = pinned ? null : el.querySelector(".rng-n");
     if (n) n.textContent = pools[s.id].length.toLocaleString();
     const row = rngState.picks[s.id];
     if (!row) continue;
@@ -571,9 +762,10 @@ function rngPatch() {
     const body = el.querySelector(".rng-art .card-body");
     if (body) body.innerHTML = cardBodyHtml(row);
     const chips = el.querySelector(".rng-chips");
-    if (chips) chips.innerHTML = rngCopyChip(row) + rngTimeChip(row) + rngChipsHtml(row);
+    if (chips) chips.innerHTML = (pinned ? rngPlayingChip() : "")
+      + rngCopyChip(row) + rngTimeChip(row) + rngChipsHtml(row);
   }
-  const total = RNG_SLOTS.reduce((a, s) => a + pools[s.id].length, 0);
+  const total = rngPoolCount();
   const c = document.querySelector("#picker .pick-count");
   if (c) c.textContent = `${total.toLocaleString()} game${total === 1 ? "" : "s"} in pool`;
 }
@@ -593,6 +785,20 @@ function wireRngResult() {
   host.querySelectorAll("[data-open]").forEach((el) => {
     const row = rngState.picks[el.dataset.open];
     if (row) el.onclick = (e) => { e.stopPropagation(); openDrawer(row, "games"); };
+  });
+  /* Pinning. All three go through rngPin, which writes the pref and re-renders — no nav()
+     with them, because a pin isn't in the URL (it's a pref, see the pins section) and
+     pushing a history entry for one would make Back a button that unpins nothing. */
+  host.querySelectorAll("[data-pinnow]").forEach((el) => {
+    const row = rngState.picks[el.dataset.pinnow];
+    if (row) el.onclick = (e) => { e.stopPropagation(); rngPin(el.dataset.pinnow, row._k); };
+  });
+  host.querySelectorAll("[data-unpin]").forEach((el) => {
+    el.onclick = (e) => { e.stopPropagation(); rngPin(el.dataset.unpin, null); };
+  });
+  host.querySelectorAll("[data-pin]").forEach((el) => {
+    el.onclick = (e) => e.stopPropagation();          // the card underneath opens a drawer
+    el.onchange = (e) => { e.stopPropagation(); if (el.value) rngPin(el.dataset.pin, el.value); };
   });
   // Same reason pick.js asks: the card composes launchHtml-adjacent fields the bulk
   // enrichment map drops, and postEnrich re-renders when the per-game record lands.
@@ -670,10 +876,15 @@ function playRngRoll(pools) {
   const host = $("#pickResult");
   if (!host) { renderPicker(); return; }
   const my = ++_rngRollN;
-  const live = RNG_SLOTS.filter((s) => rngState.picks[s.id]);
+  // A pinned column doesn't spin: it keeps its card while the free ones roll beside it,
+  // which is the whole picture the mode is drawing — two lanes being decided, one already
+  // under way. It's rendered by the same rngSlotHtml the landed grid uses, so nothing in
+  // that column moves when the roll finishes.
+  const live = RNG_SLOTS.filter((s) => !rngIsPinned(s.id) && rngState.picks[s.id]);
   const last = RNG_REEL_BASE + RNG_REEL_STAGGER * (live.length - 1);
 
   host.innerHTML = `<div class="rng-grid">${RNG_SLOTS.map((s) => {
+    if (rngIsPinned(s.id)) return rngSlotHtml(s, pools[s.id]);
     const picked = rngState.picks[s.id];
     const head = `<div class="rng-head"><span class="rng-eye">${icon(s.icon, 12)} ${escapeHtml(s.label)}</span></div>`;
     const body = picked
@@ -685,6 +896,9 @@ function playRngRoll(pools) {
   }).join("")}</div>`;
 
   pickWireRollTiles(host);
+  // The pinned cards were just painted as real cards; give them their real behaviour
+  // (cover trailer, drawer, Unpin) rather than leaving them inert until the reels stop.
+  wireRngResult();
   live.forEach((s, i) => {
     const el = host.querySelector(`.rng-slot[data-slot="${s.id}"]`);
     const dur = RNG_REEL_BASE + RNG_REEL_STAGGER * i;
