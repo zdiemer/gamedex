@@ -214,6 +214,9 @@ function openDrawer(row, sheetKey, keepStack) {
   if (typeof wishlistDealHtml === "function") html += wishlistDealHtml(row);
   // Recommend block (predicted score, why, dismiss) — "" for every non-rec row.
   if (typeof recsDrawerHtml === "function") html += recsDrawerHtml(row);
+  // Translation Watch block (translator, version, and the links out to the sites that
+  // host the patch) — "" for every row that isn't from the feed.
+  if (typeof twDrawerHtml === "function") html += twDrawerHtml(row);
   // A wishlist-only row has no match-key record, but if it matched an IGDB id we
   // can still load its full detail (summary, screenshots, tags) by that id.
   const wlDetail = row._wlOnly && row._igdbId;

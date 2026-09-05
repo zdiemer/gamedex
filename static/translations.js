@@ -101,7 +101,10 @@ function twRow(item) {
 function buildTranslationsSheet(force) {
   if (!DATA || !DATA.sheets || !TRANSLATIONS) return;
   if (!force && _twSheetBuilt) return;
-  const rows = (TRANSLATIONS.items || []).map(twRow);
+  // Alerts are pinned in their own strip, but they belong in the list as well: the
+  // strip is a callout, not the record. Leaving them out meant the entries you most
+  // want to look at were the only ones with no card and no drawer.
+  const rows = [...(TRANSLATIONS.alerts || []), ...(TRANSLATIONS.items || [])].map(twRow);
   DATA.sheets.translations = { columns: TRANSLATION_COLUMNS, rows };
   _twSheetBuilt = true;
   resetSearchCache();               // the rows array changed identity (filters.js memo)
@@ -203,4 +206,64 @@ TAB_RESET.translations = () => {
 };
 if (typeof tabState !== "undefined" && tabState.translations) {
   tabState.translations.facets = twDefaultFacets();
+}
+
+/* The translation block inside a translated game's drawer.
+ *
+ * Everywhere else the drawer is about the GAME; this is the one part that is about the
+ * PATCH — who made it, which version, how complete, and above all WHERE TO GET IT. The
+ * feed is only useful if it can hand you off to the people who did the work, so every
+ * source that carries this translation gets its own link out.
+ *
+ * "" for every row that isn't one of ours, exactly like recsDrawerHtml. */
+const TW_SOURCE_LABEL = { rhdi: "romhack.ing", plaza: "Romhack Plaza" };
+
+function twDrawerHtml(row) {
+  if (!row || !row._twOnly || !row._tw) return "";
+  const t = row._tw;
+  const rows = [];
+  // The patch's own name, but only when it says something the game title doesn't.
+  // Compared loosely: Romhack Plaza files entries under the plain game title, so this
+  // usually repeats the heading, and IGDB's casing rarely agrees with the site's
+  // ("Eve Burst Error" vs "EVE burst error") — a row that only re-punctuates the
+  // title is noise.
+  const loose = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (t.patchTitle && loose(t.patchTitle) !== loose(t.title)) {
+    rows.push(["Patch", escapeHtml(t.patchTitle)]);
+  }
+  if ((t.authors || []).length) rows.push(["Translator", escapeHtml(t.authors.join(", "))]);
+  if (t.status) rows.push(["Status", escapeHtml(t.status)]);
+  if (t.version) rows.push(["Version", escapeHtml(t.version)]);
+  if (t.released) {
+    rows.push(["Released", new Date(t.released * 1000).toLocaleDateString(undefined,
+      { year: "numeric", month: "short", day: "numeric" })]);
+  }
+  if (t.downloads) rows.push(["Downloads", t.downloads.toLocaleString()]);
+
+  const chips = (t.sources || []).map((s) =>
+    `<a class="btn ghost" href="${escapeHtml(s.url)}" target="_blank" rel="noopener"
+      >${escapeHtml(TW_SOURCE_LABEL[s.name] || s.name)} ↗</a>`).join(" ");
+
+  // Machine translations are labelled here too, not just in the facet — by the time
+  // you are looking at a download link, "who wrote this text" is the thing you want to
+  // know, and the Quality facet is three screens away.
+  const machine = t.machine
+    ? `<div class="tw-drawer-note">${icon("i-alert", 13)} Machine translated — expect rough edges.</div>`
+    : "";
+  // Any row that joined to the sheet says so, not just the ones that alerted — "this
+  // is already in your collection" is worth knowing even when the patch is an addendum
+  // or the game was readable to begin with.
+  const mine = t.mine
+    ? `<div class="tw-drawer-note tw-drawer-mine">${icon("i-sparkle", 13)} ${
+        t.mine.owned ? "You own this" : t.mine.wishlisted ? "On your wishlist" : "In your collection"}${
+        t.mine.english === "Partial" ? ", and had only a partial translation" :
+        t.mine.english === "None" ? ", and had no translation" : ""}.</div>`
+    : "";
+
+  return `<div class="hltb tw-drawer">
+    <div class="hltb-head">${icon("i-globe", 14)} Fan translation</div>
+    ${rows.map(([k, v]) => `<div class="hltb-row"><span>${k}</span><b>${v}</b></div>`).join("")}
+    ${mine}${machine}
+    <div class="tw-drawer-links">${chips}</div>
+  </div>`;
 }
