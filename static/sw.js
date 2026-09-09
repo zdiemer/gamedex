@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.61.0";
+const VERSION = "v1.62.0";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -27,7 +27,7 @@ const SHELL_URLS = [
   "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./recs.js",
   "./relations.js", "./rng.js", "./similar.js", "./spooktober.js", "./translations.js",
   "./reviews.js", "./search.js", "./shelf.js", "./soundtrack.js", "./stats.js", "./table.js", "./timeline.js", "./wishlist.js",
-  "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2",
+  "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2", "./fonts/creepster.woff2",
 ];
 
 // Cache each URL on its own. addAll() is atomic — one 404 rejects the whole

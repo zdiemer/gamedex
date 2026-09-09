@@ -13,6 +13,15 @@
   src: url("fonts/plex-sans.woff2") format("woff2");
   font-weight: 100 700; font-style: normal; font-display: swap;
 }
+/* Creepster (SIL OFL 1.1), for the Spooktober event and nothing else. A dripping horror-
+   poster face: caps-only — its lowercase maps to capitals — so it is used for the wordmark,
+   the date numerals and the button, never for a sentence. font-display: swap means the event
+   still reads in Archivo for the 28kB it takes to arrive. */
+@font-face {
+  font-family: "Creepster";
+  src: url("fonts/creepster.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
 
 /* ==========================================================================
    Gamedex — design system
@@ -5945,6 +5954,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   --spk-ink: #08070c;
   --spk-ink-2: #170d18;
   --spk-web-line: rgba(255, 176, 58, .3);
+  /* Creepster is caps-only and drips; it goes on the wordmark, the dates and the button,
+     and never on running text. Archivo is the fallback, so a slow font swap costs the event
+     its accent and nothing else. */
+  --spk-display: "Creepster", var(--display);
 }
 
 /* ---- the shared skin (banner on Home, hero on the event page) ------------- */
@@ -5969,7 +5982,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .spk-banner-inner { position: relative; z-index: 2; padding: 26px 28px 24px; max-width: 62%; }
 .spk-eyebrow { color: var(--spk-flame); }
 .spk-title {
-  font-family: var(--display); font-size: 40px; line-height: 1; letter-spacing: -.03em;
+  /* Positive tracking, where the rest of the app runs negative: Creepster's drips grow off
+     the right of each glyph and run into the next letter when they are pulled together. */
+  font-family: var(--spk-display); font-size: 44px; line-height: 1.1; letter-spacing: .015em;
   background: linear-gradient(180deg, #fff3e0 6%, var(--spk-flame) 52%, var(--spk-orange));
   -webkit-background-clip: text; background-clip: text; color: transparent;
   /* The glow is on the block, not the glyphs: text-shadow under a transparent fill
@@ -5977,12 +5992,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   filter: drop-shadow(0 2px 18px rgba(255, 122, 24, .38));
   margin-bottom: 7px;
 }
-.spk-title.big { font-size: clamp(40px, 7vw, 66px); }
+.spk-title.big { font-size: clamp(44px, 7.5vw, 72px); }
 .spk-pitch { color: #e7d6c2; font-size: 13.5px; line-height: 1.5; margin-bottom: 14px; text-wrap: balance; }
 .spk-cta {
   display: inline-flex; align-items: center; gap: 6px;
-  font: 700 12.5px/1 var(--display); letter-spacing: .01em;
-  padding: 9px 15px; border-radius: 999px;
+  font: 400 15px/1 var(--spk-display); letter-spacing: .04em;
+  padding: 9px 16px; border-radius: 999px;
   background: linear-gradient(180deg, var(--spk-flame), var(--spk-orange));
   color: #2b0f00; box-shadow: 0 6px 18px rgba(255, 122, 24, .3);
 }
@@ -6072,8 +6087,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .spk-night:hover { border-color: rgba(255, 122, 24, .55); transform: translateY(-2px); }
 .spk-num {
-  position: absolute; top: 6px; left: 8px; z-index: 2;
-  font: 800 13px/1 var(--display); color: var(--spk-flame); font-variant-numeric: tabular-nums;
+  position: absolute; top: 5px; left: 8px; z-index: 2;
+  font: 400 17px/1 var(--spk-display); letter-spacing: .03em; color: var(--spk-flame);
 }
 .spk-num em {
   font: 700 8.5px/1 var(--display); font-style: normal; letter-spacing: .1em; text-transform: uppercase;
@@ -6107,26 +6122,56 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   margin-top: 6px; font-size: 11.5px; line-height: 1.3; font-weight: 600;
 }
 .spk-slot-s { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
-/* Clear and Swap only appear on the cell you're pointing at: 31 cells each wearing two
-   permanent buttons is a wall of chrome over the art you came to look at. Keyboard users
-   get them from :focus-within, which is the same promise by a different route. */
+/* Change and Clear only appear on the cell you're pointing at: 31 cells each wearing a row
+   of permanent buttons is a wall of chrome over the art you came to look at. Keyboard users
+   get them from :focus-within, and touch — where there is no hover to point WITH — gets them
+   permanently, further down. */
+.spk-night-acts {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3;
+  display: flex; gap: 6px; opacity: 0; transition: opacity .14s;
+}
 .spk-x, .spk-swap {
-  position: absolute; opacity: 0; transition: opacity .14s; cursor: pointer;
-}
-.spk-x {
-  top: 4px; right: 4px; z-index: 3; width: 22px; height: 22px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(8, 7, 12, .82); border: 1px solid var(--border); color: #f6ead9;
-}
-.spk-x:hover { border-color: var(--bad); color: var(--bad); }
-.spk-swap {
-  left: 8px; right: 8px; bottom: 8px; z-index: 3; padding: 5px 0; border-radius: 999px;
-  background: rgba(8, 7, 12, .86); border: 1px solid rgba(255, 176, 58, .45); color: var(--spk-flame);
+  cursor: pointer; border-radius: 999px; background: rgba(8, 7, 12, .86);
+  border: 1px solid rgba(255, 176, 58, .45); color: var(--spk-flame);
   font: 700 10px/1 var(--display); letter-spacing: .04em;
 }
+.spk-swap { flex: 1; padding: 6px 0; }
 .spk-swap:hover { background: var(--spk-orange); color: #2b0f00; border-color: var(--spk-orange); }
-.spk-night:hover .spk-x, .spk-night:hover .spk-swap,
-.spk-night:focus-within .spk-x, .spk-night:focus-within .spk-swap { opacity: 1; }
+.spk-x {
+  width: 26px; display: flex; align-items: center; justify-content: center;
+  border-color: var(--border); color: #f6ead9;
+}
+.spk-x:hover { border-color: var(--bad); color: var(--bad); }
+.spk-night:hover .spk-night-acts, .spk-night:focus-within .spk-night-acts { opacity: 1; }
+
+/* A pin is state, not an action, so a pinned night says so whether or not you're pointing
+   at it — the whole value of pinning is being able to see, at a glance across the month,
+   what a re-roll is about to spare. The unpinned toggle is the one that hides. */
+.spk-pin {
+  position: absolute; top: 4px; right: 4px; z-index: 4;
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 7, 12, .82); border: 1px solid var(--border); color: var(--muted);
+  opacity: 0; transition: opacity .14s, color .14s, border-color .14s;
+}
+.spk-night:hover .spk-pin, .spk-night:focus-within .spk-pin { opacity: 1; }
+.spk-pin:hover { color: var(--spk-flame); border-color: var(--spk-flame); }
+.spk-night.pinned .spk-pin {
+  opacity: 1; color: #2b0f00; background: var(--spk-flame); border-color: var(--spk-flame);
+}
+.spk-night.pinned { border-color: rgba(255, 176, 58, .6); }
+.spk-night.pinned .spk-cover { border-color: rgba(255, 176, 58, .5); }
+.spk-pinnote {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; font-size: 12px; color: #d9c6b2;
+}
+.spk-pinnote .ico { color: var(--spk-flame); flex: none; }
+
+/* No hover means no way to reveal anything, so a touch screen gets the controls outright.
+   The cover still leads — the row is 26px at the foot of a 200px card. */
+@media (hover: none) {
+  .spk-night-acts, .spk-pin { opacity: 1; }
+}
 
 /* ---- the picker ----------------------------------------------------------
    Sticky to the bottom of the page rather than a modal: you are choosing FOR a night
@@ -6139,7 +6184,20 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   padding: 12px 20px 14px;
 }
 .spk-picker-head { display: flex; align-items: center; gap: 10px; max-width: 1180px; margin: 0 auto 10px; }
-.spk-picker-head b { font-family: var(--display); font-size: 14px; color: var(--spk-flame); white-space: nowrap; }
+.spk-picker-head b {
+  font: 400 19px/1 var(--spk-display); letter-spacing: .03em;
+  color: var(--spk-flame); white-space: nowrap;
+}
+/* What that night holds right now, so a swap is a comparison and not a guess. */
+.spk-on {
+  font-size: 12px; color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 26ch;
+}
+.spk-any {
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-size: 12px; color: #d9c6b2; cursor: pointer;
+}
+.spk-any input { accent-color: var(--spk-orange); cursor: pointer; }
 .spk-q {
   flex: 1; min-width: 0; padding: 8px 12px; border-radius: 999px;
   background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; font-size: 13px;
@@ -6166,6 +6224,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 @media (max-width: 560px) {
   .spk-hero-inner { padding: 32px 20px 28px; }
   .spk-cands { max-height: 46vh; }
+  /* Five things in one row is one too many here. The search box takes the second line
+     whole, and the night, what's on it and Done keep the first. */
+  .spk-picker-head { flex-wrap: wrap; }
+  .spk-q { order: 9; flex-basis: 100%; }
+  .spk-on { max-width: 14ch; }
 }
 
 /* An event banner is the last place that should be moving for someone who asked

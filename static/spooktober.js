@@ -23,9 +23,11 @@ const SPOOK_END = { m: 10, d: 7 };     // Nov 7
 const SPOOK_NIGHTS = 31;               // October
 
 const SPOOK = {
-  cal: null,          // { "<year>": { "<day>": matchKey } } — every year you've ever planned
+  cal: null,          // the whole saved file (see spookFile) — every year you've ever planned
   picking: null,      // the night the picker is choosing for, or null
+  mode: "fill",       // "fill" — walk on to the next empty night; "swap" — stay on this one
   q: "",              // the picker's search box
+  all: false,         // picker is showing the whole collection, not just the horror pool
   loaded: false,      // the server's copy has landed (or failed) at least once
 };
 
@@ -71,26 +73,52 @@ function spookPhase(d = spookToday()) {
    picross streak uses, and the same reason. */
 const SPOOK_LOCAL = "gamedex.spooktober";
 const SPOOK_KEEP_YEARS = 5;      // past Octobers are worth keeping; ten of them are not
+const SPOOK_V = 2;
 
-function spookCalAll() {
-  if (SPOOK.cal) return SPOOK.cal;
-  try { SPOOK.cal = JSON.parse(localStorage.getItem(SPOOK_LOCAL) || "null"); } catch (_) {}
-  if (!SPOOK.cal || typeof SPOOK.cal !== "object" || Array.isArray(SPOOK.cal)) SPOOK.cal = {};
-  return SPOOK.cal;
+const spookBlank = () => ({ v: SPOOK_V, cal: {}, pins: {} });
+
+/* v1 was the bare calendar — { "<year>": { "<day>": matchKey } } — with nowhere to record
+   which nights are pinned. The tempting fix is to keep pins inside the year object under a
+   key that isn't a day, but then every loop over a year's entries has to know that one of
+   its "days" is a lie, and there are five of those loops. v2 wraps the calendar instead and
+   keeps pins beside it. Old files migrate on read; nothing writes v1 any more. */
+function spookMigrate(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return spookBlank();
+  if (raw.v === SPOOK_V) {
+    return { v: SPOOK_V, cal: raw.cal && typeof raw.cal === "object" ? raw.cal : {},
+             pins: raw.pins && typeof raw.pins === "object" ? raw.pins : {} };
+  }
+  const cal = {};
+  for (const [y, nights] of Object.entries(raw)) {
+    if (/^\d{4}$/.test(y) && nights && typeof nights === "object") cal[y] = nights;
+  }
+  return { v: SPOOK_V, cal, pins: {} };
 }
+
+function spookFile() {
+  if (SPOOK.cal) return SPOOK.cal;
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(SPOOK_LOCAL) || "null"); } catch (_) {}
+  return (SPOOK.cal = spookMigrate(raw));
+}
+
+const spookCalAll = () => spookFile().cal;
 
 // This year's nights, as { day: matchKey }. Created lazily: an empty year should not be
 // written to the server just because someone opened the page.
 const spookCal = () => spookCalAll()[String(spookYear())] || {};
 
-function spookPrune(all) {
-  const years = Object.keys(all).sort();
-  for (const y of years.slice(0, Math.max(0, years.length - SPOOK_KEEP_YEARS))) delete all[y];
-  return all;
+function spookPrune(file) {
+  const years = Object.keys(file.cal).sort();
+  for (const y of years.slice(0, Math.max(0, years.length - SPOOK_KEEP_YEARS))) {
+    delete file.cal[y];
+    delete file.pins[y];
+  }
+  return file;
 }
 
 async function spookSave() {
-  const all = spookPrune(spookCalAll());
+  const all = spookPrune(spookFile());
   try { localStorage.setItem(SPOOK_LOCAL, JSON.stringify(all)); } catch (_) { /* private mode */ }
   // Signed out, the server refuses the write (prefs are admin-only, by design). Their
   // calendar is real, it just lives in this browser — don't attempt a write to apologise for.
@@ -115,33 +143,56 @@ async function spookLoadPrefs() {
   // purpose — and boot already spends one request on it (loadPrefs, extras.js). Don't spend
   // a second one to be told the same thing.
   if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return;
-  let remote = null;
+  let raw = null;
   try {
     const j = await (await fetch("api/prefs")).json();
-    remote = (j.prefs || {}).spooktober;
+    raw = (j.prefs || {}).spooktober;
   } catch (_) { return; }        // offline: the local mirror stands in
-  if (!remote || typeof remote !== "object" || Array.isArray(remote)) return;
-  const all = spookCalAll();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
+  const remote = spookMigrate(raw);      // the server may still be holding a v1 file
+  const file = spookFile();
   let changed = false;
-  for (const [year, nights] of Object.entries(remote)) {
+  for (const [year, nights] of Object.entries(remote.cal)) {
     if (!nights || typeof nights !== "object") continue;
-    const mine = all[year] || (all[year] = {});
+    const mine = file.cal[year] || (file.cal[year] = {});
     for (const [day, key] of Object.entries(nights)) {
       if (!(day in mine)) { mine[day] = key; changed = true; }
     }
   }
-  try { localStorage.setItem(SPOOK_LOCAL, JSON.stringify(all)); } catch (_) {}
+  // Pins union rather than replace, for the same reason the nights merge one at a time: a
+  // pin is you saying "keep this one", and the safe way to reconcile two devices that each
+  // said it about different nights is to honour both. Unpinning on one device and not the
+  // other loses that argument — but re-rolling a night you meant to keep is the worse half.
+  for (const [year, days] of Object.entries(remote.pins)) {
+    if (!Array.isArray(days)) continue;
+    const mine = file.pins[year] || (file.pins[year] = []);
+    for (const d of days) if (!mine.includes(+d)) { mine.push(+d); changed = true; }
+  }
+  try { localStorage.setItem(SPOOK_LOCAL, JSON.stringify(file)); } catch (_) {}
   if (changed && activeTab === "spooktober") renderSpooktober();
   else if (changed && activeTab === "home" && typeof patchSpookBanner === "function") patchSpookBanner();
 }
 
-function spookSet(day, key) {
+// This year's nights, created on demand — an empty year should not be written to the
+// server just because someone opened the page.
+function spookNightsObj() {
   const all = spookCalAll();
   const y = String(spookYear());
-  const nights = all[y] || (all[y] = {});
-  // A game can only hold one night. Assigning it again moves it rather than cloning it —
-  // 31 nights of the same game is never what you meant, and the picker marks it as taken.
-  for (const [d, k] of Object.entries(nights)) if (k === key) delete nights[d];
+  return all[y] || (all[y] = {});
+}
+
+function spookSet(day, key) {
+  const nights = spookNightsObj();
+  const prev = nights[String(day)];
+  /* A game can only hold one night: 31 nights of the same game is never what you meant, and
+     the picker marks the ones already spoken for. So assigning a game that is already on the
+     calendar moves it — and if the night you are moving it TO had a game of its own, that
+     game takes the vacated night. An exchange, not an eviction: choosing a replacement for
+     the 5th should never quietly empty the 12th behind the picker. */
+  for (const [d, k] of Object.entries(nights)) {
+    if (k !== key || d === String(day)) continue;
+    if (prev) nights[d] = prev; else delete nights[d];
+  }
   nights[String(day)] = key;
   spookSave();
 }
@@ -149,13 +200,32 @@ function spookSet(day, key) {
 function spookClearDay(day) {
   const nights = spookCalAll()[String(spookYear())];
   if (nights) delete nights[String(day)];
-  spookSave();
+  spookPin(day, false);        // a pin on an empty night holds nothing; it also saves
 }
 
 function spookClearAll() {
   spookCalAll()[String(spookYear())] = {};
+  spookFile().pins[String(spookYear())] = [];
   spookSave();
 }
+
+/* ---- pins ------------------------------------------------------------------
+   A pinned night is one you have decided about, and the dice must not touch it. That is the
+   whole contract: pins do nothing else, and nothing else reads them. */
+const spookPins = () => spookFile().pins[String(spookYear())] || [];
+const spookIsPinned = (day) => spookPins().includes(+day);
+
+function spookPin(day, on) {
+  const file = spookFile();
+  const y = String(spookYear());
+  const list = file.pins[y] || (file.pins[y] = []);
+  const i = list.indexOf(+day);
+  if (on && i < 0) list.push(+day);
+  else if (!on && i >= 0) list.splice(i, 1);
+  spookSave();
+}
+
+const spookTogglePin = (day) => spookPin(day, !spookIsPinned(day));
 
 /* ---- what counts as a horror game -----------------------------------------
    Three rungs, cheapest first:
@@ -202,20 +272,73 @@ function spookPool() {
   return (_spookPool = typeof groupByGame === "function" ? groupByGame(rows) : rows);
 }
 
-const spookRowFor = (key) => spookPool().find((r) => String(r._k || "") === String(key)) || null;
+/* Everything on the sheet, for the picker's "any game" mode. The horror pool is a
+   suggestion, not a fence: if you want Katamari on the 31st because that is the tradition in
+   your house, the calendar is yours. Grouped the same way, so a game you pick here is the
+   same card you'd get anywhere else in the app. */
+let _spookAll = null;
+function spookAllGames() {
+  if (_spookAll) return _spookAll;
+  const rows = ((DATA.sheets.games || {}).rows || []).filter((r) => r.title);
+  return (_spookAll = typeof groupByGame === "function" ? groupByGame(rows) : rows);
+}
 
-// The nights, in order, as [day, row|null]. One pass over the pool rather than 31 lookups.
+/* Resolving a saved night has to look at the RAW rows, not at either grouped list. A night
+   holds the key of whichever card you picked, and grouping the horror rows and grouping all
+   the rows can choose different representatives for the same title — so a game picked in
+   "any game" mode would come back unresolved, and the night would render as empty. */
+let _spookIdx = null;
+function spookRowIndex() {
+  if (_spookIdx) return _spookIdx;
+  _spookIdx = new Map();
+  for (const r of (DATA.sheets.games || {}).rows || []) {
+    const k = String(r._k || "");
+    if (k && !_spookIdx.has(k)) _spookIdx.set(k, r);
+  }
+  return _spookIdx;
+}
+
+const spookRowFor = (key) => spookRowIndex().get(String(key)) || null;
+
+// The nights, in order, as [day, row|null].
 function spookNights() {
   const nights = spookCal();
-  const want = new Set(Object.values(nights).map(String));
-  const by = new Map();
-  if (want.size) for (const r of spookPool()) { const k = String(r._k || ""); if (want.has(k)) by.set(k, r); }
   const out = [];
-  for (let d = 1; d <= SPOOK_NIGHTS; d++) out.push([d, by.get(String(nights[String(d)] ?? "")) || null]);
+  for (let d = 1; d <= SPOOK_NIGHTS; d++) {
+    const k = nights[String(d)];
+    out.push([d, k ? spookRowFor(k) : null]);
+  }
   return out;
 }
 
 const spookFilled = () => spookNights().filter(([, r]) => r).length;
+
+/* One shuffled draw for a set of nights. Used by both buttons: "fill the empty nights" hands
+   it the empty ones, "re-roll" hands it the filled-but-unpinned ones. The nights being
+   redrawn don't count as taken — otherwise a re-roll could only ever draw from what the
+   calendar had left over, which on a full month is nothing. */
+function spookRoll(days) {
+  if (!days.length) return 0;
+  const redrawing = new Set(days.map(String));
+  const cal = spookCal();
+  const taken = new Set(
+    Object.entries(cal).filter(([d]) => !redrawing.has(d)).map(([, k]) => String(k)));
+  /* Prefer what you haven't finished: the point of the calendar is to give the backlog a
+     deadline, and a month of games you've already completed doesn't do that. Falls back to
+     the whole pool if the unplayed shelf runs dry before the 31st. */
+  const pool = spookPool().filter((r) => !taken.has(String(r._k || "")));
+  const fresh = pool.filter((r) => !r.completed);
+  const pick = (fresh.length >= days.length ? fresh : pool).slice();
+  for (let i = pick.length - 1; i > 0; i--) {          // Fisher–Yates
+    const j = Math.floor(Math.random() * (i + 1));
+    [pick[i], pick[j]] = [pick[j], pick[i]];
+  }
+  const nights = spookNightsObj();
+  let n = 0;
+  days.forEach((d, i) => { if (pick[i]) { nights[String(d)] = String(pick[i]._k || ""); n++; } });
+  spookSave();
+  return n;
+}
 
 /* ---- the banner (Home) -----------------------------------------------------
    The decoration is real markup rather than a background image: the brief is that the
@@ -304,8 +427,9 @@ function spookNightHtml(day, row) {
   const st = spookPhase();
   const isToday = st.phase === "during" && st.day === day;
   const past = (st.phase === "during" && day < st.day) || st.phase === "after";
-  const cls = ["spk-night", row ? "filled" : "empty", isToday ? "today" : "", past ? "past" : ""]
-    .filter(Boolean).join(" ");
+  const pinned = !!row && spookIsPinned(day);
+  const cls = ["spk-night", row ? "filled" : "empty", isToday ? "today" : "", past ? "past" : "",
+    pinned ? "pinned" : ""].filter(Boolean).join(" ");
   const num = `<span class="spk-num">${day}${isToday ? `<em>tonight</em>` : ""}</span>`;
   if (!row) {
     return `<div class="${cls}">${num}
@@ -319,13 +443,17 @@ function spookNightHtml(day, row) {
     ? `<img class="spk-cover" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
     : `<span class="spk-cover ph">${icon("i-library", 22)}</span>`;
   return `<div class="${cls}">${num}
+    <button class="spk-pin" data-pin="${day}" aria-pressed="${pinned}"
+      title="${pinned ? `October ${day} is pinned — the dice will leave it alone` : `Pin October ${day} so a re-roll keeps it`}">${icon("i-pin", 13)}</button>
     <button class="spk-slot" data-open="${k}" title="Open ${escapeHtml(String(row.title))}">
       ${cover}
       <span class="spk-slot-t">${escapeHtml(String(row.title))}</span>
       <span class="spk-slot-s">${escapeHtml(String(row.platform || ""))}</span>
     </button>
-    <button class="spk-x" data-clear="${day}" aria-label="Clear October ${day}">${icon("i-close", 13)}</button>
-    <button class="spk-swap" data-day="${day}">Swap</button>
+    <span class="spk-night-acts">
+      <button class="spk-swap" data-day="${day}" aria-label="Change the game on October ${day}">Change</button>
+      <button class="spk-x" data-clear="${day}" aria-label="Clear October ${day}">${icon("i-close", 13)}</button>
+    </span>
   </div>`;
 }
 
@@ -335,9 +463,14 @@ function spookNightHtml(day, row) {
 function spookResultsHtml() {
   const used = new Map(Object.entries(spookCal()).map(([d, k]) => [String(k), +d]));
   const q = SPOOK.q.trim().toLowerCase();
-  const pool = spookPool().filter((r) => !q || String(r.title || "").toLowerCase().includes(q));
+  const src = SPOOK.all ? spookAllGames() : spookPool();
+  const pool = src.filter((r) => !q || String(r.title || "").toLowerCase().includes(q));
   if (!pool.length) {
-    return `<p class="spk-none">${q ? "No horror game here by that name." : "No horror games found in the collection yet — enrichment may still be loading."}</p>`;
+    const none = SPOOK.all
+      ? "Nothing on the sheet by that name."
+      : (q ? "No horror game here by that name — tick “any game” to search the whole collection."
+           : "No horror games found in the collection yet — enrichment may still be loading.");
+    return `<p class="spk-none">${none}</p>`;
   }
   // Best-rated first when you haven't typed anything: the top of a 1,400-game list should be
   // a recommendation, not whatever the sheet happens to start with.
@@ -359,11 +492,18 @@ function spookResultsHtml() {
 
 function spookPickerHtml() {
   if (SPOOK.picking == null) return "";
+  const cur = spookNights()[SPOOK.picking - 1];
+  const on = cur && cur[1] ? String(cur[1].title || "") : "";
   return `<div class="spk-picker" id="spookPicker">
     <div class="spk-picker-head">
       <b>October ${SPOOK.picking}</b>
-      <input id="spookQ" class="spk-q" type="search" placeholder="Search horror games…"
+      ${on ? `<span class="spk-on">now: ${escapeHtml(on)}</span>` : ""}
+      <input id="spookQ" class="spk-q" type="search"
+             placeholder="${SPOOK.all ? "Search the whole collection…" : "Search horror games…"}"
              value="${escapeHtml(SPOOK.q)}" autocomplete="off">
+      <label class="spk-any" title="Ignore the horror filter and pick from everything on the sheet">
+        <input type="checkbox" id="spookAny"${SPOOK.all ? " checked" : ""}> any game
+      </label>
       <button class="btn ghost" id="spookCancel">Done</button>
     </div>
     <div id="spookResults">${spookResultsHtml()}</div>
@@ -378,6 +518,8 @@ function renderSpooktober() {
   const pct = Math.round((filled / SPOOK_NIGHTS) * 100);
   const nights = spookNights();
   const st = spookPhase();
+  const pinned = nights.filter(([d, r]) => r && spookIsPinned(d)).length;
+  const rerollable = filled - pinned;
   // Off-season the page still opens (a link has to work), it just says so instead of
   // pretending the event is running.
   const offSeason = !spookInSeason()
@@ -396,9 +538,11 @@ function renderSpooktober() {
           <span class="spk-meter-t">${filled} of ${SPOOK_NIGHTS} nights planned</span>
         </div>
         <div class="spk-acts">
-          <button class="btn" id="spookFill">${icon("i-dice", 15)} Fill the empty nights</button>
+          ${filled < SPOOK_NIGHTS ? `<button class="btn" id="spookFill">${icon("i-dice", 15)} Fill the empty nights</button>` : ""}
+          ${rerollable ? `<button class="btn${filled < SPOOK_NIGHTS ? " ghost" : ""}" id="spookReroll">${icon("i-refresh", 15)} Re-roll ${rerollable} unpinned</button>` : ""}
           ${filled ? `<button class="btn ghost" id="spookReset">Clear the calendar</button>` : ""}
         </div>
+        ${pinned ? `<p class="spk-pinnote">${icon("i-pin", 12)} ${pinned} pinned — a re-roll leaves ${pinned === 1 ? "it" : "them"} alone.</p>` : ""}
       </div>
     </section>
     <div class="spk-wrap">
@@ -409,7 +553,8 @@ function renderSpooktober() {
   wireSpook(host);
   // Only the games on screen: the calendar's own 31, plus whatever the picker is showing.
   const seen = nights.map(([, r]) => r).filter(Boolean);
-  if (typeof maybeEnrich === "function") maybeEnrich([...seen, ...spookPool().slice(0, 60)]);
+  const cands = SPOOK.picking == null ? [] : (SPOOK.all ? spookAllGames() : spookPool()).slice(0, 60);
+  if (typeof maybeEnrich === "function") maybeEnrich([...seen, ...cands]);
 }
 
 /* A repaint that keeps the caret where it was — but only if it was in the search box to
@@ -426,11 +571,20 @@ function spookRepaint() {
 }
 
 function wireSpook(host) {
+  // Both routes into the picker. An empty night is "fill" — you are working down the month,
+  // so it walks on. A filled night is "swap" — you came here about THAT night, so it stays.
   host.querySelectorAll("[data-day]").forEach((el) => {
-    el.onclick = () => { SPOOK.picking = +el.dataset.day; spookRepaint(); };
+    el.onclick = () => {
+      SPOOK.picking = +el.dataset.day;
+      SPOOK.mode = el.classList.contains("spk-swap") ? "swap" : "fill";
+      spookRepaint();
+    };
   });
   host.querySelectorAll("[data-clear]").forEach((el) => {
     el.onclick = () => { spookClearDay(+el.dataset.clear); spookRepaint(); };
+  });
+  host.querySelectorAll("[data-pin]").forEach((el) => {
+    el.onclick = () => { spookTogglePin(+el.dataset.pin); spookRepaint(); };
   });
   host.querySelectorAll("[data-open]").forEach((el) => {
     el.onclick = () => { const r = spookRowFor(el.dataset.open); if (r) openDrawer(r, "games"); };
@@ -439,15 +593,24 @@ function wireSpook(host) {
     el.onclick = () => {
       if (SPOOK.picking == null) return;
       spookSet(SPOOK.picking, el.dataset.put);
-      // Step to the next EMPTY night rather than closing: filling a calendar is 31 of the
-      // same decision, and making you re-open the picker for each one is 31 extra clicks.
-      const next = spookNights().find(([d, r]) => d > SPOOK.picking && !r);
-      SPOOK.picking = next ? next[0] : null;
+      /* Filling a calendar is 31 of the same decision, so a pick walks on to the next empty
+         night rather than making you re-open the picker for each one. Changing ONE night is
+         a different job: it stays where it is, so you can see what you just did and try
+         something else. Advancing there is what made Swap look broken — on a full calendar
+         there is no next empty night, so the panel closed the instant you chose. */
+      if (SPOOK.mode === "fill") {
+        const next = spookNights().find(([d, r]) => d > SPOOK.picking && !r);
+        SPOOK.picking = next ? next[0] : null;
+      }
       spookRepaint();
     };
   });
+  const close = () => { SPOOK.picking = null; SPOOK.q = ""; renderSpooktober(); };
   const cancel = document.getElementById("spookCancel");
-  if (cancel) cancel.onclick = () => { SPOOK.picking = null; SPOOK.q = ""; renderSpooktober(); };
+  if (cancel) cancel.onclick = close;
+
+  const any = document.getElementById("spookAny");
+  if (any) any.onchange = () => { SPOOK.all = any.checked; spookRepaint(); };
 
   const q = document.getElementById("spookQ");
   if (q) {
@@ -459,33 +622,30 @@ function wireSpook(host) {
       wireSpook(res);                       // the cards are new; the input is not
       if (typeof maybeEnrich === "function") maybeEnrich(spookPool().slice(0, 60));
     };
-    q.onkeydown = (e) => { if (e.key === "Escape") { SPOOK.picking = null; SPOOK.q = ""; renderSpooktober(); } };
+    q.onkeydown = (e) => { if (e.key === "Escape") close(); };
   }
+
+  const roll = (days, done) => {
+    const n = spookRoll(days);
+    SPOOK.picking = null;
+    renderSpooktober();
+    if (typeof showToast === "function") showToast(done(n));
+  };
 
   const fill = document.getElementById("spookFill");
   if (fill) fill.onclick = () => {
-    const nights = spookNights();
-    const empty = nights.filter(([, r]) => !r).map(([d]) => d);
+    const empty = spookNights().filter(([, r]) => !r).map(([d]) => d);
     if (!empty.length) { if (typeof showToast === "function") showToast("Every night is spoken for"); return; }
-    const taken = new Set(Object.values(spookCal()).map(String));
-    /* Prefer what you haven't finished: the point of the calendar is to give the backlog a
-       deadline, and a month of games you've already completed doesn't do that. Falls back to
-       the whole pool if the unplayed shelf runs dry before the 31st. */
-    const pool = spookPool().filter((r) => !taken.has(String(r._k || "")));
-    const fresh = pool.filter((r) => !r.completed);
-    const pick = (fresh.length >= empty.length ? fresh : pool).slice();
-    for (let i = pick.length - 1; i > 0; i--) {          // Fisher–Yates
-      const j = Math.floor(Math.random() * (i + 1));
-      [pick[i], pick[j]] = [pick[j], pick[i]];
-    }
-    const all = spookCalAll();
-    const y = String(spookYear());
-    const cal = all[y] || (all[y] = {});
-    empty.forEach((d, i) => { if (pick[i]) cal[String(d)] = String(pick[i]._k || ""); });
-    spookSave();
-    SPOOK.picking = null;
-    renderSpooktober();
-    if (typeof showToast === "function") showToast(`Filled ${Math.min(empty.length, pick.length)} nights`);
+    roll(empty, (n) => `Filled ${n} night${n === 1 ? "" : "s"}`);
+  };
+
+  // Re-roll leaves the pinned nights exactly where they are — that is what a pin is for.
+  const reroll = document.getElementById("spookReroll");
+  if (reroll) reroll.onclick = () => {
+    const loose = spookNights().filter(([d, r]) => r && !spookIsPinned(d)).map(([d]) => d);
+    if (!loose.length) { if (typeof showToast === "function") showToast("Every night is pinned"); return; }
+    const held = spookFilled() - loose.length;
+    roll(loose, (n) => `Re-rolled ${n} night${n === 1 ? "" : "s"}${held ? ` · ${held} pinned` : ""}`);
   };
 
   const reset = document.getElementById("spookReset");
@@ -497,4 +657,4 @@ function wireSpook(host) {
 }
 
 // Leaving the page and coming back should not drop you into a half-open picker.
-TAB_RESET.spooktober = () => { SPOOK.picking = null; SPOOK.q = ""; };
+TAB_RESET.spooktober = () => { SPOOK.picking = null; SPOOK.q = ""; SPOOK.all = false; };
