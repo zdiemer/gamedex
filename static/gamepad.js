@@ -22,7 +22,10 @@
    visit pays for one event listener and no frames. */
 
 // Standard-mapping indices (the layout every modern pad reports through
-// navigator.getGamepads). Named because gp.buttons[9] is unreadable.
+// navigator.getGamepads). Named because gp.buttons[9] is unreadable — but note
+// that these names are POSITIONS, not what the button says: index 0 is the bottom
+// face button, which is A on an Xbox pad, Cross on a Sony one and B on a Switch
+// Pro. gpBrand() below is what turns a position into the right name and glyph.
 const GP = {
   A: 0, B: 1, X: 2, Y: 3,
   LB: 4, RB: 5, LT: 6, RT: 7,
@@ -343,33 +346,148 @@ function gpKonami(token) {
   }
 }
 
+// ---- which controller is in your hands -----------------------------------
+
+/* Brands differ in ways a hint bar cannot paper over: Sony's face buttons are
+   shapes rather than letters, and Nintendo puts A where Microsoft puts B, so the
+   same button index is honestly called two different things.
+
+   Everything below is therefore keyed by POSITION (south / east / north), which is
+   what the standard mapping actually promises, and only the label and the glyph
+   change per brand. Getting that backwards would tell a Switch owner to press A
+   when the button under their thumb says B.
+
+   Identification is by USB vendor id where the id string carries one, since that
+   survives the wildly different formats browsers use ("Xbox Wireless Controller
+   (STANDARD GAMEPAD Vendor: 045e Product: 0b13)" in Chrome, "054c-0ce6-DualSense
+   Wireless Controller" in Firefox). The name is the fallback. */
+const GP_VENDORS = {
+  "045e": "xbox",         // Microsoft
+  "054c": "playstation",  // Sony
+  "057e": "nintendo",     // Nintendo
+  "28de": "xbox",         // Valve — Steam Deck and the Steam Controller use ABXY
+  "24c6": "xbox",         // PowerA
+  "0e6f": "xbox",         // PDP
+  "20d6": "xbox",         // PowerA / BDA
+};
+
+function gpBrandOf(id) {
+  const s = String(id || "").toLowerCase();
+  const vendor = (s.match(/vendor:?\s*([0-9a-f]{4})/) || s.match(/^([0-9a-f]{4})-[0-9a-f]{4}/) || [])[1];
+  if (vendor && GP_VENDORS[vendor]) return GP_VENDORS[vendor];
+  if (/dualsense|dualshock|playstation|\bps[345]\b/.test(s)) return "playstation";
+  if (/nintendo|switch|joy-?con|pro controller/.test(s)) return "nintendo";
+  if (/xbox|xinput/.test(s)) return "xbox";
+  // "Wireless Controller" with no vendor is Sony's own generic name for a DualShock 4.
+  if (/^wireless controller/.test(s)) return "playstation";
+  return "xbox";          // the standard mapping is the Xbox layout; so is the fallback
+}
+
+// The id string never changes for a given pad, so the parse happens once per pad.
+let _gpBrandId = null, _gpBrand = "xbox";
+function gpBrand(pad) {
+  const id = pad ? pad.id : "";
+  if (id !== _gpBrandId) { _gpBrandId = id; _gpBrand = gpBrandOf(id); }
+  return _gpBrand;
+}
+
+// What to call each button, by position. Nintendo's south/east really are B/A.
+const GP_NAMES = {
+  xbox:        { south: "A", east: "B", north: "Y", menu: "Menu", view: "View", l: "LB", r: "RB" },
+  playstation: { south: "Cross", east: "Circle", north: "Triangle", menu: "Options", view: "Create", l: "L1", r: "R1" },
+  nintendo:    { south: "B", east: "A", north: "X", menu: "Plus", view: "Minus", l: "L", r: "R" },
+};
+
 // ---- the hint bar ---------------------------------------------------------
 
-// What each surface answers to, in the order you'd reach for it. Shown while a
-// pad is connected and rebuilt when the top surface changes.
+/* Glyphs are drawn here rather than added to the sprite in index.html: they are
+   this file's business, six of them exist per brand, and none of the rest of the
+   app has any use for a Cross button. All on a 24 grid like the site's own icons. */
+const gpSvg = (inner) =>
+  `<svg class="gp-ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${inner}</svg>`;
+const gpRing = (extra = "") =>
+  `<circle cx="12" cy="12" r="9.6" fill="none" stroke="currentColor" stroke-width="1.5" ${extra}/>`;
+const gpLetter = (ch, fill) =>
+  `<text x="12" y="16.4" text-anchor="middle" font-size="11.5" font-weight="700"
+         font-family="var(--display)" fill="${fill}">${ch}</text>`;
+
+// Xbox owns these four colours; they are most of how the buttons are recognised.
+// The letter sits in near-black on the fill, which is legible on all four and in
+// both themes, unlike currentColor.
+const GP_XBOX_FILL = { south: "#6cc24a", east: "#e14b4b", north: "#efb424", west: "#4b8ee1" };
+
+function gpFaceGlyph(pos, brand) {
+  const name = (GP_NAMES[brand] || GP_NAMES.xbox)[pos];
+  if (brand === "xbox") {
+    return gpSvg(`<circle cx="12" cy="12" r="9.6" fill="${GP_XBOX_FILL[pos] || "#6cc24a"}"/>`
+      + gpLetter(name, "#0b0d12"));
+  }
+  if (brand === "nintendo") return gpSvg(gpRing() + gpLetter(name, "currentColor"));
+  // PlayStation: the shapes ARE the names, and modern PS draws them in one colour.
+  const shape = {
+    Cross: `<path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+    Circle: `<circle cx="12" cy="12" r="3.7" fill="none" stroke="currentColor" stroke-width="1.7"/>`,
+    Triangle: `<path d="M12 8.1l3.8 6.6H8.2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>`,
+  }[name] || "";
+  return gpSvg(gpRing() + shape);
+}
+
+// The two centre buttons, which look nothing like each other across the three.
+const GP_CENTRE = {
+  xbox: {
+    menu: `<path d="M5.5 8h13M5.5 12h13M5.5 16h13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    view: `<g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.6" y="6.4" width="10" height="7.2" rx="1.6"/><rect x="10.4" y="10.4" width="10" height="7.2" rx="1.6"/></g>`,
+  },
+  playstation: {
+    menu: `<path d="M6 8h12M6 12h12M6 16h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    view: `<g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.8" y="6.8" width="16.4" height="10.4" rx="2.2"/><path d="M9.6 6.8v10.4"/></g>`,
+  },
+  nintendo: {
+    menu: `${gpRing()}<path d="M12 7.6v8.8M7.6 12h8.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+    view: `${gpRing()}<path d="M7.6 12h8.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+  },
+};
+
+const GP_DPAD = `<path d="M9.6 3.8h4.8v5.8h5.8v4.8h-5.8v5.8H9.6v-5.8H3.8V9.6h5.8z"
+  fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>`;
+
+// One hint's glyph. The shoulders are a pair of lettered chips rather than SVG:
+// "LB RB" is a name, and a name at 18px reads better set than drawn.
+function gpGlyphs(token, brand) {
+  const n = GP_NAMES[brand] || GP_NAMES.xbox;
+  if (token === "south" || token === "east" || token === "north") return gpFaceGlyph(token, brand);
+  if (token === "menu" || token === "view") return gpSvg((GP_CENTRE[brand] || GP_CENTRE.xbox)[token]);
+  if (token === "dpad") return gpSvg(GP_DPAD);
+  if (token === "bump") return `<i class="gp-chip">${escapeHtml(n.l)}</i><i class="gp-chip">${escapeHtml(n.r)}</i>`;
+  return "";
+}
+
+// What each surface answers to, in the order you'd reach for it. Positions, not
+// letters — gpGlyphs turns "south" into A, Cross or B depending on the pad.
 function gpHints() {
   switch (gpScope()) {
-    case "attract": return [["A", "Details"], ["B", "Exit"], ["Y", "Mute"], ["pad", "Browse"]];
-    case "lightbox": return [["B", "Close"], ["pad", "Browse"]];
-    case "cmdk": return [["A", "Open"], ["B", "Close"], ["pad", "Move"]];
-    case "nav": return [["A", "Select"], ["B", "Close"], ["pad", "Move"]];
-    default: return [["A", "Select"], ["B", "Back"], ["menu", "Search"], ["view", "Menu"], ["bump", "Tabs"]];
+    case "attract": return [["south", "Details"], ["east", "Exit"], ["north", "Mute"], ["dpad", "Browse"]];
+    case "lightbox": return [["east", "Close"], ["dpad", "Browse"]];
+    case "cmdk": return [["south", "Open"], ["east", "Close"], ["dpad", "Move"]];
+    case "nav": return [["south", "Select"], ["east", "Close"], ["dpad", "Move"]];
+    default: return [["south", "Select"], ["east", "Back"], ["menu", "Search"], ["view", "Menu"], ["bump", "Tabs"]];
   }
 }
 
-const GP_GLYPH = { pad: "✚", menu: "☰", view: "▣", bump: "LB RB" };
 let gpHintKey = "";
 function gpRenderHints() {
   const bar = $("#gpHints");
   if (!bar) return;
   const hints = gpHints();
-  // Keyed so this repaints when the surface or the tab changes, not on every one of
-  // sixty frames a second — and so the measurement below is just as rare.
-  const key = gpScope() + "|" + activeTab + "|" + hints.length;
+  const brand = _gpBrand;
+  // Keyed so this repaints when the surface, the tab or the pad changes, not on
+  // every one of sixty frames a second — and so the measure below is just as rare.
+  const key = gpScope() + "|" + activeTab + "|" + brand + "|" + hints.length;
   if (key === gpHintKey) return;
   gpHintKey = key;
-  bar.innerHTML = hints.map(([b, label]) =>
-    `<span class="gp-hint"><i class="gp-btn gp-btn-${b}">${GP_GLYPH[b] || b}</i>${escapeHtml(label)}</span>`
+  bar.dataset.brand = brand;
+  bar.innerHTML = hints.map(([token, label]) =>
+    `<span class="gp-hint">${gpGlyphs(token, brand)}<span>${escapeHtml(label)}</span></span>`
   ).join("");
   // A listing keeps its pager pinned to the bottom of the window, so the bar rides
   // above it there and drops back to the corner on the tabs that have none.
@@ -390,6 +508,7 @@ function gpShowHints(on) {
 function gpTick(t) {
   const pad = gpActive();
   if (!pad) { gpStop(); return; }
+  gpBrand(pad);                   // cheap: only re-parses when the pad's id changes
   const scope = gpScope();
   // Opening or closing an overlay changes what the ring is allowed to sit on, and
   // the old element is usually behind a backdrop now. Re-seed inside the new scope.

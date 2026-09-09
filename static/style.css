@@ -5899,26 +5899,27 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
      bottom edge, and a bar over it reads as broken even though clicks pass through. */
   position: fixed; right: 16px; bottom: 14px;
   z-index: 200; pointer-events: none;                /* it names the buttons; it isn't one */
-  display: flex; gap: 16px; align-items: center;
-  padding: 8px 16px; border-radius: 999px;
+  display: flex; gap: 14px; align-items: center;
+  padding: 7px 14px; border-radius: 999px;
   background: var(--glass); border: 1px solid var(--border);
   backdrop-filter: blur(10px); box-shadow: var(--sh-2);
-  font-size: 12.5px; color: var(--muted); white-space: nowrap;
+  font-size: 12px; color: var(--muted); white-space: nowrap;
 }
 .gp-hints[hidden] { display: none; }
 .gp-hint { display: inline-flex; align-items: center; gap: 6px; }
-.gp-btn {
+.gp-hint > span { line-height: 1; }
+/* The glyphs carry the brand, so they sit at full text colour while the words they
+   label stay quiet — the button is the thing you're looking for in a hurry. */
+.gp-ico { display: block; flex: 0 0 auto; color: var(--text); }
+/* Shoulders are named, not shaped: LB/RB, L1/R1, L/R. Set, not drawn. */
+.gp-chip {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px;
-  border-radius: 999px; border: 1px solid var(--border);
+  min-width: 21px; height: 16px; padding: 0 4px; margin-right: 3px;
+  border-radius: 5px; border: 1px solid var(--border);
   background: var(--surface-2); color: var(--text);
-  font: 700 10.5px/1 var(--display); font-style: normal; letter-spacing: .02em;
+  font: 700 9.5px/1 var(--display); font-style: normal; letter-spacing: .04em;
 }
-/* A and B keep their console colours — they're the two you press without looking,
-   and every pad in the room labels them this way. */
-.gp-btn-A { border-color: var(--good); color: var(--good); }
-.gp-btn-B { border-color: var(--bad); color: var(--bad); }
-.gp-btn-bump { border-radius: 6px; font-size: 9.5px; letter-spacing: .06em; }
+.gp-chip:last-of-type { margin-right: 0; }
 
 /* Attract mode states its own keyboard hint. With a pad connected that advice is
    wrong (there is no Esc key in your hands), so the bar below speaks for it. */
