@@ -5880,3 +5880,52 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .tw-drawer-note { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 12px; color: var(--muted); }
 .tw-drawer-mine { color: var(--text); }
 .tw-chip-owned { background: color-mix(in srgb, var(--accent, #6ea8fe) 24%, transparent); color: var(--text); }
+
+/* ---- Controller navigation (gamepad.js) ---------------------------------
+   Only ever visible while a pad is driving: <html> carries .gp-on for as long as
+   one is connected, and the ring class is added and removed by hand rather than
+   leaning on :focus-visible, which a programmatic focus() does not reliably set. */
+.gp-focus {
+  outline: 2px solid var(--accent); outline-offset: 3px;
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 6px var(--accent-soft);
+}
+/* Cards already lift on hover; the ring should read as the same gesture so the
+   couch and the mouse agree about what "this one" looks like. */
+.card.gp-focus { transform: translateY(-6px); }
+
+.gp-hints {
+  /* Right-docked, not centred: the pager sits in the middle of every listing's
+     bottom edge, and a bar over it reads as broken even though clicks pass through. */
+  position: fixed; right: 16px; bottom: 14px;
+  z-index: 200; pointer-events: none;                /* it names the buttons; it isn't one */
+  display: flex; gap: 16px; align-items: center;
+  padding: 8px 16px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--border);
+  backdrop-filter: blur(10px); box-shadow: var(--sh-2);
+  font-size: 12.5px; color: var(--muted); white-space: nowrap;
+}
+.gp-hints[hidden] { display: none; }
+.gp-hint { display: inline-flex; align-items: center; gap: 6px; }
+.gp-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text);
+  font: 700 10.5px/1 var(--display); font-style: normal; letter-spacing: .02em;
+}
+/* A and B keep their console colours — they're the two you press without looking,
+   and every pad in the room labels them this way. */
+.gp-btn-A { border-color: var(--good); color: var(--good); }
+.gp-btn-B { border-color: var(--bad); color: var(--bad); }
+.gp-btn-bump { border-radius: 6px; font-size: 9.5px; letter-spacing: .06em; }
+
+/* Attract mode states its own keyboard hint. With a pad connected that advice is
+   wrong (there is no Esc key in your hands), so the bar below speaks for it. */
+.gp-on .attract-hint { display: none; }
+
+/* The mobile filter bar owns the bottom of a phone screen. A pad means a big
+   screen, but the two can still collide on a tablet: sit the hints above it. */
+@media (max-width: 760px) {
+  .gp-hints { right: 10px; bottom: 76px; font-size: 11.5px; gap: 11px; padding: 7px 12px; }
+}

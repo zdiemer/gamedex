@@ -319,6 +319,10 @@
     </div>
   </div>
 
+  <!-- Controller hints. Hidden until a pad announces itself (gamepad.js), which then
+       fills it with the buttons that mean something on whatever surface is on top. -->
+  <div class="gp-hints" id="gpHints" hidden aria-hidden="true"></div>
+
   <!-- Was one 5,500-line app.js. Split by concern, but still plain scripts sharing
        globals — the same contract the files below rely on. Load ORDER IS LOAD-BEARING:
        these are in the order they had inside app.js, so the handful of statements that
@@ -342,6 +346,7 @@
   <script defer src="rng.js"></script>
   <script defer src="chrome.js"></script>
   <script defer src="attract.js"></script>
+  <script defer src="gamepad.js"></script>
   <script defer src="charts.js"></script>
   <script defer src="reviews.js"></script>
   <script defer src="home.js"></script>
