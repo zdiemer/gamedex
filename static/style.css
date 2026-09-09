@@ -582,11 +582,19 @@ td.cover { width: 46px; padding: 5px 8px; }
    wall of box art rather than a wall of little text boxes. */
 .card {
   position: relative; aspect-ratio: 3 / 4;
+  /* The grid builds cards as divs; Home, the timeline and the Spooktober picker build the
+     SAME card as a <button> (posterCardHtml, table.js). WebKit sizes a form control by its
+     own rules and ignores aspect-ratio on one, so those three collapsed to a ~40px strip of
+     box art on iOS while the grid was fine. appearance:none takes the card out of the form
+     control's sizing, and the ::before spacer states the 3:4 in a way no engine can skip —
+     it can't disagree with the aspect-ratio, it computes to the same height. */
+  appearance: none; -webkit-appearance: none;
   background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--r);
   overflow: hidden; cursor: pointer;
   transition: transform .22s var(--ease), box-shadow .22s var(--ease), border-color .22s;
 }
+.card::before { content: ""; display: block; padding-top: 133.333%; }
 .card:hover { transform: translateY(-6px); border-color: var(--accent-line); box-shadow: var(--sh-2); }
 .card:focus-visible { transform: translateY(-6px); }
 .card:hover .card-cover { transform: scale(1.07); }
@@ -3731,6 +3739,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
   /* Shorthand, not overflow-y: a `visible` on one axis next to `auto` on the
      other computes back to `auto`, which would keep the nested scroller. */
+  /* .spook wants to be in this list too, but its own rule is defined further down the
+     file and would win at equal specificity — the un-nesting is restated in the event's
+     own block instead. */
   .gridwrap, .stats, .picker, .challenges { overflow: visible; flex: none; }
   .tablewrap { flex: none; overflow-x: auto; }   /* wide tables still pan sideways */
   thead th { position: static; }
@@ -6055,9 +6066,18 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 
 /* ---- the event page ------------------------------------------------------ */
-.spook { flex: 1; overflow-y: auto; padding: 0 0 60px; }
-.spk-hero { border-width: 0 0 1px; border-radius: 0; padding: 0; margin-bottom: 4px; }
-.spk-hero-inner { position: relative; z-index: 2; max-width: 1180px; margin: 0 auto; padding: 46px 24px 40px; }
+/* No trailing padding on the scroller itself: the picker is sticky to the bottom of this
+   box, and 60px of padding under it is 60px the panel floats above the screen edge once
+   you reach the end of the calendar. The breathing room lives on .spk-wrap instead, which
+   sits ABOVE the picker in flow. */
+.spook { flex: 1; overflow-y: auto; padding: 0; }
+/* The same inset card as the Home banner, down to the width and the radius — the event
+   page shouldn't introduce a second idea of where the edge of the page is. */
+.spk-hero {
+  width: min(1180px, calc(100% - 40px)); margin: 16px auto 4px;
+  border-width: 1px; border-radius: var(--r); padding: 0;
+}
+.spk-hero-inner { position: relative; z-index: 2; padding: 46px 24px 40px; }
 .spk-hero .spk-pitch { font-size: 15px; max-width: 60ch; }
 .spk-off {
   font-size: 12.5px; color: #cbb9a6; max-width: 60ch; margin-bottom: 14px;
@@ -6077,12 +6097,15 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .spk-acts .btn.ghost { background: transparent; border-color: rgba(255, 176, 58, .4); color: #f6ead9; }
 .spk-acts .btn.ghost:hover:not(:disabled) { background: rgba(255, 122, 24, .14); border-color: var(--spk-flame); color: #fff3e0; }
 
-.spk-wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 0; }
+/* Same width and gutters as the hero, so the calendar's edges line up with the poster's. */
+.spk-wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 60px; }
 .spk-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
 .spk-night {
   position: relative; border-radius: var(--r-sm);
   border: 1px solid var(--border); background: var(--surface);
-  padding: 26px 8px 8px; min-height: 132px;
+  /* The bottom 34px is the strip Change/Clear drop into — reserved even while they're
+     hidden, because an absolute row over live text lands on the game's title. */
+  padding: 26px 8px 34px; min-height: 132px;
   transition: border-color .16s var(--ease), transform .16s var(--ease);
 }
 .spk-night:hover { border-color: rgba(255, 122, 24, .55); transform: translateY(-2px); }
@@ -6167,6 +6190,16 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .spk-pinnote .ico { color: var(--spk-flame); flex: none; }
 
+/* A roll deals the nights it touched, in calendar order. The dice are the one control on
+   this page that changes many cells at once, and swapping thirty covers between two frames
+   reads as a glitch rather than a roll — the stagger is what makes it legible as dealing.
+   Capped at 24 steps, like the grid's fan-in: past that the tail is a wait, not an effect. */
+@keyframes spookDeal {
+  from { opacity: 0; transform: translateY(-9px) scale(.94) rotate(-1.2deg); }
+  to { opacity: 1; transform: none; }
+}
+.spk-night.spk-dealt { animation: spookDeal .4s var(--ease) backwards; animation-delay: var(--d, 0ms); }
+
 /* No hover means no way to reveal anything, so a touch screen gets the controls outright.
    The cover still leads — the row is 26px at the foot of a 200px card. */
 @media (hover: none) {
@@ -6179,10 +6212,20 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .spk-picker {
   position: sticky; bottom: 0; z-index: 5; margin-top: 22px;
   background: var(--glass); backdrop-filter: blur(12px);
-  border-top: 1px solid rgba(255, 122, 24, .45);
+  border-top: 1px solid rgba(255, 176, 58, .55);
   box-shadow: 0 -14px 40px rgba(0, 0, 0, .45);
   padding: 12px 20px 14px;
 }
+/* It slides up from under the screen edge the first time it opens. Without the movement it
+   arrives as one more row of covers on a page already made of covers, and the tap reads as
+   having done nothing. Only on OPEN — the panel repaints on every pick, and a sheet that
+   re-slides each time you choose a game is a sheet you can't use. `backwards`, not `both`:
+   a filling animation would pin the transform afterwards and eat the hover lift. */
+@keyframes spookSheetIn {
+  from { transform: translateY(100%); opacity: .3; }
+  to { transform: none; opacity: 1; }
+}
+.spk-picker.spk-in { animation: spookSheetIn .3s var(--ease) backwards; }
 .spk-picker-head { display: flex; align-items: center; gap: 10px; max-width: 1180px; margin: 0 auto 10px; }
 .spk-picker-head b {
   font: 400 19px/1 var(--spk-display); letter-spacing: .03em;
@@ -6198,13 +6241,17 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   font-size: 12px; color: #d9c6b2; cursor: pointer;
 }
 .spk-any input { accent-color: var(--spk-orange); cursor: pointer; }
-.spk-q {
-  flex: 1; min-width: 0; padding: 8px 12px; border-radius: 999px;
-  background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; font-size: 13px;
+/* The app's one search field (searchField, data.js), wearing the event's colours — the
+   icon, height, radius and focus ring come from .field so this box can't drift from the
+   three others. */
+.spk-field { flex: 1; min-width: 0; }
+.spk-field input:focus {
+  border-color: var(--spk-orange); box-shadow: 0 0 0 4px rgba(255, 122, 24, .18);
 }
-.spk-q:focus { outline: none; border-color: var(--spk-orange); }
+.spk-field:focus-within .ico { color: var(--spk-flame); }
+/* The candidate list is the app's card grid (.grid) — same columns, same gap, same mobile
+   breakpoint. This element only says how tall it may get before it scrolls. */
 .spk-cands {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 12px;
   max-width: 1180px; margin: 0 auto; max-height: 40vh; overflow-y: auto; padding: 2px;
 }
 .spk-cand { text-align: left; font-family: inherit; padding: 0; }
@@ -6212,6 +6259,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    you're on, which is the fastest way to fix a mistake. */
 .spk-cand.taken { opacity: .5; }
 .spk-taken { display: block; color: var(--spk-flame); font-weight: 600; }
+/* Only ever seen in "any game" mode: the horror pool has already dropped these. */
+.spk-fin { display: block; color: var(--good); font-weight: 600; }
 .spk-none, .spk-more { max-width: 1180px; margin: 8px auto 0; font-size: 12px; color: var(--muted); }
 
 @media (max-width: 900px) {
@@ -6221,13 +6270,23 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   /* At this width the decoration is competing with the words for the same space. */
   .spk-deco:not(.spk-web) { opacity: .55; }
 }
+@media (max-width: 760px) {
+  /* One scroll container on mobile: the page (see the mobile block above). .spook has to
+     say it here, after its own flex/overflow rule, or that later declaration wins at equal
+     specificity. It is not cosmetic: a scroll container whose height IS its content has no
+     scroll range, so the sticky picker below had nowhere to travel to and sat 2,000px down
+     the page — tapping Change repainted the calendar and appeared to do nothing. */
+  .spook { overflow: visible; flex: none; }
+  /* Pinned to the page bottom now, so the phone's own bottom bar can sit under it. */
+  .spk-picker { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
 @media (max-width: 560px) {
   .spk-hero-inner { padding: 32px 20px 28px; }
   .spk-cands { max-height: 46vh; }
   /* Five things in one row is one too many here. The search box takes the second line
      whole, and the night, what's on it and Done keep the first. */
   .spk-picker-head { flex-wrap: wrap; }
-  .spk-q { order: 9; flex-basis: 100%; }
+  .spk-field { order: 9; flex-basis: 100%; }
   .spk-on { max-width: 14ch; }
 }
 

@@ -29,6 +29,11 @@ const SPOOK = {
   q: "",              // the picker's search box
   all: false,         // picker is showing the whole collection, not just the horror pool
   loaded: false,      // the server's copy has landed (or failed) at least once
+  // Two one-shot animation flags. Both are read by the NEXT render and cleared by it, so a
+  // repaint that wasn't an open or a roll — picking a game, typing, toggling "any game" —
+  // doesn't replay the movement.
+  opening: false,     // the picker was just opened: slide it up
+  dealt: null,        // the nights a roll just touched: deal them in
 };
 
 /* ---- the season ----------------------------------------------------------- */
@@ -264,12 +269,29 @@ function spookIsHorror(row) {
    one per platform you own it on). Cached against the enrichment epoch: rung 2 and 3 read
    ENRICH, so the pool genuinely changes as enrichment lands, but re-walking 14.9k rows on
    every keystroke in the picker is not the way to notice. */
+/* Finished, by the same test the drawer uses: the All Games flag OR a row on the Completed
+   sheet. Either one alone misses games recorded only the other way, and the whole point of
+   the check is that the calendar stops offering you a game you've already beaten. */
+function spookIsDone(r) {
+  if (r.completed) return true;
+  const done = typeof rowsByK === "function" ? rowsByK().completed : null;
+  if (!done) return false;
+  const keys = r._members ? r._members.map((m) => m._k) : [r._k];
+  return keys.some((k) => k && done.has(k));
+}
+
 let _spookPool = null, _spookPoolAt = -1;
 function spookPool() {
   if (_spookPool && _spookPoolAt === _enrichEpoch) return _spookPool;
   const rows = ((DATA.sheets.games || {}).rows || []).filter((r) => r.title && spookIsHorror(r));
+  const grouped = typeof groupByGame === "function" ? groupByGame(rows) : rows;
   _spookPoolAt = _enrichEpoch;
-  return (_spookPool = typeof groupByGame === "function" ? groupByGame(rows) : rows);
+  /* Done games come out AFTER grouping, because finishing it on any one copy finishes the
+     game (groupRow merges the flag), and a PC copy you never touched shouldn't put a game
+     you beat on PS4 back in the dice. The escape hatch is the picker's "any game" toggle,
+     which searches the whole sheet — replaying a favourite in October is the tradition, it
+     just shouldn't be what the dice hand you. */
+  return (_spookPool = grouped.filter((r) => !spookIsDone(r)));
 }
 
 /* Everything on the sheet, for the picker's "any game" mode. The horror pool is a
@@ -428,11 +450,14 @@ function spookNightHtml(day, row) {
   const isToday = st.phase === "during" && st.day === day;
   const past = (st.phase === "during" && day < st.day) || st.phase === "after";
   const pinned = !!row && spookIsPinned(day);
+  // Dealt in the order the dice touched them, capped so the last card isn't a wait.
+  const deal = SPOOK.dealt ? SPOOK.dealt.indexOf(day) : -1;
   const cls = ["spk-night", row ? "filled" : "empty", isToday ? "today" : "", past ? "past" : "",
-    pinned ? "pinned" : ""].filter(Boolean).join(" ");
+    pinned ? "pinned" : "", deal >= 0 ? "spk-dealt" : ""].filter(Boolean).join(" ");
+  const delay = deal >= 0 ? ` style="--d:${Math.min(deal, 24) * 34}ms"` : "";
   const num = `<span class="spk-num">${day}${isToday ? `<em>tonight</em>` : ""}</span>`;
   if (!row) {
-    return `<div class="${cls}">${num}
+    return `<div class="${cls}"${delay}>${num}
       <button class="spk-add" data-day="${day}" aria-label="Choose a game for October ${day}">
         ${icon("i-pumpkin", 26)}<span>Pick</span>
       </button></div>`;
@@ -442,7 +467,7 @@ function spookNightHtml(day, row) {
   const cover = cs
     ? `<img class="spk-cover" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
     : `<span class="spk-cover ph">${icon("i-library", 22)}</span>`;
-  return `<div class="${cls}">${num}
+  return `<div class="${cls}"${delay}>${num}
     <button class="spk-pin" data-pin="${day}" aria-pressed="${pinned}"
       title="${pinned ? `October ${day} is pinned — the dice will leave it alone` : `Pin October ${day} so a re-roll keeps it`}">${icon("i-pin", 13)}</button>
     <button class="spk-slot" data-open="${k}" title="Open ${escapeHtml(String(row.title))}">
@@ -479,14 +504,18 @@ function spookResultsHtml() {
   const shown = sorted.slice(0, 60);
   const cards = shown.map((r) => {
     const on = used.get(String(r._k || ""));
+    // "any game" is the only list a finished game can appear in, so it's the only list that
+    // has to say so — otherwise the absence from the horror pool looks like a missing game.
+    const note = on ? `<span class="spk-taken">On night ${on}</span>`
+      : (SPOOK.all && spookIsDone(r) ? `<span class="spk-fin">Finished</span>` : "");
     return posterCardHtml(r, {
       cls: "spk-cand" + (on ? " taken" : ""),
-      note: on ? `<span class="spk-taken">On night ${on}</span>` : "",
+      note,
       attrs: `data-put="${escapeHtml(String(r._k || ""))}"`,
     });
   }).join("");
   const more = sorted.length - shown.length;
-  return `<div class="spk-cands">${cards}</div>` +
+  return `<div class="spk-cands grid">${cards}</div>` +
     (more > 0 ? `<p class="spk-more">${more.toLocaleString()} more — keep typing to narrow it down.</p>` : "");
 }
 
@@ -494,13 +523,12 @@ function spookPickerHtml() {
   if (SPOOK.picking == null) return "";
   const cur = spookNights()[SPOOK.picking - 1];
   const on = cur && cur[1] ? String(cur[1].title || "") : "";
-  return `<div class="spk-picker" id="spookPicker">
+  return `<div class="spk-picker${SPOOK.opening ? " spk-in" : ""}" id="spookPicker">
     <div class="spk-picker-head">
       <b>October ${SPOOK.picking}</b>
       ${on ? `<span class="spk-on">now: ${escapeHtml(on)}</span>` : ""}
-      <input id="spookQ" class="spk-q" type="search"
-             placeholder="${SPOOK.all ? "Search the whole collection…" : "Search horror games…"}"
-             value="${escapeHtml(SPOOK.q)}" autocomplete="off">
+      ${searchField("spookQ", SPOOK.all ? "Search the whole collection…" : "Search horror games…",
+                    SPOOK.q, "spk-field")}
       <label class="spk-any" title="Ignore the horror filter and pick from everything on the sheet">
         <input type="checkbox" id="spookAny"${SPOOK.all ? " checked" : ""}> any game
       </label>
@@ -550,6 +578,9 @@ function renderSpooktober() {
     </div>
     ${spookPickerHtml()}`;
 
+  // Both animation flags are spent by the render that read them.
+  SPOOK.opening = false;
+  SPOOK.dealt = null;
   wireSpook(host);
   // Only the games on screen: the calendar's own 31, plus whatever the picker is showing.
   const seen = nights.map(([, r]) => r).filter(Boolean);
@@ -575,9 +606,17 @@ function wireSpook(host) {
   // so it walks on. A filled night is "swap" — you came here about THAT night, so it stays.
   host.querySelectorAll("[data-day]").forEach((el) => {
     el.onclick = () => {
+      // Already open on another night: it slides once, then moves between nights in place.
+      SPOOK.opening = SPOOK.picking == null;
       SPOOK.picking = +el.dataset.day;
       SPOOK.mode = el.classList.contains("spk-swap") ? "swap" : "fill";
       spookRepaint();
+      // The picker is sticky to the bottom of the scrollport, which normally means opening
+      // it IS showing it. Belt and braces for the case where it isn't — a tap that opens a
+      // panel 2,000px below the fold is indistinguishable from a tap that did nothing.
+      const p = document.getElementById("spookPicker");
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (p && p.getBoundingClientRect().top >= vh) p.scrollIntoView({ block: "end" });
     };
   });
   host.querySelectorAll("[data-clear]").forEach((el) => {
@@ -628,6 +667,7 @@ function wireSpook(host) {
   const roll = (days, done) => {
     const n = spookRoll(days);
     SPOOK.picking = null;
+    SPOOK.dealt = days.slice().sort((a, b) => a - b);
     renderSpooktober();
     if (typeof showToast === "function") showToast(done(n));
   };
