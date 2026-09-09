@@ -345,12 +345,13 @@ function spookRoll(days) {
   const cal = spookCal();
   const taken = new Set(
     Object.entries(cal).filter(([d]) => !redrawing.has(d)).map(([, k]) => String(k)));
-  /* Prefer what you haven't finished: the point of the calendar is to give the backlog a
-     deadline, and a month of games you've already completed doesn't do that. Falls back to
-     the whole pool if the unplayed shelf runs dry before the 31st. */
+  /* The pool is already the unfinished shelf — spookPool drops anything you've beaten — so
+     the only thing left to hold back here is what the OTHER nights are already holding.
+     There is deliberately no fallback to finished games when the shelf runs dry before the
+     31st: a night left empty says "you're out of unplayed horror", which is true and useful,
+     where a game you finished in 2019 quietly filling the gap is neither. */
   const pool = spookPool().filter((r) => !taken.has(String(r._k || "")));
-  const fresh = pool.filter((r) => !r.completed);
-  const pick = (fresh.length >= days.length ? fresh : pool).slice();
+  const pick = pool.slice();
   for (let i = pick.length - 1; i > 0; i--) {          // Fisher–Yates
     const j = Math.floor(Math.random() * (i + 1));
     [pick[i], pick[j]] = [pick[j], pick[i]];
