@@ -291,38 +291,25 @@ large, and would bloat the volume.
 
 ## Enlarging the volume
 
-The PVC rides the k3s **local-path** provisioner, which is *not* a CSI driver, so
-`allowVolumeExpansion` is `false` and an existing claim **cannot be resized in
-place** — raising `persistence.size` and running `helm upgrade` would make the
-upgrade *fail* on the PVC patch. Local-path also doesn't enforce a quota, so the
-declared size is nominal: the pod can already use the node's free disk, and the
-self-evicting caches keep themselves well within it. In other words you rarely
-*need* to enlarge it — the caps do the bounding.
-
-If you do want a bigger declared size, the only data-safe way is a one-time
-**Retain → recreate** migration (brief downtime while the pod is down):
+The PVC rides **truenas-iscsi**, a CSI driver with `allowVolumeExpansion: true`,
+so the claim **can be resized in place** and the expansion is **online** — the
+pod keeps running and nothing needs to be restarted:
 
 ```bash
-NS=games; PVC=gamedex-data
-PV=$(kubectl -n $NS get pvc $PVC -o jsonpath='{.spec.volumeName}')
-
-# 1. Keep the data if the PVC is deleted, and bump the PV's (nominal) capacity.
-kubectl patch pv $PV -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
-kubectl patch pv $PV -p '{"spec":{"capacity":{"storage":"10Gi"}}}'
-
-# 2. Drop the pod so it releases the mount, then delete the PVC (data survives).
-kubectl -n $NS scale deploy/gamedex --replicas=0
-kubectl -n $NS delete pvc $PVC
-
-# 3. Free the PV to bind again.
-kubectl patch pv $PV --type=merge -p '{"spec":{"claimRef":null}}'   # -> Available
-
-# 4. Set persistence.size: 10Gi in values, then recreate everything. The new
-#    10Gi PVC binds to the now-Available 10Gi PV — same directory, data intact.
-./upgrade.sh
+kubectl -n games patch pvc gamedex-data \
+  -p '{"spec":{"resources":{"requests":{"storage":"10Gi"}}}}'
 ```
 
-Afterwards, optionally set the PV's reclaim policy back to `Delete`.
+The claim's `status.capacity` catches up within a few seconds (if it briefly
+reports a `FileSystemResizePending` condition, that is kubelet growing the ext4
+on top of the enlarged zvol; it clears on its own). Then set the same value in
+`persistence.size` so the next `helm upgrade` doesn't try to shrink it back.
+
+> **Historical note.** This volume used to ride the k3s **local-path**
+> provisioner, which is not a CSI driver (`allowVolumeExpansion: false`). Back
+> then an existing claim could not be resized in place and the only data-safe
+> route was a one-time Retain → recreate migration with the pod scaled to zero.
+> That no longer applies — don't do the migration dance.
 
 ## Getting the Dropbox link
 
@@ -390,7 +377,7 @@ Dropbox…"). `/api/health` returns `503` until that first load completes.
 | `imageCache.maxMb` | either | `500` | On-disk cap for the image cache; oldest-served files evicted past it |
 | `manualCache.enabled` | either | `true` | Cache Internet Archive PDF manuals on the PVC via `/api/manual` |
 | `manualCache.maxMb` | either | `1024` | On-disk cap for the manual cache; oldest-served files evicted past it |
-| `persistence.size` | either | `1Gi` | PVC for the SQLite IGDB cache, shelf cuts, and asset caches (see *Enlarging the volume*) |
+| `persistence.size` | either | `10Gi` | PVC for the SQLite IGDB cache, shelf cuts, and asset caches (see *Enlarging the volume*) |
 | `ingress.host` | either | `games.zachd.duckdns.org` | Public hostname |
 | `image.tag` | either | `0.2.0` | registry image tag `build.sh` pushes |
 

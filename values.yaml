@@ -137,19 +137,16 @@ manualCache:
 
 # PVC holding the SQLite IGDB cache, the shelf box cuts, and the asset caches above.
 #
-# NOTE: the size below only applies to a FRESH install. The k3s local-path
-# provisioner is not a CSI driver, so an existing PVC CANNOT be resized in place
-# (allowVolumeExpansion=false) — raising this and running `helm upgrade` would
-# make the upgrade FAIL on the PVC patch. It's also nominal: local-path does not
-# enforce a quota, so the pod can already use the host disk's free space and the
-# self-evicting caches keep themselves well within it. To actually enlarge the
-# declared size on the live PVC, do the one-time Retain → recreate migration (see
-# README "Enlarging the volume"), which is the only data-safe way here.
+# Raising this resizes the live PVC in place: truenas-iscsi is a CSI driver with
+# allowVolumeExpansion=true, and the expansion is online — the pod keeps running,
+# no restart. (This used to ride local-path, which is not a CSI driver and could
+# only be enlarged by a Retain → recreate migration. That no longer applies.)
 persistence:
-  # 2.6G of actual data. local-path enforced no quota, so 1Gi was a declaration
-  # the volume had already outgrown 2.6x without anything complaining.
-  # truenas-iscsi enforces it for real, so this has to reflect reality.
-  size: 4Gi
+  # Was 4Gi and had reached 70% (2.7G) — manualcache, covers and imgcache are
+  # the bulk of it. local-path enforced no quota, so the original 1Gi was a
+  # declaration the volume had already outgrown 2.6x without anything
+  # complaining; truenas-iscsi enforces it for real, so this must reflect reality.
+  size: 10Gi
   # iSCSI zvol on the TrueNAS. local-path stamped the PV with a nodeAffinity for
   # zachd-ubuntu-2, so this could only ever schedule there. ~17,700 small files
   # make NFS a poor fit; a block device with a local ext4 handles them far
