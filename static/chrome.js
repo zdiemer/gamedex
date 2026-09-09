@@ -235,6 +235,11 @@ function cmdkTabs() {
   tabs.push({ id: "dexle", label: "Dexle — guess the game", icon: "i-dice" });
   tabs.push({ id: "hilo", label: "Daily Hi-Lo — higher or lower", icon: "i-trend" });
   tabs.push({ id: "daily", label: "Daily games", icon: "i-dice" });
+  // Seasonal, so it comes and goes: in season the palette reaches the event page like any
+  // other, out of season it isn't offered (the URL still works — a link people saved in
+  // October shouldn't 404 in March).
+  if (typeof spookInSeason === "function" && spookInSeason())
+    tabs.push({ id: "spooktober", label: "Spooktober — your October calendar", icon: "i-pumpkin" });
   // Home lost its nav button (the logo goes there now), but the palette should still reach it.
   tabs.unshift({ id: "home", label: "Home", icon: "i-home" });
   return tabs;

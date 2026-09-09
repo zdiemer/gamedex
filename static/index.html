@@ -131,6 +131,31 @@
     <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></g></symbol>
     <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5z" fill="currentColor"/><path d="M16 8.8a4.5 4.5 0 0 1 0 6.4M18.7 6.2a8 8 0 0 1 0 11.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="i-muted" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5z" fill="currentColor"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+
+    <!-- SEASONAL · Spooktober (spooktober.js). Same 24px grid and currentColor as the set
+         above, so they take the event's orange from the CSS rather than baking it in — and
+         so they still read on the light theme. The web is drawn from ITS OWN top-left
+         corner: it's placed by rotating the whole symbol into whichever corner it hangs in. -->
+    <symbol id="i-pumpkin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 7.4V5.2c0-1.3 1-2.4 2.4-2.4"/>
+      <path d="M12 7.4c-.8-.8-1.9-1.3-3.1-1.3C6.2 6.1 4 9.2 4 13.1S6.2 20 8.9 20c1.2 0 2.3-.5 3.1-1.3.8.8 1.9 1.3 3.1 1.3 2.7 0 4.9-3.1 4.9-6.9s-2.2-7-4.9-7c-1.2 0-2.3.5-3.1 1.3z"/>
+      <path d="M9 16.4l1.5-1.2 1.5 1.2 1.5-1.2 1.5 1.2"/></g>
+      <g fill="currentColor"><path d="m9.4 11.4 1.5 2.4H7.9z"/><path d="m14.6 11.4 1.5 2.4h-3z"/></g></symbol>
+    <!-- One silhouette, not a stroke: at 18–26px in the banner a line-art bat turns to mush,
+         and this is the only icon in the app that has to read at that size while moving. -->
+    <symbol id="i-bat" viewBox="0 0 24 24"><g fill="currentColor">
+      <path d="M12 7.1c.5.7 1.1 1.1 1.8 1.2.5.9.6 1.8.4 2.7l.2 1.9c0 2.1-.9 3.7-2.4 3.7s-2.4-1.6-2.4-3.7l.2-1.9c-.2-.9-.1-1.8.4-2.7.7-.1 1.3-.5 1.8-1.2z"/>
+      <path d="M10.2 10.7c-1.8-1.9-4.4-3-8-3.3 1.1 1.5 1.5 2.9 1.3 4.2 1-.7 2-.6 2.8.2-.1 1.5.4 2.7 1.4 3.5.7.6 1.3 1.4 1.9 2.3l1 1.5.3-4.3z"/>
+      <path d="M13.8 10.7c1.8-1.9 4.4-3 8-3.3-1.1 1.5-1.5 2.9-1.3 4.2-1-.7-2-.6-2.8.2.1 1.5-.4 2.7-1.4 3.5-.7.6-1.3 1.4-1.9 2.3l-1 1.5-.3-4.3z"/></g></symbol>
+    <symbol id="i-spider" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2.5v4.2"/>
+        <path d="M9.3 10 6.9 7.1M8.6 12.1 4.9 10.6 3.6 8.3M8.6 14.3l-3.4 1.6-.7 2.5M9.6 16.3l-2 2.3"/>
+        <path d="M14.7 10l2.4-2.9M15.4 12.1l3.7-1.5 1.3-2.3M15.4 14.3l3.4 1.6.7 2.5M14.4 16.3l2 2.3"/></g>
+      <g fill="currentColor"><circle cx="12" cy="9.3" r="1.6"/><ellipse cx="12" cy="13.7" rx="3.1" ry="3.7"/></g></symbol>
+    <symbol id="i-web" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M2 2v20M2 2h20M2 2l15 15M2 2l7.6 18.4M2 2l18.4 7.6"/>
+      <path d="M2 7.4A5.4 5.4 0 0 0 7.4 2M2 13A11 11 0 0 0 13 2M2 18.6A16.6 16.6 0 0 0 18.6 2"/></g></symbol>
   </defs>
 </svg>
 
@@ -255,6 +280,7 @@
       <div class="dexle" id="dexle" hidden></div>
       <div class="hilo" id="hilo" hidden></div>
       <div class="daily" id="daily" hidden></div>
+      <div class="spook" id="spooktober" hidden></div>
       <div class="recs" id="recs" hidden></div>
       <div class="recs" id="translations" hidden></div>
       <div class="searchpage" id="searchpage" hidden></div>
@@ -350,6 +376,7 @@
   <script defer src="charts.js"></script>
   <script defer src="reviews.js"></script>
   <script defer src="home.js"></script>
+  <script defer src="spooktober.js"></script>
   <script defer src="health.js"></script>
   <script defer src="groups.js"></script>
   <script defer src="media.js"></script>

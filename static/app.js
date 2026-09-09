@@ -11,7 +11,7 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy", "spooktober"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
   $("#searchpage").hidden = mode !== "search";
@@ -27,6 +27,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#dexle").hidden = mode !== "dexle";
   $("#hilo").hidden = mode !== "hilo";
   $("#daily").hidden = mode !== "daily";
+  $("#spooktober").hidden = mode !== "spooktober";
   $("#recs").hidden = mode !== "recs";
   $("#translations").hidden = mode !== "translations";
   // Leaving a daily-game tab mid-practice falls back to today's round, so Home and
@@ -86,6 +87,7 @@ function renderAll() {
   if (activeTab === "dexle") { setSpecialMode("dexle"); renderDexle(); return; }
   if (activeTab === "hilo") { setSpecialMode("hilo"); renderHilo(); return; }
   if (activeTab === "daily") { setSpecialMode("daily"); renderDaily(); return; }
+  if (activeTab === "spooktober") { setSpecialMode("spooktober"); renderSpooktober(); return; }
   if (activeTab === "search") { setSpecialMode("search"); renderSearch(); return; }
   // Recommend is a sheet-backed tab (synthetic DATA.sheets.recs, recs.js), but its data only
   // exists once the IGDB catalogue + taste model are ready. Until then recsReady() paints a
@@ -322,7 +324,7 @@ function applyStateFromURL() {
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
          "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "wishlist", "search", "galaxy",
-         "translations"].includes(tab) ? tab : "home";
+         "translations", "spooktober"].includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   if ((tab === "wishlist" || tab === "health") && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
@@ -471,7 +473,8 @@ function setDocTitle() {
   } else {
     const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"] span`);
     const label = btn ? btn.textContent.trim()
-      : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games" }[activeTab] || "");
+      : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games",
+           spooktober: "Spooktober" }[activeTab] || "");
     if (label && label !== "Home") lead = label;
   }
   document.title = lead ? `${lead} · Gamedex` : "Gamedex";
@@ -484,10 +487,12 @@ function updateNavHere() {
   if (!el) return;
   const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"]`);
   const label = btn ? (btn.querySelector("span") || {}).textContent
-    : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games", search: "Search" }[activeTab] || "");
+    : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games", search: "Search",
+         spooktober: "Spooktober" }[activeTab] || "");
   const iconHref = btn ? (btn.querySelector("use") || {}).getAttribute("href")
     : (activeTab === "search" ? "#i-search"
       : (activeTab === "dexle" || activeTab === "daily") ? "#i-dice"
+      : activeTab === "spooktober" ? "#i-pumpkin"
       : activeTab === "hilo" ? "#i-trend" : null);
   const show = label && activeTab !== "home";
   el.hidden = !show;
@@ -587,6 +592,9 @@ async function load() {
   loadUploads();                // hand-uploaded box art becomes the cover everywhere
   loadGameRankings();           // frozen fallback critic score for pre-Metacritic games
   loadPrefs();                  // saved views + custom challenges follow you between browsers
+  // The Spooktober calendar is object-shaped and loads itself (spooktober.js), and only
+  // in season — off-season nothing on screen reads it, so nothing should fetch it.
+  if (typeof spookLoadPrefs === "function" && spookInSeason()) spookLoadPrefs();
   loadValueHistory();           // daily collection-value snapshots (for the trend chart)
   loadRecs();                   // "because you liked …"
 }

@@ -34,7 +34,11 @@ log = logging.getLogger("gamedex.prefs")
 # hilo: the daily higher-or-lower's record (best run, days played).
 # pins: RNG slots held by a game you're already playing, so the phone and the desktop
 #   agree about which of the three lanes are still free to roll.
-KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers", "pins"}
+# spooktober: the seasonal event's October calendar, {year: {day: matchKey}}. Kept per year
+#   rather than replaced, so last October is still there to look back at — the client prunes
+#   to the last five, which is a few KB.
+KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers", "pins",
+        "spooktober"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

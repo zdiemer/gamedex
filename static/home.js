@@ -374,6 +374,10 @@ function renderHome() {
   reg(recent, "completed");
 
   host.innerHTML =
+    // Above the hero, and only while the season is on: it's the one thing on this page that
+    // isn't here every day, so it has to be the first thing you see or it may as well not
+    // exist. Off-season spookBannerHtml() returns "" and Home is exactly what it was.
+    (typeof spookBannerHtml === "function" ? spookBannerHtml() : "") +
     heroSection(playing) +
     (loved.length ? `<section class="h-sect">
       <div class="h-sect-head"><h2>${icon("i-trend", 17)} You'd probably love</h2>
@@ -508,6 +512,7 @@ function wireHomeCards(scope) {
 function wireHome(host, playing) {
   wireCoverRetry();
   wireHomeCards(host);
+  if (typeof wireSpookBanner === "function") wireSpookBanner(host);
   const pickMore = $("#hPickMore");
   // Land on an already-rolled game, not the empty builder — switchTab paints the picker (which
   // seeds the default backlog filter), then pickGame() rolls one and re-renders with the result.
