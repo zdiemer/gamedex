@@ -6242,3 +6242,393 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .spk-banner:hover .spk-web.tl, .spk-hero:hover .spk-web.tl { transform: none; }
   .spk-banner:hover .spk-web.tr, .spk-hero:hover .spk-web.tr { transform: scaleX(-1); }
 }
+
+/* ==========================================================================
+   SEASONAL · the event framework (events.js, ev-*.js)
+   Spooktober's skin, generalised. Everything a season decides — its ground, its
+   wordmark face, its two accents — arrives as a --ev-* custom property set on the
+   banner or the hero by the event file, so this block holds ONE banner and ONE
+   hero and eleven events wear them. As with .spk-banner, the poster keeps its own
+   colours on both themes: an event is supposed to look like it doesn't live here
+   the rest of the year. The PAGE below the hero is the opposite — ordinary app
+   surfaces, ordinary tokens — because you have to be able to read it.
+
+   One display face per event, latin subset, declared here and downloaded by the
+   browser only when a banner actually uses one (an unused @font-face costs
+   nothing). All SIL OFL 1.1 or Apache 2.0, same as Creepster above.
+   ========================================================================== */
+@font-face { font-family: "Mountains of Christmas"; src: url("fonts/mountains-of-christmas.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Caveat"; src: url("fonts/caveat.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Anton"; src: url("fonts/anton.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Press Start 2P"; src: url("fonts/press-start-2p.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Pacifico"; src: url("fonts/pacifico.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Graduate"; src: url("fonts/graduate.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Saira Stencil One"; src: url("fonts/saira-stencil-one.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Special Elite"; src: url("fonts/special-elite.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Orbitron"; src: url("fonts/orbitron.woff2") format("woff2"); font-weight: 900; font-display: swap; }
+@font-face { font-family: "Big Shoulders Display"; src: url("fonts/big-shoulders-display.woff2") format("woff2"); font-weight: 800; font-display: swap; }
+
+/* ---- the shared skin ------------------------------------------------------ */
+.ev-banner, .ev-hero {
+  position: relative; isolation: isolate; overflow: hidden;
+  background: var(--ev-art, linear-gradient(140deg, #0d1018, #151922));
+  border: 1px solid var(--ev-edge, var(--border));
+  color: var(--ev-fg, var(--text));
+}
+.ev-banner {
+  width: min(1180px, calc(100% - 40px)); margin: 16px auto 10px;
+  border-radius: var(--r); cursor: pointer;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .07);
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.ev-banner:hover { border-color: var(--ev-edge-hi); box-shadow: 0 24px 56px rgba(0, 0, 0, .58), 0 0 0 1px var(--ev-edge-hi); }
+.ev-banner:focus-visible { outline: 2px solid var(--ev-t2); outline-offset: 3px; }
+.ev-banner-in { position: relative; z-index: 2; padding: 26px 28px 24px; max-width: 62%; }
+.ev-hero { border-width: 0 0 1px; border-radius: 0; margin-bottom: 4px; }
+.ev-hero-in { position: relative; z-index: 2; max-width: 1180px; margin: 0 auto; padding: 42px 24px 36px; }
+.ev-eyebrow { color: var(--ev-t2); }
+.ev-title {
+  font-family: var(--ev-disp, var(--display)); font-size: var(--ev-size, 44px);
+  font-weight: var(--ev-dw, 700); letter-spacing: var(--ev-ls, 0); line-height: 1.08;
+  background: linear-gradient(180deg, var(--ev-t1) 6%, var(--ev-t2) 52%, var(--ev-t3));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  /* The glow is on the block, not the glyphs: a text-shadow under a transparent fill
+     paints over the gradient in Safari. Same reason as .spk-title. */
+  filter: drop-shadow(0 2px 18px var(--ev-glow));
+  margin: 6px 0 8px;
+}
+.ev-title.big { font-size: clamp(38px, calc(var(--ev-size, 44px) * 1.22), 74px); }
+.ev-pitch { color: var(--ev-fg-2); font-size: 13.5px; line-height: 1.5; margin-bottom: 14px; max-width: 52ch; text-wrap: balance; }
+.ev-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: var(--ev-dw, 700) 15px/1 var(--ev-disp, var(--display)); letter-spacing: .03em;
+  padding: 9px 16px; border-radius: 999px;
+  background: var(--ev-cta, linear-gradient(180deg, var(--ev-t2), var(--ev-t3)));
+  color: var(--ev-on-cta); box-shadow: 0 6px 18px var(--ev-glow);
+}
+.ev-banner:hover .ev-cta { box-shadow: 0 8px 24px var(--ev-glow); }
+.ev-bar {
+  display: block; height: 5px; margin-top: 14px; max-width: 320px;
+  border-radius: 999px; background: rgba(127, 127, 127, .28); overflow: hidden;
+}
+.ev-bar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ev-t3), var(--ev-t2)); }
+.ev-meter-t { display: block; margin-top: 8px; font: 400 11.5px/1.4 var(--font); color: var(--ev-fg-2); letter-spacing: .03em; }
+.ev-meter { margin-top: 4px; }
+.ev-off, .ev-early {
+  color: var(--ev-fg-2); font-size: 12.5px; line-height: 1.5; max-width: 60ch;
+  border-left: 2px solid var(--ev-edge); padding-left: 10px; margin: 10px 0 14px;
+}
+.ev-early { max-width: 1180px; margin: 12px auto 0; padding: 0 24px; border: 0; color: var(--muted); }
+.ev-acts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+.ev-note { margin-top: 12px; font-size: 12.5px; color: var(--ev-fg-2); max-width: 62ch; }
+.ev-tokens { font: 400 12px/1 var(--font); color: var(--ev-fg-2); display: inline-flex; align-items: center; gap: 5px; }
+
+/* The decoration: real elements, never a background image, because the brief is that they
+   LIFT. Each carries its own --x/--y/--r/--lift/--d from the event file. */
+.ev-deco-wrap { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.ev-deco {
+  position: absolute; left: var(--x); top: var(--y); color: var(--ev-deco);
+  transform: translate(-50%, -50%) rotate(var(--r));
+  transition: transform .42s cubic-bezier(.22, .9, .3, 1); transition-delay: var(--d);
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .5)); opacity: var(--o);
+}
+.ev-banner:hover .ev-deco, .ev-banner:focus-visible .ev-deco, .ev-hero:hover .ev-deco {
+  transform: translate(-50%, calc(-50% - var(--lift))) rotate(var(--r));
+}
+.ev-deco .ico { display: block; }
+/* Drift is on the icon, the lift is on the wrapper: two transforms on one element fight
+   over the property and the animation always wins. */
+.ev-deco.drift .ico { animation: spookFloat 7s ease-in-out infinite; animation-delay: var(--d); }
+
+/* ---- the page below the hero ---------------------------------------------- */
+.evpage, .evadmin { flex: 1; overflow-y: auto; padding: 0 0 60px; }
+.ev-wrap { max-width: 1180px; margin: 0 auto; padding: 20px 24px 0; }
+.ev-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 16px 18px 18px; margin-top: 18px;
+}
+.ev-panel.wide { margin-top: 20px; }
+.ev-panel h3 { font-size: 13px; letter-spacing: .01em; margin: 0 0 8px; }
+.ev-p { color: var(--muted); font-size: 13px; line-height: 1.55; max-width: 72ch; margin: 0 0 10px; }
+.ev-p.wide { max-width: 82ch; margin-bottom: 16px; }
+.ev-p b { color: var(--text); }
+.ev-none { color: var(--muted); font-size: 13.5px; padding: 22px 2px; max-width: 70ch; }
+.ev-more { color: var(--dim); font-size: 12.5px; margin-top: 12px; }
+/* align-items: start, or the short panel stretches to the tall one and the streak sits in
+   a box of empty air the height of the vault. */
+.ev-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; margin-top: 18px; align-items: start; }
+.ev-cols .ev-panel { margin-top: 0; }
+.ev-dl { display: grid; gap: 10px; margin: 0; }
+.ev-dl dt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.ev-dl dd { margin: 2px 0 0; font-size: 14px; }
+.ev-big { font-size: 26px; font-weight: 700; font-family: var(--display); margin: 2px 0 8px; color: var(--good); }
+.ev-big.broke { color: var(--bad); }
+.ev-list { display: grid; gap: 6px; margin-bottom: 10px; }
+.ev-line { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 13px; }
+.ev-line .m, .ev-admin-table .m, .ev-splits .m { font: 400 12px/1.4 var(--font); color: var(--dim); }
+/* Digits that sit in a column — days, seeds, hours, priorities — line up or they look
+   broken. The app has no monospace face, so this is the tabular figures of the body one. */
+.ev-meter-t, .ev-day, .ev-seed, .ev-door-n, .ev-match-n, .ev-dial-y, .ev-rung,
+.ev-splits td, .ev-admin-table td, .ev-audit-age, .ev-clock-big { font-variant-numeric: tabular-nums; }
+
+/* One tile, everywhere a game shows up. */
+.ev-tile {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px; cursor: pointer; color: inherit; font: inherit;
+  transition: border-color .15s var(--ease), transform .15s var(--ease);
+}
+.ev-tile:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+.ev-tile.empty { color: var(--dim); font-size: 12px; }
+.ev-cover { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; background: var(--surface-3); display: block; }
+.ev-cover.ph { display: grid; place-items: center; color: var(--dim); }
+.ev-tile-t { font-size: 12.5px; font-weight: 500; line-height: 1.3; }
+.ev-tile-s { font: 400 11px/1.3 var(--font); color: var(--dim); }
+.ev-tile.big { max-width: 200px; }
+.ev-row-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 10px; }
+.ev-slot-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; min-height: 148px; border: 1px dashed var(--border); border-radius: 10px;
+  background: transparent; color: var(--muted); cursor: pointer; font-size: 12px;
+}
+.ev-slot-add:hover { border-color: var(--ev-k, var(--accent)); color: var(--text); }
+
+/* ---- the shared picker ----------------------------------------------------- */
+.ev-picker {
+  position: sticky; bottom: 0; z-index: 5; margin-top: 18px;
+  background: var(--glass); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px 14px;
+  box-shadow: var(--sh-3);
+}
+.ev-picker-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.ev-picker-head b { font-size: 13px; }
+.ev-q { flex: 1; min-width: 180px; padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.ev-any { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.ev-cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; max-height: 42vh; overflow-y: auto; }
+.ev-cand.taken { opacity: .55; }
+.ev-taken { font: 400 10.5px/1.3 var(--font); color: var(--ev-k, var(--accent)); }
+
+/* ---- 24 Doors -------------------------------------------------------------- */
+.ev-doors { display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 12px; }
+.ev-door { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.ev-door-n { font: 500 12px/1 var(--font); color: var(--dim); display: flex; gap: 6px; align-items: baseline; }
+.ev-door-n em { font-style: normal; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ev-k, var(--accent)); }
+.ev-door-face {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  min-height: 158px; width: 100%; cursor: pointer; font-size: 12px;
+  border: 1px solid var(--border); border-radius: 10px; color: var(--muted);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+}
+.ev-door.unlocked .ev-door-face { color: var(--ev-k, var(--accent)); border-color: var(--ev-k, var(--accent-line)); }
+.ev-door.unlocked .ev-door-face:hover { transform: translateY(-2px); box-shadow: var(--sh-2); }
+.ev-door-face[disabled] { cursor: default; opacity: .6; }
+.ev-door.today .ev-door-face { box-shadow: 0 0 0 1px var(--ev-k, var(--accent)), 0 10px 30px rgba(0, 0, 0, .4); }
+.ev-door.gift .ev-door-face { border-style: dashed; }
+.ev-door-empty { display: grid; place-items: center; min-height: 158px; border: 1px dashed var(--border-soft); border-radius: 10px; color: var(--dim); }
+.ev-door-swap {
+  position: absolute; right: 6px; top: 22px; z-index: 2; width: 24px; height: 24px;
+  display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--glass-btn); color: var(--muted); cursor: pointer;
+}
+.ev-door-swap:hover { color: var(--text); border-color: var(--ev-k, var(--accent)); }
+
+/* ---- Hearth ---------------------------------------------------------------- */
+.ev-mantel { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.ev-slot { display: flex; flex-direction: column; gap: 6px; }
+.ev-slot.lit .ev-tile { border-color: var(--ev-k, var(--accent)); box-shadow: 0 0 0 1px var(--ev-k, var(--accent)), 0 12px 28px rgba(226, 140, 60, .16); }
+.ev-slot-acts { display: flex; gap: 6px; align-items: center; }
+.ev-lit, .ev-swap, .ev-x, .ev-verdict {
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
+  border-radius: 999px; padding: 4px 9px; font-size: 11.5px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.ev-lit[aria-pressed="true"] { color: var(--ev-k, var(--accent)); border-color: var(--ev-k, var(--accent)); }
+.ev-swap:hover, .ev-x:hover, .ev-lit:hover { color: var(--text); }
+.ev-fire { display: flex; gap: 8px; justify-content: center; margin-top: 22px; color: var(--surface-3); }
+.ev-flame.on { color: var(--ev-k, var(--warn)); filter: drop-shadow(0 2px 10px rgba(240, 184, 120, .5)); }
+.ev-fire-t { text-align: center; color: var(--muted); font-size: 13px; margin-top: 8px; }
+
+/* ---- No-Buy November ------------------------------------------------------- */
+.ev-cal-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 6px; }
+.ev-day {
+  position: relative; display: grid; place-items: center; aspect-ratio: 1;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  font: 500 12px/1 var(--font); color: var(--dim);
+}
+.ev-day.clean { background: var(--good-soft); border-color: rgba(52, 211, 153, .35); color: var(--good); }
+.ev-day.broke { background: rgba(248, 113, 113, .16); border-color: rgba(248, 113, 113, .45); color: var(--bad); }
+.ev-day.today { box-shadow: 0 0 0 2px var(--accent-line); }
+.ev-day i { position: absolute; right: 3px; top: 2px; font-style: normal; font-size: 9px; }
+.ev-vault { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
+.ev-vault:not(.open) { filter: grayscale(.7) brightness(.6); }
+.ev-vault-lock { position: absolute; inset: 0; display: grid; place-items: center; color: var(--warn); }
+
+/* ---- Wrapped --------------------------------------------------------------- */
+/* start, not stretch: one card carrying a cover would otherwise set the height of every
+   card in its row, and most of them are two lines long. */
+.ev-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; align-items: start; }
+.ev-card {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 18px 16px 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.ev-card-n { font: 500 10px/1 var(--font); color: var(--dim); letter-spacing: .12em; }
+.ev-card-fig { font-family: var(--ev-disp, var(--display)); font-size: 30px; line-height: 1.1; color: var(--ev-k, var(--accent)); margin-top: 6px; word-break: break-word; }
+.ev-card-l { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.ev-card .ev-tile { margin-top: 10px; }
+
+/* ---- Class of 'XX ---------------------------------------------------------- */
+.ev-dial-y { font: 500 15px/1 var(--font); color: var(--ev-fg); padding: 0 4px; }
+.ev-rungs { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin-bottom: 20px; }
+.ev-rung {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--muted);
+  font: 400 11px/1.3 var(--font); text-align: left;
+}
+.ev-rung b { font-size: 15px; color: var(--text); font-weight: 600; }
+.ev-rung i { font-style: normal; color: var(--dim); }
+.ev-rung.on { border-color: var(--ev-k, var(--accent)); background: var(--accent-soft); }
+.ev-rung.on b { color: var(--ev-k, var(--accent)); }
+.ev-yearbook { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 10px; }
+.ev-yb { position: relative; }
+.ev-badge {
+  display: inline-block; margin-top: 5px; font: 500 10px/1 var(--font);
+  letter-spacing: .08em; text-transform: uppercase; padding: 3px 6px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--dim);
+}
+.ev-badge.done { color: var(--good); border-color: rgba(52, 211, 153, .4); }
+.ev-badge.own { color: var(--accent-2); border-color: rgba(34, 211, 238, .35); }
+.ev-badge.wish { color: var(--warn); border-color: rgba(251, 191, 36, .35); }
+
+/* ---- Two-Player February --------------------------------------------------- */
+.ev-nights { display: grid; gap: 12px; }
+.ev-night {
+  display: grid; grid-template-columns: 34px 150px 1fr auto; gap: 14px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px;
+}
+.ev-night.ready { border-color: var(--ev-k, var(--accent-line)); }
+.ev-night-n { font: 500 16px/1 var(--font); color: var(--dim); text-align: center; }
+.ev-night-who { display: flex; gap: 12px; flex-wrap: wrap; }
+.ev-night-who label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--dim); }
+.ev-night-who input {
+  padding: 6px 9px; border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 13px; min-width: 130px;
+}
+.ev-night-acts { display: flex; gap: 8px; align-items: center; }
+
+/* ---- The Backlog Bracket --------------------------------------------------- */
+.ev-bracket { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); gap: 14px; overflow-x: auto; }
+.ev-round h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 0 0 10px; }
+.ev-match {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 11px; margin-bottom: 12px; position: relative;
+}
+.ev-match.live { border-color: var(--ev-k, var(--accent)); box-shadow: 0 0 0 1px var(--ev-k, var(--accent)); }
+.ev-match.shut { opacity: .5; }
+.ev-match-n { font: 500 10px/1 var(--font); color: var(--dim); display: flex; gap: 6px; }
+.ev-match-n em { font-style: normal; color: var(--ev-k, var(--accent)); letter-spacing: .1em; text-transform: uppercase; }
+.ev-match-lock { display: block; margin-top: 6px; font: 400 10.5px/1 var(--font); color: var(--dim); }
+.ev-side { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; }
+.ev-side + .ev-side { border-top: 1px solid var(--border-soft); }
+.ev-side.won .ev-side-t { color: var(--ev-k, var(--accent)); font-weight: 600; }
+.ev-side.lost { opacity: .45; }
+.ev-side.pending { color: var(--dim); font-size: 12px; }
+.ev-seed { font: 500 11px/1 var(--font); color: var(--dim); text-align: right; }
+.ev-side-t { text-align: left; background: none; border: 0; color: inherit; font: inherit; font-size: 12.5px; line-height: 1.3; cursor: pointer; padding: 0; }
+.ev-side-t .m { display: block; font: 400 10.5px/1.4 var(--font); color: var(--dim); }
+.ev-vs { display: block; text-align: center; font: 500 9px/1 var(--font); letter-spacing: .16em; color: var(--dim); }
+.ev-champ { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 22px; }
+
+/* ---- The Shelf Audit ------------------------------------------------------- */
+.ev-audit-bar {
+  display: flex; gap: 22px; flex-wrap: wrap; align-items: baseline; padding: 12px 2px 18px;
+  font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border-soft); margin-bottom: 18px;
+}
+.ev-audit-bar b { color: var(--text); font-size: 17px; font-family: var(--display); }
+.ev-audit-deal { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 14px; align-items: start; }
+.ev-audit-card { display: flex; flex-direction: column; gap: 6px; }
+.ev-audit-age { font: 400 10.5px/1.3 var(--font); color: var(--dim); }
+.ev-audit-acts { display: flex; flex-wrap: wrap; gap: 5px; }
+.ev-verdict.play:hover { color: var(--good); border-color: rgba(52, 211, 153, .5); }
+.ev-verdict.keep:hover { color: var(--accent-2); border-color: rgba(34, 211, 238, .5); }
+.ev-verdict.drop:hover { color: var(--bad); border-color: rgba(248, 113, 113, .5); }
+
+/* ---- Under Three ----------------------------------------------------------- */
+.ev-target { display: inline-flex; align-items: center; gap: 8px; color: var(--ev-fg-2); font-size: 12.5px; }
+.ev-target input, .ev-num {
+  width: 84px; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 13px;
+}
+.ev-num { width: 72px; }
+.ev-clock { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.ev-clock-big { font-family: var(--ev-disp, var(--display)); font-size: 46px; line-height: 1; color: var(--ev-k, var(--accent)); }
+.ev-clock-big i { font-style: normal; font-size: 22px; }
+.ev-clock-of { color: var(--muted); font-size: 13.5px; }
+.ev-table-wrap { overflow-x: auto; }
+.ev-splits { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 560px; }
+.ev-splits th { text-align: left; font: 500 10.5px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); padding: 0 10px 8px 0; }
+.ev-splits td { padding: 7px 10px 7px 0; border-top: 1px solid var(--border-soft); }
+.ev-splits .over { color: var(--warn); }
+.ev-splits .under { color: var(--good); }
+.ev-u3 { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---- Endangered ------------------------------------------------------------ */
+.ev-risks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-items: start; }
+.ev-risk { position: relative; display: flex; flex-direction: column; gap: 6px; padding-left: 12px; }
+.ev-risk-dot { position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 999px; background: var(--dim); }
+.ev-risk.r1 .ev-risk-dot { background: var(--warn); }
+.ev-risk.r2 .ev-risk-dot { background: #fb923c; }
+.ev-risk.r3 .ev-risk-dot { background: var(--bad); }
+.ev-risk-why { font: 400 10.5px/1.3 var(--font); color: var(--dim); }
+.ev-risk .ev-x { align-self: flex-start; }
+
+/* ---- the preview board (?tab=events) --------------------------------------- */
+.ev-admin-wrap { max-width: 1180px; margin: 0 auto; padding: 30px 24px 0; }
+.ev-admin-head h1 { font-size: 30px; margin: 8px 0 6px; }
+.ev-admin-sub { color: var(--muted); font-size: 14px; max-width: 64ch; }
+.ev-admin-date { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 18px 0 8px; }
+.ev-admin-date label { font-size: 12px; color: var(--dim); }
+.ev-admin-date input {
+  padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 13px;
+}
+.ev-admin-table { width: 100%; border-collapse: collapse; margin: 22px 0 6px; font-size: 13.5px; }
+.ev-admin-table th { text-align: left; font: 500 10.5px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); padding: 0 12px 10px 0; }
+.ev-admin-table td { padding: 9px 12px 9px 0; border-top: 1px solid var(--border-soft); }
+.ev-admin-table tr.on td { background: linear-gradient(90deg, var(--accent-soft), transparent 60%); }
+.ev-yes { color: var(--good); }
+.ev-no { color: var(--dim); }
+.ev-admin-h2 { font-size: 18px; margin: 34px 0 14px; }
+.ev-gallery { display: grid; gap: 22px; }
+.ev-gal-head { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; font-size: 13px; }
+.ev-gal-head .m { font: 400 11px/1 var(--font); color: var(--dim); letter-spacing: .08em; text-transform: uppercase; }
+.ev-gal-item.off { opacity: .62; }
+/* In the gallery a banner is a specimen, not a button: it sits in the flow at full width
+   and does not pretend the whole card is clickable. */
+.ev-gal-item .ev-banner { width: 100%; margin: 0; cursor: pointer; }
+
+/* The pill that says the app is lying about the date. Fixed, on top of everything, on
+   every tab — the failure mode it guards against is forgetting it is on. */
+.ev-preview-pill {
+  position: fixed; left: 16px; bottom: 16px; z-index: 90;
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px;
+  border-radius: 999px; border: 1px solid var(--warn); background: var(--glass);
+  backdrop-filter: blur(10px); box-shadow: var(--sh-2); font-size: 12.5px; color: var(--text);
+}
+.ev-preview-pill b { font-family: var(--font); color: var(--warn); }
+
+@media (max-width: 860px) {
+  .ev-banner-in { max-width: 100%; padding: 22px 20px 20px; }
+  .ev-title { font-size: calc(var(--ev-size, 44px) * .72); }
+  .ev-deco { opacity: .5; }
+  .ev-night { grid-template-columns: 28px 1fr; }
+  .ev-night-who, .ev-night-acts { grid-column: 1 / -1; }
+  .ev-bracket { grid-template-columns: repeat(4, 200px); }
+  .ev-preview-pill { left: 10px; bottom: 68px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ev-banner, .ev-deco, .ev-tile { transition: none; }
+  .ev-deco .ico { animation: none !important; }
+  .ev-banner:hover .ev-deco, .ev-banner:focus-visible .ev-deco, .ev-hero:hover .ev-deco {
+    transform: translate(-50%, -50%) rotate(var(--r));
+  }
+}

@@ -37,8 +37,13 @@ log = logging.getLogger("gamedex.prefs")
 # spooktober: the seasonal event's October calendar, {year: {day: matchKey}}. Kept per year
 #   rather than replaced, so last October is still there to look back at — the client prunes
 #   to the last five, which is a few KB.
+# events: every seasonal event after Spooktober, in one object keyed by event id
+#   ({"v":1,"ev":{"doors":{…},"bracket":{…}}}). One key rather than eleven, because a pref
+#   key is an allowlist entry here and eleven of them to hold eleven small objects is a
+#   schema the server does not want to know about. The client owns the shape and merges
+#   per event on load (events.js).
 KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers", "pins",
-        "spooktober"}
+        "spooktober", "events"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

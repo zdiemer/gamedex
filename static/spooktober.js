@@ -33,7 +33,10 @@ const SPOOK = {
 
 /* ---- the season ----------------------------------------------------------- */
 
-const spookToday = () => new Date();
+/* The one clock. evNow() is `new Date()` unless the preview board (?tab=events) has been
+   moved to another day, which is the only way to see what this banner does on October 31st
+   without waiting for October 31st. */
+const spookToday = () => (typeof evNow === "function" ? evNow() : new Date());
 
 // Inside the window, for any year. Compared as (month, day) pairs rather than by
 // building two Dates, so the same test works in every year without constructing one.
@@ -658,3 +661,32 @@ function wireSpook(host) {
 
 // Leaving the page and coming back should not drop you into a half-open picker.
 TAB_RESET.spooktober = () => { SPOOK.picking = null; SPOOK.q = ""; SPOOK.all = false; };
+
+/* ---- registration ----------------------------------------------------------
+   events.js (1.63.0) took over the four pieces every event shares: the window test, the
+   Home banner slot, the prefs merge and the preview board. Spooktober keeps its own tab,
+   its own host and its own render path — it shipped that way and there is nothing to gain
+   by moving it — so it registers as `external` and hands the registry the two things the
+   registry decides: when its banner is allowed on Home, and what beats it when two seasons
+   overlap. Its calendar stays in its own prefs key ("spooktober"), untouched. */
+if (typeof evRegister === "function") {
+  evRegister({
+    id: "spooktober",
+    external: true,
+    name: "Spooktober",
+    icon: "i-pumpkin",
+    structure: "Calendar",
+    priority: 100,
+    window: { from: [SPOOK_START.m + 1, SPOOK_START.d], to: [SPOOK_END.m + 1, SPOOK_END.d] },
+    core: { from: [10, 1], to: [10, 31] },
+    cta: "Build your calendar",
+    blurb: "31 nights of horror, one game each",
+    bannerHtml: () => spookBannerHtml(),
+    pitch: () => spookPitch(),
+    meter: () => {
+      const filled = spookFilled();
+      return { pct: Math.round((filled / SPOOK_NIGHTS) * 100), text: `${filled} of ${SPOOK_NIGHTS} nights planned` };
+    },
+    render: () => renderSpooktober(),
+  });
+}

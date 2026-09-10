@@ -11,7 +11,11 @@
 // ---- orchestration ------------------------------------------------------
 let currentFiltered = [];
 let lastGroupedCount = -1;      // so the grouped view repaints once enrichment lands
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy", "spooktober"];
+/* "event" is the single host every seasonal event after Spooktober renders into, and
+   "events" is the preview board behind it (events.js). The event IDS are not listed here:
+   each ev-*.js file pushes its own into this array when it registers, which happens after
+   this file parses. Anything that copies this list at parse time gets an incomplete one. */
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy", "spooktober", "event", "events"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
   $("#searchpage").hidden = mode !== "search";
@@ -28,6 +32,8 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#hilo").hidden = mode !== "hilo";
   $("#daily").hidden = mode !== "daily";
   $("#spooktober").hidden = mode !== "spooktober";
+  $("#event").hidden = mode !== "event";
+  $("#eventsAdmin").hidden = mode !== "events";
   $("#recs").hidden = mode !== "recs";
   $("#translations").hidden = mode !== "translations";
   // Leaving a daily-game tab mid-practice falls back to today's round, so Home and
@@ -88,6 +94,9 @@ function renderAll() {
   if (activeTab === "hilo") { setSpecialMode("hilo"); renderHilo(); return; }
   if (activeTab === "daily") { setSpecialMode("daily"); renderDaily(); return; }
   if (activeTab === "spooktober") { setSpecialMode("spooktober"); renderSpooktober(); return; }
+  // Every other seasonal event, plus the preview board. One branch for all of them: the
+  // registry knows which tab belongs to which event, and claims it or doesn't (events.js).
+  if (typeof evRenderTab === "function" && evRenderTab(activeTab)) return;
   if (activeTab === "search") { setSpecialMode("search"); renderSearch(); return; }
   // Recommend is a sheet-backed tab (synthetic DATA.sheets.recs, recs.js), but its data only
   // exists once the IGDB catalogue + taste model are ready. Until then recsReady() paints a
@@ -324,10 +333,14 @@ function applyStateFromURL() {
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
          "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "wishlist", "search", "galaxy",
-         "translations", "spooktober"].includes(tab) ? tab : "home";
+         "translations", "spooktober", "events"]
+    .concat(typeof EVENT_TABS !== "undefined" ? EVENT_TABS : []).includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
-  if ((tab === "wishlist" || tab === "health") && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
+  // The preview board moves the app's clock and shows every event's state; it is a
+  // workshop tool, not a page, so it lands on Home for anyone who isn't the owner.
+  if ((tab === "wishlist" || tab === "health" || tab === "events")
+      && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "search") GLOBAL_SEARCH.q = p.get("gq") || "";
     if (tab === "pick") {
@@ -472,7 +485,10 @@ function setDocTitle() {
     lead = String(drawerRow.title || drawerRow.game || "");
   } else {
     const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"] span`);
+    const ev = typeof evById === "function" ? evById(activeTab) : null;
     const label = btn ? btn.textContent.trim()
+      : ev ? ev.name
+      : activeTab === "events" ? "Seasonal events"
       : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games",
            spooktober: "Spooktober" }[activeTab] || "");
     if (label && label !== "Home") lead = label;
@@ -486,10 +502,15 @@ function updateNavHere() {
   const el = $("#navHere");
   if (!el) return;
   const btn = document.querySelector(`#tabs button[data-tab="${activeTab}"]`);
+  const ev = typeof evById === "function" ? evById(activeTab) : null;
   const label = btn ? (btn.querySelector("span") || {}).textContent
+    : ev ? ev.name
+    : activeTab === "events" ? "Seasonal events"
     : ({ picross: "Daily Picross", dexle: "Dexle", hilo: "Daily Hi-Lo", daily: "Daily Games", search: "Search",
          spooktober: "Spooktober" }[activeTab] || "");
   const iconHref = btn ? (btn.querySelector("use") || {}).getAttribute("href")
+    : ev ? "#" + ev.icon
+    : activeTab === "events" ? "#i-calendar"
     : (activeTab === "search" ? "#i-search"
       : (activeTab === "dexle" || activeTab === "daily") ? "#i-dice"
       : activeTab === "spooktober" ? "#i-pumpkin"
@@ -595,6 +616,15 @@ async function load() {
   // The Spooktober calendar is object-shaped and loads itself (spooktober.js), and only
   // in season — off-season nothing on screen reads it, so nothing should fetch it.
   if (typeof spookLoadPrefs === "function" && spookInSeason()) spookLoadPrefs();
+  /* The other events share one prefs object, and the same rule applies: fetch it when
+     something on screen is going to read it — an event tab, the preview board, or a Home
+     banner whose own line is built out of that state. Otherwise it is a request to be told
+     about eleven events nobody is looking at. */
+  if (typeof evLoadPrefs === "function"
+      && (evIsTab(activeTab) || activeTab === "events" || evTopBanner())) evLoadPrefs();
+  // A preview date survives a reload (sessionStorage), so the pill that says so has to come
+  // back with it — otherwise the app is quietly in December and nothing says why.
+  if (typeof evPreviewChrome === "function") evPreviewChrome();
   loadValueHistory();           // daily collection-value snapshots (for the trend chart)
   loadRecs();                   // "because you liked …"
 }
