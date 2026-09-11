@@ -240,6 +240,17 @@ function cmdkTabs() {
   // October shouldn't 404 in March).
   if (typeof spookInSeason === "function" && spookInSeason())
     tabs.push({ id: "spooktober", label: "Spooktober — your October calendar", icon: "i-pumpkin" });
+  // The rest of the seasonal events, on the same terms: offered while they're on, always
+  // reachable by URL. Out of season they'd be eleven dead entries in a palette that already
+  // lists twenty (events.js owns the windows).
+  if (typeof EV !== "undefined") {
+    for (const ev of EV.list) {
+      if (ev.external || !evBannerOn(ev)) continue;
+      tabs.push({ id: ev.id, label: `${ev.name}: ${ev.blurb || ev.structure}`, icon: ev.icon });
+    }
+    if (typeof IS_ADMIN !== "undefined" && IS_ADMIN)
+      tabs.push({ id: "events", label: "Seasonal events: the preview board", icon: "i-calendar" });
+  }
   // Home lost its nav button (the logo goes there now), but the palette should still reach it.
   tabs.unshift({ id: "home", label: "Home", icon: "i-home" });
   return tabs;
@@ -595,6 +606,9 @@ function applyAdminUI() {
   // "Admin" group in the menu hides for the public, so there's no empty section header.
   const health = $("#tabHealth");
   if (health) health.hidden = !IS_ADMIN;
+  // The seasonal-event preview board moves the app's clock. Same group, same reason.
+  const evb = $("#tabEvents");
+  if (evb) evb.hidden = !IS_ADMIN;
   const adminGrp = $("#navAdmin");
   if (adminGrp) adminGrp.hidden = !IS_ADMIN;
   if (!acct) return;

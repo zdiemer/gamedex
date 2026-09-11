@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.62.7";
+const VERSION = "v1.63.1";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -26,8 +26,18 @@ const SHELL_URLS = [
   "./hilo.js", "./home.js", "./jukebox.js", "./konami.js", "./launch.js", "./media.js", "./mine.js", "./panels.js",
   "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./recs.js",
   "./relations.js", "./rng.js", "./similar.js", "./spooktober.js", "./translations.js",
+  "./events.js", "./ev-classof.js", "./ev-twoplayer.js", "./ev-bracket.js", "./ev-audit.js",
+  "./ev-underthree.js", "./ev-nobuy.js", "./ev-hearth.js", "./ev-doors.js", "./ev-wrapped.js",
+  "./ev-endangered.js",
   "./reviews.js", "./search.js", "./shelf.js", "./soundtrack.js", "./stats.js", "./table.js", "./timeline.js", "./wishlist.js",
   "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2", "./fonts/creepster.woff2",
+  // One display face per seasonal event. They are only ever requested when a banner uses
+  // them, but the shell has to hold them or an event opened offline loses its wordmark —
+  // which for a poster is most of the design. Latin subsets, ~260KB for all ten.
+  "./fonts/mountains-of-christmas.woff2", "./fonts/caveat.woff2", "./fonts/anton.woff2",
+  "./fonts/press-start-2p.woff2", "./fonts/pacifico.woff2", "./fonts/graduate.woff2",
+  "./fonts/saira-stencil-one.woff2", "./fonts/special-elite.woff2", "./fonts/orbitron.woff2",
+  "./fonts/big-shoulders-display.woff2",
 ];
 
 // Cache each URL on its own. addAll() is atomic — one 404 rejects the whole
