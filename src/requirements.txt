@@ -12,7 +12,7 @@ beautifulsoup4==4.15.0
 # StrategyWiki sits behind a TLS-fingerprint (JA3) block: plain `requests` gets a
 # 403 no matter the headers, while curl gets a 200. curl_cffi impersonates a real
 # browser's TLS handshake, which is the only thing that gets through.
-curl_cffi==0.16.0
+curl_cffi==0.16.3
 Pillow==12.3.0
 # Manual-cover rendering: rasterise page 1 of a PDF booklet for the shelf's box
 # lid. Ships manylinux wheels with MuPDF bundled, so the "no build toolchain"
