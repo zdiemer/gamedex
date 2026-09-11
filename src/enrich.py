@@ -29,6 +29,7 @@ _IGDB_LIGHT = ("igdbId", "cover", "coverUrl", "source", "rating", "year", "genre
                "perspectives", "keywords", "engines", "ageRating",
                "developers", "publishers", "franchises", "criticRating", "criticCount",
                "userRating", "userRatingCount",
+               "igdbReleaseDate", "igdbStatus",
                "name", "stores", "url", "confidence")
 # `confidence` is MatchValidator.match_score, 0-15: title matched 5, title EXACT
 # a further 5, then +1 each for platform, release date, publisher, developer and
@@ -46,8 +47,13 @@ _IGDB_LIGHT = ("igdbId", "cover", "coverUrl", "source", "rating", "year", "genre
 # not what the sheet's Release Date says for a re-release: the sheet dates the copy you
 # own (The Mysterious Murasame Castle on 3DS Virtual Console, 2014) and this dates the
 # game (1986). RNG's era split needs the second one, and it is one small int per game.
+# `igdbReleaseDate` / `igdbStatus` are the same date to the DAY plus IGDB's release status,
+# and they ship library-wide because the Data health check that reads them ("marked Early
+# Access, but IGDB says it shipped") runs over every row at once, client-side. A null status
+# is IGDB for "it came out" — see _STATUS in igdb.py. Two short, massively repetitive fields:
+# nulls and shared dates are exactly what the gzip on this endpoint eats for free.
 _FACET_LIGHT = ("cover", "coverUrl", "genres", "themes", "gameModes", "userRating",
-                "userRatingCount", "year",
+                "userRatingCount", "year", "igdbReleaseDate", "igdbStatus",
                 "perspectives", "keywords", "engines", "ageRating",
                 "developers", "publishers", "franchises", "criticRating", "criticCount",
                 "igdbId", "source", "stores", "url", "confidence", "name")
@@ -291,6 +297,13 @@ FRANCHISE_VERSION = "1"    # bump to re-fetch franchises onto already-matched re
 # reach the 98.8% of the library where it is still null.
 CRITIC_VERSION = "2"       # bump to re-fetch IGDB's critic + player scores onto matched records
 EXTRAS_VERSION = "2"       # keywords / engines / age rating / perspectives
+# Full first-release date + IGDB release status onto already-matched records. Bump to re-ask
+# (a status MOVES: a game leaves early access, a storefront delists one), which is the whole
+# point of the health check reading it.
+RELEASE_VERSION = "1"
+# How often the unfinished games (early access, alpha, beta…) get their status re-asked. See
+# backfill_release: the steady-state pass is a couple of hundred ids, not the library.
+RELEASE_REFRESH_DAYS = float(os.environ.get("RELEASE_REFRESH_DAYS", "7"))
 # GameTDB is dump-backed, so a re-match is free — bump this and every disc picks up the
 # new record shape (this bump adds the box front, `cover`).
 GAMETDB_VERSION = "2"
@@ -1319,6 +1332,80 @@ class Enricher:
         log.info("critic backfill: %d games got a critic score, %d got a player score",
                  found, players)
 
+    def backfill_release(self):
+        """IGDB's full first-release date and release STATUS onto already-matched records.
+
+        Unlike every other pass here, this one is not a one-off: a release status is the rare
+        IGDB field that MOVES after we've stored it — a game leaves early access, a storefront
+        delists one. So it runs forever, and the two halves cost very different amounts:
+
+          * the first sweep asks for every matched record that has no status key yet (or all
+            of them after a RELEASE_VERSION bump) — 500 flat ids a request, ~30 calls;
+          * every RELEASE_REFRESH_DAYS after that it re-asks ONLY the records whose stored
+            status is non-null, i.e. the games IGDB itself says are unfinished (early access,
+            alpha, beta, cancelled, rumored). That is a few hundred ids, one or two calls, and
+            it is the only set whose status can still flip to Released. A null status needs no
+            refresh: it already means released, and a future release DATE becomes past without
+            anyone re-fetching it, because the health check compares it to today in the
+            browser.
+        """
+        if not self._igdb.configured:
+            return
+        first = True
+        while not self._stop.is_set():
+            stale = first and self._kv_get("release_version") != RELEASE_VERSION
+            with self._db_lock:
+                rows = self._db.execute(
+                    "SELECT match_key, igdb_id, data FROM enrichment"
+                    " WHERE status='matched' AND igdb_id IS NOT NULL AND data IS NOT NULL"
+                ).fetchall()
+            need = {}
+            for key, igdb_id, raw in rows:
+                try:
+                    rec = json.loads(raw)
+                except Exception:
+                    continue
+                # Missing the field entirely, or version-bumped, or stored as unfinished —
+                # that last one is the recurring refresh set.
+                if not stale and "igdbStatus" in rec and rec.get("igdbStatus") is None:
+                    continue
+                need.setdefault(int(igdb_id), []).append(key)
+            if need:
+                log.info("release backfill: fetching status + release date for %d games", len(need))
+                stats = {"n": 0}
+
+                def write(batch, asked):
+                    """Commit per chunk, so a 429 two thirds in keeps what already landed."""
+                    with self._db_lock:
+                        for gid in asked:
+                            got = batch.get(gid)
+                            for key in need.get(gid, []):
+                                row = self._db.execute(
+                                    "SELECT data FROM enrichment WHERE match_key=?", (key,)).fetchone()
+                                if not row or not row[0]:
+                                    continue
+                                rec = json.loads(row[0])
+                                # Both keys are written even when IGDB knows nothing, because
+                                # a present-and-null status is the answer "it's released" and
+                                # is what takes this record out of the refresh set.
+                                rec["igdbReleaseDate"] = (got or {}).get("igdbReleaseDate")
+                                rec["igdbStatus"] = (got or {}).get("igdbStatus")
+                                self._db.execute("UPDATE enrichment SET data=? WHERE match_key=?",
+                                                 (json.dumps(rec), key))
+                                stats["n"] += 1
+                        self._db.commit()
+
+                try:
+                    self._igdb.status_for(list(need), on_chunk=write)
+                except Exception as exc:
+                    log.warning("release backfill stopped early: %s (progress is saved)", exc)
+                else:
+                    self._kv_set("release_version", RELEASE_VERSION)
+                    log.info("release backfill: %d records updated", stats["n"])
+            first = False
+            if self._stop.wait(RELEASE_REFRESH_DAYS * 86400):
+                return
+
     def _await_reindex(self) -> bool:
         """True once the first spreadsheet poll has landed. start() runs before it, so a
         backfill that reads _key_meta has nothing to work with at boot."""
@@ -1511,6 +1598,7 @@ class Enricher:
         threading.Thread(target=self.backfill_franchises, name="franchise-backfill", daemon=True).start()
         threading.Thread(target=self.backfill_critic, name="critic-backfill", daemon=True).start()
         threading.Thread(target=self.backfill_extras, name="extras-backfill", daemon=True).start()
+        threading.Thread(target=self.backfill_release, name="release-backfill", daemon=True).start()
         if "gameye" in self._secondary:
             threading.Thread(target=self._value_loop, name="value-history", daemon=True).start()
 

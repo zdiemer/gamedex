@@ -18,6 +18,21 @@ const healthState = { open: null, page: {} };
 const hzGames = () => ((DATA.sheets.games || {}).rows || []).filter((r) => r.title);
 const hzDone = () => ((DATA.sheets.completed || {}).rows || []);
 
+const hzToday = () => new Date().toISOString().slice(0, 10);
+
+/* A row whose Release Date is the LABEL "Early Access" rather than a date. The sheet has no
+   early-access flag — the date cell carries the word — and parse.py copies that label into
+   releaseYear too so the row still appears in the year facet, which is why both are checked. */
+const hzEarlyAccess = (r) =>
+  /early\s*access/i.test(String(r.releaseDate || "")) ||
+  /early\s*access/i.test(String(r.releaseYear || ""));
+
+/* IGDB statuses that mean "not finished yet", i.e. IGDB agreeing with an Early Access row.
+   Everything else — including a NULL status, which is what IGDB stores for a game that simply
+   came out — means it shipped. Offline and Delisted shipped too: they're gone, not unreleased.
+   Cancelled and Rumored never shipped, so they belong here. See _STATUS in src/igdb.py. */
+const HZ_UNRELEASED = new Set(["Early Access", "Alpha", "Beta", "Cancelled", "Rumored"]);
+
 // Same normalisation the matcher uses, far enough to spot near-duplicates.
 const hzNorm = (s) => String(s || "").toLowerCase()
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -373,6 +388,30 @@ const HEALTH_CHECKS = [
       return hzSequelMismatch(r.title, e.name);
     }),
     detail: (r) => `library: "${r.title}" · IGDB: "${(ENRICH[r._k] || {}).name}"`,
+  },
+  {
+    id: "eaout", severity: "warn", sheet: "games",
+    title: "Marked Early Access, but IGDB says it shipped",
+    why: "Release Date still reads \"Early Access\" while IGDB has a 1.0 release date in the "
+       + "past and no longer calls the game early access. The row is sorted and faceted under "
+       + "\"Early Access\" rather than its real year, so it's invisible to every year filter, "
+       + "every era split and the release-year stats. Put the real date in Release Date.",
+    find: () => hzGames().filter((r) => {
+      if (!hzEarlyAccess(r)) return false;
+      const e = ENRICH[r._k];
+      // No IGDB date is no evidence, and an unfinished status is IGDB AGREEING with the sheet.
+      if (!e || !e.igdbReleaseDate || HZ_UNRELEASED.has(e.igdbStatus)) return false;
+      // A date alone isn't a shipped game: an early-access title has one too (its EA launch),
+      // and a status can be absent on an announced-but-unreleased game. The date must be past.
+      return e.igdbReleaseDate <= hzToday();
+    }),
+    detail: (r) => {
+      const e = ENRICH[r._k] || {};
+      // The matched name, because this check is only as good as the match behind it — a wrong
+      // IGDB game is the other way this row shows up here, and it's visible at a glance.
+      return `IGDB: "${e.name}" released ${e.igdbReleaseDate}`
+           + (e.igdbStatus ? ` · status ${e.igdbStatus}` : "");
+    },
   },
   {
     id: "incompletecol", severity: "info", sheet: "games",

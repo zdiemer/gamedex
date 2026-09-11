@@ -32,7 +32,7 @@ _IGDB = "https://api.igdb.com/v4"
 
 # One request pulls all candidates with everything we display, nested inline.
 _FIELDS = (
-    "fields name,slug,url,category,summary,storyline,"
+    "fields name,slug,url,category,status,summary,storyline,"
     "first_release_date,total_rating,total_rating_count,rating,rating_count,"
     "aggregated_rating,aggregated_rating_count,"
     "alternative_names.name,platforms.name,release_dates.y,"
@@ -75,6 +75,28 @@ _CATALOGUE_RICH = (
     # nothing will ever rank is the trade this two-pass split exists to avoid.
     "platforms.name;"
 )
+
+# IGDB's release status enum (`status`, renamed `game_status` in the 2025 field sweep — both
+# names still answer, and the rest of this file speaks the old vocabulary, so `status` it is).
+# The crucial asymmetry: IGDB LEAVES IT UNSET on a game that simply came out — 0 exists but is
+# rare — so "no status" means released, not unknown. Only 2/3/4 say the game is not finished
+# yet, which is what the Early Access health check keys off (static/health.js).
+_STATUS = {
+    0: "Released", 2: "Alpha", 3: "Beta", 4: "Early Access",
+    5: "Offline", 6: "Cancelled", 7: "Rumored", 8: "Delisted",
+}
+
+
+def _release_fields(g):
+    """{igdbReleaseDate, igdbStatus} off a raw IGDB game — the ISO date of its FIRST release
+    and the status label, both nullable. One helper because the live match and the by-id
+    backfill must agree on the shape down to the key names."""
+    ts = g.get("first_release_date")
+    return {
+        "igdbReleaseDate": (datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+                            if ts else None),
+        "igdbStatus": _STATUS.get(g.get("status")),
+    }
 
 # Keywords that describe the SHOP or the PLUMBING, not the game. Drawn from a census of the
 # actual library rather than guessed: unfiltered, the single most common keyword across 2,000
@@ -651,6 +673,31 @@ class IgdbClient:
             time.sleep(0.35)                      # be a good neighbour to the live workers
         return out
 
+    def status_for(self, igdb_ids, on_chunk=None):
+        """{igdb_id: {igdbReleaseDate, igdbStatus}} — release date and release STATUS by id,
+        to backfill records matched before either was asked for.
+
+        Two flat columns, so 500 ids to a request and the whole library is ~30 calls. Paced
+        and chunk-skipping like critic_for: this runs at boot beside seven other backfills and
+        the live workers, and a 429 must cost one chunk, not the pass. `on_chunk` is handed
+        each batch as it lands so progress is saved as it goes."""
+        out = {}
+        for i in range(0, len(igdb_ids), 500):
+            chunk = [int(x) for x in igdb_ids[i:i + 500]]
+            body = ("fields id,status,first_release_date; "
+                    f"where id = ({','.join(str(c) for c in chunk)}); limit 500;")
+            try:
+                got = self._post_resilient("games", body)
+            except Exception as exc:
+                log.warning("status backfill: chunk at %d failed, skipping: %s", i, exc)
+                continue
+            batch = {g["id"]: _release_fields(g) for g in got or []}
+            out.update(batch)
+            if on_chunk:
+                on_chunk(batch, chunk)
+            time.sleep(0.35)                      # be a good neighbour to the live workers
+        return out
+
     def franchises_for(self, igdb_ids):
         """{igdb_id: [franchise names]} — fetched by id in batches, to backfill records
         matched before franchises were stored. Mirrors relations_for."""
@@ -898,6 +945,7 @@ class IgdbClient:
         if c.get("first_release_date"):
             year = datetime.fromtimestamp(c["first_release_date"], tz=timezone.utc).year
         rating = c.get("total_rating")
+        rel = _release_fields(c)
         user_rating = c.get("rating")            # IGDB community/user rating
         # aggregated_rating is the EXTERNAL CRITIC aggregate — the one thing here that is
         # a critic score rather than a player score. We already asked for it and threw it
@@ -917,6 +965,11 @@ class IgdbClient:
             "criticRating": round(critic / 100, 4) if critic is not None else None,
             "criticCount": c.get("aggregated_rating_count"),
             "year": year,
+            # The FULL first-release date and the release status. `year` alone can't answer
+            # "is this out yet?" inside the current year — Valheim left early access on
+            # 2026-09-09 and Tom Lander is due 2026-09-30, and both are just "2026".
+            "igdbReleaseDate": rel["igdbReleaseDate"],
+            "igdbStatus": rel["igdbStatus"],
             "genres": [g["name"] for g in c.get("genres", []) if g.get("name")],
             "themes": [t["name"] for t in c.get("themes", []) if t.get("name")],
             "gameModes": [m["name"] for m in c.get("game_modes", []) if m.get("name")],
