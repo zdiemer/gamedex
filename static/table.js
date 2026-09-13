@@ -91,14 +91,18 @@ function onHeaderClick(col, shift) {
   const cur = st.sort && st.sort.length ? st.sort.slice() : [];
   const idx = cur.findIndex((s) => s.key === col.key);
   const defDir = col.type === "text" ? "asc" : "desc";
+  // `kind` rides along: a header can now be a virtual sort's (renderTableView surfaces
+  // one), and without the kind cmpBy would read a[key] off the row, find nothing on every
+  // row, and leave the list exactly as it came.
+  const lvl = (dir) => ({ key: col.key, dir, type: col.type, kind: col.kind });
   if (shift) {
-    if (idx === -1) cur.push({ key: col.key, dir: defDir, type: col.type });
-    else if (cur[idx].dir === defDir) cur[idx] = { key: col.key, dir: defDir === "asc" ? "desc" : "asc", type: col.type };
+    if (idx === -1) cur.push(lvl(defDir));
+    else if (cur[idx].dir === defDir) cur[idx] = lvl(defDir === "asc" ? "desc" : "asc");
     else cur.splice(idx, 1);                       // third shift-click drops this level
   } else {
     if (cur.length === 1 && cur[0].key === col.key)
-      cur.splice(0, 1, { key: col.key, dir: cur[0].dir === "asc" ? "desc" : "asc", type: col.type });
-    else { cur.length = 0; cur.push({ key: col.key, dir: defDir, type: col.type }); }
+      cur.splice(0, 1, lvl(cur[0].dir === "asc" ? "desc" : "asc"));
+    else { cur.length = 0; cur.push(lvl(defDir)); }
   }
   st.sort = cur.length ? cur : null;
   st.page = 1;
@@ -184,8 +188,11 @@ function renderTableView(pageRows) {
   const cols = columns().filter((c) => c.primary);
   const spec = effectiveSort();
   // Surface sorted-by columns that aren't shown (e.g. Date Added) as extra columns.
+  // sortMeta, not colByKey: a virtual sort has no sheet column, so sorting by Critic
+  // Rating or Challenges It Would Clear surfaced no column at all and you had to take
+  // the order on trust.
   for (const s of spec) {
-    const c = colByKey(s.key);
+    const c = sortMeta(s.key);
     if (c && !cols.includes(c)) cols.push(c);
   }
   const thead = $("#thead");
@@ -214,7 +221,7 @@ function renderTableView(pageRows) {
     const cstat = collectionStatus(row);
     if (cstat) tr.className = "row-col-" + cstat;
     const cover = ENRICH_ENABLED ? `<td class="cover">${coverCell(row)}</td>` : "";
-    tr.innerHTML = cover + cols.map((c) => `<td>${fmtCell(row[c.key], c.type)}</td>`).join("");
+    tr.innerHTML = cover + cols.map((c) => `<td>${fmtCell(sortValueOf(row, c.key), c.type)}</td>`).join("");
     tr.onclick = () => openDrawer(row);
     tbody.appendChild(tr);
   }
@@ -236,9 +243,9 @@ function sortValueHtml(row) {
   const st = tabState[activeTab];
   if (!st || !st.sort || !st.sort.length) return "";     // default sort → nothing extra
   return st.sort.slice(0, 2).map((s) => {
-    const c = colByKey(s.key);
+    const c = sortMeta(s.key);          // virtual sorts have no column; see renderTableView
     if (!c) return "";
-    const v = row[s.key];
+    const v = sortValueOf(row, s.key);
     const val = (v === undefined || v === null || v === "")
       ? `<i class="muted">—</i>` : fmtCell(v, c.type);
     return `<div class="card-sortval"><span>${escapeHtml(c.label)}</span>${val}</div>`;

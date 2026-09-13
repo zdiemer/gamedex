@@ -67,21 +67,42 @@ function searchField(id, placeholder, value = "", cls = "") {
    Which tabs offer one is SORT_MENUS' decision, not theirs: the accessors join on
    row._k, and every sheet's rows carry one (the backend stamps games/completed/
    onOrder in enrich.reindex; wishlist and recs stamp their own). */
+/* `type` is both the comparator's and the formatter's. It used to be "number" throughout,
+   which sorted fine — NUMERIC_TYPES covers rating and hours as well — and was invisible,
+   because nothing rendered these values. Now that the table and the grid card show what
+   they are ordering by, the type has to be the real one or a 0.94 critic score prints as
+   "1" and a 12.5-hour estimate as "12.5" instead of "94%" and "12h 30m". */
 const VIRTUAL_SORTS = [
-  { key: "__predicted", label: "Estimated Rating", type: "number", kind: "predicted",
+  { key: "__predicted", label: "Estimated Rating", type: "rating", kind: "predicted",
     get: (row) => (typeof predictedOf === "function" ? predictedOf(row) : null) },
   // These three have fallback chains, which is exactly why they can't be plain
   // columns: the best answer lives in a different source per game. The facets
   // already resolve them, so sorting reuses the same accessors rather than
   // inventing a second, divergent answer.
-  { key: "__critic", label: "Critic Rating", type: "number", kind: "critic",
+  { key: "__critic", label: "Critic Rating", type: "rating", kind: "critic",
     get: (row) => metacriticOf(row) },      // Metacritic scrape → sheet's column
-  { key: "__user", label: "User Rating", type: "number", kind: "user",
+  { key: "__user", label: "User Rating", type: "rating", kind: "user",
     get: (row) => userRatingOf(row) },      // IGDB → VNDB → GameFAQs
-  { key: "__esttime", label: "Estimated Time", type: "number", kind: "esttime",
+  { key: "__esttime", label: "Estimated Time", type: "hours", kind: "esttime",
     get: (row) => playtimeOf(row) },        // HLTB → VNDB → the sheet's estimate
+  /* How many challenges beating it would move — the drawer's "Beating this would clear",
+     as an ordering over the whole backlog. Sorted high-to-low it's the list the Challenges
+     tab can't produce: it answers per challenge which games are left, and this asks which
+     game is worth the most across all of them at once. Blank (not 0) for a game you've
+     already beaten, so those sink either way. */
+  { key: "__chclear", label: "Challenges It Would Clear", type: "number", kind: "chclear",
+    get: (row) => (typeof chClearCount === "function" ? chClearCount(row) : null) },
 ];
 const sortMeta = (key) => VIRTUAL_SORTS.find((v) => v.key === key) || colByKey(key);
+
+/* The value a sort is actually ordering by. row[key] for a real column, the accessor for a
+   virtual one — and every reader of a sorted-by value needs the distinction: there is no
+   row.__critic to read, so the table's surfaced column and the grid card's sort chip both
+   rendered the four virtual sorts as a blank dash while ordering by them perfectly well. */
+const sortValueOf = (row, key) => {
+  const v = VIRTUAL_SORTS.find((s) => s.key === key);
+  return v ? v.get(row) : row[key];
+};
 
 /* The sort menu, per tab. Every sortable column used to be offered everywhere but
    All Games — thirty-odd options, most of which nobody would ever sort by (File
@@ -95,7 +116,7 @@ const SORT_MENUS = {
   games: [
     "title", "platform", "releaseDate",
     "rating", "__critic", "__user", "__predicted",
-    "priority",
+    "priority", "__chclear",
     "datePurchased", "dateAdded", "purchasePrice",
     "dateStarted", "dateCompleted", "completionTime", "__esttime",
   ],

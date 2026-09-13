@@ -268,6 +268,7 @@ function chTopDevelopers() {
 const chReset = () => {
   _chTopDevs = null; _chPct = null; _chHist = null;
   _chComputed = new WeakMap();      // the computed results ride on those caches
+  _chClearCount = new WeakMap();    // and the per-row "what would this clear" count on them
   _chGroupCols.clear();             // its columns close over field objects these caches rebuild
 };
 
@@ -1015,9 +1016,47 @@ function chDrawerRows(row) {
   const out = [], seen = new Set();
   for (const m of ms) {
     const g = (idx && m && m._k && idx.get(m._k)) || (m && m.title !== undefined ? m : null);
-    if (g && !g.completed && !seen.has(g)) { seen.add(g); out.push(g); }
+    if (g && !chBeaten(g) && !seen.has(g)) { seen.add(g); out.push(g); }
   }
   return out;
+}
+
+/* Beaten by either sheet's reckoning: the Games sheet's Completed flag, or a row on the
+   Finished Games sheet under the same match key. The replay only reads the flag (chHistory),
+   but that's the engine's own view of its history — for "would this clear anything?" the
+   join is the honest test, and it's the one the drawer's historyOf already makes. Data
+   health flags the rows where the two disagree; until they're fixed, the conservative
+   answer is the right one. */
+function chBeaten(row) {
+  if (!row) return false;
+  if (row.completed) return true;
+  const idx = typeof rowsByK === "function" ? rowsByK().completed : null;
+  return !!(idx && row._k && idx.has(row._k));
+}
+
+/* How many challenges beating this game would move.
+
+   Memoised, and it has to be: this is the All Games sort's accessor, so a comparison sort
+   over fourteen thousand rows asks most of them a dozen times over. Keyed on the row
+   object — a reloaded sheet brings new rows and the old answers fall out on their own —
+   and dropped when the enrichment that feeds unified genres and developers lands, since
+   that moves the answers (chReset, and the epoch check here for the same reason
+   computeChallenge makes one).
+
+   CHALLENGES, not buckets: one game can take two buckets in the same challenge (two of
+   your top-50 developers, two shortlisted franchises), and the question is how many
+   challenges it moves. The drawer lists both numbers. */
+let _chClearCount = new WeakMap(), _chClearEpoch = -1;
+function chClearCount(row) {
+  if (_chClearEpoch !== _enrichEpoch) { _chClearEpoch = _enrichEpoch; _chClearCount = new WeakMap(); }
+  const hit = _chClearCount.get(row);
+  if (hit !== undefined) return hit;
+  // null rather than 0 for a game you've beaten: it isn't a candidate that happens to
+  // clear nothing, it's out of the running — and blanks sink under EITHER sort direction,
+  // which is where a finished game belongs in a list ordered by what's left to do.
+  const v = chBeaten(row) ? null : new Set(chWouldClear(row).map((h) => h.c.id)).size;
+  _chClearCount.set(row, v);
+  return v;
 }
 
 /* Every bucket this game would knock out, across every challenge you have.
