@@ -806,6 +806,53 @@ td.cover { width: 46px; padding: 5px 8px; }
   text-transform: uppercase; color: var(--dim); margin-bottom: 5px;
 }
 
+/* "Beating this would clear" — the challenge buckets this game is still the answer to.
+   A list rather than the tab's cards: there can be twenty of them, they're all the same
+   shape, and the eye is scanning down the bucket names. */
+/* The count is a caption on the heading, so it wraps to its own line rather than
+   squeezing "Beating this would clear" into two words a line on a phone. */
+.chd-sect h3 { flex-wrap: wrap; }
+.chd-sect h3 .muted { font: 500 12px/1.3 var(--font); margin-left: auto; }
+.chd-list { list-style: none; margin: 0; padding: 0; }
+.chd-row {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border: 0; border-radius: 9px;
+  background: none; color: inherit; text-align: left; cursor: pointer;
+  transition: background .15s var(--ease);
+}
+.chd-row:hover { background: var(--surface); }
+.chd-list li + li { border-top: 1px solid var(--border); }
+.chd-row .ch-icon { flex: none; display: flex; color: var(--dim); }
+.chd-row:hover .ch-icon { color: var(--accent); }
+/* The bucket leads; the challenge it belongs to and how far off it is are the caption. */
+.chd-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chd-txt b {
+  font: 600 13px/1.25 var(--font); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Family and all: a <button> doesn't inherit the page font, and .muted only sets colour. */
+.chd-txt .muted { font: 500 11px/1.3 var(--font); }
+/* How much competition the bucket has. "nothing else left" is the whole point of the
+   ordering, so it's the one that gets a colour. */
+.chd-left {
+  flex: none; font: 600 11px/1 var(--font); color: var(--dim);
+  white-space: nowrap; padding: 5px 8px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.chd-only .chd-left {
+  color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent);
+  border-color: color-mix(in srgb, var(--good) 40%, transparent);
+}
+/* Narrow: the competition pill drops under the bucket it describes, indented past the
+   icon so it still reads as part of that row. The icon then sits with the first line
+   rather than floating in the middle of a three-line block. */
+@media (max-width: 560px) {
+  .chd-row { flex-wrap: wrap; align-items: flex-start; }
+  .chd-row .ch-icon { margin-top: 1px; }
+  .chd-left { margin: 6px 0 0 28px; }
+  .chd-sect h3 .muted { flex: 1 0 100%; margin-left: 0; }
+}
+
 /* Full release date, under the facet pills in the drawer hero. */
 .hero-rel { margin-top: 7px; font-size: 12px; color: var(--dim); }
 

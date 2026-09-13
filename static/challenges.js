@@ -594,6 +594,11 @@ function _computeChallenge(c) {
   const total = cur.cleared.size + remaining.size;
   return {
     c, paths, remaining, total, fixed: !!fixedKeys,
+    // Every bucket the challenge is about, cleared or not, reachable or not. The tab only
+    // ever needs `cleared` and `remaining`, but "would beating THIS game clear anything?"
+    // (chWouldClear) is asked about games that aren't in the candidate pool at all, and a
+    // bucket they'd clear is missing from both of those maps.
+    universeKeys,
     cleared: cur.cleared,       // key -> rows, in the order the buckets fell
     pathFrom: cur.first ? cur.first.dateCompleted || null : null,
     completedThisPath: cur.games,
@@ -964,6 +969,145 @@ function chLedgerHtml(results) {
   </div>`;
 }
 
+/* ---- "Beating this would clear" (the game drawer) ------------------------
+
+   The tab asks, per challenge, which games are left for a bucket. Standing in front of
+   one game the question runs the other way — beat THIS and what moves? — and there was
+   no way to answer it short of opening all twenty challenges and scanning their
+   still-to-do lists for a title you already had open.
+
+   Only on games you haven't beaten. On a finished one the buckets it could take have
+   already fallen (to it, or to something before it), so there is no "would" left to
+   state; what it did clear is the timeline's job, over on the tab.
+
+   Every uncleared bucket it lands in gets listed, not a best-of: the interesting ones
+   aren't always the rare ones, and a game that quietly moves nine challenges at once is
+   the thing this section exists to show. */
+
+/* Groupings a game can't be nominated for in advance.
+
+   To say "beating this would clear X" the bucket has to be knowable BEFORE the
+   playthrough, and three aren't. One Per Day of the Year buckets on the day you happen
+   to finish — every game clears it, so naming it says nothing about this one — and both
+   rating challenges bucket partly on the score you'd give it afterwards.
+
+   Keyed on the grouping FIELD, not the challenge id, so a custom challenge built on the
+   same field drops out with the built-ins rather than quietly lying. */
+const CH_POST_HOC_FIELDS = new Set(["dateCompleted", "completionTime", "__g_rating"]);
+// Knowable, but a guess: One Per Playtime buckets an unbeaten game on its ESTIMATE, and
+// the real completion time can land it one hour either side. Shown, and labelled.
+const CH_ESTIMATED_FIELDS = new Set(["__g_playtime", "estimatedTime"]);
+
+const chGroupField = (c) => String(c.groupBy || "").split("|")[0];
+const chKnowableUnbeaten = (c) => !c.groupBy || !CH_POST_HOC_FIELDS.has(chGroupField(c));
+
+/* Which sheet rows this drawer is actually about.
+
+   The drawer opens on rows from either sheet and on combined cards, and the challenge
+   machinery only ever runs over the games sheet — so everything is resolved back through
+   the match key. A combined card contributes all its copies: they sit in different
+   platform buckets and beating any one of them clears that copy's, which is the whole
+   reason the card was combined in the first place. */
+function chDrawerRows(row) {
+  if (!row || row._collection || row._wlOnly) return [];
+  const idx = typeof rowsByK === "function" ? rowsByK().games : null;
+  const ms = row._members && row._members.length > 1 ? (row._aggMembers || row._members) : [row];
+  const out = [], seen = new Set();
+  for (const m of ms) {
+    const g = (idx && m && m._k && idx.get(m._k)) || (m && m.title !== undefined ? m : null);
+    if (g && !g.completed && !seen.has(g)) { seen.add(g); out.push(g); }
+  }
+  return out;
+}
+
+/* Every bucket this game would knock out, across every challenge you have.
+   [{c, res, key, rivals}], rivals being the OTHER unplayed candidates in that bucket. */
+function chWouldClear(row) {
+  const targets = chDrawerRows(row);
+  if (!targets.length) return [];
+  const hits = [], seen = new Set();
+  for (const c of chAll()) {
+    if (!chKnowableUnbeaten(c)) continue;
+    const res = computeChallenge(c);
+    if (!res.total) continue;
+    const clear = c.clear || c.domain || (() => true);
+    const groupsOf = chGroupsOf(c);
+    for (const r of targets) {
+      if (!clear(r)) continue;
+      for (const key of groupsOf(r)) {
+        // universeKeys, not remaining: a game outside the candidate pool (low priority,
+        // unplayable, not out yet) still clears its bucket if you go and beat it, and
+        // that bucket can be missing from `remaining` entirely.
+        if (!res.universeKeys.has(key) || res.cleared.has(key)) continue;
+        const sig = `${c.id}${key}`;
+        if (seen.has(sig)) continue;
+        seen.add(sig);
+        hits.push({ c, res, key, rivals: (res.remaining.get(key) || []).filter((x) => x !== r).length });
+      }
+    }
+  }
+  /* Scarcest bucket first — "nothing else in your library clears this" is the line worth
+     reading, and it's the one thing the tab can't tell you from over here. Then the
+     challenge nearest its finish, then by name, so two opens of the same drawer agree. */
+  hits.sort((a, b) => a.rivals - b.rivals
+    || a.res.remaining.size - b.res.remaining.size
+    || String(a.c.name).localeCompare(String(b.c.name))
+    || String(a.key).localeCompare(String(b.key)));
+  return hits;
+}
+
+function chDrawerHtml(row) {
+  if (typeof DATA === "undefined" || !DATA || !DATA.sheets) return "";
+  // historyOf joins both sheets: a game marked Completed nowhere but present on the
+  // Finished Games sheet is still beaten, and still has nothing to clear.
+  if (typeof historyOf === "function" && historyOf(row).beaten) return "";
+  const hits = chWouldClear(row);
+  if (!hits.length) return "";
+  const chals = new Set(hits.map((h) => h.c.id)).size;
+
+  const items = hits.map(({ c, res, key, rivals }) => {
+    const est = CH_ESTIMATED_FIELDS.has(chGroupField(c));
+    const sub = [chTagName(c.name), `${res.remaining.size} to go`, est ? "on its estimate" : ""]
+      .filter(Boolean).join(" · ");
+    const left = rivals
+      ? `${rivals} other candidate${rivals !== 1 ? "s" : ""}`
+      : "nothing else left";
+    const tip = `${c.name}: "${key}" is still to clear`
+      + (rivals ? ` — ${rivals} other unplayed game${rivals !== 1 ? "s" : ""} could clear it too`
+                : " — no other unplayed game in the collection can clear it")
+      + (est ? ". Bucketed on the estimated playtime; the real completion time decides it." : "");
+    return `<li><button class="chd-row${rivals ? "" : " chd-only"}" data-chgo="${escapeHtml(String(c.id))}"
+      title="${escapeHtml(tip)}">
+      <span class="ch-icon">${glyph(c.icon, 18)}</span>
+      <span class="chd-txt"><b>${escapeHtml(String(key))}</b>
+        <span class="muted">${escapeHtml(sub)}</span></span>
+      <span class="chd-left">${escapeHtml(left)}</span></button></li>`;
+  }).join("");
+
+  return `<div class="mine-sect chd-sect">
+    <h3>${icon("i-target", 15)} Beating this would clear
+      <span class="muted">${hits.length} bucket${hits.length !== 1 ? "s" : ""} across ${chals} challenge${chals !== 1 ? "s" : ""}</span></h3>
+    <ol class="chd-list">${items}</ol>
+  </div>`;
+}
+
+/* Filled a frame late, for the reason home.js's spotlight is (see CHAL_SLOT): the first
+   call runs every challenge over the whole collection, and a drawer must open now. Once
+   the results are cached the refill is free, so it isn't worth a second code path. */
+function fillChallengeDrawer(row) {
+  const slot = document.getElementById("chDrawer");
+  // Slow first computation, and the drawer may have moved on (or closed) meanwhile.
+  if (!slot || drawerRow !== row) return;
+  slot.innerHTML = chDrawerHtml(row);
+  for (const el of slot.querySelectorAll(".chd-row[data-chgo]")) {
+    const id = el.dataset.chgo;
+    el.onclick = () => {
+      closeDrawer(true);        // silent — goTab's nav() writes the drawer-free URL for this jump
+      goTab("challenges", () => { chState.open = id; chState.showAll = null; });
+    };
+  }
+}
+
 function renderChallenges() {
   const host = $("#challenges");
   if (!DATA) return;
@@ -1271,10 +1415,19 @@ function chFacetVals(row, col) {
    same packed format ?fb= and saved pickers carry) compiled by Pick's own compiler. There
    is no second filter language any more: what the builder can say, a challenge can say,
    including the nesting and negation the old flat AND-of-ORs couldn't. */
+/* Same definition in, same OBJECT out. computeChallenge memoises on the challenge object
+   (a WeakMap), and chAll() built a fresh one per call — so every custom challenge was
+   recomputed from scratch on every render, and again for every drawer that asks what it
+   would clear. Keyed on the stored def rather than its id, so editing one invalidates it. */
+const _chCustom = new Map();
+
 function chFromCustom(def) {
+  const sig = JSON.stringify(def);
+  const hit = _chCustom.get(sig);
+  if (hit) return hit;
   const tree = typeof pickDecode === "function" ? pickDecode(def.fb || "") : null;
   const match = tree && typeof compilePick === "function" ? compilePick(tree) : () => true;
-  return {
+  const out = {
     id: def.id,
     icon: def.icon || "i-target",
     name: def.name || "Custom challenge",
@@ -1283,6 +1436,12 @@ function chFromCustom(def) {
     groupBy: def.groupBy,
     domain: match,
   };
+  // Bounded by the 40-challenge storage cap times however many edits one session makes;
+  // a stale entry is one small object, and dropping the cache wholesale would throw away
+  // the unedited challenges' results too.
+  if (_chCustom.size > 200) _chCustom.clear();
+  _chCustom.set(sig, out);
+  return out;
 }
 
 function chCustomBlurb(def) {

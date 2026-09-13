@@ -258,6 +258,10 @@ function openDrawer(row, sheetKey, keepStack) {
     // The platform detail (achievement grid, personal screenshots, my Steam
     // review) lands async from /api/mine/detail — give it a host to fill.
     + (row._k && !groupedRow ? `<div id="mineExtra" class="mine-extra"></div>` : "")
+    // What the backlog is worth here: the challenge buckets beating this would clear.
+    // Filled a frame late (fillChallengeDrawer) — computing it runs every challenge
+    // over the whole collection, and the drawer opens now.
+    + `<div id="chDrawer"></div>`
     + (IS_ADMIN ? nasSectionHtml(row) : "");
   else {                                       // a grouped card's values are aggregates, not yours
     for (const c of cols) {
@@ -329,6 +333,12 @@ function openDrawer(row, sheetKey, keepStack) {
   if (ENRICH_ENABLED && row._k && !row._wlOnly) loadDetail(row._k, $("#igdbDetail"), 0, row);
   else if (wlDetail) loadDetail(row._k, $("#igdbDetail"), 0, row, row._igdbId);
   if (row._k && !groupedRow && typeof loadMineDetail === "function") loadMineDetail(row._k, $("#mineExtra"));
+  // Two frames out, as Home's challenge spotlight does it: one to paint the drawer we
+  // just wrote, one to run the expensive part. fillChallengeDrawer re-checks drawerRow,
+  // so a fast click-through leaves the previous game's answer unwritten.
+  if (typeof fillChallengeDrawer === "function") {
+    requestAnimationFrame(() => requestAnimationFrame(() => fillChallengeDrawer(row)));
+  }
 }
 // silent=true just tears down the DOM without touching history — for callers that immediately
 // drive their own navigation (a facet-link jump), so we don't fight them for the URL.
