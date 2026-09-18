@@ -1,0 +1,4 @@
+Made Gamedex. It mirrors one Dropbox spreadsheet of 14,387 games and makes it a faceted,
+cover-art collection — plus a model that guesses what I'd rate the 369,802 games I *don't*
+own, and a 3,000-star galaxy coloured by franchise. No database. No build step. Still, technically,
+a spreadsheet. games.diemer.codes

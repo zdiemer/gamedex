@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Gamedex — brag</title>
+    <script src="assets/js/gsap.min.js"></script>
+    <script src="assets/js/audio-data.js"></script>
+    <style>
+      /* Fonts, colours, radii and easing are lifted verbatim from the project's own
+         static/style.css :root block, and the woff2 files are the app's own self-hosted
+         copies. The app deliberately serves no webfont from a CDN; neither does this. */
+      @font-face {
+        font-family: "Archivo";
+        src: url("assets/fonts/archivo-800.woff2") format("woff2");
+        font-weight: 800;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Plex";
+        src: url("assets/fonts/plex-sans.woff2") format("woff2");
+        font-weight: 100 700;
+        font-style: normal;
+      }
+
+      :root {
+        --bg: #0a0c11;
+        --bg-2: #0e1117;
+        --surface: #151922;
+        --surface-2: #1c212c;
+        --surface-3: #232a37;
+        --border: #232a37;
+        --border-soft: #1a1f2a;
+        --text: #e9edf4;
+        --muted: #8a94a6;
+        --accent: #7c5cff;
+        --accent-2: #22d3ee;
+        --accent-soft: rgba(124, 92, 255, 0.16);
+        --accent-line: rgba(124, 92, 255, 0.45);
+        --good: #34d399;
+        --r: 12px;
+        --r-sm: 8px;
+        --r-lg: 16px;
+        --sh-2: 0 10px 30px rgba(0, 0, 0, 0.45);
+        --sh-3: 0 24px 64px rgba(0, 0, 0, 0.6);
+        --display: "Archivo", sans-serif;
+        --font: "Plex", sans-serif;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .display {
+        font-family: var(--display);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
+      /* ------------------------------------------------------------------ S1 */
+      #s1 {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 74px;
+        padding: 80px 180px;
+      }
+      #s1-line {
+        font-size: 116px;
+        color: var(--text);
+        text-align: center;
+      }
+      #s1-sheet {
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        box-shadow: var(--sh-3);
+        overflow: hidden;
+        opacity: 0.5;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 200px 240px 212px 162px;
+        border-bottom: 1px solid var(--border);
+        font-size: 26px;
+        color: var(--muted);
+      }
+      .row > span {
+        padding: 20px 28px;
+        border-right: 1px solid var(--border);
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .row > span:last-child {
+        border-right: 0;
+      }
+      .row.head {
+        background: var(--surface-2);
+        font-size: 21px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .row:last-child {
+        border-bottom: 0;
+      }
+      /* ---------------------------------------------------------- app chrome */
+      #chrome {
+        position: absolute;
+        inset: 0;
+      }
+      #topbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 98px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 0 60px;
+        background: var(--bg-2);
+        border-bottom: 1px solid var(--border);
+      }
+      #brandmark {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      #brandmark img {
+        width: 46px;
+        height: 46px;
+        border-radius: 11px;
+        display: block;
+      }
+      #wordmark {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 40px;
+        letter-spacing: -0.01em;
+      }
+      #wordmark .dex {
+        color: var(--muted);
+      }
+      #searchbox {
+        flex: 1;
+        max-width: 760px;
+        height: 54px;
+        border: 1px solid var(--border);
+        border-radius: 27px;
+        background: var(--surface);
+        display: flex;
+        align-items: center;
+        padding: 0 26px;
+        color: var(--muted);
+        font-size: 24px;
+      }
+      #asof {
+        margin-left: auto;
+        text-align: right;
+        color: var(--muted);
+        font-size: 19px;
+        line-height: 1.35;
+      }
+      #toolbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 98px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        padding: 0 60px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .pill {
+        height: 44px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        background: var(--surface-2);
+        display: flex;
+        align-items: center;
+        padding: 0 18px;
+        color: var(--muted);
+        font-size: 20px;
+      }
+      #count {
+        font-size: 28px;
+        font-weight: 600;
+        color: var(--text);
+        font-variant-numeric: tabular-nums;
+      }
+      #toolbar .right {
+        margin-left: auto;
+        display: flex;
+        gap: 18px;
+      }
+
+      /* ------------------------------------------------------------ S2 wall */
+      #wall {
+        position: absolute;
+        left: 176px;
+        top: 214px;
+        bottom: auto;
+        width: 1568px;
+      }
+      #wall-glow {
+        position: absolute;
+        left: 0;
+        top: 60px;
+        width: 1920px;
+        height: 1020px;
+        opacity: 0;
+      }
+      #wall-glow-inner {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse 120% 95% at 50% 42%,
+          rgba(124, 92, 255, 0.24) 0%,
+          rgba(124, 92, 255, 0.15) 38%,
+          rgba(34, 211, 238, 0.06) 66%,
+          rgba(124, 92, 255, 0) 100%
+        );
+        opacity: 0.8;
+      }
+      #wall-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 296px);
+        gap: 22px;
+      }
+      .tile {
+        width: 296px;
+        height: 398px;
+        border-radius: var(--r);
+        overflow: hidden;
+        background: var(--surface-2);
+        box-shadow: var(--sh-2);
+        display: block;
+      }
+      .tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      /* --------------------------------------------------------- S3 sidebar */
+      #sidebar {
+        position: absolute;
+        left: 56px;
+        top: 214px;
+        bottom: auto;
+        width: 392px;
+        padding: 26px 24px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        box-shadow: var(--sh-2);
+      }
+      #sidebar h2 {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 20px;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        margin-bottom: 20px;
+      }
+      #facet-filter {
+        height: 48px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: var(--surface-2);
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        color: var(--muted);
+        font-size: 20px;
+        margin-bottom: 18px;
+      }
+      .facet {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 15px 4px;
+        font-size: 25px;
+        opacity: 0;
+      }
+      .facet .box {
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--muted);
+        border-radius: 5px;
+        flex: 0 0 auto;
+        display: block;
+      }
+      .facet .name {
+        color: var(--text);
+      }
+      .facet .n {
+        margin-left: auto;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      #facet-note {
+        position: absolute;
+        left: 56px;
+        top: 1010px;
+        color: var(--muted);
+        font-size: 27px;
+        opacity: 0;
+      }
+
+      /* ------------------------------------------------------------ S4 recs */
+      #recs-head {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 196px;
+        text-align: center;
+        font-size: 56px;
+        opacity: 0;
+      }
+      #recs-head .arrow {
+        color: var(--accent-2);
+      }
+      #recs-row {
+        position: absolute;
+        left: 410px;
+        top: 286px;
+        display: flex;
+        gap: 40px;
+      }
+      .rec {
+        width: 340px;
+        height: 453px;
+        border-radius: var(--r);
+        overflow: hidden;
+        background: var(--surface-2);
+        box-shadow: var(--sh-3);
+        opacity: 0;
+        display: block;
+      }
+      .rec img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      #reason {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 760px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        opacity: 0;
+      }
+      #reason span {
+        border: 1px solid var(--accent-line);
+        background: var(--accent-soft);
+        color: var(--text);
+        border-radius: 22px;
+        padding: 10px 26px;
+        font-size: 26px;
+      }
+      #claim {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 846px;
+        text-align: center;
+      }
+      #claim div {
+        font-size: 60px;
+        line-height: 1.16;
+        opacity: 0;
+      }
+      #claim .yours {
+        color: var(--accent);
+      }
+
+      /* ---------------------------------------------------------- S5 galaxy */
+      #galaxy {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      #galaxy-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        opacity: 0;
+      }
+      #stat {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 74px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        opacity: 0;
+      }
+      #stat span {
+        background: rgba(14, 17, 23, 0.78);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 14px 34px;
+        font-size: 30px;
+        color: var(--text);
+        font-variant-numeric: tabular-nums;
+      }
+      #stat b {
+        font-weight: 600;
+      }
+      #stat i {
+        font-style: normal;
+        color: var(--muted);
+      }
+      #dim {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+        opacity: 0;
+      }
+      #signoff {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+      }
+      #signoff-mark {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        opacity: 0;
+      }
+      #signoff-mark svg {
+        width: 92px;
+        height: 92px;
+        display: block;
+      }
+      #signoff-mark span {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 128px;
+        letter-spacing: -0.02em;
+      }
+      #signoff-mark .dex {
+        color: var(--muted);
+      }
+      #signoff-line {
+        font-size: 44px;
+        color: var(--text);
+        opacity: 0;
+      }
+      #signoff-url {
+        font-size: 27px;
+        color: var(--accent-2);
+        letter-spacing: 0.04em;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="22.6"
+      data-fps="30"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- ============================================== S1 · 0 – 3.4 ====== -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.4" data-track-index="0">
+        <h1 id="s1-line" class="display">It's a spreadsheet.</h1>
+        <div id="s1-sheet">
+          <div class="row head">
+            <span>Title</span><span>Platform</span><span>Release Date</span
+            ><span>Completed</span><span>Rating</span>
+          </div>
+          <div class="row">
+            <span>Atlyss</span><span>PC</span><span>Early Access</span><span>—</span><span>—</span>
+          </div>
+          <div class="row">
+            <span>Baldi's Basics Plus</span><span>PC</span><span>Early Access</span><span>—</span
+            ><span>—</span>
+          </div>
+          <div class="row">
+            <span>Gloomwood</span><span>PC</span><span>Early Access</span><span>—</span
+            ><span>—</span>
+          </div>
+          <div class="row">
+            <span>Repetendium</span><span>PC</span><span>Early Access</span><span>—</span
+            ><span>—</span>
+          </div>
+          <div class="row">
+            <span>Sky: Children of the Light</span><span>PC</span><span>Early Access</span
+            ><span>—</span><span>82</span>
+          </div>
+          <div class="row">
+            <span>Shelley Manor</span><span>PC</span><span>Early Access</span><span>—</span
+            ><span>—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================== app chrome · 3.4 – 17.0 ==== -->
+      <section id="chrome" class="clip" data-start="3.4" data-duration="13.6" data-track-index="1">
+        <div id="topbar">
+          <div id="brandmark">
+            <img src="assets/img/icon.svg" alt="" />
+            <span id="wordmark">Game<span class="dex">dex</span></span>
+          </div>
+          <div id="searchbox">Search my games…</div>
+          <div id="asof">data as of<br />Aug 25, 2026</div>
+        </div>
+        <div id="toolbar">
+          <div class="pill">Filter this list…</div>
+          <div id="count">0 games</div>
+          <div class="right">
+            <div class="pill">Sort · Release Date</div>
+            <div class="pill">Per page · 50</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ S2 wall · 3.4 – 11.6 -->
+      <div id="wall-glow" class="clip" data-start="3.4" data-duration="8.2" data-track-index="2">
+        <div id="wall-glow-inner"></div>
+      </div>
+      <section id="wall" class="clip" data-start="3.4" data-duration="8.2" data-track-index="3">
+        <div id="wall-grid">
+          <div class="tile"><img src="assets/img/cover-atlyss.jpg" alt="Atlyss" /></div>
+          <div class="tile"><img src="assets/img/cover-baldis.jpg" alt="Baldi's Basics Plus" /></div>
+          <div class="tile">
+            <img src="assets/img/cover-dimensional.jpg" alt="Dimensional Slaughter" />
+          </div>
+          <div class="tile"><img src="assets/img/cover-genesis.jpg" alt="Genesis Survivors" /></div>
+          <div class="tile"><img src="assets/img/cover-forcereboot.jpg" alt="Force Reboot" /></div>
+          <div class="tile"><img src="assets/img/cover-gloomwood.jpg" alt="Gloomwood" /></div>
+          <div class="tile"><img src="assets/img/cover-repetendium.jpg" alt="Repetendium" /></div>
+          <div class="tile"><img src="assets/img/cover-rethm.jpg" alt="Re:|THM" /></div>
+          <div class="tile"><img src="assets/img/cover-shelley.jpg" alt="Shelley Manor" /></div>
+          <div class="tile">
+            <img src="assets/img/cover-sky.jpg" alt="Sky: Children of the Light" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================= S3 facets · 7.5 – 11.6 -->
+      <section id="sidebar" class="clip" data-start="7.5" data-duration="4.1" data-track-index="4">
+        <h2>PLATFORM</h2>
+        <div id="facet-filter">Filter platform…</div>
+        <div class="facet" id="facet-pc">
+          <span class="box" id="facet-pc-box"></span><span class="name">PC</span
+          ><span class="n">5,279</span>
+        </div>
+        <div class="facet" id="facet-switch">
+          <span class="box"></span><span class="name">Nintendo Switch</span
+          ><span class="n">948</span>
+        </div>
+        <div class="facet" id="facet-snes">
+          <span class="box"></span><span class="name">SNES</span><span class="n">449</span>
+        </div>
+      </section>
+      <div id="facet-note" class="clip" data-start="7.5" data-duration="4.1" data-track-index="5">
+        165 platforms · 288 pages · all of it filtered in your browser.
+      </div>
+
+      <!-- =========================================== S4 recs · 11.6 – 17.0 -->
+      <h2 id="recs-head" class="clip display" data-start="11.6" data-duration="5.4" data-track-index="6">
+        <span class="arrow">↗</span> You'd probably love
+      </h2>
+      <section id="recs-row" class="clip" data-start="11.6" data-duration="5.4" data-track-index="7">
+        <div class="rec" id="rec-1">
+          <img src="assets/img/rec-oblivion.jpg" alt="The Elder Scrolls IV: Oblivion Remastered" />
+        </div>
+        <div class="rec" id="rec-2">
+          <img src="assets/img/rec-seiken.jpg" alt="Seiken Densetsu 3" />
+        </div>
+        <div class="rec" id="rec-3">
+          <img src="assets/img/rec-skyrim.jpg" alt="The Elder Scrolls V: Skyrim" />
+        </div>
+      </section>
+      <div id="reason" class="clip" data-start="11.6" data-duration="5.4" data-track-index="8">
+        <span>Because you liked Yakuza 0</span>
+      </div>
+      <div id="claim" class="clip" data-start="11.6" data-duration="5.4" data-track-index="9">
+        <div id="claim-1" class="display">369,802 in the catalogue.</div>
+        <div id="claim-2" class="display yours">14,387 are yours.</div>
+      </div>
+
+      <!-- ========================================= S5 galaxy · 17.0 – 22.6 -->
+      <section id="galaxy" class="clip" data-start="17" data-duration="5.6" data-track-index="10">
+        <img
+          id="galaxy-img"
+          src="assets/img/galaxy-canvas.jpg"
+          alt="The Galaxy view"
+          data-layout-allow-overflow="true"
+        />
+        <div id="stat">
+          <span
+            ><b id="stat-stars">0</b> stars <i>·</i> <b id="stat-links">0</b> links <i>·</i>
+            <i>coloured by franchise</i></span
+          >
+        </div>
+        <div id="dim"></div>
+        <div id="signoff">
+          <div id="signoff-mark">
+            <svg viewBox="0 0 64 64" role="img" aria-label="">
+              <defs>
+                <linearGradient id="gmark" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#8B6CFF" /><stop offset="1" stop-color="#4F2FE0" />
+                </linearGradient>
+              </defs>
+              <rect width="64" height="64" rx="15" fill="url(#gmark)" />
+              <path d="M16 15h21.5L48 25.5V49a4 4 0 0 1-4 4H20a4 4 0 0 1-4-4z" fill="#fff" />
+              <rect x="21" y="20.5" width="22" height="16" rx="3" fill="#4F2FE0" opacity=".15" />
+              <path d="M29.9 24.6h4.2v2.8h2.8v4.2h-2.8v2.8h-4.2v-2.8h-2.8v-4.2h2.8z" fill="#4F2FE0" />
+              <rect x="22.5" y="42.5" width="4.2" height="5.5" rx="1.2" fill="#4F2FE0" opacity=".8" />
+              <rect x="29.9" y="42.5" width="4.2" height="5.5" rx="1.2" fill="#4F2FE0" opacity=".8" />
+              <rect x="37.3" y="42.5" width="4.2" height="5.5" rx="1.2" fill="#4F2FE0" opacity=".8" />
+            </svg>
+            <span>Game<span class="dex">dex</span></span>
+          </div>
+          <div id="signoff-line">Still just a spreadsheet.</div>
+          <div id="signoff-url">games.diemer.codes</div>
+        </div>
+      </section>
+
+      <!-- ================================================== audio =========
+           Music bed plus nine dry, low-HF-risk accents. Scene 1 is deliberately
+           silent: the anticlimax needs the room. -->
+      <audio
+        id="bgm"
+        src="assets/music/happy-beats-business-moves-vol-11-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="22.6"
+        data-track-index="20"
+        data-volume="1"
+      ></audio>
+      <audio id="sfx-wordmark" src="assets/sfx/impactSoft_medium_001.ogg" data-start="3.7" data-track-index="21" data-volume="0.5"></audio>
+      <audio id="sfx-settle" src="assets/sfx/bong_001.ogg" data-start="5.55" data-track-index="22" data-volume="0.3"></audio>
+      <audio id="sfx-facet-1" src="assets/sfx/click_002.ogg" data-start="7.91" data-track-index="23" data-volume="0.5"></audio>
+      <audio id="sfx-facet-2" src="assets/sfx/click_002.ogg" data-start="8.96" data-track-index="24" data-volume="0.5"></audio>
+      <audio id="sfx-facet-3" src="assets/sfx/click_002.ogg" data-start="10.01" data-track-index="25" data-volume="0.5"></audio>
+      <audio id="sfx-tick" src="assets/sfx/switch_002.ogg" data-start="11.06" data-track-index="26" data-volume="0.5"></audio>
+      <audio id="sfx-card-1" src="assets/sfx/card-slide-1.ogg" data-start="11.6" data-track-index="27" data-volume="0.4"></audio>
+      <audio id="sfx-card-2" src="assets/sfx/card-slide-2.ogg" data-start="12.65" data-track-index="28" data-volume="0.4"></audio>
+      <audio id="sfx-card-3" src="assets/sfx/card-slide-3.ogg" data-start="13.7" data-track-index="29" data-volume="0.4"></audio>
+      <audio id="sfx-claim" src="assets/sfx/impactSoft_medium_004.ogg" data-start="14.76" data-track-index="30" data-volume="0.45"></audio>
+      <audio id="sfx-galaxy" src="assets/sfx/impactSoft_medium_002.ogg" data-start="17.91" data-track-index="31" data-volume="0.5"></audio>
+    </div>
+
+    <script>
+      /* ------------------------------------------------------------------
+         Timing map. Beat data comes from the /brag preset for this track
+         (114.84 BPM, beat grid 0.52s). Three strong-cue locks only, per the
+         brief; sequential text sits on every OTHER beat so each line clears
+         the reading floor.
+         ------------------------------------------------------------------ */
+      var EASE = "power3.out";
+      var tl = gsap.timeline({ paused: true });
+
+      // Counts up an integer into an element, en-US grouped, tabular figures.
+      function countTo(id, from, to, at, dur, suffix) {
+        var el = document.getElementById(id);
+        var o = { v: from };
+        tl.to(
+          o,
+          {
+            v: to,
+            duration: dur,
+            ease: "power2.out",
+            onUpdate: function () {
+              el.textContent = Math.round(o.v).toLocaleString("en-US") + (suffix || "");
+            },
+          },
+          at
+        );
+      }
+
+      /* ===== S1 · 0 – 3.4 — the anticlimax ============================== */
+      // The sheet drifts a hair so the frame is not dead, and nothing else moves.
+      tl.fromTo("#s1-sheet", { y: 16 }, { y: -16, duration: 3.4, ease: "none" }, 0);
+      tl.fromTo("#s1-line", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.7, ease: EASE }, 0.3);
+      // 1.60s is a strong cue, but the hook reads better settled early and held,
+      // so this one stays on natural timing. ~2.4s settled for three words.
+      tl.to("#s1-line", { opacity: 0, duration: 0.3, ease: "power2.in" }, 3.1);
+      tl.to("#s1-sheet", { opacity: 0, duration: 0.35, ease: "power2.in" }, 3.05);
+
+      /* ===== S2 · 3.4 – 11.6 — the collection =========================== */
+      // beat-locked: 3.70s (strong cue 1.00) — wordmark + cover wall land together
+      tl.fromTo("#topbar", { opacity: 0, y: -26 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 3.7);
+      tl.fromTo("#brandmark", { opacity: 0, x: -22 }, { opacity: 1, x: 0, duration: 0.5, ease: EASE }, 3.7);
+      tl.fromTo("#toolbar", { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" }, 3.95);
+      tl.fromTo(
+        "#wall-grid .tile",
+        { opacity: 0, y: 44, scale: 0.955 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.72, ease: EASE, stagger: 0.045 },
+        3.7
+      );
+      tl.fromTo("#wall-glow", { opacity: 0 }, { opacity: 1, duration: 0.9, ease: "power2.out" }, 3.7);
+      // The counter is the "14,387" feeling: it runs while the wave lands, then settles.
+      countTo("count", 1, 14387, 4.15, 1.4, " games");
+
+      /* ===== S3 · 7.5 – 11.6 — it filters itself ======================== */
+      // The wall makes room rather than cutting away, so the sidebar reads as the
+      // app's own sidebar opening.
+      tl.to("#wall", { x: 250, scale: 0.86, duration: 0.7, ease: EASE }, 7.5);
+      tl.to("#wall-glow", { x: 170, duration: 0.7, ease: EASE }, 7.5);
+      tl.fromTo("#sidebar", { opacity: 0, x: -70 }, { opacity: 1, x: 0, duration: 0.6, ease: EASE }, 7.5);
+      // beat-grid: facet rows on every OTHER beat — 7.91 / 8.96 / 10.01 (1.05s apart),
+      // so each row is legible instead of outrunning the read.
+      [
+        ["#facet-pc", 7.91],
+        ["#facet-switch", 8.96],
+        ["#facet-snes", 10.01],
+      ].forEach(function (r) {
+        tl.fromTo(r[0], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.42, ease: EASE }, r[1]);
+      });
+      tl.fromTo("#facet-note", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 8.35);
+      // 11.06 — the PC facet ticks itself and the count becomes the filtered count,
+      // which is exactly what the app does client-side.
+      tl.fromTo(
+        "#facet-pc-box",
+        { backgroundColor: "rgba(124,92,255,0)", borderColor: "#8a94a6" },
+        { backgroundColor: "#7c5cff", borderColor: "#7c5cff", duration: 0.2, ease: "power2.out" },
+        11.06
+      );
+      countTo("count", 14387, 5279, 11.06, 0.34, " games");
+      tl.to("#wall", { opacity: 0.35, duration: 0.3, ease: "power2.out" }, 11.06);
+
+      /* ===== S4 · 11.6 – 17.0 — it recommends what you don't own ======== */
+      tl.fromTo("#recs-head", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 11.6);
+      // beat-grid: cards on every other beat — 11.60 / 12.65 / 13.70.
+      // beat-locked: 11.60s is the strong-cue neighbourhood for the first card.
+      [
+        ["#rec-1", 11.6],
+        ["#rec-2", 12.65],
+        ["#rec-3", 13.7],
+      ].forEach(function (r) {
+        tl.fromTo(
+          r[0],
+          { opacity: 0, y: 56, scale: 0.94 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: EASE },
+          r[1]
+        );
+      });
+      // The reason gets its own later beat so it is read, not skimmed.
+      tl.fromTo("#reason", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: EASE }, 14.22);
+      // The claim lands on the 14.76 beat. The cards step back rather than leaving,
+      // so the reason chip keeps its full ~2.5s read and the frame stays stacked:
+      // cards 286-739, reason 760-810, claim 846-980.
+      tl.to("#recs-row", { opacity: 0.72, duration: 0.6, ease: "power2.out" }, 14.7);
+      tl.to("#recs-head", { opacity: 0.5, duration: 0.5, ease: "power2.out" }, 14.7);
+      tl.fromTo("#claim-1", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 14.76);
+      tl.fromTo("#claim-2", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 15.28);
+      tl.to("#claim div", { opacity: 0, duration: 0.3, ease: "power2.in", stagger: 0.04 }, 16.72);
+      tl.to("#recs-row", { opacity: 0, duration: 0.3, ease: "power2.in" }, 16.72);
+      tl.to("#reason", { opacity: 0, duration: 0.3, ease: "power2.in" }, 16.72);
+      tl.to("#recs-head", { opacity: 0, duration: 0.3, ease: "power2.in" }, 16.72);
+
+      /* ===== S5 · 17.0 – 22.6 — galaxy, then the sign-off =============== */
+      // beat-locked: 17.91s (strong cue 1.00) — the galaxy blooms on the hit.
+      tl.set("#galaxy-img", { opacity: 0, scale: 1.01 }, 0);
+      tl.to("#galaxy-img", { opacity: 1, duration: 0.75, ease: "power2.out" }, 17.91);
+      tl.to("#galaxy-img", { scale: 1.1, duration: 3.6, ease: "none" }, 17.91);
+      tl.fromTo("#stat", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 18.3);
+      countTo("stat-stars", 0, 3000, 18.4, 1.1);
+      countTo("stat-links", 0, 9313, 18.4, 1.25);
+      // Collapse to near-black so the punchline reads in quiet.
+      tl.to("#stat", { opacity: 0, duration: 0.4, ease: "power2.in" }, 20.25);
+      tl.to("#dim", { opacity: 0.975, duration: 0.75, ease: "power2.inOut" }, 20.2);
+      tl.fromTo("#signoff-mark", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.55, ease: EASE }, 20.54);
+      tl.fromTo("#signoff-line", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 21.07);
+      tl.fromTo("#signoff-url", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 21.59);
+
+      /* ===== music ====================================================== */
+      // Low under the hook, open on the cover wall, out under the punchline.
+      tl.fromTo("#bgm", { volume: 0.32 }, { volume: 0.32, duration: 3.6, ease: "none" }, 0);
+      tl.to("#bgm", { volume: 0.86, duration: 0.6, ease: "power2.out" }, 3.6);
+      tl.to("#bgm", { volume: 0, duration: 1.5, ease: "power2.in" }, 21.1);
+
+      /* ===== audio-reactive layer ======================================
+         Pre-extracted per-frame bands (assets/js/audio-data.js). Two subtle
+         targets only, as the brief specifies: the violet glow behind the cover
+         wall breathes on bass, and the galaxy's brightness/saturation breathes
+         on bass. No bars, no spectrum, no particles. Per-frame tl.call, so it
+         is seek-exact rather than a single tween.
+         ================================================================= */
+      (function audioReactive() {
+        var data = window.AUDIO_DATA;
+        if (!data || !data.frames || !data.frames.length) return;
+        var glow = document.getElementById("wall-glow-inner");
+        var img = document.getElementById("galaxy-img");
+        var fps = data.fps;
+        for (var f = 0; f < data.totalFrames; f++) {
+          var t = f / fps;
+          // Only sample inside the two windows that actually use it.
+          var inWall = t >= 3.7 && t < 11.6;
+          var inGalaxy = t >= 17.91 && t < 20.6;
+          if (!inWall && !inGalaxy) continue;
+          tl.call(
+            (function (frame, wall, galaxyWin) {
+              return function () {
+                var bass = frame.bands[0];
+                var low = (frame.bands[0] + frame.bands[1] + frame.bands[2]) / 3;
+                if (wall) {
+                  // 0.62 – 0.98: a breath on the glow, never a strobe.
+                  glow.style.opacity = (0.62 + low * 0.36).toFixed(3);
+                }
+                if (galaxyWin) {
+                  // ±4% brightness, ±6% saturation. The stars appear to pulse
+                  // because the frame does, not because anything was drawn on it.
+                  img.style.filter =
+                    "brightness(" + (0.98 + bass * 0.08).toFixed(3) +
+                    ") saturate(" + (1 + low * 0.12).toFixed(3) + ")";
+                }
+              };
+            })(data.frames[f], inWall, inGalaxy),
+            [],
+            t
+          );
+        }
+      })();
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

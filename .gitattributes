@@ -1,0 +1,5 @@
+# The /brag launch video and its audio assets. Scoped to brag-output/ on purpose:
+# a bare *.mp4 pattern would also claim any future media elsewhere in the repo.
+brag-output/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+brag-output/**/*.mp3 filter=lfs diff=lfs merge=lfs -text
+brag-output/**/*.ogg filter=lfs diff=lfs merge=lfs -text

@@ -24,5 +24,9 @@ TODO.md
 .gitignore
 values.local.yaml
 
+# The /brag launch video and its Hyperframes project. Not deployed, and the 7 MB mp4
+# alone would blow the 1 MB release-secret cap.
+brag-output/
+
 # 1Password reference templates — never part of the packaged chart.
 values.local.tpl.yaml

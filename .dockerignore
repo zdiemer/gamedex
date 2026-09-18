@@ -11,3 +11,5 @@ Chart.yaml
 *.sh
 README.md
 .dockerignore
+# The /brag launch video — 11 MB of build context the image never COPYs.
+brag-output/
