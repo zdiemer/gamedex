@@ -111,15 +111,24 @@ function storeUrl(key, id) {
 /* ---- RomM: play it in the browser --------------------------------------
    Joined on (IGDB game id, platform) — an id join on both axes, not a title
    match. The catch is that the two systems name the same machine differently:
-   the sheet says "PlayStation", the NAS folder is "PSX". 27 of the 45 playable
-   platforms are spelled identically; these are the rest.
+   the sheet says "PlayStation", the NAS folder is "PSX". Most platforms are
+   spelled identically; these are the rest.
 
    "PC" -> "MS-DOS" is the interesting one. A PC row only lights up if the SAME
    IGDB game also exists in the DOS folder — so Doom gets a Play button and a
    modern Steam game simply doesn't match. The id join makes that safe. */
 const ROMM_PLATFORM = {
   "PlayStation": "PSX",
+  "PlayStation 2": "PS2",
+  "PlayStation 3": "PS3",
+  "PlayStation 4": "PS4",
   "PlayStation Portable": "PSP",
+  "Nintendo GameCube": "GameCube",
+  "Nintendo Wii": "Wii",
+  "Nintendo Wii U": "Wii U",
+  "Nintendo Switch": "Switch",
+  "Sega Dreamcast": "Dreamcast",
+  "SNK Neo Geo CD": "Neo Geo CD",
   "Sega Genesis": "Genesis",
   "Sega Saturn": "Saturn",
   "Sega Master System": "Master System",
@@ -136,6 +145,20 @@ const ROMM_PLATFORM = {
   "Arcade": "MAME",
   "PC": "MS-DOS",
 };
+
+/* Folders with no browser player: RomM plays them only by streaming a native
+   emulator (Dolphin, PCSX2, ...) from the Webstation container. Derived from
+   selfhosted's games/romm/values.yaml: the folders whose platform slug is in
+   `streaming.platforms` but not in RomM 5.3.0's stable EmulatorJS core map.
+   3DS and Intellivision have EJS cores only in the nightly map, which RomM uses
+   only with netplay on (it's off). Every other folder keeps EmulatorJS, which
+   runs locally and doesn't tie up the one shared streaming session. */
+const ROMM_STREAM_ONLY = new Set([
+  "GameCube", "Wii", "WiiWare", "PS2", "Dreamcast", "Nintendo 3DS",
+  "New Nintendo 3DS", "Atari ST", "Intellivision", "MSX", "MSX Turbo R",
+  "MSX2", "Neo Geo CD", "Odyssey 2", "PS3", "PS4", "SG-1000", "ScummVM",
+  "Switch", "Vectrex", "Wii U", "Xbox", "Xbox 360",
+]);
 
 let ROMM = { enabled: false, baseUrl: "", roms: {} };
 async function loadRomm() {
@@ -279,7 +302,7 @@ function rommRomId(row) {
   if (!e || !e.igdbId) return null;
   const folder = ROMM_PLATFORM[row.platform] || row.platform;
   const id = ROMM.roms[`${e.igdbId}|${folder}`];
-  return id != null ? id : null;
+  return id != null ? { id, stream: ROMM_STREAM_ONLY.has(folder) } : null;
 }
 
 // The ROM's EmulatorJS player (/rom/<id>/ejs) on every device — one URL, no UA
@@ -287,14 +310,16 @@ function rommRomId(row) {
 // Console Mode (/console/rom/<id>/play), whose controller-style shell
 // white-screens on iOS Safari (the core never boots); mobile fell back to the
 // ROM's detail page because the /ejs deep-link was unreliable on phones. That
-// mobile caveat no longer holds, so /ejs serves both.
-const rommPlayUrl = (id) => `${ROMM.baseUrl}/rom/${id}/ejs`;
+// mobile caveat no longer holds, so /ejs serves both. Streamed platforms use
+// /stream instead, since /ejs has no core for them.
+const rommPlayUrl = (rom) => `${ROMM.baseUrl}/rom/${rom.id}/${rom.stream ? "stream" : "ejs"}`;
 
 function rommHtml(row) {
-  const id = rommRomId(row);
-  if (!id) return "";
-  return `<a class="btn play" href="${escapeHtml(rommPlayUrl(id))}" target="_blank" rel="noopener"
-     title="Play in the browser via RomM">${icon("i-play", 15)} Play now</a>`;
+  const rom = rommRomId(row);
+  if (!rom) return "";
+  const how = rom.stream ? "Stream it from the emulator host via RomM" : "Play in the browser via RomM";
+  return `<a class="btn play" href="${escapeHtml(rommPlayUrl(rom))}" target="_blank" rel="noopener"
+     title="${how}">${icon("i-play", 15)} Play now</a>`;
 }
 
 // The map arrives after the drawer (or the pick) may already be on screen; fill the buttons
