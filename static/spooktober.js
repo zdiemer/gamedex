@@ -28,7 +28,7 @@ const SPOOK = {
   mode: "fill",       // "fill" — walk on to the next empty night; "swap" — stay on this one
   q: "",              // the picker's search box
   all: false,         // picker is showing the whole collection, not just the horror pool
-  loaded: false,      // the server's copy has landed (or failed) at least once
+  loaded: false,      // the server's copy is loading or has landed successfully
   // Two one-shot animation flags. Both are read by the NEXT render and cleared by it, so a
   // repaint that wasn't an open or a roll — picking a game, typing, toggling "any game" —
   // doesn't replay the movement.
@@ -146,16 +146,21 @@ async function spookSave() {
    the desktop ends up whole, instead of whichever device saved last winning outright. */
 async function spookLoadPrefs() {
   if (SPOOK.loaded) return;
-  SPOOK.loaded = true;
   // Signed out there is nothing up there to merge — /api/prefs answers {} to the public on
   // purpose — and boot already spends one request on it (loadPrefs, extras.js). Don't spend
   // a second one to be told the same thing.
   if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return;
+  SPOOK.loaded = true;          // also deduplicates requests while the first is in flight
   let raw = null;
   try {
-    const j = await (await fetch("api/prefs")).json();
+    const r = await fetch("api/prefs");
+    if (!r.ok) throw new Error(`api/prefs returned ${r.status}`);
+    const j = await r.json();
     raw = (j.prefs || {}).spooktober;
-  } catch (_) { return; }        // offline: the local mirror stands in
+  } catch (_) {
+    SPOOK.loaded = false;       // keep the local mirror; retry on the next visit/render
+    return;
+  }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
   const remote = spookMigrate(raw);      // the server may still be holding a v1 file
   const file = spookFile();

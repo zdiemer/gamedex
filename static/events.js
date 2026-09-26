@@ -249,13 +249,18 @@ async function evSave() {
    conservative answer — it can never delete work you did here. */
 async function evLoadPrefs() {
   if (EV_LOADED) return;
-  EV_LOADED = true;
   if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return;   // /api/prefs answers {} to the public
+  EV_LOADED = true;             // deduplicate requests, but allow failed loads to retry
   let remote = null;
   try {
-    const j = await (await fetch("api/prefs")).json();
+    const r = await fetch("api/prefs");
+    if (!r.ok) throw new Error(`api/prefs returned ${r.status}`);
+    const j = await r.json();
     remote = (j.prefs || {}).events;
-  } catch (_) { return; }                                     // offline: the mirror stands in
+  } catch (_) {
+    EV_LOADED = false;
+    return;                                                  // offline: the mirror stands in
+  }
   if (!remote || typeof remote !== "object" || !remote.ev) return;
   const f = evFile();
   let changed = false;
