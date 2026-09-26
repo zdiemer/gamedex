@@ -161,7 +161,6 @@ async function spookLoadPrefs() {
     SPOOK.loaded = false;       // keep the local mirror; retry on the next visit/render
     return;
   }
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
   const remote = spookMigrate(raw);      // the server may still be holding a v1 file
   const file = spookFile();
   let changed = false;
@@ -182,6 +181,14 @@ async function spookLoadPrefs() {
     for (const d of days) if (!mine.includes(+d)) { mine.push(+d); changed = true; }
   }
   try { localStorage.setItem(SPOOK_LOCAL, JSON.stringify(file)); } catch (_) {}
+  // A phone can hold the only copy after an offline/failed save. Reading the server
+  // alone never repairs that: upload the merged file when local nights or pins are
+  // missing remotely, so a fresh browser can finally see them too.
+  const unsynced = Object.entries(file.cal).some(([year, nights]) =>
+    Object.keys(nights).some((day) => !(day in (remote.cal[year] || {}))))
+    || Object.entries(file.pins).some(([year, days]) =>
+      days.some((day) => !(remote.pins[year] || []).includes(+day)));
+  if (unsynced) await spookSave();
   if (changed && activeTab === "spooktober") renderSpooktober();
   else if (changed && activeTab === "home" && typeof patchSpookBanner === "function") patchSpookBanner();
 }
@@ -461,7 +468,7 @@ function spookNightHtml(day, row) {
   const pinned = !!row && spookIsPinned(day);
   // Dealt in the order the dice touched them, capped so the last card isn't a wait.
   const deal = SPOOK.dealt ? SPOOK.dealt.indexOf(day) : -1;
-  const cls = ["spk-night", row ? "filled" : "empty", isToday ? "today" : "", past ? "past" : "",
+  const cls = ["spk-night", row ? "filled" : "spk-empty", isToday ? "today" : "", past ? "past" : "",
     pinned ? "pinned" : "", deal >= 0 ? "spk-dealt" : ""].filter(Boolean).join(" ");
   const delay = deal >= 0 ? ` style="--d:${Math.min(deal, 24) * 34}ms"` : "";
   const num = `<span class="spk-num">${day}${isToday ? `<em>tonight</em>` : ""}</span>`;
