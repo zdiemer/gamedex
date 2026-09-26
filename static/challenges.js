@@ -296,7 +296,7 @@ const CH_FRANCHISE_CONTENDERS = new Set([
 // domain:  which games the challenge is about at all (default: everything)
 // pool:    which games count as "still to do" (default: unplayed candidates)
 // clear:   which completions can clear a bucket (default: same as domain)
-// keySort: how to order buckets in the detail view (default: biggest first)
+// keySort: how to order buckets in the detail view (default: alphabetical)
 const CHALLENGES = [
   {
     id: "platform", icon: "i-dice", name: "One Per Platform",
@@ -615,7 +615,7 @@ function chKeySort(c) {
   return col && col.keySort ? col.keySort : null;
 }
 
-// Order buckets for display: the challenge's own key order, else biggest first.
+// Order buckets for display: the challenge's own key order, else alphabetical.
 function chSortBuckets(res, map) {
   const entries = [...map.entries()];
   const ks = chKeySort(res.c);
@@ -625,7 +625,7 @@ function chSortBuckets(res, map) {
       const cmp = x < y ? -1 : x > y ? 1 : 0;
       return res.c.sortDesc ? -cmp : cmp;
     }
-    return b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0]));
+    return String(a[0]).localeCompare(String(b[0]), undefined, { sensitivity: "base" });
   });
   return entries;
 }
