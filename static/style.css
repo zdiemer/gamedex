@@ -6192,6 +6192,41 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   margin-top: 6px; font-size: 11.5px; line-height: 1.3; font-weight: 600;
 }
 .spk-slot-s { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+/* What the game costs the month, in nights. Only ever present at a pace — at one game a
+   night the number is 1 on all 31 cards, which is decoration. `warn` is a run still laid out
+   to a pace that has since changed, so it reads as something to act on rather than as a fact
+   about the game. */
+.spk-span {
+  display: block; margin-top: 3px; font: 700 9.5px/1.25 var(--display);
+  letter-spacing: .04em; text-transform: uppercase; color: var(--spk-flame);
+}
+.spk-span.warn { color: var(--warn); text-decoration: underline dotted; }
+
+/* The middle nights of a run: the same cell, emptied out. No cover (the run's head has it,
+   two cells over), no pin and no Clear — one run, one set of controls — but still a whole
+   cell, because October has to keep its shape and a seven-column grid cannot hold a
+   ten-column card. */
+.spk-cont { padding: 26px 8px 10px; min-height: 132px; }
+.spk-cont-in {
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  width: 100%; height: 100%; min-height: 92px; cursor: pointer; text-align: left;
+  padding: 0 2px; background: transparent; border: none; color: inherit; font-family: inherit;
+}
+.spk-cont-t {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 11px; line-height: 1.3; font-weight: 600; color: var(--muted);
+}
+.spk-cont-n {
+  font: 700 9px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--dim);
+}
+.spk-cont:hover .spk-cont-t { color: var(--text); }
+/* The run is one block: its continuations carry the same left edge as its head, drawn as a
+   rail so a ten-night game reads as one thing across two rows of the grid. */
+.spk-cont::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
+  width: 2px; border-radius: 2px; background: rgba(255, 122, 24, .45);
+}
+.spk-cont.pinned::before { background: var(--spk-flame); }
 /* Change and Clear only appear on the cell you're pointing at: 31 cells each wearing a row
    of permanent buttons is a wall of chrome over the art you came to look at. Keyboard users
    get them from :focus-within, and touch — where there is no hover to point WITH — gets them
@@ -6231,6 +6266,18 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .spk-night.pinned { border-color: rgba(255, 176, 58, .6); }
 .spk-night.pinned .spk-cover { border-color: rgba(255, 176, 58, .5); }
+/* The pace. A row under the dice rather than a button among them: it is a setting, and the
+   three controls above it all DO something to the month the moment you press them. */
+.spk-pace {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px;
+  margin-top: 14px; font-size: 12px; color: #d9c6b2;
+}
+.spk-pace label { color: #f6ead9; font-weight: 600; }
+.spk-pace-sel {
+  background: rgba(8, 7, 12, .72); border-color: rgba(255, 176, 58, .4); color: #f6ead9;
+}
+.spk-pace-sel:hover, .spk-pace-sel:focus { border-color: var(--spk-flame); }
+.spk-pace-note { color: var(--muted); }
 .spk-pinnote {
   display: flex; align-items: center; gap: 6px;
   margin-top: 10px; font-size: 12px; color: #d9c6b2;
@@ -6308,6 +6355,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .spk-taken { display: block; color: var(--spk-flame); font-weight: 600; }
 /* Only ever seen in "any game" mode: the horror pool has already dropped these. */
 .spk-fin { display: block; color: var(--good); font-weight: 600; }
+/* What this candidate would cost the month, at the current pace. */
+.spk-cost { display: block; color: var(--muted); }
+.spk-cost.warn { color: var(--warn); }
 .spk-none, .spk-more { max-width: 1180px; margin: 8px auto 0; font-size: 12px; color: var(--muted); }
 
 @media (max-width: 900px) {
