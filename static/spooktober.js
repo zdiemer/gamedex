@@ -317,6 +317,13 @@ function spookPin(day, on) {
 
 const spookTogglePin = (day) => spookPin(day, !spookIsPinned(day));
 
+/* A run whose game you have since finished is a night you KEPT, not one still on offer, so
+   the dice treat it exactly like a pinned one: the pool already refuses finished games, and
+   re-rolling one off the calendar is erasing the record of having played it. It needs no pin
+   to get that — finishing it is the decision. */
+const spookRunDone = (run) => !!(run && run.row && spookIsDone(run.row));
+const spookIsHeld = (run) => spookIsPinned(run.start) || spookRunDone(run);
+
 /* ---- what counts as a horror game -----------------------------------------
    Three rungs, cheapest first:
      1. the sheet's own genre — "Survival Horror" is a column I actually keep, and it is
@@ -383,10 +390,16 @@ function spookPool() {
    suggestion, not a fence: if you want Katamari on the 31st because that is the tradition in
    your house, the calendar is yours. Grouped the same way, so a game you pick here is the
    same card you'd get anywhere else in the app. */
-let _spookAll = null;
+/* Both caches below hold row OBJECTS, so they are keyed to the sheet's hash the way rowsByK
+   is (drawer.js): a sheet reload that marks a game completed replaces the rows, and a cache
+   still holding the old ones would keep calling it unfinished. */
+const spookSheetHash = () => String((DATA.meta || {}).sourceHash || "");
+
+let _spookAll = null, _spookAllAt = null;
 function spookAllGames() {
-  if (_spookAll) return _spookAll;
+  if (_spookAll && _spookAllAt === spookSheetHash()) return _spookAll;
   const rows = ((DATA.sheets.games || {}).rows || []).filter((r) => r.title);
+  _spookAllAt = spookSheetHash();
   return (_spookAll = typeof groupByGame === "function" ? groupByGame(rows) : rows);
 }
 
@@ -394,9 +407,10 @@ function spookAllGames() {
    holds the key of whichever card you picked, and grouping the horror rows and grouping all
    the rows can choose different representatives for the same title — so a game picked in
    "any game" mode would come back unresolved, and the night would render as empty. */
-let _spookIdx = null;
+let _spookIdx = null, _spookIdxAt = null;
 function spookRowIndex() {
-  if (_spookIdx) return _spookIdx;
+  if (_spookIdx && _spookIdxAt === spookSheetHash()) return _spookIdx;
+  _spookIdxAt = spookSheetHash();
   _spookIdx = new Map();
   for (const r of (DATA.sheets.games || {}).rows || []) {
     const k = String(r._k || "");
@@ -458,7 +472,8 @@ const spookGames = () => spookRuns().filter((r) => r.row).length;
    the month behind you — see spookRepack — so these are the cards that admit it. */
 function spookMisfits() {
   if (!spookHpd()) return [];
-  return spookRuns().filter((r) => r.row && r.len !== spookWant(r.start, r.row));
+  // A finished game's nights are history: how long it "should" have taken is moot now.
+  return spookRuns().filter((r) => r.row && !spookRunDone(r) && r.len !== spookWant(r.start, r.row));
 }
 
 // The nights a game would book starting on `day`, clipped at the 31st.
@@ -536,18 +551,21 @@ function spookFits(nights, from, span) {
    change is inert, the mismatch is visible on the cards, and this is the button that acts on
    it — keeping the games, their order, and every pinned run's start night, and re-laying each
    one at the length it now needs. Games that no longer fit anywhere fall off the end and
-   nothing is drawn to replace them; drawing is what Fill is for. */
+   nothing is drawn to replace them; drawing is what Fill is for. A finished game stays exactly
+   where and as long as it was — it is what you played, not a plan to re-lay. */
 function spookRepack() {
   const runs = spookRuns().filter((r) => r.row);
-  const pinned = runs.filter((r) => spookIsPinned(r.start));
-  const loose = runs.filter((r) => !spookIsPinned(r.start));
+  const done = runs.filter(spookRunDone);
+  const pinned = runs.filter((r) => spookIsPinned(r.start) && !spookRunDone(r));
+  const loose = runs.filter((r) => !spookIsHeld(r));
   const nights = spookNightsObj();
   for (const d of Object.keys(nights)) delete nights[d];
+  for (const r of done) for (let d = r.start; d <= r.end; d++) nights[String(d)] = r.key;
   // Pins keep their start night, in date order. A pinned run that now overruns the next
   // pinned start gets clipped by it: the later pin is a promise too, and it names a night.
   for (const r of pinned) {
     const end = Math.min(SPOOK_NIGHTS, r.start + spookSpan(r.row) - 1);
-    for (let d = r.start; d <= end; d++) nights[String(d)] = r.key;
+    for (let d = r.start; d <= end && !(nights[String(d)] && d > r.start); d++) nights[String(d)] = r.key;
   }
   let dropped = 0;
   for (const r of loose) {
@@ -666,11 +684,12 @@ function spookNightHtml(day, run) {
   const st = spookPhase();
   const isToday = st.phase === "during" && st.day === day;
   const past = (st.phase === "during" && day < st.day) || st.phase === "after";
-  const pinned = !!row && spookIsPinned(day);
+  const done = spookRunDone(run);
+  const pinned = !!row && !done && spookIsPinned(day);
   // Dealt in the order the dice touched them, capped so the last card isn't a wait.
   const deal = SPOOK.dealt ? SPOOK.dealt.indexOf(day) : -1;
   const cls = ["spk-night", row ? "filled" : "spk-empty", isToday ? "today" : "", past ? "past" : "",
-    pinned ? "pinned" : "", deal >= 0 ? "spk-dealt" : ""].filter(Boolean).join(" ");
+    pinned ? "pinned" : "", done ? "done" : "", deal >= 0 ? "spk-dealt" : ""].filter(Boolean).join(" ");
   const delay = deal >= 0 ? ` style="--d:${Math.min(deal, 24) * 34}ms"` : "";
   const num = `<span class="spk-num">${day}${isToday ? `<em>tonight</em>` : ""}</span>`;
   if (!row) {
@@ -693,7 +712,10 @@ function spookNightHtml(day, run) {
   const want = spookWant(day, row);
   const nights = run.len > 1 ? `nights ${run.start}–${run.end}` : "one night";
   let pace = "";
-  if (spookHpd()) {
+  if (done) {
+    // Checked off, and it outranks the pace line: whether it "fit" no longer matters.
+    pace = `<span class="spk-span done">${icon("i-check", 10)} Finished</span>`;
+  } else if (spookHpd()) {
     if (run.len !== want) {
       pace = `<span class="spk-span warn">needs ${want} night${want === 1 ? "" : "s"}</span>`;
     } else if (span > run.len) {
@@ -705,9 +727,14 @@ function spookNightHtml(day, run) {
     }
   }
   const range = run.len > 1 ? `October ${run.start}–${run.end}` : `October ${day}`;
+  /* A finished game has nothing to pin — the dice already leave it alone — so the pin's
+     corner becomes the check instead of a toggle that would claim to be doing something. */
+  const corner = done
+    ? `<span class="spk-pin spk-check" title="Finished — the dice will leave ${range} alone">${icon("i-check", 13)}</span>`
+    : `<button class="spk-pin" data-pin="${day}" aria-pressed="${pinned}"
+      title="${pinned ? `${range} is pinned — the dice will leave it alone` : `Pin ${range} so a re-roll keeps it`}">${icon("i-pin", 13)}</button>`;
   return `<div class="${cls}"${delay}>${num}
-    <button class="spk-pin" data-pin="${day}" aria-pressed="${pinned}"
-      title="${pinned ? `${range} is pinned — the dice will leave it alone` : `Pin ${range} so a re-roll keeps it`}">${icon("i-pin", 13)}</button>
+    ${corner}
     <button class="spk-slot" data-open="${k}" title="Open ${escapeHtml(String(row.title))}">
       ${cover}
       <span class="spk-slot-t">${escapeHtml(String(row.title))}</span>
@@ -731,8 +758,9 @@ function spookContHtml(day, run) {
   const isToday = st.phase === "during" && st.day === day;
   const past = (st.phase === "during" && day < st.day) || st.phase === "after";
   const deal = SPOOK.dealt ? SPOOK.dealt.indexOf(day) : -1;
+  const done = spookRunDone(run);
   const cls = ["spk-night", "spk-cont", isToday ? "today" : "", past ? "past" : "",
-    spookIsPinned(run.start) ? "pinned" : "", deal >= 0 ? "spk-dealt" : ""].filter(Boolean).join(" ");
+    done ? "done" : spookIsPinned(run.start) ? "pinned" : "", deal >= 0 ? "spk-dealt" : ""].filter(Boolean).join(" ");
   const delay = deal >= 0 ? ` style="--d:${Math.min(deal, 24) * 34}ms"` : "";
   const title = String((run.row && run.row.title) || "");
   return `<div class="${cls}"${delay}>
@@ -840,10 +868,11 @@ function renderSpooktober() {
   const nights = spookNights();
   const st = spookPhase();
   const runs = spookRuns().filter((r) => r.row);
-  const pinned = runs.filter((r) => spookIsPinned(r.start)).length;
+  const finished = runs.filter(spookRunDone).length;
+  const pinned = runs.filter((r) => spookIsPinned(r.start) && !spookRunDone(r)).length;
   // Games, not nights: at one game per night they are the same number, and at a pace the
   // dice deal in games. "Re-roll 23 unpinned" on a six-game month would be a lie.
-  const rerollable = runs.length - pinned;
+  const rerollable = runs.length - pinned - finished;
   const misfit = spookMisfits().length;
   const hpd = spookHpd();
   const paceSel = SPOOK_PACES.map((p) =>
@@ -879,7 +908,8 @@ function renderSpooktober() {
             : "A game takes one night, however long it is."}</span>
         </div>
         ${misfit ? `<p class="spk-pinnote">${icon("i-clock", 12)} ${misfit} game${misfit === 1 ? "" : "s"} still laid out to a different pace — re-pack to spread ${misfit === 1 ? "it" : "them"} out.</p>` : ""}
-        ${pinned ? `<p class="spk-pinnote">${icon("i-pin", 12)} ${pinned} pinned — a re-roll leaves ${pinned === 1 ? "it" : "them"} alone.</p>` : ""}
+        ${pinned || finished ? `<p class="spk-pinnote">${icon("i-pin", 12)} ${[
+          pinned ? `${pinned} pinned` : "", finished ? `${finished} finished` : ""].filter(Boolean).join(", ")} — a re-roll leaves ${pinned + finished === 1 ? "it" : "them"} alone.</p>` : ""}
       </div>
     </section>
     <div class="spk-wrap">
@@ -1000,12 +1030,12 @@ function wireSpook(host) {
   // Re-roll leaves the pinned runs exactly where they are — that is what a pin is for.
   const reroll = document.getElementById("spookReroll");
   if (reroll) reroll.onclick = () => {
-    const loose = spookRuns().filter((r) => r.row && !spookIsPinned(r.start));
-    if (!loose.length) { if (typeof showToast === "function") showToast("Every night is pinned"); return; }
+    const loose = spookRuns().filter((r) => r.row && !spookIsHeld(r));
+    if (!loose.length) { if (typeof showToast === "function") showToast("Every game is pinned or finished"); return; }
     const days = [];
     for (const r of loose) for (let d = r.start; d <= r.end; d++) days.push(d);
     const held = spookGames() - loose.length;
-    roll(days, (res) => `${rollText("Re-rolled", res)}${held ? ` · ${held} pinned` : ""}`);
+    roll(days, (res) => `${rollText("Re-rolled", res)}${held ? ` · ${held} kept` : ""}`);
   };
 
   /* The pace. Changing it does not touch the calendar — see spookRepack — so the grid you get

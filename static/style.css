@@ -6265,6 +6265,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   opacity: 1; color: #2b0f00; background: var(--spk-flame); border-color: var(--spk-flame);
 }
 .spk-night.pinned { border-color: rgba(255, 176, 58, .6); }
+/* A finished game: checked off rather than dimmed away — the month is a record now as much as
+   a plan. The check sits where the pin would and is never hidden, like a pin that is on. */
+.spk-check { opacity: 1; cursor: default; color: #06200f; background: var(--good); border-color: var(--good); }
+.spk-night.done { border-color: color-mix(in srgb, var(--good) 55%, transparent); }
+.spk-night.done .spk-cover { filter: saturate(.55); }
+.spk-span.done { display: flex; align-items: center; gap: 4px; color: var(--good); }
+.spk-cont.done::before { background: var(--good); }
 .spk-night.pinned .spk-cover { border-color: rgba(255, 176, 58, .5); }
 /* The pace. A row under the dice rather than a button among them: it is a setting, and the
    three controls above it all DO something to the month the moment you press them. */

@@ -119,6 +119,24 @@ run(`spookClearDay(${first[0] + 1})`);
 assert.ok(!runs().some(([s]) => s === first[0]), 'clearing any night of a run clears the run');
 assert.deepEqual(val('spookPins()'), [], 'and takes its pin with it');
 
+// ---- a game you finish after it's on the calendar -------------------------
+// It stays, checked off, and nothing the dice do can take it: the bug this guards is a
+// finished game being re-rolled off the month you played it in.
+run("spookClearAll(); spookSetHpd(2); spookSet(1, 'g1'); spookSet(2, 'g2'); spookSet(10, 'g3')");
+rows[0].completed = true;                                    // g1: finished, never pinned
+run('_spookPool = null');
+assert.ok(run('spookRunDone(spookRunAt(1))'), 'a finished game reads as done on the calendar');
+assert.ok(!run('spookRunDone(spookRunAt(2))'), 'an unfinished one does not');
+assert.ok(run('spookNightHtml(1, spookRunAt(1))').includes('Finished'), 'its card says Finished');
+run(`spookRoll(${JSON.stringify(val('spookRuns().filter((r) => !spookIsHeld(r)).flatMap((r) => Array.from({ length: r.len }, (_, i) => r.start + i))'))})`);
+assert.deepEqual(runs()[0], [1, 1, 'g1'], 'a re-roll leaves a finished game where it is');
+run("spookClearAll(); spookSetHpd(1); spookSet(3, 'g1'); spookSet(10, 'g4'); spookSetHpd(2)");
+assert.ok(!val('spookMisfits().map((r) => r.key)').includes('g1'), 'a finished game is never a misfit');
+run('spookRepack()');
+assert.deepEqual(runs().find(([, , k]) => k === 'g1'), [3, 4, 'g1'], 're-pack leaves a finished run exactly where it was');
+rows[0].completed = false;
+run('_spookPool = null');
+
 // ---- the file on disk ------------------------------------------------------
 const saved = JSON.parse(storage.get('gamedex.spooktober'));
 assert.equal(saved.v, 3);
