@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.68.1";
+const VERSION = "v1.69.0";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -28,7 +28,7 @@ const SHELL_URLS = [
   "./relations.js", "./rng.js", "./similar.js", "./spooktober.js", "./translations.js",
   "./events.js", "./ev-classof.js", "./ev-twoplayer.js", "./ev-bracket.js", "./ev-audit.js",
   "./ev-underthree.js", "./ev-nobuy.js", "./ev-hearth.js", "./ev-doors.js", "./ev-wrapped.js",
-  "./ev-endangered.js",
+  "./ev-endangered.js", "./themes.js",
   "./reviews.js", "./search.js", "./shelf.js", "./soundtrack.js", "./stats.js", "./table.js", "./timeline.js", "./wishlist.js",
   "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2", "./fonts/creepster.woff2",
   // One display face per seasonal event. They are only ever requested when a banner uses

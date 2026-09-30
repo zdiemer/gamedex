@@ -251,6 +251,9 @@
           <button data-tab="translations"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-globe"/></svg><span>Translation Watch</span></button>
           <button data-tab="galaxy"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-galaxy"/></svg><span>Galaxy</span></button>
           <button data-tab="challenges"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-target"/></svg><span>Challenges</span></button>
+          <!-- Themes has to be in the nav, unlike every seasonal event: those arrive via a
+               banner when their window opens, and a theme has no window to arrive with. -->
+          <button data-tab="themes"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-theme"/></svg><span>Themes</span></button>
         </div>
         <div class="nav-group" id="navAdmin" hidden>
           <div class="nav-grp-h">Admin</div>
@@ -432,6 +435,10 @@
   <script defer src="ev-doors.js"></script>
   <script defer src="ev-wrapped.js"></script>
   <script defer src="ev-endangered.js"></script>
+  <!-- Themes: the same four pieces as an event with the window taken out, and one registry
+       entry for all eight of them (themes.js). Last, so its priority-35 banner is read
+       after every season's. -->
+  <script defer src="themes.js"></script>
   <script defer src="health.js"></script>
   <script defer src="groups.js"></script>
   <script defer src="media.js"></script>
