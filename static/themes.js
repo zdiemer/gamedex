@@ -284,7 +284,16 @@ const THEMES = [
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
-const THM_MIN = 3, THM_MAX = 12;
+
+/* Slate bounds. The floor is 1 — "just tell me one cyberpunk game to play" is a legitimate
+   use of this page, and forcing three onto someone who wanted one is a worse answer than no
+   answer. The ceiling is two limits at once: a flat 24, and the theme's own pool, because a
+   slate of 20 drawn from a pool of 12 is eight slots that can never fill and a completion
+   bar that can never reach the end. 24 is a judgement call, not a law: past it a slate stops
+   being a commitment you can hold in your head and turns back into a backlog, which is what
+   the rest of the app already is. */
+const THM_MIN = 1, THM_MAX = 24;
+const thmCap = (t) => Math.max(THM_MIN, Math.min(THM_MAX, thmPool(t).length || THM_MAX));
 
 /* ---- pools ----------------------------------------------------------------
    Two counts per theme, and they answer different questions. The POOL is what a roll can
@@ -415,7 +424,11 @@ function thmDrop(t, slot) {
    make it 3" means "fewer games", never "lose the two I pinned". */
 function thmResize(t, n) {
   const run = thmRun(t);
-  n = Math.max(THM_MIN, Math.min(THM_MAX, Math.round(+n || t.n)));
+  // Round first and only fall back on genuine junk — `+n || t.n` sent a legitimate 0 to the
+  // theme's default instead of to the floor of 1.
+  n = Math.round(+n);
+  if (!Number.isFinite(n)) n = t.n;
+  n = Math.max(THM_MIN, Math.min(thmCap(t), n));
   if (n === run.n) return;
   if (n < run.slate.length) {
     const keep = run.slate.filter((k) => k && (thmPinned(run, k) || thmIsDone(run, k)));
@@ -473,18 +486,25 @@ function thmSlotHtml(t, run, slot) {
   const pinned = thmPinned(run, key);
   return `<div class="ev-slot thm-slot${done ? " done" : ""}${pinned ? " pinned" : ""}">
     ${evTileHtml(row, { sub: `${row.platform || ""}${row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}` })}
-    <span class="ev-slot-acts">
+    <!-- Five actions under a tile that is 150px wide at its narrowest, so they are all
+         icon-only and the row is a five-column grid rather than a flex line: an equal
+         fraction each, no intrinsic width to overflow, identical on a phone and a desktop.
+         Hearth gets away with a text "Change" because it only has three. -->
+    <span class="ev-slot-acts thm-acts">
       <button class="ev-lit" data-thmdone="${escapeHtml(key)}" aria-pressed="${done}"
-        ${sheet ? "disabled" : ""}
+        ${sheet ? "disabled" : ""} aria-label="${done ? "Finished" : "Tick it off"}"
         title="${sheet ? "The sheet has this one completed" : done ? "Finished. Click to un-tick." : "Tick it when you finish it"}"
         >${icon("i-check", 13)}</button>
       <button class="ev-pin" data-thmpin="${escapeHtml(key)}" aria-pressed="${pinned}"
+        aria-label="${pinned ? "Pinned" : "Pin it"}"
         title="${pinned ? "Pinned — a roll leaves it alone" : "Pin it so a roll leaves it alone"}"
         >${icon("i-pin", 13)}</button>
       <button class="ev-swap" data-thmreroll="${slot}" aria-label="Roll this slot again"
         title="Roll just this one again">${icon("i-dice", 13)}</button>
-      <button class="ev-swap" data-thmpick="${slot}" aria-label="Choose this one by hand">Change</button>
-      <button class="ev-x" data-thmdrop="${slot}" aria-label="Clear the slot">${icon("i-close", 13)}</button>
+      <button class="ev-swap" data-thmpick="${slot}" aria-label="Choose this one by hand"
+        title="Pick this slot by hand">${icon("i-search", 13)}</button>
+      <button class="ev-x" data-thmdrop="${slot}" aria-label="Clear the slot"
+        title="Empty the slot">${icon("i-close", 13)}</button>
     </span>
   </div>`;
 }
@@ -516,7 +536,11 @@ function thmPastHtml(t) {
 function thmRailHtml(t) {
   return `<div class="ev-rungs thm-rail">${THEMES.map((x) => {
     const run = thmState().runs[x.id];
-    const n = run && Array.isArray(run.slate) ? run.slate.filter(Boolean).length : 0;
+    /* The denominator is the SLATE SIZE, not how many slots happen to be filled — same
+       number the page header and the meter use. Counting filled slots here was the one
+       place three views of one run disagreed: "2 of 3 done" on the rail beside "2 of 8
+       done" on the page, for the same run with five empty slots. */
+    const n = run && Array.isArray(run.slate) ? run.n : 0;
     const done = run && Array.isArray(run.slate)
       ? run.slate.filter((k) => thmIsDone(run, k)).length : 0;
     return `<button class="ev-rung${x.id === t.id ? " on" : ""}" data-thmgo="${x.id}"
@@ -535,6 +559,8 @@ function thmRender(host) {
   const breadth = thmBreadth(t);
   const mine = breadth.filter((r) => r.owned).length;
   const done = thmDoneCount(run);
+  const cap = thmCap(t);
+  const gap = run.n - thmFilled(run);
   const repaint = () => { thmRender(host); evWireTiles(host); };
 
   /* The registry entry wears the active theme (see the header). Both of these have to be
@@ -549,8 +575,14 @@ function thmRender(host) {
   host.innerHTML = evHeroHtml(ev, {
     acts: `<button class="btn" id="thmRoll">${icon("i-dice", 15)} ${
       thmActive(run) ? "Roll the open slots" : `Roll ${run.n}`}</button>
-      <label class="ev-target">Slate of
-        <input type="number" id="thmN" min="${THM_MIN}" max="${THM_MAX}" value="${run.n}"></label>
+      <span class="ev-target thm-size" title="Anywhere from ${THM_MIN} to ${cap}${
+        cap < THM_MAX ? ` — ${t.name} only has ${pool.length} left to roll from` : ""}">Slate of
+        <button class="thm-step" data-thmn="${run.n - 1}" aria-label="One game fewer"
+          ${run.n <= THM_MIN ? "disabled" : ""}>−</button>
+        <b>${run.n}</b>
+        <button class="thm-step" data-thmn="${run.n + 1}" aria-label="One game more"
+          ${run.n >= cap ? "disabled" : ""}>+</button>
+        ${run.n === 1 ? "game" : "games"}</span>
       ${thmActive(run) ? `<button class="btn ghost" id="thmFinish">${
         thmComplete(run) ? "Close it out" : "Finish the run"}</button>` : ""}`,
     note: `${pool.length.toLocaleString()} to roll from — ${breadth.length.toLocaleString()} ${
@@ -558,14 +590,20 @@ function thmRender(host) {
   }) + `<div class="ev-wrap">
     ${thmRailHtml(t)}
     <section class="ev-panel wide">
-      <h3>The slate${thmActive(run) ? ` · ${done} of ${run.n} done` : ""}</h3>
+      <!-- One sentence of counting, in the order you'd ask it: how big is the slate, how
+           much of it is behind you, how much of it isn't filled yet. The last part only
+           appears when there IS a gap, which is the number that used to go missing — a
+           slate of 8 with 3 games on it read as "0 of 8 done" and looked broken. -->
+      <h3>The slate · ${evPlural(run.n, "game", "games")}${
+        thmActive(run) ? ` · ${done} finished` : ""}${gap ? ` · ${gap} still empty` : ""}</h3>
       <p class="ev-p">${thmActive(run)
         ? `Pin what you mean to keep and roll again — a roll only touches the open slots.
            ${thmComplete(run) ? "That is the whole slate finished; close it out and the record keeps it."
              : "A game ticks itself off as soon as the sheet says you finished it."}`
         : `Roll ${run.n} out of the pool, or fill a slot by hand. Nothing here expires and
            nothing is scheduled — that is the difference between a theme and a season.`}</p>
-      <div class="ev-mantel">${Array.from({ length: run.n }, (_, i) => thmSlotHtml(t, run, i)).join("")}</div>
+      <div class="ev-mantel thm-mantel">${
+        Array.from({ length: run.n }, (_, i) => thmSlotHtml(t, run, i)).join("")}</div>
       ${run.rolls ? `<p class="thm-meta">${evPlural(run.rolls, "roll", "rolls")} since ${
         escapeHtml(run.started || "—")}.</p>` : ""}
     </section>
@@ -600,8 +638,9 @@ function thmRender(host) {
       });
     };
   });
-  const n = document.getElementById("thmN");
-  if (n) n.onchange = () => { thmResize(t, n.value); repaint(); };
+  host.querySelectorAll("[data-thmn]").forEach((el) => {
+    el.onclick = () => { thmResize(t, el.dataset.thmn); repaint(); };
+  });
   evWirePicker(host, repaint, used);
   if (typeof maybeEnrich === "function") {
     maybeEnrich(run.slate.filter(Boolean).map(evRow).filter(Boolean).concat(pool.slice(0, 40)));
