@@ -285,6 +285,7 @@ const THEMES = [
   {
     id: "bad",
     name: "Bad Games",
+    plural: "bad games",          // the name is already a plural noun; see thmNoun
     blurb: "the ones the reviews warned you about",
     icon: "i-trash",
     n: 5,
@@ -340,6 +341,11 @@ const THEMES = [
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
+
+/* "137 cyberpunk games on the sheet" — the theme's name as a plural noun. Most names are
+   adjectives and take "games" after them, but a few already end in one ("Bad Games" read as
+   "559 bad games games"), so a theme can spell its own out. */
+const thmNoun = (t) => t.plural || t.name.toLowerCase() + " games";
 
 /* Slate bounds. The floor is 1 — "just tell me one cyberpunk game to play" is a legitimate
    use of this page, and forcing three onto someone who wanted one is a worse answer than no
@@ -632,7 +638,7 @@ function thmRender(host) {
       ${thmActive(run) ? `<button class="btn ghost" id="thmFinish">${
         thmComplete(run) ? "Close it out" : "Finish the run"}</button>` : ""}`,
     note: `${pool.length.toLocaleString()} to roll from — ${breadth.length.toLocaleString()} ${
-      escapeHtml(t.name.toLowerCase())} games on the sheet, ${mine.toLocaleString()} of them yours.`,
+      escapeHtml(thmNoun(t))} on the sheet, ${mine.toLocaleString()} of them yours.`,
   }) + `<div class="ev-wrap">
     ${thmRailHtml(t)}
     <section class="ev-panel wide">
@@ -773,7 +779,7 @@ evRegister({
     const t = thmTheme();
     const run = thmRun(t);
     const filled = thmFilled(run), done = thmDoneCount(run);
-    if (!filled) return `${thmPool(t).length.toLocaleString()} ${t.name.toLowerCase()} games on your shelf, unplayed. Roll ${run.n} of them.`;
+    if (!filled) return `${thmPool(t).length.toLocaleString()} ${thmNoun(t)} on your shelf, unplayed. Roll ${run.n} of them.`;
     if (thmComplete(run)) return `${t.blurb} — and the whole slate is finished. Close it out and roll another.`;
     if (!done) return `${evPlural(filled, "game", "games")} on the slate: ${t.blurb}. Nothing finished yet, and nothing is asking you to hurry.`;
     // Against run.n, not against `filled`, and the meter agrees: the slate size is the
