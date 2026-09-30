@@ -282,6 +282,61 @@ const THEMES = [
       { i: "i-user", x: 47, y: 84, s: 18, r: 6, lift: 8, d: 200, o: .5 },
     ],
   },
+  {
+    id: "bad",
+    name: "Bad Games",
+    blurb: "the ones the reviews warned you about",
+    icon: "i-trash",
+    n: 5,
+    /* The only theme here that is an OPINION, so it wants more evidence than the keyword
+       themes do, and it wants the evidence to agree. Three rungs and a veto:
+
+         Metacritic <= 54          the strongest signal and the widest (8,248 rows carry a
+                                   metascore). 54 is the bottom half of Metacritic's "mixed",
+                                   not the top of it — this should be unarguable, not a
+                                   theme about games that were merely fine.
+         IGDB critics <= 55%,      the fallback for games Metacritic never covered. FIVE
+           at least 5 of them      critics, not three: at three, a 0.50 average put Ghost
+                                   Trick: Phantom Detective — an 83 on Metacritic — in the
+                                   pool, which is how you learn a three-critic mean is noise.
+         IGDB players <= 55%,      the same idea from the crowd, at 30 votes.
+           at least 30 votes
+
+       And the veto: a metascore of 70 or better disqualifies a game no matter what the
+       other two say. That is Ghostwire: Tokyo (75, but 0.37 from 39 IGDB players) and
+       Project Warlock (74, 0.43 from 32) — a game with a real critical consensus behind it
+       is not a bad game because a small crowd on one site disliked it.
+
+       Note every comparison guards for null FIRST. `null <= 54` is TRUE in JavaScript, so
+       an unguarded threshold quietly matches every unrated game on the shelf — which, on a
+       "bad games" pool, means 14,000 games you own are bad. */
+    note: "Metacritic 54 or below; failing that, IGDB's critics under 55% with at least five " +
+          "of them, or its players under 55% with at least thirty. A metascore of 70+ vetoes " +
+          "all of that — one small crowd's dislike does not outvote a real consensus.",
+    match: (r) => {
+      const e = thmEn(r);
+      if (!e.igdbId) return false;
+      const num = (v) => (v == null || v === "" || isNaN(+v) ? null : +v);
+      const m = num(e.metascore), c = num(e.criticRating), u = num(e.userRating);
+      if (m != null && m >= 70) return false;
+      return (m != null && m <= 54)
+        || (c != null && c <= .55 && (e.criticCount || 0) >= 5)
+        || (u != null && u <= .55 && (e.userRatingCount || 0) >= 30);
+    },
+    skin: "--ev-size:46px;--ev-dw:800;--ev-ls:-.01em;" +
+          "--ev-deco:#fb923c;--ev-fg:#fdf0e6;--ev-fg-2:#c3a894;--ev-edge:rgba(251,146,60,.32);" +
+          "--ev-edge-hi:rgba(251,146,60,.75);--ev-glow:rgba(251,146,60,.3);--ev-t1:#fff6ec;" +
+          "--ev-t2:#fdba74;--ev-t3:#fb923c;--ev-on-cta:#2a1405;--ev-k:#fdba74;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(251,146,60,.24),transparent 56%)," +
+          "radial-gradient(80% 120% at 6% -16%,rgba(120,53,15,.3),transparent 60%)," +
+          "linear-gradient(150deg,#0b0805,#171009 70%,#120c08)",
+    deco: [
+      { i: "i-trash", x: 86, y: 66, s: 44, lift: 11 },
+      { i: "i-review", x: 70, y: 22, s: 26, r: -8, lift: 10, d: 90 },
+      { i: "i-alert", x: 24, y: 20, s: 22, r: 8, lift: 13, d: 40 },
+      { i: "i-trend", x: 47, y: 84, s: 18, r: 14, lift: 8, d: 200, o: .5 },
+    ],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
