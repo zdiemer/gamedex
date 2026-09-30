@@ -338,6 +338,111 @@ const THEMES = [
       { i: "i-trend", x: 47, y: 84, s: 18, r: 14, lift: 8, d: 200, o: .5 },
     ],
   },
+  {
+    id: "essential",
+    name: "Essential",
+    blurb: "acclaimed, and you said you'd get to them",
+    icon: "i-star",
+    n: 3,
+    /* The only theme built out of BOTH opinions: the world's and yours. Universal acclaim is
+       Metacritic's own term and its own line — 90 and up, not 85, not "well reviewed" — and
+       the priority column is the sheet's five-step scale, of which this takes the top two
+       (Must Play, Will Play; the rest are Want to Play, Might Play, Will Not Play).
+
+       Metacritic decides whenever it has an opinion, and IGDB's critics stand in only when
+       it does not. That ordering matters: a plain union let Fallout: New Vegas (84) and
+       Alien: Isolation (79) in through IGDB's softer aggregate, and a theme that means
+       "universal acclaim" cannot contain a 79.
+
+       Two scales, not one, and they are not the same scale — the enrichment's `metascore` is
+       0-100 and the sheet's own metacriticRating column is 0-1. Reading the second without
+       multiplying it silently matches nothing at all, since no row is ever >= 90 of 1.
+
+       Three rather than five: 66 games deep and every one of them is a headliner. A slate of
+       five Essentials is not a shortlist, it is a year. */
+    note: "Metacritic 90 or better — their line for universal acclaim, not a softer one — on " +
+          "a game you marked Must Play or Will Play. IGDB's critics stand in at 90% only for " +
+          "games Metacritic never scored, never to overrule a score it did give.",
+    match: (r) => {
+      const e = thmEn(r);
+      if (!e.igdbId) return false;
+      const p = String(r.priority || "").trim();
+      if (p !== "Must Play" && p !== "Will Play") return false;
+      const num = (v) => (v == null || v === "" || isNaN(+v) ? null : +v);
+      // metascore is 0-100; the sheet's own column is 0-1. Same number, different scale.
+      const sheet = num(r.metacriticRating);
+      const m = num(e.metascore) ?? (sheet != null ? sheet * 100 : null);
+      if (m != null) return m >= 90;
+      const c = num(e.criticRating);
+      return c != null && c >= .90 && (e.criticCount || 0) >= 5;
+    },
+    skin: "--ev-size:58px;--ev-dw:800;--ev-ls:-.025em;" +
+          "--ev-deco:#fbbf24;--ev-fg:#fdf6e3;--ev-fg-2:#c8b894;--ev-edge:rgba(251,191,36,.32);" +
+          "--ev-edge-hi:rgba(251,191,36,.78);--ev-glow:rgba(251,191,36,.32);--ev-t1:#fffaf0;" +
+          "--ev-t2:#fcd34d;--ev-t3:#fbbf24;--ev-on-cta:#291c02;--ev-k:#fcd34d;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(251,191,36,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(120,113,108,.26),transparent 60%)," +
+          "linear-gradient(150deg,#0a0906,#16130c 70%,#111009)",
+    deco: [
+      { i: "i-star", x: 86, y: 66, s: 44, lift: 11 },
+      { i: "i-trophy", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
+      { i: "i-ribbon", x: 24, y: 20, s: 22, r: 8, lift: 13, d: 40 },
+      { i: "i-sparkle", x: 47, y: 84, s: 18, r: 0, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "soulslike",
+    name: "Souls-like",
+    blurb: "you will be asked to try again",
+    icon: "i-flame",
+    n: 3,
+    note: "IGDB spells it soulslike, one word — the hyphenated and spaced variants match " +
+          "nothing, and soulsborne matches nothing either. Three rather than five, because " +
+          "the shortest game in this pool is still forty hours of dying.",
+    match: (r) => thmKw(r).includes("soulslike"),
+    skin: "--ev-size:44px;--ev-dw:800;--ev-ls:.12em;" +
+          "--ev-deco:#d97706;--ev-fg:#f3ece1;--ev-fg-2:#b0a18c;--ev-edge:rgba(217,119,6,.3);" +
+          "--ev-edge-hi:rgba(245,158,11,.72);--ev-glow:rgba(217,119,6,.26);--ev-t1:#faf5ec;" +
+          "--ev-t2:#f59e0b;--ev-t3:#d97706;--ev-on-cta:#1d1204;--ev-k:#f59e0b;" +
+          "--ev-art:radial-gradient(100% 140% at 84% 122%,rgba(217,119,6,.22),transparent 54%)," +
+          "radial-gradient(90% 130% at 8% -16%,rgba(68,64,60,.4),transparent 62%)," +
+          "linear-gradient(150deg,#080807,#14110d 70%,#0d0c0a)",
+    deco: [
+      { i: "i-flame", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-hourglass", x: 70, y: 22, s: 26, r: 4, lift: 10, d: 90 },
+      { i: "i-heart", x: 24, y: 20, s: 22, r: -8, lift: 13, d: 40 },
+      { i: "i-flame", x: 47, y: 84, s: 17, r: 10, lift: 8, d: 200, o: .45 },
+    ],
+  },
+  {
+    id: "lovecraft",
+    name: "Lovecraft",
+    plural: "Lovecraftian games",
+    blurb: "something old, and it has noticed you",
+    icon: "i-spider",
+    n: 5,
+    /* One keyword again, for the Cyberpunk reason. `cosmic horror` looked like a free
+       widening and added four: Loop//Error, The Chant, Wildermyth and Aliens: Colonial
+       Marines. Two of those are simply not Lovecraft, and a theme that contains Colonial
+       Marines is a theme about tentacles in the abstract. `cthulhu mythos`, `lovecraft` and
+       `eldritch` are not keywords IGDB uses at all — each matched zero. */
+    note: "IGDB's lovecraftian keyword, alone. cosmic horror was tried and dropped: it added " +
+          "four games, two of which were Wildermyth and Aliens: Colonial Marines.",
+    match: (r) => thmKw(r).includes("lovecraftian"),
+    skin: "--ev-disp:'Creepster',var(--display);--ev-size:52px;--ev-dw:400;--ev-ls:.03em;" +
+          "--ev-deco:#4ade80;--ev-fg:#e7f5ea;--ev-fg-2:#93ad9b;--ev-edge:rgba(74,222,128,.26);" +
+          "--ev-edge-hi:rgba(74,222,128,.66);--ev-glow:rgba(74,222,128,.26);--ev-t1:#f0fbf3;" +
+          "--ev-t2:#86efac;--ev-t3:#4ade80;--ev-on-cta:#04180c;--ev-k:#86efac;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(74,222,128,.2),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(13,74,58,.42),transparent 60%)," +
+          "linear-gradient(150deg,#050807,#0a1310 70%,#07100d)",
+    deco: [
+      { i: "i-spider", x: 86, y: 66, s: 44, lift: 11 },
+      { i: "i-moon", x: 70, y: 22, s: 26, r: 0, lift: 10, d: 90 },
+      { i: "i-book", x: 24, y: 20, s: 22, r: -10, lift: 13, d: 40 },
+      { i: "i-bat", x: 47, y: 84, s: 18, r: 12, lift: 8, d: 200, o: .5 },
+    ],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
