@@ -6771,6 +6771,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .ev-mantel.thm-mantel { grid-template-columns: repeat(auto-fill, minmax(166px, 1fr)); }
 .thm-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .thm-acts > button { padding: 5px 0; justify-content: center; }
+/* Slots stretch to the row and the action row is pushed to the bottom of each, so every
+   set of buttons in a mantel row sits on one line. Without this a two-line title, or a
+   FINISHED label on some slots and not others, staggers them by 15-45px. */
+.thm-slot { height: 100%; }
+.thm-slot .thm-acts { margin-top: auto; }
 /* Finished is a STATUS, not a control — it reads off the sheet and there is nothing to
    click, so it is a label rather than a pressed-looking button. */
 .thm-done-tag {
