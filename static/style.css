@@ -6764,13 +6764,21 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .thm-slot.done .ev-tile { border-color: rgba(52, 211, 153, .45); }
 .thm-slot.done .ev-cover { opacity: .62; }
 .thm-slot.done .ev-tile-t { color: var(--muted); }
-/* A themed slot carries five actions where Hearth's carries three, so the mantel gets a
-   little more room here and the action row stops being a flex line. Five pill buttons with
+/* A themed slot carries four actions where Hearth's carries three, so the mantel gets a
+   little more room here and the action row stops being a flex line. Pill buttons with
    intrinsic widths in a 150px column overflowed the slot and ran under its neighbour on
-   every screen size; five grid columns of 1fr cannot, at any width. */
+   every screen size; grid columns of 1fr cannot, at any width. */
 .ev-mantel.thm-mantel { grid-template-columns: repeat(auto-fill, minmax(166px, 1fr)); }
-.thm-acts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.thm-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .thm-acts > button { padding: 5px 0; justify-content: center; }
+/* Finished is a STATUS, not a control — it reads off the sheet and there is nothing to
+   click, so it is a label rather than a pressed-looking button. */
+.thm-done-tag {
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+  font: 500 10.5px/1 var(--font); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--good); border: 1px solid rgba(52, 211, 153, .45); background: var(--good-soft);
+  border-radius: 999px; padding: 4px 8px;
+}
 .ev-pin {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
   border-radius: 999px; padding: 4px 9px; font-size: 11.5px; cursor: pointer;
@@ -6778,8 +6786,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .ev-pin:hover { color: var(--text); }
 .ev-pin[aria-pressed="true"] { color: var(--ev-k, var(--accent)); border-color: var(--ev-k, var(--accent)); }
-.thm-slot .ev-lit[aria-pressed="true"] { color: var(--good); border-color: rgba(52, 211, 153, .5); }
-.thm-slot .ev-lit[disabled] { cursor: default; color: var(--good); border-color: rgba(52, 211, 153, .5); opacity: .8; }
 /* Slate size as a stepper rather than a number input: the spinner arrows are a desktop-only
    control that a phone renders as a bare box, and the value here only ever moves by one. */
 .thm-size { gap: 6px; }

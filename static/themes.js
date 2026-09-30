@@ -21,11 +21,12 @@
                 a theme has all year and October does not. It only appears while a run is
                 actually open.
 
-   Completion is NOT a checkbox with a checkbox's problems. A slate game is done when the
-   sheet says it is done, the same way challenges.js derives everything from the Completed
-   columns; the manual tick exists only for the gap between finishing something and telling
-   the spreadsheet. So a run fills itself in as you play, and marking things twice is never
-   required.
+   Completion is NOT a checkbox, and there is no tick button on this page at all. A slate
+   game is done when the SHEET says it is done, the same way challenges.js derives everything
+   from the Completed columns. Anything else is a second place to record the same fact and so
+   a second place to be wrong: finish a game on the couch, mark it on the sheet like always,
+   and two screens now disagree until you remember to come back here. So a run fills itself
+   in as you play, and nothing is ever marked twice.
 
    ONE registry entry, not eight. Eight entries would be eight tabs, eight banner
    contenders and eight rows on the preview board, to express what is really one page with
@@ -323,7 +324,8 @@ const thmState = () => {
 const thmTheme = () => THM_BY_ID[thmState().open] || THEMES[0];
 
 const thmBlankRun = (t) => ({
-  n: t.n, slate: new Array(t.n).fill(null), pinned: [], done: [], rolls: 0, started: null,
+  // No `done` list: completion is read off the sheet, never stored here. See thmIsDone.
+  n: t.n, slate: new Array(t.n).fill(null), pinned: [], rolls: 0, started: null,
 });
 
 // The open run, created on demand. An empty slate IS a run — it just hasn't been rolled.
@@ -332,18 +334,22 @@ function thmRun(t) {
   let run = st.runs[t.id];
   if (!run || !Array.isArray(run.slate)) { run = st.runs[t.id] = thmBlankRun(t); }
   if (!Array.isArray(run.pinned)) run.pinned = [];
-  if (!Array.isArray(run.done)) run.done = [];
   if (!run.n) run.n = run.slate.length || t.n;
   while (run.slate.length < run.n) run.slate.push(null);
   return run;
 }
 
-/* Done, and where "done" comes from. The sheet wins: if the Completed column says you
-   finished it, the run says so too, whether or not you ever came back to this page. The
-   manual list covers the other direction only — finished tonight, spreadsheet tomorrow —
-   which is why a sheet completion cannot be un-ticked here. */
+/* Done, and where "done" comes from: the sheet, and only the sheet. The Completed column is
+   the one place this app has ever recorded a finished game, and a second place to say so is
+   a second place to be wrong — a page-local tick drifts from the sheet the moment you finish
+   something anywhere else, and then two screens disagree about the same game. So there is no
+   tick button. Finish it, mark it on the sheet as you always would, and the slate catches up
+   on the next load with nothing asked of you here.
+
+   (`run.done` survives in old saved state and in the past[] snapshots, where it means
+   something different and still true: what WAS finished when that run closed.) */
 const thmSheetDone = (key) => { const r = evRow(key); return !!(r && r.completed); };
-const thmIsDone = (run, key) => !!key && (thmSheetDone(key) || run.done.includes(key));
+const thmIsDone = (run, key) => thmSheetDone(key);
 const thmDoneCount = (run) => run.slate.filter((k) => thmIsDone(run, k)).length;
 const thmFilled = (run) => run.slate.filter(Boolean).length;
 const thmComplete = (run) => thmFilled(run) === run.n && thmDoneCount(run) === run.n;
@@ -389,16 +395,6 @@ function thmTogglePin(t, key) {
   evSave();
 }
 
-function thmToggleDone(t, key) {
-  const run = thmRun(t);
-  // The sheet's answer is not ours to argue with — the tick is disabled in that case, and
-  // this guard is for the keyboard path that gets there anyway.
-  if (thmSheetDone(key)) { showToast("The sheet already has this one as completed"); return; }
-  const i = run.done.indexOf(key);
-  if (i >= 0) run.done.splice(i, 1); else run.done.push(key);
-  evSave();
-}
-
 function thmSet(t, slot, key) {
   const run = thmRun(t);
   // One game, one slot: putting a game that is already on the slate into a new slot MOVES
@@ -415,7 +411,6 @@ function thmDrop(t, slot) {
   const key = run.slate[slot];
   run.slate[slot] = null;
   run.pinned = run.pinned.filter((k) => k !== key);
-  run.done = run.done.filter((k) => k !== key);
   evSave();
 }
 
@@ -482,19 +477,15 @@ function thmSlotHtml(t, run, slot) {
       </button></div>`;
   }
   const done = thmIsDone(run, key);
-  const sheet = thmSheetDone(key);
   const pinned = thmPinned(run, key);
   return `<div class="ev-slot thm-slot${done ? " done" : ""}${pinned ? " pinned" : ""}">
     ${evTileHtml(row, { sub: `${row.platform || ""}${row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}` })}
-    <!-- Five actions under a tile that is 150px wide at its narrowest, so they are all
-         icon-only and the row is a five-column grid rather than a flex line: an equal
+    ${done ? `<span class="thm-done-tag">${icon("i-check", 12)} Finished</span>` : ""}
+    <!-- Four actions under a tile that is 166px wide at its narrowest, so they are all
+         icon-only and the row is a four-column grid rather than a flex line: an equal
          fraction each, no intrinsic width to overflow, identical on a phone and a desktop.
-         Hearth gets away with a text "Change" because it only has three. -->
+         None of them is a completion tick — that is the sheet's to say, not this page's. -->
     <span class="ev-slot-acts thm-acts">
-      <button class="ev-lit" data-thmdone="${escapeHtml(key)}" aria-pressed="${done}"
-        ${sheet ? "disabled" : ""} aria-label="${done ? "Finished" : "Tick it off"}"
-        title="${sheet ? "The sheet has this one completed" : done ? "Finished. Click to un-tick." : "Tick it when you finish it"}"
-        >${icon("i-check", 13)}</button>
       <button class="ev-pin" data-thmpin="${escapeHtml(key)}" aria-pressed="${pinned}"
         aria-label="${pinned ? "Pinned" : "Pin it"}"
         title="${pinned ? "Pinned — a roll leaves it alone" : "Pin it so a roll leaves it alone"}"
@@ -599,7 +590,7 @@ function thmRender(host) {
       <p class="ev-p">${thmActive(run)
         ? `Pin what you mean to keep and roll again — a roll only touches the open slots.
            ${thmComplete(run) ? "That is the whole slate finished; close it out and the record keeps it."
-             : "A game ticks itself off as soon as the sheet says you finished it."}`
+             : "Nothing to tick off: a game marks itself finished here when the sheet says it is."}`
         : `Roll ${run.n} out of the pool, or fill a slot by hand. Nothing here expires and
            nothing is scheduled — that is the difference between a theme and a season.`}</p>
       <div class="ev-mantel thm-mantel">${
@@ -622,9 +613,6 @@ function thmRender(host) {
   });
   host.querySelectorAll("[data-thmpin]").forEach((el) => {
     el.onclick = () => { thmTogglePin(t, el.dataset.thmpin); repaint(); };
-  });
-  host.querySelectorAll("[data-thmdone]").forEach((el) => {
-    el.onclick = () => { thmToggleDone(t, el.dataset.thmdone); repaint(); };
   });
   host.querySelectorAll("[data-thmdrop]").forEach((el) => {
     el.onclick = () => { thmDrop(t, +el.dataset.thmdrop); repaint(); };
@@ -695,7 +683,7 @@ evRegister({
   /* Merging two devices, per theme rather than per file. The rules, and why:
        slate   fill gaps, never overwrite — a slot you filled here is a decision.
        pinned  union, then narrowed to what is actually on the slate.
-       done    union. Nobody un-finishes a game by syncing.
+       done    nothing to merge — both devices read it off the same sheet.
        past    the longer record wins outright; runs are appended whole and a half-merged
                history is worse than either device's copy of it.
        open    left alone: which theme this browser is looking at is this browser's business. */
@@ -712,7 +700,6 @@ evRegister({
       for (const k of t.pinned || []) {
         if (m.slate.includes(k) && !m.pinned.includes(k)) { m.pinned.push(k); changed = true; }
       }
-      for (const k of t.done || []) if (!m.done.includes(k)) { m.done.push(k); changed = true; }
       if ((t.rolls || 0) > (m.rolls || 0)) { m.rolls = t.rolls; changed = true; }
       if (t.started && (!m.started || t.started < m.started)) { m.started = t.started; changed = true; }
     }
