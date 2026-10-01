@@ -6769,6 +6769,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    intrinsic widths in a 150px column overflowed the slot and ran under its neighbour on
    every screen size; grid columns of 1fr cannot, at any width. */
 .ev-mantel.thm-mantel { grid-template-columns: repeat(auto-fill, minmax(166px, 1fr)); }
+/* On a phone 166px buys exactly one column — 304px of it — and a 3:4 cover at that width is
+   381px tall, 45% of the screen for ONE game, so a slate of five is five screens of scrolling.
+   132px buys two columns of 147px, which is a 172px cover and a slate you can see at once:
+   the mantel goes from 2400px tall to 815px. The action buttons come out at 34px, still
+   comfortably past the 24px tap target. */
+@media (max-width: 600px) {
+  .ev-mantel.thm-mantel { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+}
 .thm-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .thm-acts > button { padding: 5px 0; justify-content: center; }
 /* Slots stretch to the row and the action row is pushed to the bottom of each, so every
