@@ -443,6 +443,109 @@ const THEMES = [
       { i: "i-bat", x: 47, y: 84, s: 18, r: 12, lift: 8, d: 200, o: .5 },
     ],
   },
+  {
+    id: "funny",
+    name: "Funny Games",
+    plural: "funny games",
+    blurb: "written to make you laugh, not to make you tense",
+    icon: "i-sparkle",
+    n: 5,
+    /* The keywords, NOT IGDB's comedy theme — and the difference is 644 games. The theme
+       means "has jokes in it", which is true of New Super Mario Bros. U, Super Meat Boy and
+       Ratchet & Clank, and none of those is what you want when you want something funny. The
+       humour keywords mean the comedy is the point: Baldi's Basics, Blippo+, despelote,
+       Pizza Possum, Thirsty Suitors, Shadows Over Loathing.
+
+       Requiring BOTH was tried (84 games) and is worse, not better — it drops Baldi's
+       Basics, despelote and Thirsty Suitors for the crime of not also carrying a theme tag.
+       One good signal beats two signals ANDed together when the second one is noise. */
+    note: "IGDB's humour keywords — humor, comedy, parody, satire, slapstick. Deliberately " +
+          "not its comedy THEME, which is 759 games on this shelf and includes Super Meat Boy: " +
+          "that tag means a game has jokes in it, not that a game is a comedy.",
+    match: (r) => thmAny(thmKw(r), "humor", "humour", "comedy", "parody", "satire", "funny", "slapstick"),
+    skin: "--ev-disp:'Pacifico',var(--display);--ev-size:46px;--ev-dw:400;--ev-ls:0;" +
+          "--ev-deco:#fb7185;--ev-fg:#fdeef2;--ev-fg-2:#c69fae;--ev-edge:rgba(251,113,133,.32);" +
+          "--ev-edge-hi:rgba(251,113,133,.78);--ev-glow:rgba(251,113,133,.34);--ev-t1:#fff5f7;" +
+          "--ev-t2:#fde047;--ev-t3:#fb7185;--ev-on-cta:#2a0710;--ev-k:#fda4af;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(251,113,133,.26),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(253,224,71,.18),transparent 60%)," +
+          "linear-gradient(150deg,#0b0609,#180b14 70%,#120a10)",
+    deco: [
+      { i: "i-sparkle", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-mug", x: 70, y: 22, s: 26, r: 8, lift: 10, d: 90 },
+      { i: "i-pennant", x: 24, y: 20, s: 22, r: -12, lift: 13, d: 40 },
+      { i: "i-heart", x: 47, y: 84, s: 18, r: 10, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
+    id: "bullethell",
+    name: "Bullet Hell",
+    blurb: "the screen is mostly projectile",
+    icon: "i-target",
+    n: 5,
+    /* Strictly the `bullet hell` keyword. `shmup` would add 23 and they are good games —
+       Gradius Origins, Truxton Extreme, CYGNI — but a shmup is not a bullet hell, it is the
+       family bullet hell belongs to, and a theme named for the narrow thing should hold the
+       narrow thing. `scrolling shooter` and `vertical scrolling` add five each and bring
+       Metal Slug Anthology, which is a run-and-gun. `danmaku` matches nothing at all. */
+    note: "IGDB's bullet hell keyword, alone. shmup would add 23 more (Gradius, Truxton, " +
+          "CYGNI) but a shmup is the family, not the thing — say the word and they can join.",
+    match: (r) => thmKw(r).includes("bullet hell"),
+    skin: "--ev-size:44px;--ev-dw:800;--ev-ls:.04em;" +
+          "--ev-deco:#e879f9;--ev-fg:#fbeafe;--ev-fg-2:#bb9ac4;--ev-edge:rgba(232,121,249,.32);" +
+          "--ev-edge-hi:rgba(232,121,249,.8);--ev-glow:rgba(232,121,249,.4);--ev-t1:#fdf2ff;" +
+          "--ev-t2:#f0abfc;--ev-t3:#e879f9;--ev-on-cta:#230429;--ev-k:#f0abfc;" +
+          "--ev-art:radial-gradient(70% 90% at 50% 112%,rgba(232,121,249,.34),transparent 54%)," +
+          "radial-gradient(90% 130% at 10% -18%,rgba(129,140,248,.2),transparent 60%)," +
+          "linear-gradient(150deg,#06040a,#120618 70%,#0a0612)",
+    deco: [
+      { i: "i-target", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-sparkle", x: 70, y: 20, s: 22, r: 0, lift: 11, d: 70 },
+      { i: "i-bolt", x: 24, y: 22, s: 20, r: -10, lift: 13, d: 40 },
+      { i: "i-target", x: 47, y: 84, s: 16, r: 0, lift: 8, d: 200, o: .45 },
+    ],
+  },
+  {
+    id: "boomer",
+    name: "Boomer Shooter",
+    plural: "boomer shooters",
+    blurb: "no reloading, no regenerating, no cover",
+    icon: "i-disc",
+    n: 5,
+    /* Two rungs, because the keyword alone is fifteen games — a pool you would exhaust in
+       three runs. The second rung is the one place a theme here reads `engines`, and it is
+       the right field for exactly this genre: a game shipping on GZDoom, id Tech 1-3, Build
+       or Quake in 2024 is making a deliberate statement about what it is. It also catches
+       the originals that the term was coined about — Return to Castle Wolfenstein, Medal of
+       Honor: Allied Assault, the Jedi Knights, the first Call of Duty.
+
+       The engine rung is ANDed with the shooter genre, which costs three games and is worth
+       it: id Tech 2 also ran Anachronox, an RPG. Modern id Tech (4 through 8 — Doom Eternal,
+       Indiana Jones) is deliberately not in the pattern; those are the engine's descendants,
+       not the style's. */
+    note: "IGDB's boomer shooter keyword, plus any shooter built on GZDoom, id Tech 1-3, " +
+          "Build or Quake — the engines are the tell. id Tech 4 and up are excluded on " +
+          "purpose: Doom Eternal is the engine's descendant, not the style's.",
+    match: (r) => {
+      if (thmKw(r).includes("boomer shooter")) return true;
+      const retro = /^(gzdoom|zdoom|doom engine|id tech [123]|build|quake|darkplaces|eduke32|raze)/;
+      return thmIgdb(r, "engines").some((x) => retro.test(x))
+        && thmIgdb(r, "genres").includes("shooter");
+    },
+    skin: "--ev-size:40px;--ev-dw:800;--ev-ls:.14em;" +
+          "--ev-deco:#dc2626;--ev-fg:#f4e9e4;--ev-fg-2:#b09288;--ev-edge:rgba(220,38,38,.34);" +
+          "--ev-edge-hi:rgba(239,68,68,.76);--ev-glow:rgba(220,38,38,.3);--ev-t1:#fbf0ea;" +
+          "--ev-t2:#84cc16;--ev-t3:#dc2626;--ev-on-cta:#1f0605;--ev-k:#84cc16;" +
+          "--ev-art:radial-gradient(100% 140% at 84% 122%,rgba(220,38,38,.26),transparent 54%)," +
+          "radial-gradient(90% 130% at 8% -16%,rgba(132,204,22,.14),transparent 60%)," +
+          "linear-gradient(150deg,#070605,#140b09 70%,#0d0908)",
+    deco: [
+      { i: "i-disc", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-crt", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
+      { i: "i-target", x: 24, y: 20, s: 22, r: 10, lift: 13, d: 40 },
+      { i: "i-bolt", x: 47, y: 84, s: 18, r: -8, lift: 8, d: 200, o: .5 },
+    ],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
