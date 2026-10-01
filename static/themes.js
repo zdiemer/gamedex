@@ -546,6 +546,119 @@ const THEMES = [
       { i: "i-bolt", x: 47, y: 84, s: 18, r: -8, lift: 8, d: 200, o: .5 },
     ],
   },
+  {
+    id: "highscore",
+    name: "High Score",
+    plural: "high-score games",
+    blurb: "it ends when you lose, not when you win",
+    icon: "i-coin",
+    n: 5,
+    note: "IGDB's high score keyword — games built around a number going up rather than a " +
+          "story running out. There is nothing to finish here, which makes the slate's own " +
+          "idea of finished a bit funny: the sheet decides, same as everywhere else.",
+    match: (r) => thmKw(r).includes("high score"),
+    // Shares Press Start 2P with Before 2006 on purpose — a scoreboard face is a scoreboard
+    // face, and the two posters are never on screen together. Different palette does the work.
+    skin: "--ev-disp:'Press Start 2P',var(--display);--ev-size:22px;--ev-dw:400;--ev-ls:0;" +
+          "--ev-deco:#38bdf8;--ev-fg:#e8f6ff;--ev-fg-2:#93b2c6;--ev-edge:rgba(56,189,248,.32);" +
+          "--ev-edge-hi:rgba(56,189,248,.78);--ev-glow:rgba(56,189,248,.34);--ev-t1:#f2fbff;" +
+          "--ev-t2:#fde047;--ev-t3:#38bdf8;--ev-on-cta:#041622;--ev-k:#fde047;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(56,189,248,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(253,224,71,.16),transparent 60%)," +
+          "linear-gradient(150deg,#04070b,#0a1119 70%,#060d14)",
+    deco: [
+      { i: "i-coin", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-trophy", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
+      { i: "i-stats", x: 24, y: 20, s: 22, r: 8, lift: 13, d: 40 },
+      { i: "i-coin", x: 47, y: 84, s: 17, r: 12, lift: 8, d: 200, o: .45 },
+    ],
+  },
+  {
+    id: "licensed",
+    name: "Licensed",
+    plural: "licensed games",
+    blurb: "somebody else's characters, under contract",
+    icon: "i-tag",
+    n: 5,
+    /* IGDB has 24 keywords starting "based on", and the line between them matters. IN: the
+       adaptations — movie, anime, comics, TV show, book, manga, cartoons, toy, brand, board
+       and card game, tabletop RPG. OUT, deliberately:
+         public domain work   the opposite of licensed. Nobody signed anything for Dracula.
+         true story / real people   history is not a rights holder.
+         licensed soundtrack / licensed cars / licensed music   an asset inside the game, not
+                              the game being an adaptation of something. GT's cars are
+                              licensed; Gran Turismo is not a licensed game.
+         unlicensed game      literally the inverse, and it would be a fine theme of its own. */
+    note: "IGDB's licensed game keyword plus its \"based on\" family — movie, anime, comics, " +
+          "TV, book, manga, toy, brand, tabletop. Not public-domain works (nobody signed " +
+          "anything for Dracula) and not licensed soundtracks, which are an asset, not an " +
+          "adaptation.",
+    match: (r) => thmKw(r).some((k) => k === "licensed game"
+      || /^based on - (movie|anime|comics|tv show|book|manga|cartoons|toy|brand|board game|card game|tabletop rpg|web show)/.test(k)),
+    skin: "--ev-size:50px;--ev-dw:800;--ev-ls:-.02em;" +
+          "--ev-deco:#60a5fa;--ev-fg:#eaf1fd;--ev-fg-2:#9fb0c9;--ev-edge:rgba(96,165,250,.3);" +
+          "--ev-edge-hi:rgba(96,165,250,.74);--ev-glow:rgba(96,165,250,.3);--ev-t1:#f3f8ff;" +
+          "--ev-t2:#93c5fd;--ev-t3:#60a5fa;--ev-on-cta:#06152b;--ev-k:#93c5fd;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(96,165,250,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(148,163,184,.2),transparent 60%)," +
+          "linear-gradient(150deg,#05070b,#0c1220 70%,#080d16)",
+    deco: [
+      { i: "i-tag", x: 86, y: 66, s: 44, lift: 11 },
+      { i: "i-receipt", x: 70, y: 22, s: 26, r: -8, lift: 10, d: 90 },
+      { i: "i-review", x: 24, y: 20, s: 22, r: 10, lift: 13, d: 40 },
+      { i: "i-star", x: 47, y: 84, s: 18, r: 0, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
+    id: "typing",
+    name: "Typing",
+    plural: "typing games",
+    blurb: "the keyboard is the controller",
+    icon: "i-command",
+    n: 3,
+    /* THE ONE PLACE THIS FILE MATCHES ON A TITLE, and it is worth saying why rather than
+       hiding it. The Spooktober rule exists because a noun in a title is usually a coincidence
+       — "space" catches Samorost, "dead" catches Dead Cells. The word "typing" is not like
+       that. It was run against all 14,916 rows and caught eleven games: Typing Farmer, Keys of
+       Fury, Glyphica, Needy Streamer Overload: Typing of the Net, Nanotale, Epistory, The
+       Typing of the Dead, Learn with Pokémon, both Mario Teaches Typings, Isekat. Eleven out
+       of eleven are typing games. A rule with no false positives on the whole collection is
+       not the rule the Spooktober rule was written against.
+
+       It still is not enough on its own, because the best ones in the genre do not say it:
+       The Textorcist, Cryptmaster, Type:Rider and Icarus Proudbottom are a hand-list, which
+       is honest as long as it is visible. IGDB's `typing` keyword is the third rung and the
+       only one that generalises — it is also how Buddy Simulator 1984 and Boltgun's Words of
+       Vengeance DLC get in, both correctly.
+
+       Three to a slate: there are twenty of these in the entire collection. */
+    note: "Three rungs, and one of them breaks this file's own rule: IGDB's typing keyword, " +
+          "a hand-list of four that never say it (Textorcist, Cryptmaster, Type:Rider, Icarus " +
+          "Proudbottom), and \"typing\" in the title — which across 14,916 rows catches eleven " +
+          "games and all eleven are typing games.",
+    match: (r) => {
+      const k = thmKw(r);
+      if (k.includes("typing") || k.includes("keyboard game")) return true;
+      const title = String(r.title || "");
+      return /\btyping\b|\btyper\b/i.test(title)
+        || /^(the textorcist|cryptmaster|type:rider|icarus proudbottom)/i.test(title);
+    },
+    // A system monospace stack: no webfont to download, and nothing else says KEYBOARD faster.
+    skin: "--ev-disp:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
+          "--ev-size:40px;--ev-dw:700;--ev-ls:-.02em;" +
+          "--ev-deco:#34d399;--ev-fg:#e6f6ef;--ev-fg-2:#92b3a6;--ev-edge:rgba(52,211,153,.3);" +
+          "--ev-edge-hi:rgba(52,211,153,.72);--ev-glow:rgba(52,211,153,.28);--ev-t1:#f0fcf7;" +
+          "--ev-t2:#6ee7b7;--ev-t3:#34d399;--ev-on-cta:#042015;--ev-k:#6ee7b7;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(52,211,153,.2),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(30,41,59,.5),transparent 60%)," +
+          "linear-gradient(150deg,#050807,#0b1512 70%,#070f0c)",
+    deco: [
+      { i: "i-command", x: 86, y: 66, s: 42, lift: 12 },
+      { i: "i-pad", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
+      { i: "i-book", x: 24, y: 20, s: 22, r: 8, lift: 13, d: 40 },
+      { i: "i-bolt", x: 47, y: 84, s: 17, r: 10, lift: 8, d: 200, o: .45 },
+    ],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
