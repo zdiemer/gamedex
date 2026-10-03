@@ -6871,3 +6871,84 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     transform: translate(-50%, -50%) rotate(var(--r));
   }
 }
+
+/* ---- writes from the web: the drawer's quick log, Add a game, Pending edits ----
+   See static/edits.js. The .ed-* dialogs reuse the .ce-scrim / .ce shell the cover
+   editor and the login modal already use; only the wider body and the forms are new.
+   .ql-dot is the one piece of vocabulary worth learning: a value the site is showing
+   that the spreadsheet does not have yet. */
+.ql { margin: 16px 0 4px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.ql > summary { cursor: pointer; font: 600 12.5px var(--font); color: var(--muted);
+  display: flex; align-items: center; gap: 6px; list-style: none; }
+.ql > summary::-webkit-details-marker { display: none; }
+.ql > summary:hover { color: var(--text); }
+.ql-body { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+.ql-row { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 10px; }
+.ql-row > label { font-size: 11.5px; color: var(--dim); font-weight: 600; }
+.ql-row .ce-seg { margin-bottom: 0; flex-wrap: wrap; }
+.ql-row .ce-opt { flex: 1 1 auto; padding: 7px 10px; font-size: 12px; white-space: nowrap; }
+.ql-row .ce-opt:disabled { opacity: .5; }
+.ql-row .field-inline { max-width: 130px; }
+.ql-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--warn); vertical-align: middle; margin-left: 2px; }
+.ql-dates { grid-column: 2; font-size: 11.5px; }
+.ql-note { grid-column: 1 / -1; font-size: 11.5px; line-height: 1.5; }
+
+.ce.ed-ce { max-width: 760px; max-height: 88vh; overflow: auto; }
+.ed-body { margin-top: 4px; }
+.ed-search { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.ed-search .field { flex: 1; }
+.ed-results { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
+.ed-hit { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 7px 9px; border: 1px solid transparent; border-radius: 10px; cursor: pointer;
+  background: none; color: var(--text); font-family: inherit; }
+.ed-hit:hover { background: var(--surface-2); }
+.ed-hit.on { border-color: var(--accent-line); background: var(--accent-soft); }
+.ed-hit img, .ed-nocover { width: 34px; height: 45px; border-radius: 4px; object-fit: cover;
+  flex: 0 0 auto; background: var(--surface-2); display: grid; place-items: center; color: var(--dim); }
+.ed-hit-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ed-hit-t b { font: 600 13.5px var(--font); }
+.ed-hit-t em { font-style: normal; font-size: 11.5px; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-h { font: 700 13px var(--display); margin: 18px 0 6px; }
+.ed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 9px; }
+.ed-f { display: flex; flex-direction: column; gap: 4px;
+  font: 600 10.5px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.ed-f input, .ed-f select, .ed-f textarea {
+  padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--bg-2); color: var(--text); font: 400 13px inherit; font-family: inherit;
+}
+.ed-f input:focus, .ed-f select:focus, .ed-f textarea:focus { outline: none; border-color: var(--accent-line); }
+.ed-wide-f { margin-top: 9px; }
+.ed-checks > span { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 4px; }
+.ed-checks label { display: flex; align-items: center; gap: 5px; text-transform: none;
+  letter-spacing: 0; font-size: 12.5px; color: var(--muted); }
+.ed-err { color: var(--bad); font-size: 12.5px; margin: 10px 0 0; }
+.ed-foot { font-size: 11.5px; max-width: 52%; line-height: 1.4; }
+
+.ed-pend { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border); align-items: center; }
+.ed-pend-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ed-pend-t b { font: 600 13px var(--font); }
+.ed-pend-t em { font-style: normal; font-size: 11px; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .06em; }
+.ed-pend-v { grid-column: 1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12.5px; }
+.ed-pend-a { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 8px; align-items: center; }
+.ed-vs { display: inline-flex; align-items: baseline; gap: 5px; }
+.ed-vs > span:first-child { font: 600 9.5px var(--font); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--dim); }
+.ed-code { font-size: 11px; color: var(--dim); border: 1px dashed var(--border);
+  border-radius: 6px; padding: 2px 6px; }
+.ed-code b { color: var(--warn); font-family: var(--mono, monospace); }
+
+.nav-badge { margin-left: auto; font: 700 10.5px var(--font); color: var(--dim);
+  background: var(--surface-2); border-radius: 20px; padding: 2px 7px; font-style: normal; }
+.nav-badge.warn { color: var(--on-accent, #fff); background: var(--bad); }
+
+@media (max-width: 860px) {
+  .ql-row { grid-template-columns: 1fr; }
+  .ql-dates { grid-column: 1; }
+  .ed-foot { max-width: 100%; }
+  .ce.ed-ce { max-width: 100%; }
+}
+.ql-grouped { font-size: 11.5px; line-height: 1.5; display: flex; gap: 6px; align-items: center; }

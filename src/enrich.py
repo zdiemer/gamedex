@@ -21,6 +21,7 @@ from collections import deque
 from datetime import datetime, timezone
 
 from match_validator import MatchValidator
+from matchkey import SHEET_TITLE, match_key_for
 from wikidata import slug_from_igdb_url
 
 log = logging.getLogger("gamedex.enrich")
@@ -284,7 +285,6 @@ from manuals import PLATFORMS as _MANUAL_PLATFORMS          # noqa: E402
 from gametdb import PLATFORMS as _GAMETDB_PLATFORMS         # noqa: E402
 from pcgamingwiki import PLATFORMS as _PCGW_PLATFORMS       # noqa: E402
 
-_SHEET_TITLE = {"games": "title", "completed": "game", "onOrder": "title"}
 _now = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
 VALUE_RESCRAPE_DAYS = int(os.environ.get("VALUE_RESCRAPE_DAYS", "7"))
 # Bump when the shape or the source map of `stores` changes — the backfill
@@ -566,11 +566,18 @@ class Enricher:
 
     # -- keys / index -------------------------------------------------------
     def key_for(self, title, platform, year) -> str:
-        return f"{self._validator.normalize(title)}|{(platform or '').lower()}|{year or ''}"
+        return match_key_for(title, platform, year)
 
-    def reindex(self, parsed: dict):
+    def reindex(self, parsed: dict, sweep: bool = True):
+        """Rebuild the key index from a dataset, stamping `_k` on every row.
+
+        `sweep=False` skips the fallback's no_match clear-out below. A staged write
+        (edits.py) reindexes to register ONE new row, and it must not also throw
+        away every unmatched game's cached verdict — that is a whole-library
+        re-crawl as a side effect of adding a game.
+        """
         key_meta = {}
-        for sheet, title_field in _SHEET_TITLE.items():
+        for sheet, title_field in SHEET_TITLE.items():
             for r in parsed.get(sheet, {}).get("rows", []):
                 title = r.get(title_field)
                 if not title:
@@ -598,7 +605,7 @@ class Enricher:
         # this"; sweeping it up here deleted that decision on every restart and rescan, and
         # auto-matching cheerfully put the wrong game back (Playdate's "Platformer" kept
         # re-matching a PC game called "The Platformer").
-        if self._fallback:
+        if self._fallback and sweep:
             with self._db_lock:
                 self._db.execute(
                     "DELETE FROM enrichment WHERE status='no_match'"

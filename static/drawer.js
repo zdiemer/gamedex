@@ -228,6 +228,11 @@ function openDrawer(row, sheetKey, keepStack) {
   // the only way to give it one. Grouped collection cards have no single row to attach to.
   if (IS_ADMIN && row._k && !row._collection && !row._wlOnly) html += `<button class="sh-btn drawer-art" id="drawerArt">Manage box art</button>`;
 
+  // Quick log — status, rating, hours, owned/finished. Staged on the server and
+  // overlaid onto the sheet (see edits.js); "" for the public and for every row
+  // that isn't a single Games-sheet copy.
+  if (typeof editsQuickHtml === "function") html += editsQuickHtml(row);
+
   /* Your own history with the game was buried in the "Raw data" disclosure,
      alongside File Size and MAME Romset — and it's the most personal thing on the
      card: what you paid, when you started it, whether you finished, what you
@@ -293,6 +298,7 @@ function openDrawer(row, sheetKey, keepStack) {
     back.title = `Back to ${t}`;
   }
   wireCollections(body);
+  if (typeof wireEditsQuick === "function") wireEditsQuick(body, row);
   if (typeof wireWishlistMap === "function") wireWishlistMap(body, row);
   const artBtn = $("#drawerArt");
   if (artBtn) artBtn.onclick = () => {

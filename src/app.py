@@ -33,6 +33,7 @@ from pydantic import BaseModel
 import accounts as accounts_mod
 import assetcache as assetcache_mod
 import dexle as dexle_mod
+import edits as edits_mod
 import hilo as hilo_mod
 import itad as itad_mod
 import manualcover as manualcover_mod
@@ -189,9 +190,41 @@ catalogue = (
     Catalogue(_igdb, CATALOGUE_DB) if _igdb.configured and _on("CATALOGUE_ENABLED", "false") else None
 )
 
+# Writes from the web (see edits.py): quick-log field edits and games added from
+# IGDB search, staged on the PVC and overlaid onto the sheet on the way out. The
+# workbook stays the source of truth; nothing here writes to Dropbox.
+EDITS_DB = os.environ.get("EDITS_DB", "/data/edits.sqlite")
+EDITS = edits_mod.Edits(EDITS_DB)
+
+
+def _on_data_update(parsed):
+    """Fresh workbook -> overlay the staged writes -> let the enricher index it.
+
+    The order is load-bearing. The overlay runs FIRST so that reindex sees the
+    final dataset: it stamps `_k` on the rows added from the web (which is what
+    joins them to every provider) and copies cells the staged edits may have
+    changed — `owned`, `format`, `condition`, `notes` — into the key meta the
+    per-source gates read. Running it afterwards would leave an added game
+    invisible to the enricher until the sheet itself caught up.
+    """
+    try:
+        stats = EDITS.apply(parsed)
+        if any(stats.values()):
+            logging.getLogger("gamedex.edits").info(
+                "overlay: %(added)d added, %(applied)d applied, %(retired)d retired,"
+                " %(conflicts)d conflicted", stats)
+    except Exception as exc:                   # a bad overlay must not cost us the sheet
+        logging.getLogger("gamedex.edits").warning("overlay failed: %s", exc)
+    if enricher:
+        enricher.reindex(parsed)
+        # A game added from the web gets the same fan-out a sheet row gets. Behind
+        # the on-screen work (front=False) — it's a backfill, not a page load.
+        enricher.request(EDITS.added_keys(), front=False)
+
+
 store = DataStore(
     DROPBOX_URL, XLSX_FILENAME, REFRESH_INTERVAL,
-    on_update=(enricher.reindex if enricher else None),
+    on_update=_on_data_update,
 )
 
 # Personal platform accounts (see platformdb.py / platform_sync.py): the admin
@@ -379,6 +412,239 @@ async def api_prefs_put(key: str, request: Request, user: dict = Depends(require
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return {"ok": True}
+
+
+# ---------- writes from the web (staged edits) ----------
+# See edits.py. Everything here is admin-only and lands in SQLite, never in the
+# workbook: the sheet stays the source of truth and these are an overlay on top of
+# it, retired automatically once the spreadsheet catches up.
+
+class FieldEdit(BaseModel):
+    key: str                      # the row's match key
+    column: str
+    value: object = None          # null stages a cleared cell
+    sheet: str = "games"
+
+
+def _live_data():
+    """The dataset being served right now, or None before the first load."""
+    return store.snapshot()["data"]
+
+
+def _write_through(data):
+    """Re-overlay onto the live dataset so a write is visible before the next poll.
+
+    retire=False: these rows already carry the overlay, so they cannot be used to
+    judge whether the spreadsheet has caught up (see Edits.apply).
+    """
+    try:
+        EDITS.apply(data, retire=False)
+    except Exception as exc:
+        logging.getLogger("gamedex.edits").warning("write-through failed: %s", exc)
+
+
+@app.get("/api/edits")
+def api_edits_list(user: dict = Depends(require_admin)):
+    """Everything staged, for the reconciliation screen."""
+    return {"counts": EDITS.counts(), **EDITS.pending()}
+
+
+@app.post("/api/edits")
+def api_edit_field(body: FieldEdit, user: dict = Depends(require_admin)):
+    """Stage one cell change — the quick-log verbs in the drawer.
+
+    The pre-edit value is read off the live dataset here rather than trusted from
+    the browser: it is what retirement and conflict detection are judged against,
+    so a stale tab must not be able to set it.
+    """
+    data = _live_data()
+    if not data:
+        return JSONResponse({"error": "the sheet hasn't loaded yet"}, status_code=503)
+    rows = edits_mod.find_rows(data, body.sheet, body.key)
+    if not rows:
+        return JSONResponse({"error": "no row with that match key"}, status_code=404)
+    real = [r for r in rows if not r.get("_rowId")]
+    try:
+        if not real:
+            # The row only exists in the overlay (added from the web, not yet in the
+            # workbook) — change its staged cells in place instead of staging an edit
+            # against a sheet row that isn't there.
+            row_id = rows[0]["_rowId"]
+            staged = EDITS.update_added(row_id, {body.column: body.value})
+            value = staged["fields"].get(body.column)
+            # The injected row is rebuilt from its stored cells, not patched by the
+            # overlay pass below — without this the change would only appear on the
+            # next poll (and only in THIS browser meanwhile).
+            EDITS.rewrite_injected(data, row_id, staged["fields"])
+        else:
+            value = EDITS.stage_field(body.sheet, body.key, body.column,
+                                      body.value, real[0].get(body.column))
+    except edits_mod.EditError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    _write_through(data)
+    # `rows` > 1 means two sheet rows share a match key, so the edit went to both.
+    # Say so rather than letting it look like a single-row write.
+    return {"ok": True, "value": value, "rows": max(len(real), 1),
+            "counts": EDITS.counts()}
+
+
+@app.delete("/api/edits")
+def api_edit_drop(key: str, column: str, sheet: str = "games",
+                  user: dict = Depends(require_admin)):
+    """Discard a staged edit and put the spreadsheet's own value back on screen."""
+    res = EDITS.drop_field(sheet, key, column)
+    data = _live_data()
+    if data and res["dropped"] and res["state"] == "pending":
+        EDITS.restore(data, sheet, key, column, res["base"])
+    return {"ok": True, **res, "counts": EDITS.counts()}
+
+
+class AddGame(BaseModel):
+    platform: str
+    igdbId: int | None = None
+    fields: dict = {}
+    sheet: str = "games"
+
+
+@app.get("/api/igdb/search")
+def api_igdb_search(q: str, user: dict = Depends(require_admin)):
+    """IGDB candidates for a title, each with the sheet cells it would fill in.
+
+    This is the half of "add a game" that stops you typing metadata the internet
+    already knows: pick the right entry and the release date, genre, franchise,
+    publisher and developer arrive with it. `platforms` carries both names — IGDB's
+    and the spreadsheet's own word for the same machine — because the sheet keeps
+    one row per platform copy and IGDB keeps one entry per game.
+    """
+    if not _igdb.configured:
+        return JSONResponse({"error": "IGDB is not configured"}, status_code=400)
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"query": q, "results": []}
+    try:
+        candidates = _igdb.search_candidates(q)
+    except Exception as exc:
+        logging.getLogger("gamedex.edits").warning("igdb search %r failed: %s", q, exc)
+        return JSONResponse({"error": "IGDB search failed"}, status_code=502)
+    out = []
+    for c in candidates[:15]:
+        rec = _igdb.enrichment_from_result(c)
+        out.append({
+            "igdbId": rec.get("igdbId"),
+            "name": rec.get("name"),
+            "url": rec.get("url"),
+            "cover": rec.get("cover"),
+            "year": rec.get("year"),
+            "status": rec.get("igdbStatus"),
+            "summary": (rec.get("summary") or "")[:280],
+            "platforms": [{"igdb": p, "sheet": edits_mod.sheet_platform(p)}
+                          for p in sorted({x["name"] for x in c.get("platforms", [])
+                                           if x.get("name")})],
+            "fields": edits_mod.fields_from_igdb(rec),
+        })
+    return {"query": q, "results": out}
+
+
+@app.post("/api/games")
+def api_add_game(body: AddGame, user: dict = Depends(require_admin)):
+    """Add a game to the collection: IGDB supplies the metadata, you supply the
+    columns only you know, and every other provider matches itself afterwards.
+
+    The chosen IGDB record is PINNED as a manual override on the new row's match
+    key, so the one thing a fuzzy matcher can get wrong — which game this is — is
+    settled by hand once. Then the row is handed to the enricher like any other,
+    and HLTB, Metacritic, prices, PCGamingWiki and the rest fan out from it.
+    """
+    data = _live_data()
+    if not data:
+        return JSONResponse({"error": "the sheet hasn't loaded yet"}, status_code=503)
+    record = None
+    if body.igdbId:
+        if not _igdb.configured:
+            return JSONResponse({"error": "IGDB is not configured"}, status_code=400)
+        try:
+            record = _igdb.detail_by_id(body.igdbId)
+        except Exception as exc:
+            logging.getLogger("gamedex.edits").warning("igdb %s failed: %s", body.igdbId, exc)
+        if not record:
+            return JSONResponse({"error": f"IGDB has no game {body.igdbId}"}, status_code=404)
+    # Your fields win over IGDB's suggestions: you may have corrected the genre to
+    # the word this spreadsheet has used for twenty years. Empty ones do NOT win —
+    # the add form posts every column it offers, and a blank box means "no opinion",
+    # not "erase what IGDB said".
+    submitted = {k: v for k, v in (body.fields or {}).items()
+                 if v is not None and not (isinstance(v, str) and not v.strip())}
+    fields = {**edits_mod.fields_from_igdb(record or {}, body.platform),
+              **submitted, "platform": body.platform}
+    try:
+        key = EDITS.key_for_fields(body.sheet, fields)
+    except edits_mod.EditError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    if not key:
+        title_field = edits_mod.SHEET_TITLE.get(body.sheet, "title")
+        return JSONResponse({"error": f"a new {body.sheet} row needs a {title_field}"},
+                            status_code=400)
+    # Refused rather than offered with a force flag: a match key IS the row identity
+    # in phase 1, so a second row with the same title/platform/year could not be told
+    # apart from the first — the overlay would retire it on the next poll for looking
+    # like a row the sheet already has. A genuine second copy goes in the spreadsheet.
+    clash = edits_mod.find_rows(data, body.sheet, key)
+    if clash:
+        return JSONResponse(
+            {"error": "that copy is already in the collection — add a second copy in "
+                      "the spreadsheet, where the rows can be told apart",
+             "matchKey": key,
+             "existing": {k: v for k, v in clash[0].items() if not k.startswith("_")}},
+            status_code=409)
+    try:
+        staged = EDITS.add_row(body.sheet, fields, body.igdbId)
+    except edits_mod.EditError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    _write_through(data)
+    matched = False
+    if enricher:
+        # sweep=False: this is one new row, not a fresh workbook — the fallback's
+        # no_match clear-out would re-crawl the whole unmatched tail.
+        enricher.reindex(data, sweep=False)    # stamps `_k`, registers it in key_meta
+        pin_key, _ = EDITS.igdb_pin_for(staged["rowId"])
+        if pin_key and record:
+            enricher.set_override(pin_key, record)   # the game YOU chose, pinned manual
+            matched = True
+        if pin_key:
+            enricher.request([pin_key])        # …and every other provider from there
+    return {"ok": True, "rowId": staged["rowId"], "matchKey": key,
+            "fields": staged["fields"], "igdbPinned": matched, "counts": EDITS.counts()}
+
+
+@app.patch("/api/games/{row_id}")
+def api_update_staged(row_id: str, body: dict, user: dict = Depends(require_admin)):
+    """Change the cells of a row that only exists in the overlay."""
+    try:
+        staged = EDITS.update_added(row_id, body or {})
+    except edits_mod.EditError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    data = _live_data()
+    if data:
+        # The injected row is already in the live dataset; rewrite its cells there
+        # rather than waiting for a re-parse to rebuild it.
+        EDITS.rewrite_injected(data, row_id, staged["fields"])
+        if enricher:
+            enricher.reindex(data, sweep=False)   # the title or platform may have moved
+    return {"ok": True, **staged, "counts": EDITS.counts()}
+
+
+@app.delete("/api/games/{row_id}")
+def api_delete_staged(row_id: str, user: dict = Depends(require_admin)):
+    """Discard a staged row. Only ever removes a row the web added — a real
+    spreadsheet row cannot be deleted from here."""
+    gone = EDITS.delete_added(row_id)
+    data = _live_data()
+    if data and gone:
+        EDITS.remove_injected(data, row_id)
+        if enricher:
+            enricher.reindex(data, sweep=False)
+    return {"ok": True, "deleted": gone, "counts": EDITS.counts()}
 
 
 # ---------- the NAS ----------
@@ -1233,7 +1499,7 @@ def health():
 # instead of once per request. The volatile part is only meta.enrichment/meta.catalogue —
 # the stats — and the client has a live source for those in /api/enrichment/stats, so
 # serving them up to 20s stale here costs nothing.
-_data_cache: dict = {"ver": None, "ts": 0.0, "body": None, "etag": None}
+_data_cache: dict = {"ver": None, "edver": None, "ts": 0.0, "body": None, "etag": None}
 _DATA_TTL = 20.0
 
 
@@ -1250,9 +1516,15 @@ def data(request: Request):
         enricher.change_count() if enricher else 0,
         catalogue.generation if catalogue else None,
     )
+    # A staged write changes the rows without touching the workbook, so it gets its
+    # own leg of the key — and it bypasses the TTL rather than riding it. The TTL is
+    # there to stop a running backfill re-serialising 8 MB per request; an edit you
+    # just made is not a statistic, and waiting 20s to see it is a bug.
+    edver = EDITS.version()
     now = time.monotonic()
     c = _data_cache
-    if c["body"] is not None and (c["ver"] == ver or now - c["ts"] < _DATA_TTL):
+    if (c["body"] is not None and c["edver"] == edver
+            and (c["ver"] == ver or now - c["ts"] < _DATA_TTL)):
         body, etag = c["body"], c["etag"]
     else:
         meta = dict(snap["meta"])
@@ -1265,6 +1537,9 @@ def data(request: Request):
         # Rides along so the nav badge knows its unseen-alert count without a second
         # request — same reasoning as the catalogue generation above.
         meta["translations"] = translations.stats() if translations else {"enabled": False}
+        # How much of what you're looking at hasn't been keyed into the spreadsheet
+        # yet — the badge on the pending-edits screen, and the public's "0".
+        meta["edits"] = EDITS.counts()
         payload = {"meta": meta, "sheets": snap["data"]}
         # ensure_ascii/allow_nan match what FastAPI's own JSONResponse did, so the bytes
         # are the ones this endpoint has always sent (the rows are already plain
@@ -1272,8 +1547,8 @@ def data(request: Request):
         # pass-through here, and `default` is only a safety net for a future type).
         body = gzip.compress(json.dumps(payload, separators=(",", ":"), ensure_ascii=False,
                                         allow_nan=False, default=str).encode("utf-8"), 6)
-        etag = '"%s-%s"' % (ver[0] or "0", ver[1])
-        c.update(ver=ver, ts=now, body=body, etag=etag)
+        etag = '"%s-%s-%s"' % (ver[0] or "0", ver[1], edver)
+        c.update(ver=ver, edver=edver, ts=now, body=body, etag=etag)
     # A repeat visit re-downloaded all 1.2 MB of this for want of five lines. The sheet
     # changes when the spreadsheet does — minutes to days apart — so the common case is a
     # 304 and no body at all.

@@ -90,6 +90,11 @@ spec:
                   key: admin-initial-password
             - name: ACCOUNTS_DB
               value: /data/accounts.sqlite
+            # Writes from the web, staged until the spreadsheet catches up (edits.py).
+            # Explicit like its neighbours, so the path is visible in the manifest
+            # rather than only in the code's default.
+            - name: EDITS_DB
+              value: /data/edits.sqlite
             - name: IGDB_CLIENT_ID
               valueFrom:
                 secretKeyRef:

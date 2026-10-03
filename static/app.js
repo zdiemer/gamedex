@@ -587,6 +587,8 @@ async function load() {
   ENRICH_SOURCES = en && en.sources ? Object.keys(en.sources) : [];
   if (ENRICH_ENABLED) updateEnrichStatus(en);
   setFreshness();
+  // How much of what's on screen is staged rather than in the workbook (edits.js).
+  if (typeof editsSyncCounts === "function") editsSyncCounts();
   // Covers BEFORE the first render, not after it. The head asked for them at ~60ms and they
   // are a fraction of the sheet's size, so by now this is almost always already resolved —
   // awaiting it costs nothing and buys a first paint with real box art on it instead of a

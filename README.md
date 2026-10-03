@@ -118,10 +118,13 @@ Dropbox shared link ──poll(600s)──▶ DataStore (in-memory)
                                           ── /api/health (503 until first load)
 ```
 
-There is **no database and no PVC** — the whole dataset (~17k rows) lives in
-memory and is re-fetched on boot and every `refreshIntervalSeconds`, so a pod
-restart self-heals. Faceting and search run client-side over the JSON payload
-(~1 MB gzipped), which is plenty fast at this scale.
+**The spreadsheet is the only source of the collection itself** — the whole dataset
+(~17k rows) lives in memory and is re-fetched on boot and every
+`refreshIntervalSeconds`, so a pod restart self-heals. Faceting and search run
+client-side over the JSON payload (~1 MB gzipped), which is plenty fast at this
+scale. The PVC holds only things derived from or layered on top of that: the
+enrichment and catalogue caches, uploaded box art, prefs, and the staged edits
+(see **Editing from the web**).
 
 Key files:
 - `src/parse.py` — xlsx → normalized JSON (Excel-serial dates, 0–1 ratings, 0/1
@@ -136,6 +139,10 @@ Key files:
   appid (ultrawide, 4K, HDR, ray tracing, D3D/Vulkan, 64-bit, controller); Wikidata joins
   on the IGDB slug and brings the composer, the director, a Wikipedia article and a
   MobyGames id. Because both key on an id rather than a title, neither can mismatch.
+- `src/edits.py` — writes from the web, staged (see **Editing from the web** below).
+- `src/matchkey.py` — a row's identity (`normalize(title)|platform|year`). One
+  function, because everything keyed on a row — every provider cache, the staged
+  edits, the platform-library joins — has to agree about what "the same game" is.
 - `src/match_validator.py`, `src/constants.py`, `src/excel_game.py` — title
   matcher ported near-verbatim from [zdiemer/GamesMaster](https://github.com/zdiemer/GamesMaster).
 - `static/` — `index.html`, `style.css`, and ~30 plain `.js` files (no build step, no
@@ -169,6 +176,57 @@ background to build a complete dataset — off by default to respect rate limits
 Endpoints: `POST /api/enrichment` (batch of matchKeys → light covers/facets),
 `GET /api/enrichment/detail?key=` (full detail for the drawer),
 `GET /api/enrichment/stats`. Each served row carries a `_k` matchKey.
+
+## Editing from the web
+
+The spreadsheet is still the source of truth. Signed in as the admin you can also
+write from the site, and those writes are **staged**: they land in SQLite on the
+PVC (`/data/edits.sqlite`, `EDITS_DB`) and are overlaid onto the parsed rows on
+the way out. Nothing is ever written to Dropbox — a server write racing whatever
+machine has the workbook open in Excel produces conflicted copies, not backups.
+
+Two kinds of write:
+
+- **Quick log** (the drawer): status, priority, owned/completed/wishlisted,
+  rating, hours, started/finished dates. One cell at a time, from the allowlist in
+  `edits.py` — all personal facts about your copy. Universal metadata (genre,
+  publisher) isn't editable this way; it comes from IGDB.
+- **Add a game** (nav → Admin, or the command palette): searches IGDB, fills the
+  release date, genre, franchise, publisher and developer from the record you pick,
+  and asks you only for the columns that are yours (platform, format, condition,
+  what you paid). The chosen IGDB record is **pinned as a manual override** on the
+  new row's match key, so the one thing a fuzzy matcher gets wrong is settled by
+  hand once — then the row is handed to the enricher like any other and HLTB,
+  Metacritic, prices, PCGamingWiki and the rest match themselves from it.
+
+A staged value carries a dot in the drawer, and **Pending edits** lists everything
+that hasn't been keyed into the workbook yet, with the code to type into each cell
+(the sheet stores `3`, the site shows "Want to Play").
+
+The part that makes this safe to leave running is **retirement**. Every staged edit
+records what the sheet said when it was made, and each fresh parse re-judges it:
+
+| the sheet now says | what happens |
+|---|---|
+| the same as your edit | retired — you keyed it in, the overlay is dropped |
+| something else entirely | **conflict** — the sheet wins, your value stops being applied, both are shown |
+| still the old value | the edit keeps applying |
+
+Added rows retire the same way: once a real sheet row shares the match key, the
+staged copy steps aside instead of showing the game twice. Without this an overlay
+would outlive the edit it describes and shadow the spreadsheet forever — including
+over a *later* edit made in Excel.
+
+Known limits of this phase (see `TODO.md` for where it's going): a row's identity
+is its match key, so the title, platform and release year can't be edited and a
+second copy of the same game on the same platform has to go in the spreadsheet;
+and the overlay is part of the dataset everyone gets, so a staged value is visible
+to the public like any other cell.
+
+Endpoints (all admin-only): `POST/DELETE /api/edits`, `GET /api/edits`,
+`GET /api/igdb/search?q=`, `POST /api/games`, `PATCH/DELETE /api/games/{rowId}`.
+`tools/tests/edits.py` exercises the retirement rules — run it after touching
+`edits.py`.
 
 ## The IGDB catalogue
 

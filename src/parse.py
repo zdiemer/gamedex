@@ -194,6 +194,58 @@ _SHEET_ORDER = ["games", "onOrder", "completed"]
 _SCHEMA_BY_KEY = {"games": _GAMES, "onOrder": _ON_ORDER, "completed": _COMPLETED}
 
 
+# ---- public helpers (edits.py) -------------------------------------------
+# A staged edit has to produce a cell that is indistinguishable from a parsed
+# one — same type, same label vocabulary — or the overlay would serve values the
+# rest of the app can't filter, sort or format. So the writer asks this module
+# what a column is rather than restating the schema next to it.
+
+def column_types(sheet_key: str) -> dict:
+    """{column key: type} for a logical sheet ('games' | 'completed' | 'onOrder')."""
+    return {_slug(h): t for h, t, *_ in _SCHEMA_BY_KEY.get(sheet_key, [])}
+
+
+def labels_for(column_key: str) -> dict:
+    """{sheet code: human label} for a coded column, or {} for a plain one."""
+    return dict(_VALUE_LABELS.get(column_key) or {})
+
+
+def code_for_label(column_key: str, label) -> str | None:
+    """The code to type into Excel for a label this app displays.
+
+    The inverse of _apply_label. Rows carry "Want to Play"; the spreadsheet cell
+    holds 3. The pending-edits list shows the code, because that is what you have
+    to key in when you reconcile an edit by hand.
+    """
+    for code, text in (_VALUE_LABELS.get(column_key) or {}).items():
+        if text == label:
+            return code
+    return None
+
+
+def coerce(value, ctype):
+    """Normalize one value the way a workbook cell of this type is normalized."""
+    return _coerce(value, ctype)
+
+
+def inject_derived(row: dict) -> dict:
+    """The post-parse passes parse_workbook runs over the Games sheet, for a single
+    row the workbook never saw (a game added from the web).
+
+    Notes unpacking, then the year facet: the Early Access / TBD label fallback the
+    Games sheet gets, plus the derive-from-the-date rule the Completed sheet gets
+    (an added row may carry a release date and no year, where a workbook row always
+    has the column). Without this a new row is missing facets every other row has.
+    """
+    for k, v in notes_mod.process(row.get("notes")).items():
+        row[k] = v
+    if not row.get("releaseYear"):
+        rd = row.get("releaseDate")
+        if isinstance(rd, str):
+            row["releaseYear"] = int(rd[:4]) if re.match(r"^\d{4}-", rd) else rd
+    return row
+
+
 def _to_number(value):
     if isinstance(value, bool):
         return 1 if value else 0

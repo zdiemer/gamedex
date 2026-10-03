@@ -152,9 +152,17 @@ codebase audit.
         being a migration-time triage artifact and becomes a first-class
         "add a game" form that mints a custom row (own id range) with the
         same editable fields.
-      - **Phasing:** (1) staged-edits overlay — quick-log ("mark finished",
+      - **Phasing:** (1) ~~staged-edits overlay — quick-log ("mark finished",
         "set status", "log hours") writes to a side table and overlays the
-        served rows, sheet still truth, zero risk, admin-only; (2) igdbId-
+        served rows, sheet still truth, zero risk, admin-only~~ **done** (1.75.0,
+        `src/edits.py`): the quick-log verbs, plus "add a game" by IGDB search
+        (the picked record is pinned as a manual override and the remaining
+        providers fan out from the new match key), plus the pending-edits
+        reconciliation list. Edits retire themselves when the sheet catches up
+        and go to CONFLICT when it moves underneath them. What phase 1 can't do,
+        and phase 2 is for: a row's identity is its match key, so title/platform/
+        year aren't editable and a second copy of the same game on the same
+        platform can't be represented; (2) igdbId-
         anchored migration, DB becomes truth, poller retired to import-on-
         demand — schema is per-user from here even though there's one user;
         (3) editing UI grows from the quick-log verbs outward; (4) accounts

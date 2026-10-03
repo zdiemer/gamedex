@@ -263,6 +263,14 @@ function cmdkActions() {
   const acts = [];
   if (typeof openAttract === "function")
     acts.push({ kind: "Action", label: "Attract mode", run: () => openAttract() });
+  // The write surfaces (edits.js) are dialogs rather than tabs, so the tab scan
+  // misses them the same way it misses Attract mode. Admin-only, like their buttons.
+  if (typeof IS_ADMIN !== "undefined" && IS_ADMIN) {
+    if (typeof openAddGame === "function")
+      acts.push({ kind: "Action", label: "Add a game", run: () => openAddGame() });
+    if (typeof openPendingEdits === "function")
+      acts.push({ kind: "Action", label: "Pending edits", run: () => openPendingEdits() });
+  }
   return acts;
 }
 
