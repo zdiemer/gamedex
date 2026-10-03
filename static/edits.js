@@ -30,6 +30,13 @@ const PRIORITY_VALUES = ["Must Play", "Will Play", "Want to Play", "Might Play",
 
 const todayISO = () => new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD, local
 
+/* escapeHtml takes a string and calls .replace on it, so a number throws — and a
+   throw inside a template literal that is building innerHTML leaves whatever was
+   on screen (a skeleton) there forever, which reads as a hang rather than an
+   error. Half the values on this screen come off the API as numbers: a release
+   year, a price, a rating. So everything interpolated here goes through esc(). */
+const esc = (v) => (v === null || v === undefined ? "" : escapeHtml(String(v)));
+
 function editsSyncCounts() {
   const m = (DATA && DATA.meta && DATA.meta.edits) || null;
   if (m) EDIT_COUNTS = m;
@@ -128,7 +135,7 @@ function editsQuickHtml(row) {
   const on = (col, val) => (row[col] === val ? " on" : "");
   const mine = (col) => ((row._edited || []).includes(col) ? ` <i class="ql-dot" title="Not in the spreadsheet yet"></i>` : "");
   const seg = (col, values) => values.map((v) =>
-    `<button class="ce-opt${on(col, v)}" data-ql-set="${col}" data-ql-val="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join("");
+    `<button class="ce-opt${on(col, v)}" data-ql-set="${col}" data-ql-val="${esc(v)}">${esc(v)}</button>`).join("");
   const pct = row.rating != null ? Math.round(row.rating * 100) : "";
   return `<details class="ql" ${row._added ? "open" : ""}>
     <summary>${icon("i-edit", 13)} Quick log${mine("playingStatus")}</summary>
@@ -156,10 +163,10 @@ function editsQuickHtml(row) {
           <button class="ce-opt" data-ql-today="dateCompleted">Finished today</button>
         </div>
         <span class="ql-dates muted">${[["Started", row.dateStarted], ["Finished", row.dateCompleted]]
-          .filter(([, v]) => v).map(([l, v]) => `${l} ${escapeHtml(fmtDate(v))}`).join(" · ")}</span></div>
+          .filter(([, v]) => v).map(([l, v]) => `${l} ${esc(fmtDate(v))}`).join(" · ")}</span></div>
       ${row._rowId ? `<div class="ql-note muted">This game was added here and isn’t in the
         spreadsheet yet — ${icon("i-edit", 11)} its cells live in the overlay.
-        <button class="linkbtn danger" data-ql-unadd="${escapeHtml(row._rowId)}">Discard it</button></div>` : ""}
+        <button class="linkbtn danger" data-ql-unadd="${esc(row._rowId)}">Discard it</button></div>` : ""}
     </div></details>`;
 }
 
@@ -239,17 +246,20 @@ function editsModal(title, inner, cls) {
   document.querySelectorAll(".ce-scrim.ed").forEach((n) => n.remove());
   const host = document.createElement("div");
   host.className = `ce-scrim ed ${cls || ""}`;
-  host.innerHTML = `<div class="ce ed-ce" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+  host.innerHTML = `<div class="ce ed-ce" role="dialog" aria-modal="true" aria-label="${esc(title)}">
       <button class="ce-x" aria-label="Close">✕</button>
-      <h3>${escapeHtml(title)}</h3>
+      <h3>${esc(title)}</h3>
       <div class="ed-body"></div>
     </div>`;
   host.querySelector(".ed-body").innerHTML = inner;
-  const close = () => { host.remove(); syncScrollLock?.(); document.removeEventListener("keydown", esc, true); };
+  const close = () => { host.remove(); syncScrollLock?.(); document.removeEventListener("keydown", onEsc, true); };
   // Capture, and stopped: chrome.js's Escape handler would otherwise walk the
   // drawer stack out from under an open dialog.
-  const esc = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); close(); } };
-  document.addEventListener("keydown", esc, true);
+  // NOT named `esc` — a block-scoped const by that name puts the module-level
+  // esc() helper into TDZ for this whole function, so every interpolation above
+  // throws before you ever get here.
+  const onEsc = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); close(); } };
+  document.addEventListener("keydown", onEsc, true);
   host.querySelector(".ce-x").onclick = close;
   host.addEventListener("mousedown", (e) => { if (e.target === host) close(); });
   document.body.appendChild(host);
@@ -271,7 +281,7 @@ function sheetValues(column, limit) {
 }
 
 const dlist = (id, values) =>
-  `<datalist id="${id}">${values.map((v) => `<option value="${escapeHtml(v)}"></option>`).join("")}</datalist>`;
+  `<datalist id="${id}">${values.map((v) => `<option value="${esc(v)}"></option>`).join("")}</datalist>`;
 
 /* ---- add a game --------------------------------------------------------- */
 function openAddGame(prefill) {
@@ -284,7 +294,7 @@ function openAddGame(prefill) {
       <span class="field field-inline">
         ${icon("i-search", 14)}
         <input id="agQ" type="search" placeholder="Title…" autocomplete="off" spellcheck="false"
-               value="${escapeHtml(prefill || "")}">
+               value="${esc(prefill || "")}">
       </span>
       <button class="btn" id="agGo">Search</button>
     </div>
@@ -308,12 +318,12 @@ function openAddGame(prefill) {
       body = await res.json();
       if (!res.ok) throw new Error(body.error || "search failed");
     } catch (err) {
-      if (mine === seq) results.innerHTML = `<div class="muted">${escapeHtml(String(err.message || err))}</div>`;
+      if (mine === seq) results.innerHTML = `<div class="muted">${esc(String(err.message || err))}</div>`;
       return;
     }
     if (mine !== seq) return;                       // a later search already answered
     if (!body.results.length) {
-      results.innerHTML = `<div class="muted">Nothing on IGDB for “${escapeHtml(term)}”.
+      results.innerHTML = `<div class="muted">Nothing on IGDB for “${esc(term)}”.
         You can still <button class="linkbtn" id="agManual">add it by hand</button>.</div>`;
       const manual = results.querySelector("#agManual");
       if (manual) manual.onclick = () => showAddForm(null, { title: term });
@@ -321,11 +331,11 @@ function openAddGame(prefill) {
     }
     results.innerHTML = body.results.map((r, i) => `
       <button class="ed-hit" data-i="${i}">
-        ${r.cover ? `<img src="${escapeHtml(IMG(r.cover, "cover_small"))}" alt="" loading="lazy">`
+        ${r.cover ? `<img src="${esc(IMG(r.cover, "cover_small"))}" alt="" loading="lazy">`
                   : `<span class="ed-nocover">${icon("i-library", 16)}</span>`}
-        <span class="ed-hit-t"><b>${escapeHtml(r.name || "")}</b>
+        <span class="ed-hit-t"><b>${esc(r.name || "")}</b>
           <em>${[r.year, r.status, (r.platforms || []).map((p) => p.sheet || p.igdb).slice(0, 4).join(", ")]
-            .filter(Boolean).map(escapeHtml).join(" · ")}</em></span>
+            .filter(Boolean).map(esc).join(" · ")}</em></span>
       </button>`).join("");
     results.querySelectorAll(".ed-hit").forEach((b) => {
       b.onclick = () => {
@@ -344,20 +354,20 @@ function openAddGame(prefill) {
     const all = sheetValues("platform", 200);
     const platforms = [...new Set([...offered, ...all])];
     const textRow = (label, name, value, extra) =>
-      `<label class="ed-f"><span>${escapeHtml(label)}</span>
-        <input name="${name}" value="${escapeHtml(value ?? "")}" ${extra || ""}></label>`;
+      `<label class="ed-f"><span>${esc(label)}</span>
+        <input name="${name}" value="${esc(value ?? "")}" ${extra || ""}></label>`;
     const selRow = (label, name, values, value) =>
-      `<label class="ed-f"><span>${escapeHtml(label)}</span>
+      `<label class="ed-f"><span>${esc(label)}</span>
         <select name="${name}"><option value=""></option>
-        ${values.map((v) => `<option${v === value ? " selected" : ""}>${escapeHtml(v)}</option>`).join("")}
+        ${values.map((v) => `<option${v === value ? " selected" : ""}>${esc(v)}</option>`).join("")}
         </select></label>`;
     formHost.innerHTML = `
-      <h4 class="ed-h">${escapeHtml(f.title || "New game")}${hit ? ` <span class="muted">· IGDB ${hit.igdbId}</span>` : ` <span class="muted">· no IGDB match</span>`}</h4>
+      <h4 class="ed-h">${esc(f.title || "New game")}${hit ? ` <span class="muted">· IGDB ${hit.igdbId}</span>` : ` <span class="muted">· no IGDB match</span>`}</h4>
       <div class="ed-grid">
         ${textRow("Title", "title", f.title)}
         <label class="ed-f"><span>Platform *</span>
-          <input name="platform" list="agPlat" value="${escapeHtml(platforms.includes(offered[0]) ? offered[0] : "")}"
-                 placeholder="${escapeHtml(offered[0] || "e.g. " + (all[0] || "PC"))}"></label>
+          <input name="platform" list="agPlat" value="${esc(platforms.includes(offered[0]) ? offered[0] : "")}"
+                 placeholder="${esc(offered[0] || "e.g. " + (all[0] || "PC"))}"></label>
         ${dlist("agPlat", platforms)}
         ${textRow("Release date", "releaseDate", f.releaseDate, 'placeholder="YYYY-MM-DD"')}
         ${textRow("Release year", "releaseYear", f.releaseYear)}
@@ -475,7 +485,7 @@ function openPendingEdits() {
       body = await res.json();
       if (!res.ok) throw new Error(body.error || "couldn’t load");
     } catch (err) {
-      m.body.innerHTML = `<div class="muted">${escapeHtml(String(err.message || err))}</div>`;
+      m.body.innerHTML = `<div class="muted">${esc(String(err.message || err))}</div>`;
       return;
     }
     EDIT_COUNTS = body.counts || EDIT_COUNTS;
@@ -504,33 +514,33 @@ function openPendingEdits() {
     const orphans = body.fields.filter((f) => f.state === "orphan");
     const plain = body.fields.filter((f) => f.state === "pending");
 
-    const fieldRow = (f) => `<div class="ed-pend" data-sheet="${escapeHtml(f.sheet)}"
-        data-key="${escapeHtml(f.matchKey)}" data-col="${escapeHtml(f.column)}">
-      <div class="ed-pend-t"><b>${escapeHtml(titleOf(f.sheet, f.matchKey))}</b>
-        <em>${escapeHtml(labelOf(f.sheet, f.column))}</em></div>
+    const fieldRow = (f) => `<div class="ed-pend" data-sheet="${esc(f.sheet)}"
+        data-key="${esc(f.matchKey)}" data-col="${esc(f.column)}">
+      <div class="ed-pend-t"><b>${esc(titleOf(f.sheet, f.matchKey))}</b>
+        <em>${esc(labelOf(f.sheet, f.column))}</em></div>
       <div class="ed-pend-v">
         ${f.state === "conflict"
           ? `<span class="ed-vs"><span>sheet now</span>${show(f.sheet, f.column, f.sheetValue)}</span>
              <span class="ed-vs"><span>yours</span>${show(f.sheet, f.column, f.value)}</span>`
           : `<span class="ed-vs"><span>was</span>${show(f.sheet, f.column, f.base)}</span>
              <span class="ed-vs"><span>now</span>${show(f.sheet, f.column, f.value)}</span>`}
-        ${f.sheetCode ? `<span class="ed-code" title="What to type into the spreadsheet cell">type <b>${escapeHtml(f.sheetCode)}</b></span>` : ""}
+        ${f.sheetCode ? `<span class="ed-code" title="What to type into the spreadsheet cell">type <b>${esc(f.sheetCode)}</b></span>` : ""}
       </div>
       <div class="ed-pend-a">
         ${f.state === "conflict" ? `<button class="linkbtn" data-keep>Keep mine</button>` : ""}
         <button class="linkbtn danger" data-drop>${f.state === "conflict" ? "Take the sheet’s" : "Discard"}</button>
       </div></div>`;
 
-    const addedRow = (a) => `<div class="ed-pend" data-row="${escapeHtml(a.rowId)}">
-      <div class="ed-pend-t"><b>${escapeHtml(a.fields.title || a.fields.game || a.rowId)}</b>
-        <em>${escapeHtml([a.fields.platform, a.fields.releaseYear].filter(Boolean).join(" · "))}</em></div>
+    const addedRow = (a) => `<div class="ed-pend" data-row="${esc(a.rowId)}">
+      <div class="ed-pend-t"><b>${esc(a.fields.title || a.fields.game || a.rowId)}</b>
+        <em>${esc([a.fields.platform, a.fields.releaseYear].filter(Boolean).join(" · "))}</em></div>
       <div class="ed-pend-v"><span class="muted">new row${a.igdbId ? ` · IGDB ${a.igdbId}` : ""}
         · ${Object.keys(a.fields).length} cells</span></div>
       <div class="ed-pend-a"><button class="linkbtn" data-open>Open</button>
         <button class="linkbtn danger" data-unadd>Discard</button></div></div>`;
 
     const section = (title, hint, html) => !html ? "" :
-      `<h4 class="ed-h">${escapeHtml(title)}</h4><p class="ce-sub">${hint}</p>${html}`;
+      `<h4 class="ed-h">${esc(title)}</h4><p class="ce-sub">${hint}</p>${html}`;
 
     m.body.innerHTML =
       (body.fields.length || body.added.length
