@@ -9,26 +9,44 @@ asymmetry that is easy to break: the write-through pass must NOT judge, because
 the rows it looks at already carry the overlay.
 
 Run:  python3 tools/tests/edits.py       (no pytest; nothing else here needs it)
+      PYTHONPATH=/app/src python3 edits_test.py      (inside the pod, real deps)
 
-The pod has no pip, so the three dependencies of match_validator and openpyxl are
-stubbed below. Only normalize()'s transliteration is faked out — the keys stay
-self-consistent, which is all identity needs here.
+The workspace pod has no pip, so openpyxl and match_validator's three wheels are
+STUBBED WHEN MISSING — the stubs only fake normalize()'s transliteration, and the
+keys stay self-consistent, which is all identity needs here. Where the real
+modules exist (the app image) they are used instead, so the same file is also a
+check against the real normalizer.
 """
 
+import importlib.util
 import os
 import sys
 import tempfile
 import types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(ROOT, "src"))
+for cand in (os.path.join(ROOT, "src"), "/app/src"):
+    if os.path.isdir(cand):
+        sys.path.insert(0, cand)
+        break
 
-# ---- stubs for the wheels that aren't installed in this pod -----------------
-_stub = lambda name, **attrs: sys.modules.setdefault(name, types.SimpleNamespace(**attrs))
+
+def _stub(name, **attrs):
+    """Register a stand-in ONLY if the real module isn't installed.
+
+    setdefault alone would shadow a perfectly good openpyxl, which is exactly
+    what made running this in the pod prove nothing about the real normalizer.
+    """
+    if name in sys.modules or importlib.util.find_spec(name) is not None:
+        return
+    sys.modules[name] = types.SimpleNamespace(**attrs)
+
+
 _stub("openpyxl", load_workbook=lambda *a, **k: None)
 _stub("unidecode", unidecode=lambda s: s)
 _stub("edit_distance", SequenceMatcher=object)
 _stub("roman", fromRoman=lambda s: 0, InvalidRomanNumeralError=ValueError)
+print("deps:", "real" if "unidecode" not in sys.modules else "stubbed normalizer")
 
 import edits as edits_mod                                   # noqa: E402
 from matchkey import match_key_for                           # noqa: E402
