@@ -14,6 +14,7 @@ let _swipePassed = 0;
 const _swipeHandled = new Set();
 const _swipeMetaFetched = new Set();
 const _swipePlatforms = new Map();
+const _swipeOrder = new Map();
 
 function resetSwipe() {
   _swipeRanked = null;
@@ -23,7 +24,13 @@ function resetSwipe() {
 function swipeRanked() {
   if (_swipeRanked && _swipeEpoch === _enrichEpoch) return _swipeRanked;
   _swipeEpoch = _enrichEpoch;
-  return (_swipeRanked = recsRanked().slice().sort((a, b) => recsBoth(b) - recsBoth(a)));
+  return (_swipeRanked = recsRanked().slice().sort((a, b) => {
+    const aid = a.row.igdbId;
+    const bid = b.row.igdbId;
+    if (!_swipeOrder.has(aid)) _swipeOrder.set(aid, Math.random());
+    if (!_swipeOrder.has(bid)) _swipeOrder.set(bid, Math.random());
+    return _swipeOrder.get(aid) - _swipeOrder.get(bid) || String(aid).localeCompare(String(bid));
+  }));
 }
 
 function swipeCurrent() {
