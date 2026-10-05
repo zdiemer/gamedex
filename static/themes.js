@@ -391,6 +391,77 @@ const THEMES = [
     ],
   },
   {
+    id: "shortgems",
+    name: "Short Gems",
+    plural: "short gems",        // the name is already a plural noun; see thmNoun
+    blurb: "an evening each, and all of them good",
+    icon: "i-hourglass",
+    n: 5,
+    /* The one theme whose pool is about LENGTH, so it borrows both halves rather than
+       inventing either. Three hours is U3_MAX — Under Three's own line (ev-underthree.js) —
+       and the hours come from playtimeOf (data.js: HLTB main→best, then VNDB, then the
+       sheet's estimate). Two definitions of "short" in one app is one too many, and the
+       second one to be written is the one that would look wrong.
+
+       Under Three is still a different page, which is why this is not a duplicate of it: it
+       counts HOURS cleared over one summer across every short game you own, good or not.
+       This is five short games that are also GOOD, all year.
+
+       The line is 85, not 90. Essential already owns 90-and-up, and 80 is not a shortlist of
+       gems — it is the short half of the shelf, at 123 in the pool against 38 at 85.
+
+       Unknown length is not short: playtimeOf answers null for a game nothing has timed, and
+       `null <= 3` is TRUE in JavaScript, so the guard comes first. (Same null trap the bad
+       games pool documents, and pick.js's budget rule for the same reason.)
+
+       THE LADDER GUARD, which is the only interesting rung here. HLTB's main-story number for
+       a fighter, a racer or a sports game times one arcade ladder, not the game: SoulCalibur
+       is 0.85h, Tekken 3 1.96h, Virtua Fighter 4 0.7h, and at 98, 96 and 94 on Metacritic all
+       three would outrank everything else in the pool. They are not short games, they are
+       endless games with a short ladder in them, so IGDB's Fighting, Racing and Sport genres
+       are out — 36 of them at breadth, 10 in the pool. It costs two honest matches to do it:
+       despelote (89, tagged Sport) and Super Catboy (90, tagged Fighting), both of which
+       really are an evening. HLTB's allStyles would separate the two cases properly —
+       despelote is 2.02 there against a 1.90 main, SoulCalibur 4.08 against 0.85 — but the
+       enricher stores that field without putting it in the light record, so it is one line of
+       enrich.py away rather than available here.
+
+       And DLC is out, which is five games and the easiest call in the file: a two-hour
+       expansion is short because it is an add-on, not because it is a small whole game. */
+    note: "Three hours or less — the same line Under Three draws, from the same playtime " +
+          "(HLTB, then VNDB, then the sheet) — on a game whose critic score is 85 or better, " +
+          "or failing any critic score, IGDB's players at 85% with thirty votes behind them. " +
+          "Not DLC, and not fighting, racing or sports games: HLTB's main story for those " +
+          "times one arcade ladder, which is why Tekken 3 looks like a two-hour game.",
+    match: (r) => {
+      // Null first. An unguarded bound makes every untimed game on the shelf a short one.
+      const t = playtimeOf(r);
+      if (t == null || !(+t > 0) || +t > U3_MAX) return false;
+      if (r.dlc) return false;
+      if (thmAny(thmIgdb(r, "genres"), "fighting", "racing", "sport")) return false;
+      // criticOf is the app's one critic score (Metacritic → the sheet → IGDB → GameRankings),
+      // so this lights up the 90s games nothing else scored. Players stand in only when it
+      // has no answer at all, and then only behind a crowd worth believing.
+      const c = criticOf(r);
+      if (c != null) return c >= .85;
+      const e = thmEn(r);
+      return e.userRating != null && e.userRating >= .85 && (e.userRatingCount || 0) >= 30;
+    },
+    skin: "--ev-size:54px;--ev-dw:800;--ev-ls:-.02em;" +
+          "--ev-deco:#2dd4bf;--ev-fg:#e6fbf7;--ev-fg-2:#93bdb6;--ev-edge:rgba(45,212,191,.32);" +
+          "--ev-edge-hi:rgba(45,212,191,.76);--ev-glow:rgba(45,212,191,.3);--ev-t1:#f0fdfa;" +
+          "--ev-t2:#a5f3fc;--ev-t3:#2dd4bf;--ev-on-cta:#03201d;--ev-k:#a5f3fc;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(45,212,191,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(165,243,252,.16),transparent 60%)," +
+          "linear-gradient(150deg,#040908,#0a1716 70%,#07100f)",
+    deco: [
+      { i: "i-hourglass", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-sparkle", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
+      { i: "i-watch", x: 24, y: 20, s: 22, r: 10, lift: 13, d: 40 },
+      { i: "i-star", x: 47, y: 84, s: 17, r: 0, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
     id: "soulslike",
     name: "Souls-like",
     blurb: "you will be asked to try again",
