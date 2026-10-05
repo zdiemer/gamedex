@@ -6814,11 +6814,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* The predicate, in words, under the slate — a pool you can't see the shape of is a pool
    you can't trust the roll of. */
 .thm-note { max-width: 78ch; margin: 16px 2px 0; font-size: 12.5px; line-height: 1.55; color: var(--dim); }
-.thm-past { display: grid; gap: 18px; }
-.thm-run-h { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }
-.thm-run-h b { font-size: 14px; color: var(--ev-k, var(--accent)); font-variant-numeric: tabular-nums; }
-.thm-run-h .m { font: 400 11.5px/1.4 var(--font); color: var(--dim); }
-.ev-tile.thm-was-done .ev-tile-s { color: var(--good); }
 
 /* ---- the preview board (?tab=events) --------------------------------------- */
 .ev-admin-wrap { max-width: 1180px; margin: 0 auto; padding: 30px 24px 0; }

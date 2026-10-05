@@ -14,9 +14,9 @@
                 that appears in it.
      a SLATE    N games rolled out of that pool. Pin the ones you mean to keep, roll again,
                 and the pinned ones stay put while the rest turn over.
-     a RUN      the slate plus its history: when you started, how many times you rolled,
-                what got finished. Finish the run and it goes to the record; the next one
-                starts empty.
+     a RUN      the slate plus when you started it and how many times you rolled. It has no
+                end: there is nothing to close, nothing archived, and no history of past
+                runs — a slate turns over as you roll it and that is the whole lifecycle.
      a BANNER   Home, priority 35 — under every seasonal event and under Endangered, because
                 a theme has all year and October does not. It only appears while a run is
                 actually open.
@@ -777,15 +777,18 @@ const thmBreadth = (t) => evPool("thmall-" + t.id, (r) => t.match(r));
      open   which theme's page you were last on. A pref rather than a URL param, because
             every other event keeps its dial in state too (Class of 'XX, the Galaxy scope)
             and a theme is a place you return to, not a link you send.
-     runs   one OPEN run per theme, at most. { n, slate, pinned, done, rolls, started }
-     past   finished runs per theme, newest first, capped — the record, which is the only
-            reason any of this is stored rather than recomputed. */
-const THM_PAST_CAP = 12;
+     runs   one run per theme, at most. { n, slate, pinned, rolls, started }
 
+   There used to be a `past` here too — closed runs per theme, newest first, snapshotted with
+   their verdicts — and a "Finish the run" button that filed them. Both are gone, because the
+   premise under them was wrong: completion lives on the sheet, this page only reads it, and
+   so a closed run was a frozen copy of a number the sheet already keeps better. Archiving it
+   bought nothing and asked for a press. A slate now just turns over as you roll it, and the
+   only end a run has is you rolling the last slot. (Old saved state may still carry `past`;
+   nothing reads it, and leaving it alone is cheaper than migrating it away.) */
 const thmState = () => {
   const st = evState("themes");
   if (!st.runs || typeof st.runs !== "object") st.runs = {};
-  if (!st.past || typeof st.past !== "object") st.past = {};
   if (!st.open || !THM_BY_ID[st.open]) st.open = THEMES[0].id;
   return st;
 };
@@ -834,8 +837,8 @@ function thmRun(t) {
    tick button. Finish it, mark it on the sheet as you always would, and the slate catches up
    on the next load with nothing asked of you here.
 
-   (`run.done` survives in old saved state and in the past[] snapshots, where it means
-   something different and still true: what WAS finished when that run closed.) */
+   (`run.done` survives in old saved state, written back when a tick button existed. Nothing
+   reads it; thmIsDone ignores the run it is handed and asks the sheet.) */
 const thmSheetDone = (key) => { const r = evRow(key); return !!(r && r.completed); };
 const thmIsDone = (run, key) => thmSheetDone(key);
 const thmDoneCount = (run) => run.slate.filter((k) => thmIsDone(run, k)).length;
@@ -853,9 +856,19 @@ function thmRoll(t, only) {
   const pool = thmPool(t);
   const keep = run.slate.map((k) => (k && (thmPinned(run, k) || thmIsDone(run, k)) ? k : null));
   // Slots to fill, in order — a single-slot reroll is the same operation with one index.
-  const slots = only == null
+  let slots = only == null
     ? keep.map((k, i) => (k ? -1 : i)).filter((i) => i >= 0)
     : (keep[only] ? [] : [only]);
+  /* Nothing open, and the reason is that you finished them: roll the finished ones away. This
+     is what used to be "Finish the run", and it is the whole lifecycle a run needs — a done
+     game is not a pending decision, it is recorded on the sheet, and the pool excludes it, so
+     it cannot come back. Without this a completed slate was a dead end: every slot blocked by
+     its own success, and the only way out was emptying five slots by hand. Pins still win —
+     if you pinned a finished game it stays, and Unpin all is in the hero. */
+  if (only == null && !slots.length) {
+    const spent = keep.map((k, i) => (k && !thmPinned(run, k) ? i : -1)).filter((i) => i >= 0);
+    if (spent.length) { spent.forEach((i) => { keep[i] = null; }); slots = spent; }
+  }
   if (!slots.length) {
     showToast(only == null ? "Every slot is pinned or finished" : "That one is pinned");
     return;
@@ -937,28 +950,6 @@ function thmResize(t, n) {
   evSave();
 }
 
-// Close the run and keep it. The slate is snapshotted with its verdicts because the sheet
-// will keep changing under it and the record should say what was true when it closed.
-function thmFinish(t) {
-  const st = thmState();
-  const run = thmRun(t);
-  if (!thmActive(run)) return;
-  const entry = {
-    slate: run.slate.filter(Boolean),
-    done: run.slate.filter((k) => thmIsDone(run, k)),
-    rolls: run.rolls || 0,
-    started: run.started || null,
-    finished: evISO(),
-  };
-  if (!Array.isArray(st.past[t.id])) st.past[t.id] = [];
-  st.past[t.id].unshift(entry);
-  st.past[t.id] = st.past[t.id].slice(0, THM_PAST_CAP);
-  st.runs[t.id] = thmBlankRun(t);
-  st.runs[t.id].n = run.n;
-  st.runs[t.id].slate = new Array(run.n).fill(null);
-  evSave();
-}
-
 function thmOpen(id) {
   if (!THM_BY_ID[id]) return;
   const st = thmState();
@@ -1002,30 +993,6 @@ function thmSlotHtml(t, run, slot) {
   </div>`;
 }
 
-function thmPastHtml(t) {
-  const past = thmState().past[t.id] || [];
-  if (!past.length) return "";
-  return `<section class="ev-panel wide">
-    <h3>The record</h3>
-    <p class="ev-p">${evPlural(past.length, "closed run", "closed runs")} of ${escapeHtml(t.name)}.
-      Snapshotted as they closed, so the sheet moving on afterwards doesn't rewrite them.</p>
-    <div class="thm-past">${past.map((p) => `<div class="thm-run">
-      <div class="thm-run-h">
-        <b>${p.done.length} of ${p.slate.length}</b>
-        <span class="m">${escapeHtml(p.started || "?")} → ${escapeHtml(p.finished || "?")}${
-          p.rolls ? ` · ${evPlural(p.rolls, "roll", "rolls")}` : ""}</span>
-      </div>
-      <div class="ev-row-tiles">${p.slate.map((k) => {
-        const row = evRow(k);
-        return row ? evTileHtml(row, {
-          cls: p.done.includes(k) ? "thm-was-done" : "",
-          sub: p.done.includes(k) ? "finished" : "not this time",
-        }) : "";
-      }).join("")}</div>
-    </div>`).join("")}</div>
-  </section>`;
-}
-
 function thmRailHtml(t) {
   return `<div class="ev-rungs thm-rail">${THEMES.map((x) => {
     const run = thmState().runs[x.id];
@@ -1066,7 +1033,8 @@ function thmRender(host) {
 
   host.innerHTML = evHeroHtml(ev, {
     acts: `<button class="btn" id="thmRoll">${icon("i-dice", 15)} ${
-      thmActive(run) ? "Roll the open slots" : `Roll ${run.n}`}</button>
+      thmComplete(run) ? `Roll a new ${run.n}`
+        : thmActive(run) ? "Roll the open slots" : `Roll ${run.n}`}</button>
       <span class="ev-target thm-size" title="Anywhere from ${THM_MIN} to ${cap}${
         cap < THM_MAX ? ` — ${t.name} only has ${pool.length} left to roll from` : ""}">Slate of
         <button class="thm-step" data-thmn="${run.n - 1}" aria-label="One game fewer"
@@ -1077,9 +1045,7 @@ function thmRender(host) {
         ${run.n === 1 ? "game" : "games"}</span>
       ${run.pinned.length ? `<button class="btn ghost" id="thmUnpin"
         title="Unpin every slot, so the next roll can turn them over">${icon("i-pin", 14)} Unpin all ${
-        run.pinned.length}</button>` : ""}
-      ${thmActive(run) ? `<button class="btn ghost" id="thmFinish">${
-        thmComplete(run) ? "Close it out" : "Finish the run"}</button>` : ""}`,
+        run.pinned.length}</button>` : ""}`,
     // Two numbers, not four: what's left to play over what the theme matches at all. The
     // owned/unowned split read as bookkeeping under a hero, and whether a given roll is on
     // the shelf is a question about one game, which the tile is the place to answer.
@@ -1095,7 +1061,7 @@ function thmRender(host) {
         thmActive(run) ? ` · ${done} finished` : ""}${gap ? ` · ${gap} still empty` : ""}</h3>
       <p class="ev-p">${thmActive(run)
         ? `Pin what you mean to keep and roll again — a roll only touches the open slots.
-           ${thmComplete(run) ? "That is the whole slate finished; close it out and the record keeps it."
+           ${thmComplete(run) ? `That is the whole slate finished — a roll starts the next ${run.n}.`
              : "Nothing to tick off: a game marks itself finished here when the sheet says it is."}`
         : `Roll ${run.n} out of the pool, or fill a slot by hand. Nothing here expires and
            nothing is scheduled — that is the difference between a theme and a season.`}</p>
@@ -1105,7 +1071,6 @@ function thmRender(host) {
         escapeHtml(run.started || "—")}.</p>` : ""}
     </section>
     <p class="thm-note">${escapeHtml(t.note)}</p>
-    ${thmPastHtml(t)}
     ${evPickerHtml(used)}
   </div>`;
 
@@ -1114,20 +1079,10 @@ function thmRender(host) {
   });
   const roll = document.getElementById("thmRoll");
   if (roll) roll.onclick = () => { thmRoll(t); repaint(); };
-  // Both of these were rendered before they were wired. "Finish the run" in particular drew
-  // itself under every active slate and did nothing when pressed, which is why the record
-  // below it had stayed empty since the page shipped.
   const unpin = document.getElementById("thmUnpin");
   if (unpin) unpin.onclick = () => {
     const n = thmClearPins(t);
     if (n) showToast(`${evPlural(n, "pin", "pins")} cleared — a roll turns them over now`);
-    repaint();
-  };
-  const finish = document.getElementById("thmFinish");
-  if (finish) finish.onclick = () => {
-    const kept = thmFilled(run), was = thmDoneCount(run);
-    thmFinish(t);
-    showToast(`Run closed — ${was} of ${kept} finished, and the record keeps it`);
     repaint();
   };
   host.querySelectorAll("[data-thmreroll]").forEach((el) => {
@@ -1174,7 +1129,7 @@ function thmBannerHtml() {
       <span class="h-eyebrow ev-eyebrow">Theme · no season, no deadline</span>
       <h2 class="ev-title">${escapeHtml(t.name)}</h2>
       <p class="ev-pitch">${escapeHtml(ev.pitch())}</p>
-      <span class="ev-cta">${escapeHtml(thmComplete(run) ? "Close it out" : "Back to the slate")} →</span>
+      <span class="ev-cta">${escapeHtml(thmComplete(run) ? "Roll a new slate" : "Back to the slate")} →</span>
       ${evMeterHtml(m)}
     </div>
   </section>`;
@@ -1201,18 +1156,15 @@ evRegister({
         "--ev-art:linear-gradient(150deg,#07060d,#0d0a18 70%,#0a0a16)",
   deco: [{ i: "i-theme", x: 86, y: 66, s: 44, lift: 12 }],
   bannerHtml: thmBannerHtml,
-  blank: () => ({ runs: {}, past: {}, open: THEMES[0].id }),
+  blank: () => ({ runs: {}, open: THEMES[0].id }),
   /* Merging two devices, per theme rather than per file. The rules, and why:
        slate   fill gaps, never overwrite — a slot you filled here is a decision.
        pinned  union, then narrowed to what is actually on the slate.
        done    nothing to merge — both devices read it off the same sheet.
-       past    the longer record wins outright; runs are appended whole and a half-merged
-               history is worse than either device's copy of it.
        open    left alone: which theme this browser is looking at is this browser's business. */
   merge: (mine, theirs) => {
     let changed = false;
     if (!mine.runs) { mine.runs = {}; changed = true; }
-    if (!mine.past) { mine.past = {}; changed = true; }
     for (const [id, t] of Object.entries(theirs.runs || {})) {
       const m = mine.runs[id];
       if (!m) { mine.runs[id] = t; changed = true; continue; }
@@ -1224,11 +1176,6 @@ evRegister({
       }
       if ((t.rolls || 0) > (m.rolls || 0)) { m.rolls = t.rolls; changed = true; }
       if (t.started && (!m.started || t.started < m.started)) { m.started = t.started; changed = true; }
-    }
-    for (const [id, list] of Object.entries(theirs.past || {})) {
-      if (Array.isArray(list) && list.length > (mine.past[id] || []).length) {
-        mine.past[id] = list; changed = true;
-      }
     }
     return changed;
   },
@@ -1243,7 +1190,7 @@ evRegister({
     // Not "on your shelf" any more — the pool is every playable one you haven't finished,
     // and some of them you don't own (thmEligible).
     if (!filled) return `${thmPool(t).length.toLocaleString()} ${thmNoun(t)} you could play, unfinished. Roll ${run.n} of them.`;
-    if (thmComplete(run)) return `${t.blurb} — and the whole slate is finished. Close it out and roll another.`;
+    if (thmComplete(run)) return `${t.blurb} — and the whole slate is finished. Roll it again for the next ${run.n}.`;
     if (!done) return `${evPlural(filled, "game", "games")} on the slate: ${t.blurb}. Nothing finished yet, and nothing is asking you to hurry.`;
     // Against run.n, not against `filled`, and the meter agrees: the slate size is the
     // commitment, so an empty slot is a slot still to play rather than one that doesn't count.
