@@ -641,6 +641,9 @@ async function loadAllEnrichment() {
       else if (activeTab === "challenges") renderChallenges();
       else if (activeTab === "health") renderHealth();
       else if (activeTab === "groups") renderGroups();     // membership shifts, not just covers
+      // Swipe must rebuild against the newly arrived ownership ids. Its first render waits
+      // for this map, and later backfill polls can also claim a catalogue game mid-session.
+      else if (activeTab === "swipe") renderSwipe();
       /* Recommendations is the most enrichment-dependent thing here and the least able to
          say so. Opened by direct link it paints before this map arrives, and with no map
          there are no tags to predict from and no igdbIds to join on — so it shows the

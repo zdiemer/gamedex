@@ -42,6 +42,41 @@ vm.runInContext("swipeForget(1)", context);
 assert.deepEqual(ids(), [1], "undo restores the game to the same filtered deck");
 console.log("Swipe: persistent history and deck filters passed");
 
+const loadingHost = { innerHTML: "" };
+const loadingContext = vm.createContext({
+  document: { addEventListener() {} },
+  $: (selector) => selector === "#swipe" ? loadingHost : null,
+  IS_ADMIN: true,
+  ENRICH_ENABLED: true,
+  ENRICH_READY: false,
+  ENRICH_WAITING: false,
+  icon: () => "",
+  escapeHtml: (value) => String(value),
+});
+vm.runInContext(fs.readFileSync("static/swipe.js", "utf8"), loadingContext);
+vm.runInContext("renderSwipe()", loadingContext);
+assert.match(loadingHost.innerHTML, /Checking your library/, "the deck waits for ownership ids before showing a card");
+assert.equal(loadingContext.ENRICH_WAITING, true, "the enrichment loader knows Swipe is waiting");
+console.log("Swipe: first card waits for the ownership map");
+
+(async () => {
+  const source = fs.readFileSync("static/panels.js", "utf8");
+  const loader = source.slice(source.indexOf("let allTimer = null;"));
+  let renders = 0;
+  const panelContext = vm.createContext({
+    ENRICH_ENABLED: true, ENRICH: {}, NO_MATCH: new Set(), ENRICH_READY: false,
+    ENRICH_WAITING: false, _enrichEpoch: 0, activeTab: "swipe",
+    fetch: async () => ({ json: async () => ({ items: { owned: { igdbId: 338105 } } }) }),
+    resetDerived() {}, renderSwipe() { renders++; }, renderAll() {},
+    updateEnrichStatus() {}, clearTimeout, setTimeout,
+  });
+  vm.runInContext(loader, panelContext);
+  await vm.runInContext("loadAllEnrichment()", panelContext);
+  assert.equal(renders, 1, "Swipe rerenders when owned IGDB ids arrive");
+  assert.equal(panelContext.ENRICH.owned.igdbId, 338105, "the ownership map contains Kirby Air Riders");
+  console.log("Swipe: ownership-map arrival rebuilds the deck");
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+
 (async () => {
   const storage = new Map([["gamedex.swiped", "[1,2]"]]);
   const writes = [];

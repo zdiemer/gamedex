@@ -324,6 +324,13 @@ function renderSwipe() {
     host.innerHTML = swipeMessage("Sign in to swipe", "Accepted games are staged as edits, so this view is available to the collection owner.");
     return;
   }
+  if (typeof ENRICH_ENABLED !== "undefined" && ENRICH_ENABLED && !ENRICH_READY) {
+    ENRICH_WAITING = true;
+    host.innerHTML = swipeMessage("Checking your library", "Matching your collection before building the deck…",
+      `<div class="sw-loader" aria-label="Loading"></div>`);
+    return;
+  }
+  ENRICH_WAITING = false;
   if (!catEnabled()) {
     host.innerHTML = swipeMessage("Recommendations aren’t enabled", "Turn on the IGDB catalogue to build a swipe deck.");
     return;
