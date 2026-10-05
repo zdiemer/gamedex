@@ -947,12 +947,8 @@ function thmSlotHtml(t, run, slot) {
   const done = thmIsDone(run, key);
   const pinned = thmPinned(run, key);
   return `<div class="ev-slot thm-slot${done ? " done" : ""}${pinned ? " pinned" : ""}">
-    <!-- "not yours yet" earns its place on a tile this small: the pool is playable rather
-         than owned, so a roll can legitimately hand you a game you'd have to get hold of
-         first, and a slate that didn't say so would read as one you could start tonight. -->
     ${evTileHtml(row, { sub: `${row.platform || ""}${
-      row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}${
-      row.owned ? "" : " · not yours yet"}` })}
+      row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}` })}
     ${done ? `<span class="thm-done-tag">${icon("i-check", 12)} Finished</span>` : ""}
     <!-- Four actions under a tile that is 166px wide at its narrowest, so they are all
          icon-only and the row is a four-column grid rather than a flex line: an equal
@@ -1021,10 +1017,6 @@ function thmRender(host) {
   const run = thmRun(t);
   const pool = thmPool(t);
   const breadth = thmBreadth(t);
-  // Of the pool, not of the breadth: the question a roll raises is "how many of the games it
-  // could hand me do I already have", and counting ownership across finished and unplayable
-  // rows too answered a question nobody was about to ask.
-  const mine = pool.filter((r) => r.owned).length;
   const done = thmDoneCount(run);
   const cap = thmCap(t);
   const gap = run.n - thmFilled(run);
@@ -1052,12 +1044,10 @@ function thmRender(host) {
         ${run.n === 1 ? "game" : "games"}</span>
       ${thmActive(run) ? `<button class="btn ghost" id="thmFinish">${
         thmComplete(run) ? "Close it out" : "Finish the run"}</button>` : ""}`,
-    // The split matters now that a roll can land on something you don't own: the pool is
-    // every playable one you haven't finished, and how much of it is already on the shelf
-    // is the difference between a slate you can start tonight and a shopping list.
-    note: `${pool.length.toLocaleString()} to roll from — ${mine.toLocaleString()} on the shelf, ${
-      (pool.length - mine).toLocaleString()} you don't own yet — out of ${
-      breadth.length.toLocaleString()} ${escapeHtml(thmNoun(t))} on the sheet.`,
+    // Two numbers, not four: what's left to play over what the theme matches at all. The
+    // owned/unowned split read as bookkeeping under a hero, and whether a given roll is on
+    // the shelf is a question about one game, which the tile is the place to answer.
+    note: `${pool.length.toLocaleString()}/${breadth.length.toLocaleString()} to complete`,
   }) + `<div class="ev-wrap">
     ${thmRailHtml(t)}
     <section class="ev-panel wide">
