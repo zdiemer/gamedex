@@ -408,7 +408,7 @@ const THEMES = [
        This is five short games that are also GOOD, all year.
 
        The line is 85, not 90. Essential already owns 90-and-up, and 80 is not a shortlist of
-       gems — it is the short half of the shelf, at 123 in the pool against 38 at 85.
+       gems — it is the short half of the sheet, at 238 in the pool against 86 at 85.
 
        Unknown length is not short: playtimeOf answers null for a game nothing has timed, and
        `null <= 3` is TRUE in JavaScript, so the guard comes first. (Same null trap the bad
@@ -419,7 +419,7 @@ const THEMES = [
        is 0.85h, Tekken 3 1.96h, Virtua Fighter 4 0.7h, and at 98, 96 and 94 on Metacritic all
        three would outrank everything else in the pool. They are not short games, they are
        endless games with a short ladder in them, so IGDB's Fighting, Racing and Sport genres
-       are out — 36 of them at breadth, 10 in the pool. It costs two honest matches to do it:
+       are out — 36 of them at breadth, 34 in the pool. It costs two honest matches to do it:
        despelote (89, tagged Sport) and Super Catboy (90, tagged Fighting), both of which
        really are an evening. HLTB's allStyles would separate the two cases properly —
        despelote is 2.02 there against a 1.90 main, SoulCalibur 4.08 against 0.85 — but the
@@ -751,11 +751,26 @@ const thmCap = (t) => Math.max(THM_MIN, Math.min(THM_MAX, thmPool(t).length || T
 
 /* ---- pools ----------------------------------------------------------------
    Two counts per theme, and they answer different questions. The POOL is what a roll can
-   reach — owned and unfinished, the same test every event's shortlist uses. The BREADTH is
-   every game the theme matches at all, owned or not, finished or not, and it is the number
-   worth putting on the page: "37 of the 401 cyberpunk games on the sheet are yours and
-   unplayed" says something that either number alone does not. */
-const thmPool = (t) => evPool("thm-" + t.id, (r) => evOwnedUnfinished(r) && t.match(r));
+   reach. The BREADTH is every game the theme matches at all, owned or not, finished or not,
+   and it is the number worth putting on the page: "37 of the 401 cyberpunk games on the
+   sheet are yours and unplayed" says something that either number alone does not.
+
+   OWNERSHIP IS NOT THE POOL'S TEST, and this is the one place themes depart from
+   evOwnedUnfinished — every seasonal event uses it, and for a season that is right, because
+   a calendar with a game you'd have to buy first is a calendar you cannot keep. A theme has
+   all year. "Give me five cyberpunk games" is a question about the genre, not about the
+   shelf, and answering it out of 6,660 owned rows while 6,197 playable unowned ones sit in
+   the same spreadsheet was answering a narrower question than the one being asked.
+
+   PLAYABLE IS, and it is the sheet's tri-state: Yes, No, Unknown, and only Yes gets in.
+   That is pick.js's rule, for pick.js's reason — a slate game you cannot start (no console
+   for it any more, region-locked, disc rot) has answered the wrong question, and Unknown
+   does not mean "probably fine", it means nobody has checked, and being sent to go and
+   check is not a slate. Applied to the owned games too rather than only to the new ones,
+   because one pool with one test beats two: it costs 20 rows across the whole sheet, all of
+   them games this page should never have been offering. */
+const thmEligible = (r) => !r.completed && r.playable === "Yes";
+const thmPool = (t) => evPool("thm-" + t.id, (r) => thmEligible(r) && t.match(r));
 const thmBreadth = (t) => evPool("thmall-" + t.id, (r) => t.match(r));
 
 /* ---- state ----------------------------------------------------------------
@@ -932,7 +947,12 @@ function thmSlotHtml(t, run, slot) {
   const done = thmIsDone(run, key);
   const pinned = thmPinned(run, key);
   return `<div class="ev-slot thm-slot${done ? " done" : ""}${pinned ? " pinned" : ""}">
-    ${evTileHtml(row, { sub: `${row.platform || ""}${row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}` })}
+    <!-- "not yours yet" earns its place on a tile this small: the pool is playable rather
+         than owned, so a roll can legitimately hand you a game you'd have to get hold of
+         first, and a slate that didn't say so would read as one you could start tonight. -->
+    ${evTileHtml(row, { sub: `${row.platform || ""}${
+      row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}${
+      row.owned ? "" : " · not yours yet"}` })}
     ${done ? `<span class="thm-done-tag">${icon("i-check", 12)} Finished</span>` : ""}
     <!-- Four actions under a tile that is 166px wide at its narrowest, so they are all
          icon-only and the row is a four-column grid rather than a flex line: an equal
@@ -1001,7 +1021,10 @@ function thmRender(host) {
   const run = thmRun(t);
   const pool = thmPool(t);
   const breadth = thmBreadth(t);
-  const mine = breadth.filter((r) => r.owned).length;
+  // Of the pool, not of the breadth: the question a roll raises is "how many of the games it
+  // could hand me do I already have", and counting ownership across finished and unplayable
+  // rows too answered a question nobody was about to ask.
+  const mine = pool.filter((r) => r.owned).length;
   const done = thmDoneCount(run);
   const cap = thmCap(t);
   const gap = run.n - thmFilled(run);
@@ -1029,8 +1052,12 @@ function thmRender(host) {
         ${run.n === 1 ? "game" : "games"}</span>
       ${thmActive(run) ? `<button class="btn ghost" id="thmFinish">${
         thmComplete(run) ? "Close it out" : "Finish the run"}</button>` : ""}`,
-    note: `${pool.length.toLocaleString()} to roll from — ${breadth.length.toLocaleString()} ${
-      escapeHtml(thmNoun(t))} on the sheet, ${mine.toLocaleString()} of them yours.`,
+    // The split matters now that a roll can land on something you don't own: the pool is
+    // every playable one you haven't finished, and how much of it is already on the shelf
+    // is the difference between a slate you can start tonight and a shopping list.
+    note: `${pool.length.toLocaleString()} to roll from — ${mine.toLocaleString()} on the shelf, ${
+      (pool.length - mine).toLocaleString()} you don't own yet — out of ${
+      breadth.length.toLocaleString()} ${escapeHtml(thmNoun(t))} on the sheet.`,
   }) + `<div class="ev-wrap">
     ${thmRailHtml(t)}
     <section class="ev-panel wide">
@@ -1171,7 +1198,9 @@ evRegister({
     const t = thmTheme();
     const run = thmRun(t);
     const filled = thmFilled(run), done = thmDoneCount(run);
-    if (!filled) return `${thmPool(t).length.toLocaleString()} ${thmNoun(t)} on your shelf, unplayed. Roll ${run.n} of them.`;
+    // Not "on your shelf" any more — the pool is every playable one you haven't finished,
+    // and some of them you don't own (thmEligible).
+    if (!filled) return `${thmPool(t).length.toLocaleString()} ${thmNoun(t)} you could play, unfinished. Roll ${run.n} of them.`;
     if (thmComplete(run)) return `${t.blurb} — and the whole slate is finished. Close it out and roll another.`;
     if (!done) return `${evPlural(filled, "game", "games")} on the slate: ${t.blurb}. Nothing finished yet, and nothing is asking you to hurry.`;
     // Against run.n, not against `filled`, and the meter agrees: the slate size is the
