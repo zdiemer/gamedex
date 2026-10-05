@@ -15,7 +15,7 @@ let lastGroupedCount = -1;      // so the grouped view repaints once enrichment 
    "events" is the preview board behind it (events.js). The event IDS are not listed here:
    each ev-*.js file pushes its own into this array when it registers, which happens after
    this file parses. Anything that copies this list at parse time gets an incomplete one. */
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy", "spooktober", "event", "events"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy", "swipe", "spooktober", "event", "events"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
   $("#searchpage").hidden = mode !== "search";
@@ -35,6 +35,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#event").hidden = mode !== "event";
   $("#eventsAdmin").hidden = mode !== "events";
   $("#recs").hidden = mode !== "recs";
+  $("#swipe").hidden = mode !== "swipe";
   $("#translations").hidden = mode !== "translations";
   // Leaving a daily-game tab mid-practice falls back to today's round, so Home and
   // the Daily page never mistake a practice round for the daily (mirrors shelfTeardown).
@@ -93,6 +94,7 @@ function renderAll() {
   if (activeTab === "dexle") { setSpecialMode("dexle"); renderDexle(); return; }
   if (activeTab === "hilo") { setSpecialMode("hilo"); renderHilo(); return; }
   if (activeTab === "daily") { setSpecialMode("daily"); renderDaily(); return; }
+  if (activeTab === "swipe") { setSpecialMode("swipe"); renderSwipe(); return; }
   if (activeTab === "spooktober") { setSpecialMode("spooktober"); renderSpooktober(); return; }
   // Every other seasonal event, plus the preview board. One branch for all of them: the
   // registry knows which tab belongs to which event, and claims it or doesn't (events.js).
@@ -332,14 +334,14 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "wishlist", "search", "galaxy",
+         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "swipe", "wishlist", "search", "galaxy",
          "translations", "spooktober", "events"]
     .concat(typeof EVENT_TABS !== "undefined" ? EVENT_TABS : []).includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   // The preview board moves the app's clock and shows every event's state; it is a
   // workshop tool, not a page, so it lands on Home for anyone who isn't the owner.
-  if ((tab === "wishlist" || tab === "health" || tab === "events")
+  if ((tab === "wishlist" || tab === "health" || tab === "events" || tab === "swipe")
       && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
   if (SPECIAL_TABS.includes(tab)) {
     if (tab === "search") GLOBAL_SEARCH.q = p.get("gq") || "";

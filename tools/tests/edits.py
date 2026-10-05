@@ -269,6 +269,12 @@ for igdb_name, want in [
     ("Linux", None),
 ]:
     check(f"{igdb_name!r}", edits_mod.sheet_platform(igdb_name), want)
+check("mapped platform list is distinct and skips ambiguity",
+      edits_mod.sheet_platforms([
+          "PC (Microsoft Windows)", "Linux", "PC (Microsoft Windows)",
+          "Nintendo Switch",
+      ]),
+      ["PC", "Nintendo Switch"])
 
 print()
 if FAILED:

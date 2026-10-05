@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.80.0";
+const VERSION = "v1.81.0";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -24,7 +24,7 @@ const SHELL_URLS = [
   "./collections.js", "./core.js", "./data.js", "./dexle.js", "./drawer.js", "./edits.js", "./enrich.js",
   "./extras.js", "./filters.js", "./galaxy.js", "./gamepad.js", "./groups.js", "./health.js", "./hero.js",
   "./hilo.js", "./home.js", "./jukebox.js", "./konami.js", "./launch.js", "./media.js", "./mine.js", "./panels.js",
-  "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./recs.js",
+  "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./recs.js", "./swipe.js",
   "./relations.js", "./rng.js", "./similar.js", "./spooktober.js", "./translations.js",
   "./events.js", "./ev-classof.js", "./ev-twoplayer.js", "./ev-bracket.js", "./ev-audit.js",
   "./ev-underthree.js", "./ev-nobuy.js", "./ev-hearth.js", "./ev-doors.js", "./ev-wrapped.js",

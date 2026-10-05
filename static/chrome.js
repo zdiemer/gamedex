@@ -610,6 +610,10 @@ function applyAdminUI() {
   // public); revealed only once we know we're signed in.
   const wl = $("#tabWishlist");
   if (wl) wl.hidden = !IS_ADMIN;
+  // Swipe accepts recommendations into the staged-edit overlay, so the whole
+  // screen is owner-only just like Wishlist and the write endpoints it uses.
+  const swipe = $("#tabSwipe");
+  if (swipe) swipe.hidden = !IS_ADMIN;
   // Health (the data-quality dashboard over the collection) is owner-only too. Its whole
   // "Admin" group in the menu hides for the public, so there's no empty section header.
   const health = $("#tabHealth");

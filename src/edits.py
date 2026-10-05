@@ -235,6 +235,23 @@ def sheet_platform(igdb_name: str) -> str | None:
     return None
 
 
+def sheet_platforms(igdb_names) -> list[str]:
+    """Distinct, confidently mapped sheet platforms for an IGDB game.
+
+    Recommendation cards need the same mapping as the add-game search, but their
+    metadata arrives through the batched ``/api/games/meta`` path. Keep the
+    conversion here so both surfaces make exactly the same platform decision.
+    Unknown or ambiguous names are omitted; the swipe UI then asks rather than
+    filing a game under the wrong machine.
+    """
+    out = []
+    for name in igdb_names or []:
+        mapped = sheet_platform(name)
+        if mapped and mapped not in out:
+            out.append(mapped)
+    return out
+
+
 def fields_from_igdb(record: dict, platform: str | None = None) -> dict:
     """Suggested sheet cells for a game picked out of IGDB search.
 

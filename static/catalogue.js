@@ -224,4 +224,5 @@ function resetCatalogue() {
   _sheetIds = null; _sheetIdsEpoch = -1;
   _unmatchedNames = null; _unmatchedEpoch = -1;
   if (typeof resetRecs === "function") resetRecs();
+  if (typeof resetSwipe === "function") resetSwipe();
 }

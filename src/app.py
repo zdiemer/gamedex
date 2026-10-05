@@ -895,7 +895,14 @@ def _games_meta(ids: str):
     if not enricher:
         return {"items": {}, "pending": []}
     want = [int(x) for x in ids.split(",") if x.strip().isdigit()]
-    return _game_meta.fetch(want)
+    payload = _game_meta.fetch(want)
+    # A recommendation can be accepted as a staged Games row, whose platform has
+    # to use the workbook's vocabulary. The raw IGDB names stay in `platforms`
+    # for display; this parallel list contains only mappings we can make without
+    # guessing (Linux/Super Famicom, for example, deliberately remain unmapped).
+    for meta in (payload.get("items") or {}).values():
+        meta["sheetPlatforms"] = edits_mod.sheet_platforms(meta.get("platforms"))
+    return payload
 
 
 @app.get("/api/games/meta")

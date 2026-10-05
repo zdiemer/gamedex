@@ -301,5 +301,9 @@ async function loadPrefs() {
   // bar reads the mirror synchronously — so without this it paints an empty bar and keeps
   // it until you touch something.
   if (activeTab === "pick" && typeof renderPicker === "function") renderPicker();
+  // Dismissed recommendations are account preferences too. A direct link can
+  // render from the local mirror before the server's newer list arrives.
+  if (activeTab === "swipe" && typeof renderSwipe === "function") renderSwipe();
+  else if (activeTab === "recs" && typeof renderAll === "function") renderAll();
 }
 const log = (m) => console.info("[gamedex] " + m);
