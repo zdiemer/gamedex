@@ -804,6 +804,26 @@ function thmRun(t) {
   if (!Array.isArray(run.pinned)) run.pinned = [];
   if (!run.n) run.n = run.slate.length || t.n;
   while (run.slate.length < run.n) run.slate.push(null);
+  /* The invariant, repaired on read rather than only on write: the slate is exactly run.n
+     long. A saved cyberpunk run broke it — n of 5 against a slate of 15 — and a slate longer
+     than its own dial is the worst failure this page has: the page renders run.n slots, so
+     the ten games past the fifth existed without being drawn. They counted as filled, they
+     counted as pinned, they blocked every resize with a toast naming a number you could not
+     see, and they left a roll with no open slot to fill.
+     The games win over the dial. A slate entry is a decision — a roll, or a pick by hand —
+     and n is a number you nudged with a button, so the repair widens n to fit the games
+     rather than slicing the games to fit n. Only past the hard ceiling is anything dropped,
+     and then it is the tail, which is the only part nothing can have decided about. */
+  if (run.slate.length > run.n) {
+    run.n = Math.min(run.slate.length, THM_MAX);
+    if (run.slate.length > run.n) run.slate = run.slate.slice(0, run.n);
+  }
+  // A pin is a decision about a game on the slate; a key that has left the slate has no slot
+  // to leave alone. thmRoll already prunes on its way out — thmSet, which can overwrite a
+  // slot's occupant outright, did not, and the orphans it left were invisible but counted.
+  if (run.pinned.some((k) => !run.slate.includes(k))) {
+    run.pinned = run.pinned.filter((k) => run.slate.includes(k));
+  }
   return run;
 }
 
@@ -861,6 +881,19 @@ function thmTogglePin(t, key) {
   const i = run.pinned.indexOf(key);
   if (i >= 0) run.pinned.splice(i, 1); else run.pinned.push(key);
   evSave();
+}
+
+/* Unpin the lot. Pinning is per-tile and unpinning was too, which is fine for the one game
+   you changed your mind about and useless for the state this exists to get out of: every slot
+   pinned, so a roll has nothing to turn over and shrinking the slate is refused. One button
+   beats fifteen presses, and it is the only control here that can unstick a run. */
+function thmClearPins(t) {
+  const run = thmRun(t);
+  if (!run.pinned.length) return 0;
+  const n = run.pinned.length;
+  run.pinned = [];
+  evSave();
+  return n;
 }
 
 function thmSet(t, slot, key) {
@@ -1042,6 +1075,9 @@ function thmRender(host) {
         <button class="thm-step" data-thmn="${run.n + 1}" aria-label="One game more"
           ${run.n >= cap ? "disabled" : ""}>+</button>
         ${run.n === 1 ? "game" : "games"}</span>
+      ${run.pinned.length ? `<button class="btn ghost" id="thmUnpin"
+        title="Unpin every slot, so the next roll can turn them over">${icon("i-pin", 14)} Unpin all ${
+        run.pinned.length}</button>` : ""}
       ${thmActive(run) ? `<button class="btn ghost" id="thmFinish">${
         thmComplete(run) ? "Close it out" : "Finish the run"}</button>` : ""}`,
     // Two numbers, not four: what's left to play over what the theme matches at all. The
@@ -1078,6 +1114,22 @@ function thmRender(host) {
   });
   const roll = document.getElementById("thmRoll");
   if (roll) roll.onclick = () => { thmRoll(t); repaint(); };
+  // Both of these were rendered before they were wired. "Finish the run" in particular drew
+  // itself under every active slate and did nothing when pressed, which is why the record
+  // below it had stayed empty since the page shipped.
+  const unpin = document.getElementById("thmUnpin");
+  if (unpin) unpin.onclick = () => {
+    const n = thmClearPins(t);
+    if (n) showToast(`${evPlural(n, "pin", "pins")} cleared — a roll turns them over now`);
+    repaint();
+  };
+  const finish = document.getElementById("thmFinish");
+  if (finish) finish.onclick = () => {
+    const kept = thmFilled(run), was = thmDoneCount(run);
+    thmFinish(t);
+    showToast(`Run closed — ${was} of ${kept} finished, and the record keeps it`);
+    repaint();
+  };
   host.querySelectorAll("[data-thmreroll]").forEach((el) => {
     el.onclick = () => { thmRoll(t, +el.dataset.thmreroll); repaint(); };
   });
