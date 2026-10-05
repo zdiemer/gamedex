@@ -15,6 +15,8 @@ const _swipeHandled = new Set();
 const _swipeMetaFetched = new Set();
 const _swipePlatforms = new Map();
 const _swipeOrder = new Map();
+const SWIPE_DEFAULTS = { minYear: null, maxYear: null, minScore: 0,
+  confidence: "any", genres: [], platforms: [] };
 
 function resetSwipe() {
   _swipeRanked = null;
@@ -33,13 +35,69 @@ function swipeRanked() {
   }));
 }
 
-function swipeCurrent() {
-  const dismissed = recsDismissed();
-  return swipeRanked().find((x) => {
-    const id = x.row.igdbId;
-    return id != null && !dismissed.has(id) && !_swipeHandled.has(id);
-  }) || null;
+const swipeHistory = () => prefsLocal("swiped").map(Number).filter(Number.isFinite);
+
+function swipeSeen() {
+  return new Set([...swipeHistory(),
+    ...prefsLocal("dismissed").map(Number).filter(Number.isFinite)]);
 }
+
+function swipeRemember(id) {
+  id = Number(id);
+  const history = swipeHistory();
+  if (Number.isFinite(id) && !history.includes(id)) prefsSave("swiped", [...history, id].slice(-30000));
+}
+
+function swipeForget(id) {
+  id = Number(id);
+  prefsSave("swiped", swipeHistory().filter((x) => x !== id));
+}
+
+function swipeSettings() {
+  const raw = prefsLocal("swipeSettings");
+  const value = Array.isArray(raw) && raw[0] && typeof raw[0] === "object" ? raw[0] : {};
+  const year = (v) => {
+    const n = Number.parseInt(v, 10);
+    return Number.isFinite(n) && n >= 1900 && n <= 2100 ? n : null;
+  };
+  const list = (v) => Array.isArray(v) ? [...new Set(v.map(String).filter(Boolean))] : [];
+  const score = Number(value.minScore);
+  return {
+    minYear: year(value.minYear), maxYear: year(value.maxYear),
+    minScore: Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 0,
+    confidence: ["fair", "high"].includes(value.confidence) ? value.confidence : "any",
+    genres: list(value.genres), platforms: list(value.platforms),
+  };
+}
+
+function swipeSettingsCount(settings = swipeSettings()) {
+  return +(settings.minYear != null || settings.maxYear != null) + +(settings.minScore > 0)
+    + +(settings.confidence !== "any") + +(settings.genres.length > 0) + +(settings.platforms.length > 0);
+}
+
+function swipeMatches(x, settings) {
+  const rec = x.row._igdb || {};
+  const year = Number(rec.year);
+  if (settings.minYear != null && (!Number.isFinite(year) || year < settings.minYear)) return false;
+  if (settings.maxYear != null && (!Number.isFinite(year) || year > settings.maxYear)) return false;
+  if ((Number(x.p.score) || 0) * 100 < settings.minScore) return false;
+  if (settings.confidence === "fair" && (Number(x.p.confidence) || 0) < .5) return false;
+  if (settings.confidence === "high" && (Number(x.p.confidence) || 0) < .75) return false;
+  if (settings.genres.length && !settings.genres.some((v) => (rec.genres || []).includes(v))) return false;
+  if (settings.platforms.length && !settings.platforms.some((v) => (rec.platforms || []).includes(v))) return false;
+  return true;
+}
+
+function swipeDeck() {
+  const seen = swipeSeen();
+  const settings = swipeSettings();
+  return swipeRanked().filter((x) => {
+    const id = x.row.igdbId;
+    return id != null && !seen.has(Number(id)) && !_swipeHandled.has(id) && swipeMatches(x, settings);
+  });
+}
+
+function swipeCurrent() { return swipeDeck()[0] || null; }
 
 function swipeSheetPlatforms() {
   const counts = new Map();
@@ -76,6 +134,111 @@ function swipePlatformHtml(id, meta) {
 function swipeMessage(title, copy, action = "") {
   return `<div class="sw-empty"><div class="sw-empty-mark">${icon("i-heart", 28)}</div>
     <h2>${escapeHtml(title)}</h2><p>${copy}</p>${action}</div>`;
+}
+
+function swipeFacetValues(field) {
+  const counts = new Map();
+  for (const x of swipeRanked()) {
+    for (const value of (x.row._igdb || {})[field] || []) {
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function swipeChecks(name, values, selected) {
+  const on = new Set(selected);
+  return values.map(([value, count]) => `<label><input type="checkbox" name="${name}"
+    value="${escapeHtml(value)}"${on.has(value) ? " checked" : ""}>
+    <span>${escapeHtml(value)}</span><small>${count.toLocaleString()}</small></label>`).join("");
+}
+
+function openSwipeSettings() {
+  document.querySelectorAll(".ce-scrim.sw-settings-scrim").forEach((node) => node.remove());
+  const settings = swipeSettings();
+  const historyCount = swipeSeen().size;
+  const host = document.createElement("div");
+  host.className = "ce-scrim sw-settings-scrim";
+  host.innerHTML = `<div class="ce sw-settings" role="dialog" aria-modal="true" aria-labelledby="swSettingsTitle">
+    <button class="ce-x" type="button" aria-label="Close">✕</button>
+    <h3 id="swSettingsTitle">Deck settings</h3>
+    <div class="ce-sub">Choose what can appear when you swipe</div>
+    <form id="swSettingsForm">
+      <div class="sw-setting-row">
+        <label><span>Released from</span><input name="minYear" type="number" inputmode="numeric" min="1900" max="2100"
+          placeholder="Any year" value="${settings.minYear == null ? "" : settings.minYear}"></label>
+        <label><span>Through</span><input name="maxYear" type="number" inputmode="numeric" min="1900" max="2100"
+          placeholder="Any year" value="${settings.maxYear == null ? "" : settings.maxYear}"></label>
+      </div>
+      <div class="sw-setting-row">
+        <label><span>Minimum predicted score</span><div class="sw-score-input">
+          <input name="minScore" type="range" min="0" max="95" step="5" value="${settings.minScore}">
+          <output id="swScoreValue">${settings.minScore ? settings.minScore + "%" : "Any"}</output></div></label>
+        <label><span>Model confidence</span><select name="confidence">
+          <option value="any"${settings.confidence === "any" ? " selected" : ""}>Any confidence</option>
+          <option value="fair"${settings.confidence === "fair" ? " selected" : ""}>Fair or high</option>
+          <option value="high"${settings.confidence === "high" ? " selected" : ""}>High only</option>
+        </select></label>
+      </div>
+      <fieldset><legend>Genres</legend><p>Games matching any selected genre are included.</p>
+        <div class="sw-checks">${swipeChecks("genre", swipeFacetValues("genres"), settings.genres)}</div></fieldset>
+      <fieldset><legend>Platforms</legend><p>Games released on any selected platform are included.</p>
+        <div class="sw-checks sw-platform-checks">${swipeChecks("platform", swipeFacetValues("platforms"), settings.platforms)}</div></fieldset>
+      <div class="sw-history-row"><div><b>${historyCount.toLocaleString()} games remembered</b>
+        <span>Passed and wanted games stay out of future decks.</span></div>
+        <button class="linkbtn" type="button" data-sw-clear-history${historyCount ? "" : " disabled"}>Show them again</button></div>
+      <div class="ce-acts sw-settings-actions"><button class="sh-btn" type="button" data-sw-defaults>Reset filters</button>
+        <div class="ce-right"><button class="sh-btn" type="button" data-sw-cancel>Cancel</button>
+          <button class="sh-btn primary" type="submit">Save deck</button></div></div>
+    </form></div>`;
+  const close = () => {
+    host.remove();
+    document.removeEventListener("keydown", onKey, true);
+    if (typeof syncScrollLock === "function") syncScrollLock();
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+  };
+  document.addEventListener("keydown", onKey, true);
+  host.querySelector(".ce-x").onclick = close;
+  host.querySelector("[data-sw-cancel]").onclick = close;
+  host.addEventListener("mousedown", (e) => { if (e.target === host) close(); });
+  const form = host.querySelector("#swSettingsForm");
+  const range = form.elements.minScore;
+  const scoreOut = host.querySelector("#swScoreValue");
+  range.oninput = () => { scoreOut.textContent = +range.value ? range.value + "%" : "Any"; };
+  host.querySelector("[data-sw-defaults]").onclick = () => {
+    form.elements.minYear.value = ""; form.elements.maxYear.value = "";
+    form.elements.minScore.value = SWIPE_DEFAULTS.minScore;
+    form.elements.confidence.value = SWIPE_DEFAULTS.confidence;
+    form.querySelectorAll('input[type="checkbox"]').forEach((el) => { el.checked = false; });
+    range.oninput();
+  };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    let minYear = Number.parseInt(form.elements.minYear.value, 10) || null;
+    let maxYear = Number.parseInt(form.elements.maxYear.value, 10) || null;
+    if (minYear != null && maxYear != null && minYear > maxYear) [minYear, maxYear] = [maxYear, minYear];
+    const next = {
+      minYear, maxYear, minScore: Number(range.value) || 0,
+      confidence: form.elements.confidence.value,
+      genres: [...form.querySelectorAll('input[name="genre"]:checked')].map((el) => el.value),
+      platforms: [...form.querySelectorAll('input[name="platform"]:checked')].map((el) => el.value),
+    };
+    prefsSave("swipeSettings", [next]);
+    close(); renderSwipe(); showToast("Deck settings saved", "i-check");
+  };
+  host.querySelector("[data-sw-clear-history]").onclick = async () => {
+    const ok = await uiConfirm({ title: "Show swiped games again?",
+      body: "This clears every remembered pass and want. It does not remove games already staged in Pending edits.",
+      ok: "Clear history", danger: true });
+    if (!ok) return;
+    prefsSave("swiped", []); recsUndismissAll(); _swipeHandled.clear(); _swipeLast = null;
+    close(); renderSwipe(); showToast("Swipe history cleared");
+  };
+  document.body.appendChild(host);
+  if (typeof syncScrollLock === "function") syncScrollLock();
+  requestAnimationFrame(() => host.querySelector(".ce-x").focus());
 }
 
 async function swipeLoadMeta(items) {
@@ -115,11 +278,7 @@ function swipeCardHtml(x) {
     ? escapeHtml(meta.summary.length > 360 ? meta.summary.slice(0, 357).trimEnd() + "…" : meta.summary)
     : (metaKnown ? "No description is available from IGDB."
                  : "Loading IGDB’s description and release details…");
-  const dismissed = recsDismissed();
-  const next = swipeRanked().filter((q) => {
-    const qid = q.row.igdbId;
-    return qid !== id && !dismissed.has(qid) && !_swipeHandled.has(qid);
-  }).slice(0, 2);
+  const next = swipeDeck().filter((q) => q.row.igdbId !== id).slice(0, 2);
   swipeLoadMeta([x, ...next]);
 
   return `<div class="sw-stage">
@@ -181,27 +340,30 @@ function renderSwipe() {
     return;
   }
   const x = swipeCurrent();
+  const settings = swipeSettings();
+  const filterCount = swipeSettingsCount(settings);
   if (!x) {
     const dismissed = recsDismissed().size;
+    const seen = swipeSeen().size;
     host.innerHTML = swipeMessage("You’re caught up",
-      dismissed ? "There are no unseen recommendations left in this deck." : "There are no new IGDB recommendations right now.",
+      filterCount ? "No unseen games match your deck settings." :
+        (seen ? "You’ve swiped every matching recommendation." : "There are no new IGDB recommendations right now."),
       `<div class="sw-empty-actions">
         ${_swipeLast ? `<button class="sh-btn" data-sw-undo>Undo last swipe</button>` : ""}
-        ${dismissed ? `<button class="btn" data-sw-reset>Restore passed games</button>` : ""}
+        <button class="btn" data-sw-settings>${icon("i-filter", 14)} Deck settings${filterCount ? ` (${filterCount})` : ""}</button>
+        ${dismissed ? `<button class="sh-btn" data-sw-reset>Restore passed games</button>` : ""}
       </div>`);
     swipeWire(host, null);
     return;
   }
-  const dismissed = recsDismissed();
-  const remaining = swipeRanked().filter((q) => {
-    const id = q.row.igdbId;
-    return id != null && !dismissed.has(id) && !_swipeHandled.has(id);
-  }).length;
+  const remaining = swipeDeck().length;
   host.innerHTML = `<div class="sw-shell"><header class="sw-head">
       <div><span class="sw-eyebrow">${icon("i-sparkle", 13)} FOR YOU</span>
         <h2>Find your next game</h2><p>Left to pass. Right to add it to Wishlist and Pending edits.</p></div>
-      <div class="sw-progress"><b>${remaining.toLocaleString()}</b><span>matches left</span>
+      <div class="sw-head-tools"><div class="sw-progress"><b>${remaining.toLocaleString()}</b><span>matches left</span>
         <small>${_swipeAccepted} wanted · ${_swipePassed} passed this session</small></div>
+        <button class="sw-settings-btn" type="button" data-sw-settings aria-label="Deck settings">
+          ${icon("i-filter", 14)}<span>Settings</span>${filterCount ? `<b>${filterCount}</b>` : ""}</button></div>
     </header>${swipeCardHtml(x)}</div>`;
   swipeWire(host, x);
 }
@@ -284,6 +446,7 @@ async function swipeAct(direction, x) {
   if (direction === "left") {
     swipeSetBusy(host, true, "Passed");
     recsDismiss(id);
+    swipeRemember(id);
     _swipePassed++;
     _swipeLast = { direction, x };
     await swipeFling(card, direction);
@@ -317,6 +480,7 @@ async function swipeAct(direction, x) {
     return;
   }
   if (res.status === 409) {
+    swipeRemember(id);
     _swipeHandled.add(id);
     _swipeLast = null;
     showToast("Already in your collection", "i-check");
@@ -332,6 +496,7 @@ async function swipeAct(direction, x) {
   }
 
   const local = swipeInsertLocal(body, x);
+  swipeRemember(id);
   _swipeHandled.add(id);
   _swipeAccepted++;
   _swipeLast = { direction, x, rowId: body.rowId, matchKey: body.matchKey,
@@ -347,7 +512,8 @@ async function swipeUndo() {
   const last = _swipeLast;
   if (last.direction === "left") {
     const id = last.x.row.igdbId;
-    prefsSave("dismissed", prefsLocal("dismissed").filter((x) => x !== id));
+    prefsSave("dismissed", prefsLocal("dismissed").filter((x) => Number(x) !== id));
+    swipeForget(id);
     buildRecsSheet(true);
     _swipePassed = Math.max(0, _swipePassed - 1);
     _swipeLast = null;
@@ -368,6 +534,7 @@ async function swipeUndo() {
     _enrichEpoch++;
     resetCatalogue();
     _swipeHandled.delete(last.x.row.igdbId);
+    swipeForget(last.x.row.igdbId);
     _swipeAccepted = Math.max(0, _swipeAccepted - 1);
     if (body.counts) { EDIT_COUNTS = body.counts; editsPaintBadge(); }
     if (typeof buildWishlistSheet === "function") buildWishlistSheet();
@@ -382,9 +549,12 @@ async function swipeUndo() {
 }
 
 function swipeWire(host, x) {
+  host.querySelectorAll("[data-sw-settings]").forEach((b) => { b.onclick = openSwipeSettings; });
   host.querySelectorAll("[data-sw-undo]").forEach((b) => { b.onclick = swipeUndo; });
   const reset = host.querySelector("[data-sw-reset]");
   if (reset) reset.onclick = () => {
+    const passed = recsDismissed();
+    prefsSave("swiped", swipeHistory().filter((id) => !passed.has(id)));
     recsUndismissAll();
     _swipeLast = null;
     _swipePassed = 0;

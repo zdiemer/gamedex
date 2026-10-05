@@ -28,6 +28,8 @@ log = logging.getLogger("gamedex.prefs")
 # dismissed: IGDB ids you've told the Recommendations tab you're not interested in. A
 #   recommender with no way to say "no" asks the same question forever, and the answer
 #   belongs to you rather than to the browser you happened to say it in.
+# swiped: IGDB ids acted on in the Swipe deck, both passes and wants, so neither returns.
+# swipeSettings: a one-item list containing that deck's year/genre/platform/score filters.
 # pickers: named filter trees from the Pick tab. A picker is minutes of ticking boxes,
 #   which is too much work to keep on one browser.
 # dexle: the daily guess-the-game's streak, same shape as picross's.
@@ -42,8 +44,8 @@ log = logging.getLogger("gamedex.prefs")
 #   key is an allowlist entry here and eleven of them to hold eleven small objects is a
 #   schema the server does not want to know about. The client owns the shape and merges
 #   per event on load (events.js).
-KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "pickers", "pins",
-        "spooktober", "events"}
+KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "swiped",
+        "swipeSettings", "pickers", "pins", "spooktober", "events"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 

@@ -237,6 +237,9 @@ const PREFS_KEYS = {
   // IGDB ids dismissed on the Recommendations tab. A list of integers, so it stays far
   // inside the 256KB pref cap even after years of saying "not that one".
   dismissed: "gamedex.dismissed",
+  // Every IGDB id acted on in Swipe, regardless of direction, plus that deck's filters.
+  // Settings use a one-item list so they share this module's offline migration path.
+  swiped: "gamedex.swiped", swipeSettings: "gamedex.swipeSettings",
   // Named filter trees from the Pick tab — {name, fb, desc}, where fb is the same packed
   // tree a ?fb= link carries, so there's no second format to keep in step.
   pickers: "gamedex.pickers",
@@ -288,8 +291,8 @@ async function loadPrefs() {
   for (const key of Object.keys(PREFS_KEYS)) {
     const server = remote[key];
     const local = prefsLocal(key);
-    if (Array.isArray(server) && server.length) {
-      prefsMirror(key, server);                 // server is the truth
+    if (Object.prototype.hasOwnProperty.call(remote, key)) {
+      prefsMirror(key, Array.isArray(server) ? server : []); // server is the truth, even when cleared
     } else if (local.length) {
       await prefsSave(key, local);              // migrate this browser's history up
       log("prefs: migrated " + local.length + " " + key + " from localStorage");
