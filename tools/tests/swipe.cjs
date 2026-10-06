@@ -42,6 +42,24 @@ vm.runInContext("swipeForget(1)", context);
 assert.deepEqual(ids(), [1], "undo restores the game to the same filtered deck");
 console.log("Swipe: persistent history and deck filters passed");
 
+const cardRec = { row: { igdbId: 77, _igdb: { cover: "cover", year: 2020, genres: ["RPG"], platforms: ["PC"] } },
+  p: { score: .8, confidence: .8 }, because: null };
+const cardContext = vm.createContext({
+  cardRec,
+  document: { addEventListener() {} },
+  prefsLocal: () => [], prefsSave() {}, recsRanked: () => [cardRec], _enrichEpoch: 1,
+  recRow: () => ({ _igdbId: 77, title: "A Game", predicted: .8, confidence: "High" }),
+  RECS_META: { 77: { summary: "Summary", release: "2020", platforms: ["PC"], sheetPlatforms: ["PC"] } },
+  DATA: { sheets: { games: { rows: [{ platform: "PC" }] } } },
+  IMG: () => "/cover.jpg", ratingClass: () => "great", escapeHtml: (value) => String(value), icon: () => "",
+});
+vm.runInContext(fs.readFileSync("static/swipe.js", "utf8"), cardContext);
+const cardHtml = vm.runInContext("swipeCardHtml(cardRec)", cardContext);
+assert.match(cardHtml, /data-sw-art/, "the art is an explicit details target");
+assert.doesNotMatch(cardHtml, /Picked from the shape of your ratings|class="sw-why"/, "generic rating-shape copy is omitted");
+assert.match(fs.readFileSync("static/swipe.js", "utf8"), /art\.onclick[\s\S]*openDrawer/, "clicking art opens the detail drawer");
+console.log("Swipe: box art opens details and generic rationale is removed");
+
 const loadingHost = { innerHTML: "" };
 const loadingContext = vm.createContext({
   document: { addEventListener() {} },

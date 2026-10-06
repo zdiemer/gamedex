@@ -272,7 +272,7 @@ function swipeCardHtml(x) {
   const pct = Math.round((row.predicted || 0) * 100);
   const why = x.because && x.because.because && x.because.because.length
     ? `Because you liked <b>${x.because.because.slice(0, 2).map(escapeHtml).join("</b> and <b>")}</b>`
-    : "Picked from the shape of your ratings";
+    : "";
   const genres = (rec.genres || []).slice(0, 3);
   const summary = meta && meta.summary
     ? escapeHtml(meta.summary.length > 360 ? meta.summary.slice(0, 357).trimEnd() + "…" : meta.summary)
@@ -285,7 +285,7 @@ function swipeCardHtml(x) {
     <div class="sw-shadow-card sw-shadow-two"></div><div class="sw-shadow-card sw-shadow-one"></div>
     <article class="sw-card" data-sw-card data-id="${id}" tabindex="0"
       aria-label="${escapeHtml(row.title)}, predicted ${pct} percent">
-      <div class="sw-art"${cover ? ` style="--sw-bg:url('${escapeHtml(cover)}')"` : ""}>
+      <div class="sw-art" data-sw-art title="View details"${cover ? ` style="--sw-bg:url('${escapeHtml(cover)}')"` : ""}>
         ${cover ? `<img src="${escapeHtml(cover)}" alt="" draggable="false">`
                 : `<div class="sw-no-cover">${icon("i-library", 42)}</div>`}
         <div class="sw-stamp sw-stamp-no" aria-hidden="true">PASS</div>
@@ -298,7 +298,7 @@ function swipeCardHtml(x) {
         <div class="sw-meta">${[(meta && meta.release) || rec.year,
           ...(meta && meta.platforms || rec.platforms || []).slice(0, 3)]
           .filter(Boolean).map((v) => `<span>${escapeHtml(String(v))}</span>`).join("")}</div>
-        <p class="sw-why">${why}</p>
+        ${why ? `<p class="sw-why">${why}</p>` : ""}
         ${genres.length ? `<div class="sw-tags">${genres.map((g) => `<span>${escapeHtml(g)}</span>`).join("")}</div>` : ""}
         <p class="sw-summary">${summary}</p>
         <div class="sw-card-foot">${swipePlatformHtml(id, metaKnown ? (meta || {}) : null)}
@@ -579,7 +579,12 @@ function swipeWire(host, x) {
   host.querySelector("[data-sw-want]").onclick = () => swipeAct("right", x);
   host.querySelector("[data-sw-details]").onclick = () => openDrawer(recRow(x), "recs");
 
-  let startX = 0, startY = 0, startAt = 0, dx = 0, dy = 0, dragging = false;
+  let startX = 0, startY = 0, startAt = 0, dx = 0, dy = 0, dragging = false, moved = false;
+  const art = host.querySelector("[data-sw-art]");
+  if (art) art.onclick = (e) => {
+    if (moved) { e.preventDefault(); return; }
+    openDrawer(recRow(x), "recs");
+  };
   const finish = (e, cancelled) => {
     if (!dragging) return;
     dragging = false;
@@ -593,13 +598,14 @@ function swipeWire(host, x) {
   card.onpointerdown = (e) => {
     if (_swipeBusy || e.button !== 0 || e.target.closest("button,a,select,label")) return;
     startX = e.clientX; startY = e.clientY; startAt = performance.now();
-    dx = 0; dy = 0; dragging = true;
+    dx = 0; dy = 0; moved = false; dragging = true;
     card.classList.add("dragging");
     card.setPointerCapture(e.pointerId);
   };
   card.onpointermove = (e) => {
     if (!dragging) return;
     dx = e.clientX - startX;
+    moved ||= Math.abs(dx) > 8 || Math.abs(e.clientY - startY) > 8;
     dy = Math.max(-30, Math.min(30, (e.clientY - startY) * .18));
     card.style.transform = `translate3d(${dx}px,${dy}px,0) rotate(${dx / 28}deg)`;
     const amount = Math.min(1, Math.abs(dx) / Math.max(90, card.clientWidth * .22));

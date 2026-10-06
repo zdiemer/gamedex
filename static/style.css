@@ -7002,7 +7002,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 @keyframes sw-saving { to { background-position: -220% 0; } }
 
 .sw-art { position: relative; min-height: 510px; display: grid; place-items: center; overflow: hidden;
-  background: linear-gradient(150deg, var(--surface-2), var(--bg)); }
+  background: linear-gradient(150deg, var(--surface-2), var(--bg)); cursor: pointer; }
+.sw-card.dragging .sw-art { cursor: grabbing; }
 .sw-art::before {
   content: ""; position: absolute; inset: -28px; background-image: var(--sw-bg);
   background-position: center; background-size: cover; filter: blur(22px) saturate(.8);
