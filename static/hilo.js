@@ -44,7 +44,9 @@ function hlBig(v) {
 const hlFmt = (v) => (HL_DIMS[HL.dim] || { fmt: String }).fmt(v);
 
 // ---- per-day progress (localStorage) ---------------------------------------
-const hlKey = () => `hilo:${HL.date}`;
+// Revision 2 starts a clean local round after the 2026-10-06 popular-pool reseed.
+const HL_PROGRESS_REVISION = 2;
+const hlKey = () => `hilo:v${HL_PROGRESS_REVISION}:${HL.date}`;
 const hlSave = () => {
   if (HL.practice) return;
   try {

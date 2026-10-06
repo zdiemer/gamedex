@@ -43,7 +43,9 @@ const DX_CLIP = [8, 15, 25, 40, 60, Infinity];
 const dxStage = () => Math.min(DX.guesses.length, DX.maxGuesses - 1);
 
 // ---- per-day progress (localStorage) ---------------------------------------
-const dxKey = () => `dexle:${DX.date}`;
+// Revision 2 starts a clean local round after the 2026-10-06 popular-pool reseed.
+const DX_PROGRESS_REVISION = 2;
+const dxKey = () => `dexle:v${DX_PROGRESS_REVISION}:${DX.date}`;
 const dxSave = () => {
   if (DX.practice) return;        // a practice round is disposable by design
   try {
