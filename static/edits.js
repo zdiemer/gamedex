@@ -603,7 +603,10 @@ function openPendingEdits() {
           || { ...pending.fields, _rowId: rowId, _added: true, _k: pending.matchKey,
                _igdbId: pending.igdbId };
         m.close();
-        if (typeof openDrawer === "function") openDrawer(row, pending.sheet || "games");
+        if (typeof openDrawer === "function") {
+          openDrawer(row, pending.sheet || "games", false,
+            { label: "Pending edits", open: openPendingEdits });
+        }
       };
     });
   };

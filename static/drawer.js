@@ -23,14 +23,24 @@ function detailValue(c, v) {
 // collection member — is navigation, and navigation needs a way back. Anything
 // that opens a drawer on top of an open drawer goes through here.
 let drawerStack = [];
+let drawerReturn = null;
 
 function openDrawerFrom(row, sheetKey) {
   if (drawerRow) drawerStack.push({ row: drawerRow, sheet: drawerSheet });
   openDrawer(row, sheetKey, true);
 }
+const drawerCanBack = () => drawerStack.length > 0 || !!drawerReturn;
 function drawerBack() {
   const prev = drawerStack.pop();
-  if (prev) openDrawer(prev.row, prev.sheet, true);
+  if (prev) {
+    openDrawer(prev.row, prev.sheet, true);
+    return;
+  }
+  const destination = drawerReturn;
+  if (!destination) return;
+  closeDrawer(true);
+  if (!restoringDrawer && typeof syncURL === "function") syncURL(false);
+  destination.open();
 }
 const drawerTitleOf = (row) => String(row.title || row.game || "back");
 
@@ -193,7 +203,7 @@ function mineSectionHtml(row) {
   </div>`;
 }
 
-function openDrawer(row, sheetKey, keepStack) {
+function openDrawer(row, sheetKey, keepStack, returnTo) {
   tourStop();                 // not just stopPreview: leave the tour armed and it would
   stopPreview();              // start a video behind the open drawer 12s later
   // A new game (or navigation within the drawer) retires the previous game's soundtrack
@@ -201,7 +211,10 @@ function openDrawer(row, sheetKey, keepStack) {
   // torn down explicitly or it would play on over the wrong game.
   if (typeof stopSoundtrack === "function") stopSoundtrack();
   tourLast = null;
-  if (!keepStack) drawerStack = [];       // a fresh open starts a fresh history
+  if (!keepStack) {
+    drawerStack = [];                       // a fresh open starts a fresh history
+    drawerReturn = returnTo || null;
+  }
   applyCoverAccent(row);
   drawerSheet = sheetKey || (SPECIAL_TABS.includes(activeTab) ? "games" : activeTab);
   const cols = (DATA.sheets[drawerSheet] || DATA.sheets.games).columns;
@@ -289,13 +302,17 @@ function openDrawer(row, sheetKey, keepStack) {
   body.innerHTML = html;
   const back = $("#drawerBack");
   const prev = drawerStack[drawerStack.length - 1];
-  back.hidden = !prev;
+  const destination = prev ? null : drawerReturn;
+  back.hidden = !prev && !destination;
   // The hero has to know, so it can keep its title out from under the button (see .has-back).
-  $("#drawer").classList.toggle("has-back", !!prev);
+  $("#drawer").classList.toggle("has-back", !!prev || !!destination);
   if (prev) {
     const t = drawerTitleOf(prev.row);
     back.textContent = `← ${t.length > 22 ? t.slice(0, 21) + "…" : t}`;
     back.title = `Back to ${t}`;
+  } else if (destination) {
+    back.textContent = `← ${destination.label}`;
+    back.title = `Back to ${destination.label}`;
   }
   wireCollections(body);
   if (typeof wireEditsQuick === "function") wireEditsQuick(body, row);
@@ -360,7 +377,7 @@ function closeDrawer(silent) {
   }
   const wasOpen = !$("#overlay").hidden;
   if (typeof stopSoundtrack === "function") stopSoundtrack();   // silence the player on close
-  $("#overlay").hidden = true; drawerStack = [];
+  $("#overlay").hidden = true; drawerStack = []; drawerReturn = null;
   // Nulled, not just hidden: most readers guard on !$("#overlay").hidden but several don't
   // (panels.js, hero.js), and openDrawerFrom pushes drawerRow onto the back-stack — a stale
   // one renders a "← back to <game you already closed>" button. It also pinned the last

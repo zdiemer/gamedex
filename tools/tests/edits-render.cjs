@@ -311,7 +311,9 @@ const ok = (s) => process.stdout.write(`  ok   ${s}\n`);
     const { ctx } = load({
       fetch: async () => ({ ok: true, status: 200, json: async () => pending }),
       DATA: withoutPendingRow,
-      openDrawer: (row, sheet) => { opened = { row, sheet }; },
+      openDrawer: (row, sheet, keepStack, returnTo) => {
+        opened = { row, sheet, keepStack, returnTo };
+      },
     });
     vm.runInContext('openPendingEdits', ctx)();
     await flush();
@@ -341,7 +343,10 @@ const ok = (s) => process.stdout.write(`  ok   ${s}\n`);
     assert.equal(opened.row._rowId, 'add:abc');
     assert.equal(opened.row._k, 'k3');
     assert.equal(opened.row.title, 'Tempest 2000');
-    ok('the pending list wires its discard / keep-mine / unadd actions');
+    assert.equal(opened.keepStack, false);
+    assert.equal(opened.returnTo.label, 'Pending edits');
+    assert.equal(typeof opened.returnTo.open, 'function');
+    ok('the pending list wires actions and gives the drawer a Pending edits return');
   }
 
   // ---- 6. nothing staged ----------------------------------------------

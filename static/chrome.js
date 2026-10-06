@@ -571,7 +571,7 @@ document.addEventListener("keydown", (e) => {
   else if (!$("#sheet").hidden) setSheet(false);
   else if (typeof pickSheetDismiss === "function" && pickSheetDismiss()) { /* Pick's criteria sheet */ }
   // Esc unwinds the drawer history one step at a time, then closes.
-  else if (drawerStack.length && !$("#overlay").hidden) drawerBack();
+  else if (drawerCanBack() && !$("#overlay").hidden) drawerBack();
   else closeDrawer();
 });
 
