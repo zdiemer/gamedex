@@ -4810,6 +4810,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* ================= Hi-Lo: the daily higher-or-lower ================= */
 .hl-score { font-size: 13px; color: var(--dim); margin-bottom: 12px; }
+.hl-run-actions { margin: 12px 0 18px; }
 .hl-score b { color: var(--accent); font: 800 15px/1 var(--display); }
 .hl-board { display: flex; align-items: stretch; gap: 14px; max-width: 720px; }
 .hl-vs {

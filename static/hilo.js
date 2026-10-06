@@ -43,28 +43,48 @@ function hlBig(v) {
 }
 const hlFmt = (v) => (HL_DIMS[HL.dim] || { fmt: String }).fmt(v);
 
-// ---- per-day progress (localStorage) ---------------------------------------
+// ---- per-day progress (device mirror + admin account sync) -----------------
 // Revision 2 starts a clean local round after the 2026-10-06 popular-pool reseed.
 const HL_PROGRESS_REVISION = 2;
 const hlKey = () => `hilo:v${HL_PROGRESS_REVISION}:${HL.date}`;
-const hlSave = () => {
+let hlRemoteProgress = null;
+function hlProgressSnapshot() {
+  return { date: HL.date, revision: HL_PROGRESS_REVISION, cur: HL.cur, next: HL.next,
+    score: HL.score, over: HL.over, cleared: HL.cleared };
+}
+function hlProgressValid(s) {
+  return !!(s && s.date === HL.date && s.revision === HL_PROGRESS_REVISION && s.cur);
+}
+function hlProgressRank(s) {
+  return (s.over ? 100 : 0) + (s.score || 0);
+}
+async function hlSave() {
   if (HL.practice) return;
-  try {
-    localStorage.setItem(hlKey(), JSON.stringify({
-      cur: HL.cur, next: HL.next, score: HL.score, over: HL.over, cleared: HL.cleared,
-    }));
-  } catch (_) { /* private mode: the run just won't survive a reload */ }
-};
-const hlLoad = () => {
+  const s = hlProgressSnapshot();
+  try { localStorage.setItem(hlKey(), JSON.stringify(s)); }
+  catch (_) { /* private mode: the server copy can still keep the run */ }
+  if (typeof IS_ADMIN !== "undefined" && IS_ADMIN) {
+    hlRemoteProgress = s;
+    try {
+      await fetch("api/prefs/hiloProgress", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s),
+      });
+    } catch (_) { /* the device mirror remains usable offline */ }
+  }
+}
+function hlLoad() {
   if (HL.practice) return false;
-  try {
-    const s = JSON.parse(localStorage.getItem(hlKey()) || "null");
-    if (!s || !s.cur) return false;
-    HL.cur = s.cur; HL.next = s.next || null; HL.score = s.score || 0;
-    HL.over = !!s.over; HL.cleared = !!s.cleared;
-    return true;
-  } catch (_) { return false; }
-};
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem(hlKey()) || "null"); } catch (_) {}
+  const remote = hlProgressValid(hlRemoteProgress) ? hlRemoteProgress : null;
+  local = hlProgressValid(local) ? local : null;
+  const s = remote && (!local || hlProgressRank(remote) >= hlProgressRank(local)) ? remote : local;
+  if (!s) return false;
+  HL.cur = s.cur; HL.next = s.next || null; HL.score = s.score || 0;
+  HL.over = !!s.over; HL.cleared = !!s.cleared;
+  try { localStorage.setItem(hlKey(), JSON.stringify(s)); } catch (_) {}
+  return true;
+}
 
 /* ---- the record (prefs, like the other dailies' streaks) ------------------- */
 let hlPrefs = null;
@@ -77,12 +97,14 @@ function hlRecord() {
 async function hlLoadPrefs() {
   try {
     const j = await (await fetch("api/prefs")).json();
-    const s = (j.prefs || {}).hilo;
+    const prefs = j.prefs || {};
+    const s = prefs.hilo;
+    hlRemoteProgress = prefs.hiloProgress || null;
     if (s && typeof s === "object") {
       hlPrefs = s;
       try { localStorage.setItem(HL_LOCAL, JSON.stringify(s)); } catch (_) {}
     }
-  } catch (_) { /* offline: the local mirror stands in */ }
+  } catch (_) { /* offline: the local mirrors stand in */ }
 }
 async function hlBumpRecord(score) {
   const s = { ...hlRecord() };
@@ -152,6 +174,8 @@ function renderHilo() {
       <div class="hl-vs">vs</div>
       ${HL.next ? hlCardHtml(HL.next, false) : ""}
     </div>
+    ${!HL.practice && !HL.over
+      ? `<div class="hl-run-actions"><button class="btn" id="hlShare"${HL.score > 0 ? "" : " disabled"}>${HL.score > 0 ? "Share run" : "Share after first call"}</button></div>` : ""}
     ${HL.over ? hlEndHtml() : ""}
     ${hlPracticeHtml()}
   </div>`;
@@ -211,7 +235,7 @@ function hlEndHtml() {
 function hlShareText() {
   const d = HL_DIMS[HL.dim] || { label: HL.dim || "Mystery stat" };
   const tiles = Array.from({ length: HL.score }, () => "🟩");
-  if (!HL.cleared) tiles.push("🟥");
+  if (HL.over && !HL.cleared) tiles.push("🟥");
   const rows = [];
   for (let i = 0; i < tiles.length; i += 10) rows.push(tiles.slice(i, i + 10).join(""));
   const max = Math.max(0, HL.total - 1);
@@ -330,11 +354,10 @@ async function hlGuess(dir) {
         if (j.cleared) hlCelebrate();
       }
       HL.busy = false;
-      hlSave();
+      await hlSave();
       renderHilo();
       if (activeTab === "daily") renderDaily();
     }, j.correct ? 700 : 1200);
-    hlSave();
   } catch (_) { HL.busy = false; }
 }
 
@@ -357,7 +380,7 @@ async function loadHilo() {
     const j = await r.json();
     if (!j.ok) { HL.failed = true; HL.loaded = true; renderHilo(); return; }
     hlAdopt(j);
-    hlLoad();                    // a half-run day resumes where it stood
+    if (hlLoad()) await hlSave(); // backfill a pre-sync device run to the account
     renderHilo();
     if (activeTab === "daily") renderDaily();
     if (activeTab === "home") patchHomeDaily();
@@ -375,7 +398,7 @@ async function hiloMetaInit() {
     const j = await (await fetch("api/hilo/daily")).json();
     if (!j.ok) { HL.failed = true; HL.loaded = true; return; }
     hlAdopt(j);
-    hlLoad();
+    if (hlLoad()) await hlSave(); // backfill from whichever device is furthest along
     if (activeTab === "home") patchHomeDaily();
     if (activeTab === "daily") renderDaily();
   } catch (_) { /* the card just shows a placeholder */ }

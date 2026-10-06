@@ -42,28 +42,49 @@ const DX_CLIP = [8, 15, 25, 40, 60, Infinity];
 
 const dxStage = () => Math.min(DX.guesses.length, DX.maxGuesses - 1);
 
-// ---- per-day progress (localStorage) ---------------------------------------
+// ---- per-day progress (device mirror + admin account sync) -----------------
 // Revision 2 starts a clean local round after the 2026-10-06 popular-pool reseed.
 const DX_PROGRESS_REVISION = 2;
 const dxKey = () => `dexle:v${DX_PROGRESS_REVISION}:${DX.date}`;
-const dxSave = () => {
+let dxRemoteProgress = null;
+function dxProgressSnapshot() {
+  return { date: DX.date, revision: DX_PROGRESS_REVISION, guesses: DX.guesses,
+    hints: DX.hints, done: DX.done, won: DX.won, answer: DX.answer };
+}
+function dxProgressValid(s) {
+  return !!(s && s.date === DX.date && s.revision === DX_PROGRESS_REVISION
+    && Array.isArray(s.guesses));
+}
+function dxProgressRank(s) {
+  return (s.done ? 100 : 0) + s.guesses.length;
+}
+async function dxSave() {
   if (DX.practice) return;        // a practice round is disposable by design
-  try {
-    localStorage.setItem(dxKey(), JSON.stringify({
-      guesses: DX.guesses, hints: DX.hints, done: DX.done, won: DX.won, answer: DX.answer,
-    }));
-  } catch (_) { /* private mode: the round just won't survive a reload */ }
-};
-const dxLoad = () => {
+  const s = dxProgressSnapshot();
+  try { localStorage.setItem(dxKey(), JSON.stringify(s)); }
+  catch (_) { /* private mode: the server copy can still keep the round */ }
+  if (typeof IS_ADMIN !== "undefined" && IS_ADMIN) {
+    dxRemoteProgress = s;
+    try {
+      await fetch("api/prefs/dexleProgress", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s),
+      });
+    } catch (_) { /* the device mirror remains usable offline */ }
+  }
+}
+function dxLoad() {
   if (DX.practice) return false;
-  try {
-    const s = JSON.parse(localStorage.getItem(dxKey()) || "null");
-    if (!s || !Array.isArray(s.guesses)) return false;
-    DX.guesses = s.guesses; DX.hints = Array.isArray(s.hints) ? s.hints : [];
-    DX.done = !!s.done; DX.won = !!s.won; DX.answer = s.answer || null;
-    return true;
-  } catch (_) { return false; }
-};
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem(dxKey()) || "null"); } catch (_) {}
+  const remote = dxProgressValid(dxRemoteProgress) ? dxRemoteProgress : null;
+  local = dxProgressValid(local) ? local : null;
+  const s = remote && (!local || dxProgressRank(remote) >= dxProgressRank(local)) ? remote : local;
+  if (!s) return false;
+  DX.guesses = s.guesses; DX.hints = Array.isArray(s.hints) ? s.hints : [];
+  DX.done = !!s.done; DX.won = !!s.won; DX.answer = s.answer || null;
+  try { localStorage.setItem(dxKey(), JSON.stringify(s)); } catch (_) {}
+  return true;
+}
 
 /* ---- streak ----------------------------------------------------------------
    Identical machinery to the Picross streak (picross.js): server prefs so it follows
@@ -78,12 +99,14 @@ function dxStreak() {
 async function dxLoadPrefs() {
   try {
     const j = await (await fetch("api/prefs")).json();
-    const s = (j.prefs || {}).dexle;
+    const prefs = j.prefs || {};
+    const s = prefs.dexle;
+    dxRemoteProgress = prefs.dexleProgress || null;
     if (s && typeof s === "object") {
       dxPrefs = s;
       try { localStorage.setItem(DX_LOCAL, JSON.stringify(s)); } catch (_) {}
     }
-  } catch (_) { /* offline: the local mirror stands in */ }
+  } catch (_) { /* offline: the local mirrors stand in */ }
 }
 function dxCurrentStreak() {
   const s = dxStreak();
@@ -440,7 +463,7 @@ async function dxGuess(title) {
       DX.done = true; DX.won = false; DX.answer = j.answer || null;
       if (DX.practice) dxBumpPracticeTally(false);
     }
-    dxSave();
+    await dxSave();
     renderDexle();
     if (j.correct) dxCelebrate();
   } catch (_) { /* offline: the guess just doesn't land */ }
@@ -475,6 +498,7 @@ async function loadDexle() {
     DX.date = j.date; DX.mode = j.mode; DX.clue = j.clue; DX.maxGuesses = j.maxGuesses || 6;
     DX.loaded = true; DX.failed = false;
     if (!dxLoad()) { DX.guesses = []; DX.hints = []; DX.done = false; DX.won = false; DX.answer = null; }
+    else await dxSave();                 // backfill a pre-sync device round to the account
     renderDexle();
     if (activeTab === "daily") renderDaily();
     if (activeTab === "home") patchHomeDaily();
@@ -494,7 +518,7 @@ async function dexleMetaInit() {
     if (!j.ok) { DX.failed = true; DX.loaded = true; return; }
     DX.date = j.date; DX.mode = j.mode; DX.clue = j.clue; DX.maxGuesses = j.maxGuesses || 6;
     DX.loaded = true;
-    dxLoad();
+    if (dxLoad()) await dxSave();        // backfill from whichever device is furthest along
     if (activeTab === "home") patchHomeDaily();
     if (activeTab === "daily") renderDaily();
   } catch (_) { /* the card just shows a placeholder */ }

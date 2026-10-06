@@ -33,7 +33,9 @@ log = logging.getLogger("gamedex.prefs")
 # pickers: named filter trees from the Pick tab. A picker is minutes of ticking boxes,
 #   which is too much work to keep on one browser.
 # dexle: the daily guess-the-game's streak, same shape as picross's.
+# dexleProgress: today's guesses and hints, synced across the admin's devices.
 # hilo: the daily higher-or-lower's record (best run, days played).
+# hiloProgress: today's live deck position, synced across the admin's devices.
 # pins: RNG slots held by a game you're already playing, so the phone and the desktop
 #   agree about which of the three lanes are still free to roll.
 # spooktober: the seasonal event's October calendar, {year: {day: matchKey}}. Kept per year
@@ -44,8 +46,9 @@ log = logging.getLogger("gamedex.prefs")
 #   key is an allowlist entry here and eleven of them to hold eleven small objects is a
 #   schema the server does not want to know about. The client owns the shape and merges
 #   per event on load (events.js).
-KEYS = {"views", "challenges", "picross", "dexle", "hilo", "dismissed", "swiped",
-        "swipeSettings", "pickers", "pins", "spooktober", "events"}
+KEYS = {"views", "challenges", "picross", "dexle", "dexleProgress", "hilo",
+        "hiloProgress", "dismissed", "swiped", "swipeSettings", "pickers", "pins",
+        "spooktober", "events"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 
