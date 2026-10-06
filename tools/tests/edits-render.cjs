@@ -290,8 +290,11 @@ const ok = (s) => process.stdout.write(`  ok   ${s}\n`);
         { sheet: 'games', matchKey: 'gone', column: 'purchasePrice', value: 40, base: null,
           state: 'orphan', sheetValue: null, sheetCode: null, updatedAt: '2026-10-03T18:02:00+00:00' },
       ],
-      added: [{ rowId: 'add:abc', sheet: 'games', igdbId: 1671,
-                fields: { title: 'Tempest 2000', platform: 'Atari Jaguar', releaseYear: 1994 },
+      added: [{ rowId: 'add:abc', sheet: 'games', igdbId: 1671, matchKey: 'k3',
+                igdbUrl: 'https://www.igdb.com/games/tempest-2000',
+                fields: { title: 'Tempest 2000', platform: 'Atari Jaguar', releaseDate: '1994-04-01',
+                          releaseYear: 1994, developer: 'Llamasoft', publisher: 'Atari',
+                          franchise: 'Tempest', genre: 'Shooter' },
                 createdAt: '2026-10-03T18:03:00+00:00', retiredAt: null }],
     };
     const pendRows = [makeEl('p0'), makeEl('p1'), makeEl('p2')];
@@ -301,8 +304,14 @@ const ok = (s) => process.stdout.write(`  ok   ${s}\n`);
     addedRows[0].dataset = { row: 'add:abc' };
     PRESEED = { '.ed-body': { _all: {
       '.ed-pend[data-col]': pendRows, '.ed-pend[data-row]': addedRows } } };
+    let opened = null;
+    const withoutPendingRow = JSON.parse(JSON.stringify(SHEET));
+    withoutPendingRow.sheets.games.rows = withoutPendingRow.sheets.games.rows
+      .filter((row) => row._rowId !== 'add:abc');
     const { ctx } = load({
       fetch: async () => ({ ok: true, status: 200, json: async () => pending }),
+      DATA: withoutPendingRow,
+      openDrawer: (row, sheet) => { opened = { row, sheet }; },
     });
     vm.runInContext('openPendingEdits', ctx)();
     await flush();
@@ -317,11 +326,21 @@ const ok = (s) => process.stdout.write(`  ok   ${s}\n`);
     assert.ok(h.includes('Chrono Trigger'), 'the row is named from the dataset');
     assert.ok(h.includes('Orphans'), 'the orphan section renders');
     assert.ok(h.includes('Tempest 2000') && h.includes('IGDB 1671'), 'the added row renders');
+    for (const value of ['Atari Jaguar', '1994-04-01', 'Llamasoft', 'Atari', 'Tempest', 'Shooter']) {
+      assert.ok(h.includes(value), `the added row shows ${value}`);
+    }
+    assert.ok(h.includes('href="https://www.igdb.com/games/tempest-2000"'),
+      'the IGDB id links to the canonical game page');
     ok('the pending list renders conflicts, orphans, numbers and added rows');
 
     assert.equal(typeof pendRows[0].querySelector('[data-drop]').onclick, 'function');
     assert.equal(typeof pendRows[1].querySelector('[data-keep]').onclick, 'function');
     assert.equal(typeof addedRows[0].querySelector('[data-unadd]').onclick, 'function');
+    addedRows[0].querySelector('[data-open]').onclick();
+    assert.equal(opened.sheet, 'games');
+    assert.equal(opened.row._rowId, 'add:abc');
+    assert.equal(opened.row._k, 'k3');
+    assert.equal(opened.row.title, 'Tempest 2000');
     ok('the pending list wires its discard / keep-mine / unadd actions');
   }
 

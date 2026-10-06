@@ -531,13 +531,30 @@ function openPendingEdits() {
         <button class="linkbtn danger" data-drop>${f.state === "conflict" ? "Take the sheet’s" : "Discard"}</button>
       </div></div>`;
 
-    const addedRow = (a) => `<div class="ed-pend" data-row="${esc(a.rowId)}">
-      <div class="ed-pend-t"><b>${esc(a.fields.title || a.fields.game || a.rowId)}</b>
-        <em>${esc([a.fields.platform, a.fields.releaseYear].filter(Boolean).join(" · "))}</em></div>
-      <div class="ed-pend-v"><span class="muted">new row${a.igdbId ? ` · IGDB ${a.igdbId}` : ""}
-        · ${Object.keys(a.fields).length} cells</span></div>
+    const addedRow = (a) => {
+      const fields = a.fields || {};
+      const title = fields.title || fields.game || a.rowId;
+      const enriched = (typeof ENRICH !== "undefined" && a.matchKey && ENRICH[a.matchKey]) || {};
+      const igdbUrl = a.igdbUrl || enriched.url
+        || `https://www.igdb.com/search?type=1&q=${encodeURIComponent(title)}`;
+      const metadata = [
+        ["Platform", fields.platform],
+        ["Release date", fields.releaseDate || fields.releaseYear],
+        ["Developer", fields.developer],
+        ["Publisher", fields.publisher],
+        ["Franchise / series", fields.franchise],
+        ["Genre", fields.genre],
+      ];
+      return `<div class="ed-pend ed-pend-added" data-row="${esc(a.rowId)}">
+      <div class="ed-pend-t"><b>${esc(title)}</b>
+        <em>New spreadsheet row · ${Object.keys(fields).length} cells</em></div>
+      <div class="ed-pend-v ed-pend-meta">${metadata.map(([label, value]) =>
+        `<span><small>${esc(label)}</small><b>${value == null || value === "" ? "—" : esc(value)}</b></span>`).join("")}
+        ${a.igdbId ? `<span><small>Source</small><a class="ed-igdb" href="${esc(igdbUrl)}"
+          target="_blank" rel="noopener">IGDB ${esc(a.igdbId)} ↗</a></span>` : ""}</div>
       <div class="ed-pend-a"><button class="linkbtn" data-open>Open</button>
         <button class="linkbtn danger" data-unadd>Discard</button></div></div>`;
+    };
 
     const section = (title, hint, html) => !html ? "" :
       `<h4 class="ed-h">${esc(title)}</h4><p class="ce-sub">${hint}</p>${html}`;
@@ -578,10 +595,15 @@ function openPendingEdits() {
         render();
       };
       el.querySelector("[data-open]").onclick = () => {
-        const row = (((DATA.sheets.games || {}).rows) || []).find((r) => r._rowId === rowId);
-        if (!row) return;
+        const pending = body.added.find((a) => a.rowId === rowId);
+        if (!pending) return;
+        const rows = (((DATA.sheets[pending.sheet] || {}).rows) || []);
+        const row = rows.find((r) => r._rowId === rowId)
+          || rows.find((r) => pending.matchKey && r._k === pending.matchKey)
+          || { ...pending.fields, _rowId: rowId, _added: true, _k: pending.matchKey,
+               _igdbId: pending.igdbId };
         m.close();
-        if (typeof openDrawer === "function") openDrawer(row, "games");
+        if (typeof openDrawer === "function") openDrawer(row, pending.sheet || "games");
       };
     });
   };

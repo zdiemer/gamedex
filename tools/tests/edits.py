@@ -203,6 +203,8 @@ check("other cells survive", again["purchasePrice"], 400.0)
 check("pin key matches", E.igdb_pin_for(staged["rowId"])[0],
       match_key_for("Panzer Dragoon Saga", "Sega Saturn", 1998))
 check("pinned igdb id", E.igdb_pin_for(staged["rowId"])[1], 4242)
+check("pending row carries match key", E.pending()["added"][0]["matchKey"],
+      match_key_for("Panzer Dragoon Saga", "Sega Saturn", 1998))
 check("in added_keys", match_key_for("Panzer Dragoon Saga", "Sega Saturn", 1998) in E.added_keys(), True)
 # Write-through must not inject it twice, or retire it for existing.
 E.apply(data, retire=False)

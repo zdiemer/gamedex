@@ -446,7 +446,18 @@ def _write_through(data):
 @app.get("/api/edits")
 def api_edits_list(user: dict = Depends(require_admin)):
     """Everything staged, for the reconciliation screen."""
-    return {"counts": EDITS.counts(), **EDITS.pending()}
+    pending = EDITS.pending()
+    # Pending rows only persist the IGDB id and sheet cells. Resolve the canonical
+    # website URL from the already-cached pinned match so the browser never has to
+    # guess IGDB's slug from a title.
+    if enricher and pending["added"]:
+        keys = [a["matchKey"] for a in pending["added"] if a.get("matchKey")]
+        items, _ = enricher.get_light(keys)
+        for added in pending["added"]:
+            url = (items.get(added.get("matchKey")) or {}).get("url")
+            if url:
+                added["igdbUrl"] = url
+    return {"counts": EDITS.counts(), **pending}
 
 
 @app.post("/api/edits")

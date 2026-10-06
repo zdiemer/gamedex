@@ -542,8 +542,11 @@ class Edits:
             })
         return {
             "fields": out_fields,
-            "added": [{"rowId": r[0], "sheet": r[1], "igdbId": r[2], "fields": json.loads(r[3]),
-                       "createdAt": r[4], "retiredAt": r[5]} for r in added],
+            "added": [{
+                "rowId": r[0], "sheet": r[1], "igdbId": r[2],
+                "matchKey": self.key_for_fields(r[1], json.loads(r[3])),
+                "fields": json.loads(r[3]), "createdAt": r[4], "retiredAt": r[5],
+            } for r in added],
         }
 
     def version(self) -> int:

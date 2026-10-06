@@ -6929,6 +6929,15 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   text-transform: uppercase; letter-spacing: .06em; }
 .ed-pend-v { grid-column: 1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12.5px; }
 .ed-pend-a { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 8px; align-items: center; }
+.ed-pend-added { padding: 13px 0; gap: 9px 16px; }
+.ed-pend-meta { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 9px 16px; }
+.ed-pend-meta > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ed-pend-meta small { color: var(--dim); font: 600 9.5px var(--font); letter-spacing: .07em;
+  text-transform: uppercase; }
+.ed-pend-meta b, .ed-pend-meta a { color: var(--text); font: 500 12.5px var(--font);
+  overflow-wrap: anywhere; }
+.ed-pend-meta .ed-igdb { color: var(--accent-2); text-decoration: none; width: fit-content; }
+.ed-pend-meta .ed-igdb:hover { text-decoration: underline; }
 .ed-vs { display: inline-flex; align-items: baseline; gap: 5px; }
 .ed-vs > span:first-child { font: 600 9.5px var(--font); letter-spacing: .08em;
   text-transform: uppercase; color: var(--dim); }
@@ -6945,6 +6954,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .ql-dates { grid-column: 1; }
   .ed-foot { max-width: 100%; }
   .ce.ed-ce { max-width: 100%; }
+  .ed-pend-added { grid-template-columns: 1fr; }
+  .ed-pend-added .ed-pend-a { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+  .ed-pend-meta { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
 }
 .ql-grouped { font-size: 11.5px; line-height: 1.5; display: flex; gap: 6px; align-items: center; }
 
