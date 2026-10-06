@@ -378,8 +378,9 @@ function renderSwipe() {
 function swipeResetCard(card) {
   if (!card) return;
   card.classList.remove("dragging", "saving");
-  card.style.transition = "transform .32s cubic-bezier(.2,.85,.25,1)";
+  card.style.transition = "transform .32s cubic-bezier(.2,.85,.25,1), opacity .18s ease";
   card.style.transform = "";
+  card.style.opacity = "";
   card.querySelectorAll(".sw-stamp").forEach((n) => { n.style.opacity = ""; });
   setTimeout(() => { if (card.isConnected) card.style.transition = ""; }, 340);
 }
@@ -471,6 +472,10 @@ async function swipeAct(direction, x) {
   }
   _swipePlatforms.set(id, platform);
   swipeSetBusy(host, true, `Adding ${x.row.title} to Pending edits…`);
+  // Start the gesture response before waiting on the server. On a phone the
+  // round trip is noticeable, especially over a high-latency connection; a
+  // failed request restores this same card below.
+  const fling = swipeFling(card, direction);
   let res, body;
   try {
     res = await fetch("api/games", {
@@ -482,6 +487,7 @@ async function swipeAct(direction, x) {
     });
     body = await res.json().catch(() => ({}));
   } catch (_) {
+    await fling;
     swipeSetBusy(host, false, "");
     swipeError(card, "Offline — the game wasn’t added.");
     return;
@@ -491,12 +497,13 @@ async function swipeAct(direction, x) {
     _swipeHandled.add(id);
     _swipeLast = null;
     showToast("Already in your collection", "i-check");
-    await swipeFling(card, direction);
+    await fling;
     _swipeBusy = false;
     renderSwipe();
     return;
   }
   if (!res.ok) {
+    await fling;
     swipeSetBusy(host, false, "");
     swipeError(card, body.error || "That game couldn’t be added.");
     return;
@@ -509,7 +516,7 @@ async function swipeAct(direction, x) {
   _swipeLast = { direction, x, rowId: body.rowId, matchKey: body.matchKey,
                  previousEnrich: local.previousEnrich };
   showToast("Wishlisted — added to Pending edits", "i-edit");
-  await swipeFling(card, direction);
+  await fling;
   _swipeBusy = false;
   renderSwipe();
 }
