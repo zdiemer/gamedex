@@ -4675,6 +4675,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .px-win img { width: 86px; border-radius: 6px; box-shadow: 0 10px 26px rgba(0,0,0,.4); }
 .px-win h2 { font: 800 22px/1.2 var(--display); margin: 4px 0 4px; }
 .px-bonus { color: var(--good); font-size: 12.5px; font-weight: 600; margin: 6px 0 10px; }
+.px-win-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* Confetti in the cover's colours. Cheap, and finishing should feel like finishing. */
 .px-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
@@ -4715,6 +4716,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .px-rc i, .px-cc i { font-size: 11px; }
   .px-head { flex-direction: column; gap: 12px; }
   .px-win { flex-direction: column; text-align: center; }
+  .px-win-actions { justify-content: center; }
 }
 
 /* ================= Dexle: the daily guess-the-game ================= */

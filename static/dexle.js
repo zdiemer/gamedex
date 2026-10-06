@@ -315,9 +315,70 @@ function dxEndHtml() {
       <p class="muted">${[g.platform, g.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ")}</p>
       ${DX.won ? `<p class="px-bonus">★ Named it in ${DX.guesses.length} guess${DX.guesses.length === 1 ? "" : "es"}.</p>`
                 : `<p class="muted">${DX.practice ? "The next round costs nothing." : "Tomorrow's another clue."}</p>`}
-      <button class="btn" id="dxOpen">Open in library</button>
+      <div class="px-win-actions">
+        ${DX.practice ? "" : `<button class="btn" id="dxShare">Share result</button>`}
+        <button class="btn${DX.practice ? "" : " ghost"}" id="dxOpen">Open in library</button>
+      </div>
     </div>
   </div>`;
+}
+
+// A Wordle-style receipt: enough to compare the run without naming any guess or the
+// answer. Related guesses are yellow, ordinary misses black, deliberate skips white,
+// and the winning guess green. The URL always opens Dexle even if the current page has
+// a drawer or some other transient query state in it.
+function dxShareText() {
+  const m = DX_MODES[DX.mode] || { label: DX.mode || "Mystery clue" };
+  const score = DX.won ? `${DX.guesses.length}/${DX.maxGuesses}` : `X/${DX.maxGuesses}`;
+  const trail = DX.guesses.map((g, i) => {
+    if (DX.won && i === DX.guesses.length - 1) return "🟩";
+    if (!g.title) return "⬜";
+    return g.near ? "🟨" : "⬛";
+  }).join("");
+  const url = new URL(location.href);
+  url.search = "?tab=dexle";
+  url.hash = "";
+  return `Dexle ${DX.date} ${score}\n${m.label}\n${trail}\n${url}`;
+}
+
+async function dxCopyResult(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  // Older Safari has the share sheet but no async clipboard API. Keep a final copy
+  // path for desktop browsers and installed PWAs that expose neither.
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const copied = document.execCommand("copy");
+  ta.remove();
+  if (!copied) throw new Error("copy failed");
+}
+
+async function dxShareResult() {
+  const text = dxShareText();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Dexle result", text });
+      showToast("Dexle result shared", "i-check");
+      return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      // A browser can advertise Web Share and still reject a text payload. Copying
+      // gives the button a useful fallback on those devices.
+    }
+  }
+  try {
+    await dxCopyResult(text);
+    showToast("Dexle result copied", "i-check");
+  } catch (_) {
+    showToast("Couldn't share the Dexle result");
+  }
 }
 
 function wireDexle(host) {
@@ -334,6 +395,8 @@ function wireDexle(host) {
   }
   const skip = host.querySelector("#dxSkip");
   if (skip) skip.onclick = () => dxGuess(null);
+  const share = host.querySelector("#dxShare");
+  if (share) share.onclick = dxShareResult;
   const open = host.querySelector("#dxOpen");
   if (open) open.onclick = () => {
     const row = (DATA.sheets.games.rows || []).find((r) => r._k === (DX.answer || {}).key);
