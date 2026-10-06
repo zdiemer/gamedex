@@ -199,8 +199,25 @@ function hlEndHtml() {
         ? `Every ${escapeHtml(d.label.toLowerCase())} call, correct. There is nothing left to deal.`
         : (HL.practice ? "Another deck is a click away." : "The deck reshuffles at midnight UTC.")}</p>
       ${best ? `<p class="px-bonus">★ Best run: ${best}.</p>` : ""}
+      ${HL.practice ? "" : `<div class="px-win-actions"><button class="btn" id="hlShare">Share result</button></div>`}
     </div>
   </div>`;
+}
+
+// A run reads left-to-right like a Wordle receipt: green calls, followed by the red
+// call that ended the deck. Perfect clears have no red tile. Long runs wrap by tens.
+function hlShareText() {
+  const d = HL_DIMS[HL.dim] || { label: HL.dim || "Mystery stat" };
+  const tiles = Array.from({ length: HL.score }, () => "🟩");
+  if (!HL.cleared) tiles.push("🟥");
+  const rows = [];
+  for (let i = 0; i < tiles.length; i += 10) rows.push(tiles.slice(i, i + 10).join(""));
+  const max = Math.max(0, HL.total - 1);
+  return `Hi-Lo ${HL.date} ${HL.score}/${max}\n${d.label}\n${rows.join("\n")}\n${dailyShareUrl("hilo")}`;
+}
+
+function hlShareResult() {
+  return shareDailyResult("Hi-Lo", hlShareText());
 }
 
 /* ---- practice ----------------------------------------------------------- */
@@ -270,6 +287,8 @@ function wireHilo(host) {
   const start = host.querySelector("#hlPracticeGo");
   if (start) start.onclick = hlStartPractice;
   const next = host.querySelector("#hlNextDeck");
+  const share = host.querySelector("#hlShare");
+  if (share) share.onclick = hlShareResult;
   if (next) next.onclick = hlStartPractice;
   const back = host.querySelector("#hlBackToday");
   if (back) back.onclick = hlExitPractice;

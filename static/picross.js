@@ -290,9 +290,23 @@ function pxWinHtml() {
       <h2>${escapeHtml(String(g.title || ""))}</h2>
       <p class="muted">${[g.platform, g.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ")}</p>
       ${PX.guessedEarly ? `<p class="px-bonus">★ Named it before you finished the grid.</p>` : ""}
-      <button class="btn" id="pxOpen">Open in library</button>
+      <div class="px-win-actions">
+        <button class="btn" id="pxShare">Share result</button>
+        <button class="btn ghost" id="pxOpen">Open in library</button>
+      </div>
     </div>
   </div>`;
+}
+
+// The filled grid is the Picross answer, so the receipt shares the result and size
+// without publishing today's solution.
+function pxShareText() {
+  const result = PX.guessedEarly ? "⭐ Called it early" : "🟪 Solved";
+  return `Picross ${PX.date} ${PX.w}×${PX.h}\n${result}\n${dailyShareUrl("picross")}`;
+}
+
+function pxShareResult() {
+  return shareDailyResult("Picross", pxShareText());
 }
 
 let pxTool = 1;
@@ -402,6 +416,8 @@ function wirePicross(host) {
   const gi = host.querySelector("#pxGuess");
   if (gi) { acAttach(gi, pxTitleList); gi.addEventListener("keydown", (e) => { if (e.key === "Enter") pxGuess(); }); }
   const open = host.querySelector("#pxOpen");
+  const share = host.querySelector("#pxShare");
+  if (share) share.onclick = pxShareResult;
   if (open) open.onclick = () => {
     const row = (DATA.sheets.games.rows || []).find((r) => r._k === (PX.game || {}).key);
     if (row) openDrawer(row, "games");

@@ -1284,19 +1284,11 @@ DEXLE = dexle_mod.Dexle(os.environ.get("DEXLE_DIR", "/data/dexle"))
 
 
 def _dexle_candidates() -> list[dict]:
-    """The same pool the Picross draws from — owned or finished, with real box art —
-    plus the clue material each mode needs: the sheet's own facts, and my review prose
-    (Games sheet `review`, else the Completed sheet's review/notes, joined on _k)."""
+    """The Picross pool — owned or finished games with real box art and hint facts."""
     if not enricher:
         return []
     data = store.snapshot()["data"] or {}     # None until the sheet's first load lands
     light = enricher.get_all_light()
-    completed_prose = {}
-    for r in data.get("completed", {}).get("rows", []):
-        txt = r.get("review") if isinstance(r.get("review"), str) else None
-        txt = txt or (r.get("notes") if isinstance(r.get("notes"), str) else None)
-        if r.get("_k") and txt and txt.strip():
-            completed_prose[r["_k"]] = txt
     out = []
     for r in data.get("games", {}).get("rows", []):
         if not (r.get("owned") or r.get("completed")):
@@ -1304,13 +1296,10 @@ def _dexle_candidates() -> list[dict]:
         cover = (light.get(r.get("_k")) or {}).get("cover")
         if not cover:
             continue
-        review = r.get("review") if isinstance(r.get("review"), str) and r.get("review").strip() else None
         out.append({"key": r["_k"], "title": r.get("title"), "platform": r.get("platform"),
                     "year": r.get("releaseYear"), "cover": cover,
                     "genre": r.get("genre"), "developer": r.get("developer"),
-                    "franchise": r.get("franchise"),
-                    "review": review or completed_prose.get(r["_k"]),
-                    "rating": r.get("rating")})
+                    "franchise": r.get("franchise")})
     return out
 
 

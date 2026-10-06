@@ -5,13 +5,11 @@ One game a day, six guesses, and a different KIND of clue depending on the day:
   cover    the box art, zoomed in far too close; each miss zooms out a little
   shot     a screenshot behind frosted glass; each miss wipes it cleaner
   summary  IGDB's blurb with the names blacked out; each miss reveals more of it
-  review   MY OWN review of the game, censored the same way — a clue nobody
-           else's quiz can have
   ost      a track from the soundtrack; each miss buys a longer listen
 
 The mode rotates with the calendar (ordinal day mod the mode list), so the week has a
-rhythm; if no candidate qualifies for the day's mode (no review long enough, no soundtrack
-matched) it falls through to the next mode rather than skipping the day.
+rhythm; if no candidate qualifies for the day's mode (no summary or soundtrack matched)
+it falls through to the next mode rather than skipping the day.
 
 Like the Picross, candidates are tried in a deterministic order seeded by the date, so
 everyone gets the same game, and the chosen puzzle is cached on the PVC. The answer —
@@ -36,9 +34,9 @@ from datetime import datetime
 log = logging.getLogger("gamedex.dexle")
 
 MAX_GUESSES = 6
-MODES = ("cover", "shot", "summary", "review", "ost")
+MODES = ("cover", "shot", "summary", "ost")
 PROBE_CAP = 250            # candidates to try for modes that cost a DB read per probe
-MIN_PROSE = 200            # a summary/review shorter than this isn't a clue, it's a caption
+MIN_PROSE = 200            # a summary shorter than this isn't a clue, it's a caption
 
 _WORD = re.compile(r"[A-Za-z0-9]+")
 _WORDU = re.compile(r"[^\W_]+", re.UNICODE)   # like _WORD but accent-aware, for prose
@@ -107,7 +105,7 @@ class Dexle:
 
     def daily(self, date: str, candidates: list[dict], get_detail, get_ost) -> dict | None:
         """The puzzle for `date`. `candidates` is [{key,title,platform,year,cover,genre,
-        developer,franchise,review,rating}, ...]; `get_detail(key)` returns the full IGDB
+        developer,franchise}, ...]; `get_detail(key)` returns the full IGDB
         record or None, `get_ost(key)` the matched KHInsider album or None.
 
         Cached: the first request of the day builds it, everyone else reads the file."""
@@ -195,12 +193,9 @@ class Dexle:
             if not shots:
                 return None
             clue = {"shot": rng.choice(shots)}
-        elif mode in ("summary", "review"):
-            if mode == "summary":
-                detail = get_detail(g["key"])
-                prose = (detail or {}).get("summary") or ""
-            else:
-                prose = g.get("review") or ""
+        elif mode == "summary":
+            detail = get_detail(g["key"])
+            prose = (detail or {}).get("summary") or ""
             prose = prose.strip()
             if len(prose) < MIN_PROSE:
                 return None
@@ -212,8 +207,6 @@ class Dexle:
             if len(sents) < 2:
                 return None
             clue = {"sentences": sents}
-            if mode == "review" and g.get("rating") is not None:
-                clue["rating"] = g["rating"]
         elif mode == "ost":
             album = get_ost(g["key"])
             tracks = (album or {}).get("tracks") or []

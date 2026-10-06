@@ -2,8 +2,8 @@
 
 /* Dexle — the daily guess-the-game. Six guesses, and a different kind of clue
    depending on the day (the server rotates them): the cover zoomed in far too close,
-   a screenshot behind frosted glass, the IGDB blurb with the names blacked out, my
-   own review censored the same way, or a track off the soundtrack.
+   a screenshot behind frosted glass, the IGDB blurb with the names blacked out, or
+   a track off the soundtrack.
 
    The answer never reaches the browser: every guess is judged by the server, which
    pays out the next metadata hint (year, platform, genre, developer, first letter)
@@ -31,8 +31,6 @@ const DX_MODES = {
              blurb: "A screenshot behind frosted glass. Every miss wipes it cleaner." },
   summary: { label: "Redacted",        icon: "i-review",
              blurb: "The official blurb, names blacked out. Every miss reveals another line." },
-  review:  { label: "In My Own Words", icon: "i-edit",
-             blurb: "My own review of it, censored. Every miss reveals another line." },
   ost:     { label: "Name That Tune",  icon: "i-music",
              blurb: "A track from its soundtrack. Every miss buys a longer listen." },
 };
@@ -262,15 +260,13 @@ function dxClueHtml() {
       <img src="${escapeHtml(src)}" alt="" draggable="false" style="filter:blur(${blur}px)">
     </div>`;
   }
-  if (DX.mode === "summary" || DX.mode === "review") {
+  if (DX.mode === "summary") {
     const sents = c.sentences || [];
     const shown = DX.done ? sents.length : Math.min(sents.length, stage + 1);
     const held = sents.length - shown;
     return `<blockquote class="dx-prose">
       ${sents.slice(0, shown).map((s) => `<p>${dxRedact(s)}</p>`).join("")}
       ${held > 0 ? `<p class="dx-held muted">… ${held} more sentence${held === 1 ? "" : "s"} behind your next miss.</p>` : ""}
-      ${DX.mode === "review" && c.rating != null
-        ? `<footer class="muted">— me. I gave it ${Math.round(c.rating * 100)}%.</footer>` : ""}
     </blockquote>`;
   }
   if (DX.mode === "ost") {
@@ -335,50 +331,11 @@ function dxShareText() {
     if (!g.title) return "⬜";
     return g.near ? "🟨" : "⬛";
   }).join("");
-  const url = new URL(location.href);
-  url.search = "?tab=dexle";
-  url.hash = "";
-  return `Dexle ${DX.date} ${score}\n${m.label}\n${trail}\n${url}`;
+  return `Dexle ${DX.date} ${score}\n${m.label}\n${trail}\n${dailyShareUrl("dexle")}`;
 }
 
-async function dxCopyResult(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  // Older Safari has the share sheet but no async clipboard API. Keep a final copy
-  // path for desktop browsers and installed PWAs that expose neither.
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.setAttribute("readonly", "");
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.select();
-  const copied = document.execCommand("copy");
-  ta.remove();
-  if (!copied) throw new Error("copy failed");
-}
-
-async function dxShareResult() {
-  const text = dxShareText();
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: "Dexle result", text });
-      showToast("Dexle result shared", "i-check");
-      return;
-    } catch (err) {
-      if (err && err.name === "AbortError") return;
-      // A browser can advertise Web Share and still reject a text payload. Copying
-      // gives the button a useful fallback on those devices.
-    }
-  }
-  try {
-    await dxCopyResult(text);
-    showToast("Dexle result copied", "i-check");
-  } catch (_) {
-    showToast("Couldn't share the Dexle result");
-  }
+function dxShareResult() {
+  return shareDailyResult("Dexle", dxShareText());
 }
 
 function wireDexle(host) {

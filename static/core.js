@@ -128,6 +128,53 @@ function escapeHtml(s) {
   );
 }
 
+// Daily-game receipts always link to the game itself, never to a transient drawer or
+// another tab carried in the current query string.
+function dailyShareUrl(tab) {
+  const url = new URL(location.href);
+  url.search = `?tab=${tab}`;
+  url.hash = "";
+  return String(url);
+}
+
+async function copyResultText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  // Older Safari has the share sheet but no async clipboard API. Keep a final copy
+  // path for desktop browsers and installed PWAs that expose neither.
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const copied = document.execCommand("copy");
+  ta.remove();
+  if (!copied) throw new Error("copy failed");
+}
+
+async function shareDailyResult(name, text) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: `${name} result`, text });
+      showToast(`${name} result shared`, "i-check");
+      return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      // Some browsers advertise Web Share and still reject text-only payloads.
+    }
+  }
+  try {
+    await copyResultText(text);
+    showToast(`${name} result copied`, "i-check");
+  } catch (_) {
+    showToast(`Couldn't share the ${name} result`);
+  }
+}
+
 /* ---- title autocomplete (the guessing games' input) --------------------------
    A replacement for the native <datalist>, which had three faults worth the code:
    its popup is positioned by the browser and drifts loose of the input when the
