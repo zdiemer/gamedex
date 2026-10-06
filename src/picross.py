@@ -195,6 +195,11 @@ class Picross:
                 return json.loads(path.read_text())
             except Exception:
                 pass
+        # Building the library candidate pool can refresh the whole enrichment map.
+        # Defer it until the cache actually misses; guesses against an existing round
+        # should only read its tiny JSON file.
+        if callable(candidates):
+            candidates = candidates()
         if not candidates:
             return None
 

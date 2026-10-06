@@ -63,6 +63,11 @@ class Hilo:
                 return json.loads(path.read_text())
             except Exception:
                 pass
+        # Building the library candidate pool can refresh the whole enrichment map.
+        # Defer it until the cache actually misses; guesses against an existing round
+        # should only read its tiny JSON file.
+        if callable(candidates):
+            candidates = candidates()
         if not candidates:
             return None
         seed = int(hashlib.sha256(("hilo:" + date).encode()).hexdigest()[:12], 16)
@@ -82,6 +87,10 @@ class Hilo:
         key = (seed, dim)
         if key in self._rounds:
             return self._rounds[key]
+        # As with daily(), a repeat guess should hit the in-memory round before the
+        # enrichment-backed candidate pool is rebuilt.
+        if callable(candidates):
+            candidates = candidates()
         if not candidates:
             return None
         h = int(hashlib.sha256(f"hilo:round:{seed}:{dim}".encode()).hexdigest()[:12], 16)

@@ -1243,7 +1243,7 @@ def _today() -> str:
 @app.get("/api/picross/daily")
 def api_picross_daily():
     """The clues, and nothing that spoils it — the solution stays on the server."""
-    puz = PICROSS.daily(_today(), _picross_candidates())
+    puz = PICROSS.daily(_today(), _picross_candidates)
     if not puz:
         return {"ok": False, "reason": "no puzzle today"}
     return {"ok": True, **picross_mod.Picross.public(puz)}
@@ -1257,7 +1257,7 @@ class PicrossSolve(BaseModel):
 def api_picross_solve(body: PicrossSolve):
     """Marking your own homework is no fun, so the answer never left the building. Send the
     grid; if it's right, you get the game you just drew."""
-    puz = PICROSS.daily(_today(), _picross_candidates())
+    puz = PICROSS.daily(_today(), _picross_candidates)
     if not puz:
         return {"ok": False}
     solved = body.grid == puz["grid"]
@@ -1272,7 +1272,7 @@ class PicrossGuess(BaseModel):
 def api_picross_guess(body: PicrossGuess):
     """Name it before you finish it. Compared on the normalised title, so punctuation and
     case don't decide whether you were right."""
-    puz = PICROSS.daily(_today(), _picross_candidates())
+    puz = PICROSS.daily(_today(), _picross_candidates)
     if not puz:
         return {"ok": False}
     norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
@@ -1327,11 +1327,11 @@ def _dexle_get_ost(k):
 
 
 def _dexle_daily() -> dict | None:
-    return DEXLE.daily(_today(), _dexle_candidates(), _dexle_get_detail, _dexle_get_ost)
+    return DEXLE.daily(_today(), _dexle_candidates, _dexle_get_detail, _dexle_get_ost)
 
 
 def _dexle_round(seed: str, mode: str | None) -> dict | None:
-    return DEXLE.round(seed, mode or "any", _dexle_candidates(), _dexle_get_detail, _dexle_get_ost)
+    return DEXLE.round(seed, mode or "any", _dexle_candidates, _dexle_get_detail, _dexle_get_ost)
 
 
 @app.get("/api/dexle/daily")
@@ -1421,7 +1421,7 @@ def _hilo_candidates() -> list[dict]:
 
 
 def _hilo_daily() -> dict | None:
-    return HILO.daily(_today(), _hilo_candidates())
+    return HILO.daily(_today(), _hilo_candidates)
 
 
 @app.get("/api/hilo/daily")
@@ -1437,7 +1437,7 @@ def api_hilo_daily():
 @app.get("/api/hilo/round")
 def api_hilo_round(seed: str, dim: str | None = None):
     """A practice deck: client seed, chosen (or any) dimension, memory only."""
-    deck = HILO.round(seed, dim or "any", _hilo_candidates())
+    deck = HILO.round(seed, dim or "any", _hilo_candidates)
     if not deck:
         return {"ok": False, "reason": "no round for that seed"}
     return {"ok": True, **hilo_mod.Hilo.public(deck)}
@@ -1455,7 +1455,7 @@ def api_hilo_guess(body: HiloGuess):
     """The verdict for one call, revealing exactly one number either way."""
     if body.dir not in ("higher", "lower"):
         return {"ok": False}
-    deck = HILO.round(body.seed, body.dim or "any", _hilo_candidates()) if body.seed else _hilo_daily()
+    deck = HILO.round(body.seed, body.dim or "any", _hilo_candidates) if body.seed else _hilo_daily()
     if not deck:
         return {"ok": False}
     return hilo_mod.Hilo.judge(deck, int(body.n), body.dir)
