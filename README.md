@@ -308,7 +308,8 @@ follows you between browsers.
 Signed-in users also get a **Swipe** view over that same ranking. Drag or press left to
 dismiss a recommendation, or right to stage it as a wishlisted, Want-to-Play row. Every
 swipe is saved in `prefs` (`swiped`), so acted-on games stay out of the deck across reloads
-and devices. Deck settings are saved there too and can narrow the pool by release years,
+and devices. Every real sheet row is excluded too, including tracked games whose `owned`
+flag is false. Deck settings are saved there too and can narrow the pool by release years,
 genres, platforms, predicted score and model confidence. The chosen platform is always
 visible on the card before it can be accepted; IGDB platform names are converted through
 the same conservative mapping as Add a game, and ambiguous ones require a choice.

@@ -38,6 +38,7 @@ let _catPromise = null;
 let _catRows = null, _catRowsEpoch = -1;
 let _sheetIds = null, _sheetIdsEpoch = -1;
 let _unmatchedNames = null, _unmatchedEpoch = -1;
+let _sheetTracked = null, _catalogueNormCounts = null;
 
 const catMeta = () => (DATA && DATA.meta && DATA.meta.catalogue) || {};
 const catEnabled = () => !!(catMeta().enabled && catMeta().generation);
@@ -130,10 +131,10 @@ function sheetIgdbIds() {
   for (const k in ENRICH) {
     // Synthetic catalogue-backed rows seed ENRICH under private keys (`wl:` for a
     // wishlist-only game, `rec:` for a recommendation) so their card/drawer find a cover by
-    // igdb id — but they are NOT games you own. Counting them here marks every wishlisted /
+    // igdb id — but they are NOT real sheet rows. Counting them here marks every wishlisted /
     // recommended game as "on the sheet", which empties the Recommend and Pick pools the
-    // instant those tabs seed them. Only real sheet rows (key = normalize|platform|year)
-    // and their relations count as owned.
+    // instant those tabs seed them. Every real sheet row (key = normalize|platform|year)
+    // and its relations count as tracked; its `owned` flag is deliberately irrelevant.
     if (k.startsWith("wl:") || k.startsWith("rec:")) continue;
     const e = ENRICH[k];
     if (e.igdbId != null) s.add(e.igdbId);
@@ -146,10 +147,34 @@ function sheetIgdbIds() {
   return (_sheetIds = s);
 }
 
+/* A sheet-native fallback while IGDB enrichment is pending: every real Games row is
+   tracked, whether or not its `owned` checkbox is set. The match key already carries the
+   server's normalized title and year, so the browser does not reimplement normalization. */
+function sheetTrackedGames() {
+  if (_sheetTracked) return _sheetTracked;
+  const titles = new Set(), titleYears = new Set();
+  for (const row of (((DATA || {}).sheets || {}).games || {}).rows || []) {
+    const parts = String(row._k || "").split("|");
+    const norm = parts[0];
+    if (!norm) continue;
+    titles.add(norm);
+    const year = Number(row.releaseYear != null ? row.releaseYear : parts[2]);
+    if (Number.isInteger(year) && year > 0) titleYears.add(`${norm}|${year}`);
+  }
+  return (_sheetTracked = { titles, titleYears });
+}
+
+function catalogueNormCounts() {
+  if (_catalogueNormCounts) return _catalogueNormCounts;
+  const counts = new Map();
+  for (const row of CAT || []) if (row._norm) counts.set(row._norm, (counts.get(row._norm) || 0) + 1);
+  return (_catalogueNormCounts = counts);
+}
+
 /* The normalized titles of games we looked up and definitively found nothing for. Scoped
    to NO_MATCH rather than the whole sheet on purpose: normalize() drops subtitles and
    punctuation, so "resident evil 2" is one key for both the 1998 game and the 2019 remake,
-   and a blanket title filter would hide the remake because you own the original. Applied
+   and a blanket title filter would hide the remake because you track the original. Applied
    only to rows with no igdbId, that collision cost is bounded to the games that have no
    other way of being recognised. */
 function unmatchedNames() {
@@ -168,21 +193,26 @@ function unmatchedNames() {
   return (_unmatchedNames = s);
 }
 
-/* Is this catalogue game already on the sheet — or near enough to it that offering it
-   would be offering you a game you have played?
+/* Is this catalogue game already tracked on the sheet — owned or not — or near enough
+   to a tracked row that offering it would be a duplicate?
 
-   Four ways in, and the last three all say "same game, different box":
-     - its id is one the sheet claims (or the parent of one — see sheetIgdbIds);
-     - it is an edition/port/remaster OF something you own (its parent is claimed);
-     - it SHARES a parent with something you own, which is how two editions of one game
-       find each other when you own neither the base game nor this particular box;
-     - IGDB never matched your row at all, so no id can see it, and only the name can. */
+   The IGDB id and relation checks are strongest. While enrichment is pending or absent,
+   exact normalized title + release year is a conservative fallback. A title without a year
+   is used only when that normalized title identifies one catalogue game, which keeps the
+   1998 and 2019 Resident Evil 2 entries from suppressing each other. */
 function catInSheet(row) {
   const ids = sheetIgdbIds();
   if (ids.has(row.igdbId)) return true;
   if (row._parent != null && ids.has(row._parent)) return true;
   if (row._vparent != null && ids.has(row._vparent)) return true;
-  return !!(row._norm && unmatchedNames().has(row._norm));
+  if (row._norm) {
+    const tracked = sheetTrackedGames();
+    const year = Number((row._igdb || {}).year || row.releaseYear);
+    if (Number.isInteger(year) && tracked.titleYears.has(`${row._norm}|${year}`)) return true;
+    if (tracked.titles.has(row._norm) && catalogueNormCounts().get(row._norm) === 1) return true;
+    if (unmatchedNames().has(row._norm)) return true;
+  }
+  return false;
 }
 
 /* Games you cannot finish alone. Apex Legends is a fine game and a nonsense
@@ -197,7 +227,7 @@ const catMultiplayerOnly = (row) => {
   return m.length > 0 && !m.includes("Single player");
 };
 
-/* The catalogue games you do NOT own — the pool a recommendation can come from.
+/* The catalogue games you do NOT already track — the pool a recommendation can come from.
    Multiplayer-only games are out here rather than in the tab, because Pick wants the same
    answer: neither "what do I play tonight" nor "what should I buy" is asking about a game
    with no ending. */
@@ -223,6 +253,7 @@ function resetCatalogue() {
   _catRows = null; _catRowsEpoch = -1;
   _sheetIds = null; _sheetIdsEpoch = -1;
   _unmatchedNames = null; _unmatchedEpoch = -1;
+  _sheetTracked = null; _catalogueNormCounts = null;
   if (typeof resetRecs === "function") resetRecs();
   if (typeof resetSwipe === "function") resetSwipe();
 }

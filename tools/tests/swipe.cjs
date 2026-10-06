@@ -59,6 +59,29 @@ assert.match(loadingHost.innerHTML, /Checking your library/, "the deck waits for
 assert.equal(loadingContext.ENRICH_WAITING, true, "the enrichment loader knows Swipe is waiting");
 console.log("Swipe: first card waits for the ownership map");
 
+const catalogueContext = vm.createContext({
+  DATA: { sheets: { games: { rows: [
+    { _k: "trackedgame|pc|2020", releaseYear: 2020, owned: false },
+    { _k: "uniquegame|pc|", owned: false },
+  ] } } },
+  ENRICH: {}, NO_MATCH: new Set(), _enrichEpoch: 1,
+  resetRecs() {}, resetSwipe() {},
+});
+vm.runInContext(fs.readFileSync("static/catalogue.js", "utf8"), catalogueContext);
+vm.runInContext(`CAT = [
+  {igdbId:42, _norm:"trackedgame", _parent:null, _vparent:null, releaseYear:2020,
+    _igdb:{year:2020, gameModes:[]}},
+  {igdbId:43, _norm:"trackedgame", _parent:null, _vparent:null, releaseYear:2021,
+    _igdb:{year:2021, gameModes:[]}},
+  {igdbId:44, _norm:"uniquegame", _parent:null, _vparent:null, releaseYear:2018,
+    _igdb:{year:2018, gameModes:[]}},
+  {igdbId:45, _norm:"freshgame", _parent:null, _vparent:null, releaseYear:2020,
+    _igdb:{year:2020, gameModes:[]}}
+]`, catalogueContext);
+const freshIds = JSON.parse(vm.runInContext("JSON.stringify(catFresh().map(x => x.igdbId))", catalogueContext));
+assert.deepEqual(freshIds, [43, 45], "tracked-only rows are excluded before IGDB enrichment lands");
+console.log("Swipe: tracked-only sheet rows stay out of the deck");
+
 (async () => {
   const source = fs.readFileSync("static/panels.js", "utf8");
   const loader = source.slice(source.indexOf("let allTimer = null;"));
