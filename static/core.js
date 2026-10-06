@@ -128,6 +128,12 @@ function escapeHtml(s) {
   );
 }
 
+// Hyphens make YYYY-MM-DD look like a calendar event to phone data detectors. Centered
+// dots keep the day readable while ensuring the receipt's game URL is its only link.
+function dailyShareDate(date) {
+  return String(date || "").replaceAll("-", "·");
+}
+
 // Daily-game receipts always link to the game itself, never to a transient drawer or
 // another tab carried in the current query string.
 function dailyShareUrl(tab) {

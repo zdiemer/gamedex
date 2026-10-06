@@ -350,13 +350,13 @@ function dxEndHtml() {
 // a drawer or some other transient query state in it.
 function dxShareText() {
   const m = DX_MODES[DX.mode] || { label: DX.mode || "Mystery clue" };
-  const score = DX.won ? `${DX.guesses.length}/${DX.maxGuesses}` : `X/${DX.maxGuesses}`;
+  const score = DX.won ? `${DX.guesses.length} of ${DX.maxGuesses}` : `X of ${DX.maxGuesses}`;
   const trail = DX.guesses.map((g, i) => {
     if (DX.won && i === DX.guesses.length - 1) return "🟩";
     if (!g.title) return "⬜";
     return g.near ? "🟨" : "⬛";
   }).join("");
-  return `Dexle ${DX.date} ${score}\n${m.label}\n${trail}\n${dailyShareUrl("dexle")}`;
+  return `Dexle ${dailyShareDate(DX.date)} — ${score}\n${m.label}\n${trail}\n${dailyShareUrl("dexle")}`;
 }
 
 function dxShareResult() {

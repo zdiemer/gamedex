@@ -302,7 +302,7 @@ function pxWinHtml() {
 // without publishing today's solution.
 function pxShareText() {
   const result = PX.guessedEarly ? "⭐ Called it early" : "🟪 Solved";
-  return `Picross ${PX.date} ${PX.w}×${PX.h}\n${result}\n${dailyShareUrl("picross")}`;
+  return `Picross ${dailyShareDate(PX.date)} — ${PX.w}×${PX.h}\n${result}\n${dailyShareUrl("picross")}`;
 }
 
 function pxShareResult() {

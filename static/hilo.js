@@ -239,7 +239,7 @@ function hlShareText() {
   const rows = [];
   for (let i = 0; i < tiles.length; i += 10) rows.push(tiles.slice(i, i + 10).join(""));
   const max = Math.max(0, HL.total - 1);
-  return `Hi-Lo ${HL.date} ${HL.score}/${max}\n${d.label}\n${rows.join("\n")}\n${dailyShareUrl("hilo")}`;
+  return `Hi-Lo ${dailyShareDate(HL.date)} — ${HL.score} of ${max}\n${d.label}\n${rows.join("\n")}\n${dailyShareUrl("hilo")}`;
 }
 
 function hlShareResult() {
