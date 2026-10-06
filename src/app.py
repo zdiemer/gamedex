@@ -32,6 +32,7 @@ from pydantic import BaseModel
 
 import accounts as accounts_mod
 import assetcache as assetcache_mod
+from dailygames import popular_daily_pool
 import dexle as dexle_mod
 import edits as edits_mod
 import hilo as hilo_mod
@@ -1283,24 +1284,38 @@ def api_picross_guess(body: PicrossGuess):
 DEXLE = dexle_mod.Dexle(os.environ.get("DEXLE_DIR", "/data/dexle"))
 
 
-def _dexle_candidates() -> list[dict]:
-    """The Picross pool — owned or finished games with real box art and hint facts."""
+def _popular_daily_rows() -> list[tuple[dict, dict]]:
+    """Upper-quartile games by IGDB community rating count, with platform copies intact."""
     if not enricher:
         return []
-    data = store.snapshot()["data"] or {}     # None until the sheet's first load lands
-    light = enricher.get_all_light()
+    data = store.snapshot()["data"] or {}
+    pool, _cutoff = popular_daily_pool(
+        data.get("games", {}).get("rows", []), enricher.get_all_light()
+    )
+    return pool
+
+
+def _dexle_candidates() -> list[dict]:
+    """Popular owned or finished games with real box art and hint facts."""
     out = []
-    for r in data.get("games", {}).get("rows", []):
-        if not (r.get("owned") or r.get("completed")):
-            continue
-        cover = (light.get(r.get("_k")) or {}).get("cover")
-        if not cover:
-            continue
+    for r, le in _popular_daily_rows():
         out.append({"key": r["_k"], "title": r.get("title"), "platform": r.get("platform"),
-                    "year": r.get("releaseYear"), "cover": cover,
+                    "year": r.get("releaseYear"), "cover": le["cover"],
                     "genre": r.get("genre"), "developer": r.get("developer"),
                     "franchise": r.get("franchise")})
     return out
+
+
+def _dexle_guess_candidates() -> list[dict]:
+    """Every owned or finished game can still be guessed and earn a proximity hint."""
+    data = store.snapshot()["data"] or {}
+    return [
+        {"key": r["_k"], "title": r.get("title"), "platform": r.get("platform"),
+         "year": r.get("releaseYear"), "genre": r.get("genre"),
+         "developer": r.get("developer"), "franchise": r.get("franchise")}
+        for r in data.get("games", {}).get("rows", [])
+        if r.get("owned") or r.get("completed")
+    ]
 
 
 def _dexle_get_detail(k):
@@ -1364,7 +1379,7 @@ def api_dexle_guess(body: DexleGuess):
         if not done and n < len(puz["hints"]):
             out["hint"] = puz["hints"][n]
         if body.title:
-            out["near"] = dexle_mod.Dexle.near(body.title, puz, _dexle_candidates())
+            out["near"] = dexle_mod.Dexle.near(body.title, puz, _dexle_guess_candidates())
     return out
 
 
@@ -1392,18 +1407,9 @@ def _owners_mid(s) -> int | None:
 
 
 def _hilo_candidates() -> list[dict]:
-    """The Picross pool again, each game carrying whichever of the five numbers it has."""
-    if not enricher:
-        return []
-    data = store.snapshot()["data"] or {}     # None until the sheet's first load lands
-    light = enricher.get_all_light()
+    """Popular owned games, each carrying whichever of the five numbers it has."""
     out = []
-    for r in data.get("games", {}).get("rows", []):
-        if not (r.get("owned") or r.get("completed")):
-            continue
-        le = light.get(r.get("_k")) or {}
-        if not le.get("cover"):
-            continue
+    for r, le in _popular_daily_rows():
         hltb = le.get("hltbBest") or le.get("hltbMain")
         out.append({"key": r["_k"], "title": r.get("title"), "platform": r.get("platform"),
                     "year": r.get("releaseYear"), "cover": le["cover"],
