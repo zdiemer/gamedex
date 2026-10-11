@@ -730,6 +730,44 @@ const THEMES = [
       { i: "i-bolt", x: 47, y: 84, s: 17, r: 10, lift: 8, d: 200, o: .45 },
     ],
   },
+  {
+    id: "ports",
+    name: "Ports",
+    plural: "ports and alternate versions",
+    blurb: "another version of something you already beat",
+    icon: "i-combine",
+    n: 5,
+    /* This is the inverse of the guard that keeps Groups from recommending the same game
+       twice. relations.js joins IGDB's ports, remasters, remakes and expanded editions into
+       version families — including links through editions that are not on the sheet — and
+       alreadyPlayed names the finished row in that family. That makes the rule symmetric:
+       beat a remake and the original enters the pool; beat the original and its remake does.
+
+       Bundle claims are deliberately out. alreadyPlayed also knows that finishing a
+       compilation can mean finishing a game inside it, but that is not another version of
+       the game and would turn this into a broader replay theme. */
+    note: "An unfinished port, remaster, remake, expanded edition or original whose version " +
+          "family contains a game you already finished. The link can run either way — beat " +
+          "the remake and the original counts too. Games only played inside a compilation " +
+          "are excluded: that is a bundle, not another version.",
+    match: (r) => {
+      const played = typeof alreadyPlayed === "function" ? alreadyPlayed(r) : null;
+      return !!played && played.how === "version";
+    },
+    skin: "--ev-disp:'Big Shoulders Display',var(--display);--ev-size:56px;--ev-dw:800;--ev-ls:.04em;" +
+          "--ev-deco:#22d3ee;--ev-fg:#e8faff;--ev-fg-2:#96bac3;--ev-edge:rgba(34,211,238,.32);" +
+          "--ev-edge-hi:rgba(34,211,238,.78);--ev-glow:rgba(34,211,238,.34);--ev-t1:#f0fcff;" +
+          "--ev-t2:#fbbf24;--ev-t3:#22d3ee;--ev-on-cta:#042128;--ev-k:#fbbf24;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(34,211,238,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(251,191,36,.18),transparent 60%)," +
+          "linear-gradient(150deg,#04090b,#08171b 70%,#0b1015)",
+    deco: [
+      { i: "i-combine", x: 86, y: 66, s: 44, lift: 12 },
+      { i: "i-layers", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
+      { i: "i-refresh", x: 24, y: 20, s: 22, r: 10, lift: 13, d: 40 },
+      { i: "i-disc", x: 47, y: 84, s: 18, r: -8, lift: 8, d: 200, o: .5 },
+    ],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
