@@ -28,16 +28,16 @@
    and two screens now disagree until you remember to come back here. So a run fills itself
    in as you play, and nothing is ever marked twice.
 
-   ONE registry entry, not eight. Eight entries would be eight tabs, eight banner
-   contenders and eight rows on the preview board, to express what is really one page with
-   a dial on it — the Class of 'XX argument, at n=8. The entry WEARS the active theme: its
+   ONE registry entry, not one per theme. Separate entries would make separate tabs,
+   banner contenders and preview-board rows for what is really one page with a dial on it —
+   the Class of 'XX argument at collection scale. The entry WEARS the active theme: its
    skin, deco, title and pitch are all read at render time, and themesRender swaps them
    before it paints. That is the one liberty this file takes with the framework, and it is
    the reason a theme can have its own poster without its own tab.
 
    Naming, because it will come up: "theme" is already two things in this app — IGDB's theme
    facet (__igdb_theme, Science fiction / Horror / Open world) and the light/dark setting.
-   This is neither, and one of the eight is literally built out of the first one. */
+   This is neither, and several of these are built out of the first one. */
 
 /* ---- the themes ------------------------------------------------------------
    Adding one is adding an object. That is the entire extension mechanism, and it is why
@@ -60,6 +60,20 @@ const thmIgdb = (r, field) => {
 const thmKw = (r) => thmIgdb(r, "keywords");
 const thmPersp = (r) => thmIgdb(r, "perspectives");
 const thmAny = (list, ...want) => want.some((w) => list.includes(w));
+
+/* “Young” is deliberately conservative: the youngest general-audience tier from each
+   ratings board, and no inference when a rating is absent. Playing together is equally
+   literal. Co-Optimus must report two people on one machine, or IGDB must explicitly say
+   split screen; generic multiplayer and online-only co-op do not count. */
+const THM_FAMILY_RATINGS = new Set([
+  "ESRB EC", "ESRB E", "PEGI 3", "PEGI 7", "CERO A",
+  "USK 0", "USK 6", "GRAC ALL", "CLASS_IND L", "ACB G",
+]);
+const thmFamilyPlay = (r) => {
+  const e = thmEn(r);
+  return THM_FAMILY_RATINGS.has(e.ageRating) &&
+    ((+e.coopLocal || 0) > 1 || thmIgdb(r, "gameModes").includes("split screen"));
+};
 
 /* The year the GAME came out, not the year the copy on the shelf did. The sheet's
    releaseYear dates the edition you own — The Mysterious Murasame Castle is 2014 on it,
@@ -766,6 +780,33 @@ const THEMES = [
       { i: "i-layers", x: 70, y: 22, s: 26, r: -6, lift: 10, d: 90 },
       { i: "i-refresh", x: 24, y: 20, s: 22, r: 10, lift: 13, d: 40 },
       { i: "i-disc", x: 47, y: 84, s: 18, r: -8, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
+    id: "family",
+    name: "Family Game Night",
+    plural: "family co-play games",
+    blurb: "same room, two players, rated for younger kids",
+    icon: "i-heart",
+    n: 5,
+    note: "An official youngest-audience rating (ESRB EC/E, PEGI 3/7, CERO A, USK 0/6, " +
+          "GRAC ALL, ClassInd L or ACB G) AND same-room play: Co-Optimus reports two or " +
+          "more local players, or IGDB explicitly says split screen. Unrated games, E10+, " +
+          "online-only co-op and generic multiplayer are excluded.",
+    match: thmFamilyPlay,
+    skin: "--ev-disp:'Big Shoulders Display',var(--display);--ev-size:50px;--ev-dw:800;--ev-ls:.02em;" +
+          "--ev-deco:#fbbf24;--ev-fg:#fff7df;--ev-fg-2:#d8c9ad;--ev-edge:rgba(251,191,36,.34);" +
+          "--ev-edge-hi:rgba(251,191,36,.78);--ev-glow:rgba(251,191,36,.35);--ev-t1:#fffaf0;" +
+          "--ev-t2:#60a5fa;--ev-t3:#fb7185;--ev-on-cta:#211304;--ev-k:#fbbf24;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(96,165,250,.3),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(251,113,133,.25),transparent 60%)," +
+          "linear-gradient(150deg,#0b0b16,#15142a 70%,#111c30)",
+    deco: [
+      { i: "i-pad", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-heart", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-star", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-dice", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+      { i: "i-heart", x: 58, y: 12, s: 15, r: 8, lift: 15, d: 250, o: .5 },
     ],
   },
 ];
