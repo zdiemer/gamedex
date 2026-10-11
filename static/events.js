@@ -4,7 +4,7 @@
 
    Spooktober (spooktober.js, 1.62.0) was the first one, and it hard-wired every piece of
    itself: its own season test, its own banner, its own prefs object, its own pool. That was
-   right for n=1. At n=11 the four pieces that were never about horror live here, and each
+   right for n=1. At n=12 the four pieces that were never about horror live here, and each
    event file declares only the part that is genuinely its own — its structure.
 
    What an event is, in this app:
@@ -98,6 +98,16 @@ function evYear(ev, d = evNow()) {
   return evMD(d) <= b ? d.getFullYear() - 1 : d.getFullYear();
 }
 
+/* February has two events and only one banner slot. Make the choice once from the year,
+   rather than on every page load, so every device and the preview board agree. The integer
+   mix is a deterministic coin flip; it does not alternate predictably year by year. */
+function evFebruaryPick(d = evNow()) {
+  let x = Math.imul(d.getFullYear(), 0x9e3779b1) >>> 0;
+  x ^= x >>> 16;
+  return (x & 1) ? "blackhistory" : "twoplayer";
+}
+const evFebruaryActive = (id, d = evNow()) => evFebruaryPick(d) === id;
+
 /* Where in its own life the event is. Measured against `core` (the thing the event is
    actually about: the 24 doors, the 31 nights, the 30 days) rather than against the banner
    window, which is deliberately wider at both ends.
@@ -138,7 +148,7 @@ const EVENT_TABS = [];        // read by app.js at parse time — events.js load
 function evRegister(def) {
   const ev = Object.assign({
     priority: 50, structure: "", icon: "i-calendar", cta: "Open",
-    blank: () => ({}), merge: null, live: null, deco: [], skin: "",
+    blank: () => ({}), merge: null, live: null, active: null, deco: [], skin: "",
   }, def);
   // Most events want the standard banner; one (Spooktober) brought its own, and one day
   // something may want none at all.
@@ -164,6 +174,7 @@ const evIsTab = (id) => !!EV.byId[id];
    window. A windowless one (Endangered) answers for itself — always-on means always
    ELIGIBLE, not always shouting. */
 function evBannerOn(ev, d = evNow()) {
+  if (typeof ev.active === "function" && !ev.active(d)) return false;
   if (ev.window) return evInWindow(ev.window, d);
   return typeof ev.live === "function" ? !!ev.live() : false;
 }
@@ -204,7 +215,7 @@ function evWireBanner(scope) {
 
 /* ---- state ----------------------------------------------------------------
    One prefs key for all of them ("events"), because a pref key is an allowlist entry on
-   the server and eleven of those to store eleven small objects is a schema, not a feature.
+   the server and twelve of those to store twelve small objects is a schema, not a feature.
    The client holds the whole file and each event owns one branch of it. */
 const EV_LOCAL = "gamedex.events";
 const EV_V = 1;
@@ -502,7 +513,7 @@ function evRepaintKeepingCaret(repaint) {
 
 /* ---- small shared pieces ---------------------------------------------------- */
 
-// One game, as a tile with its cover. Used by nine of the eleven pages, which is why it
+// One game, as a tile with its cover. Used by ten of the twelve pages, which is why it
 // isn't nine slightly different tiles.
 function evTileHtml(row, opts = {}) {
   if (!row) return `<span class="ev-tile empty">${opts.emptyText || "Empty"}</span>`;
@@ -562,7 +573,7 @@ function evRenderPage(id) {
 }
 
 /* ---- the preview page (?tab=events) ----------------------------------------
-   Eleven events, seven overlapping windows and a banner slot that holds one of them. The
+   Twelve events, eight overlapping windows and a banner slot that holds one of them. The
    only way to know what Home does on December 26th is to be there, so this page moves the
    clock and shows the whole board from wherever you put it: which event owns the banner,
    what every banner looks like on that date, and what phase each page thinks it is in. */
@@ -573,6 +584,7 @@ function evRenderAdmin() {
   const top = evTopBanner(d);
   const rows = EV.list.slice().sort((a, b) => b.priority - a.priority).map((ev) => {
     const on = evBannerOn(ev, d);
+    const chosen = typeof ev.active !== "function" || ev.active(d);
     const st = evPhase(ev, d);
     const when = ev.window ? `${evDateText(ev.window.from)} → ${evDateText(ev.window.to)}` : "no season";
     const phase = !ev.window ? "always on"
@@ -585,19 +597,20 @@ function evRenderAdmin() {
       <td class="m">${escapeHtml(when)}</td>
       <td class="m">${ev.priority}</td>
       <td class="m">${on ? `<span class="ev-yes">${ev.window ? "in season" : "has something"}</span>`
-        : `<span class="ev-no">${ev.window ? "off" : "quiet"}</span>`}</td>
+        : `<span class="ev-no">${!chosen ? "not drawn this year" : ev.window ? "off" : "quiet"}</span>`}</td>
       <td class="m">${escapeHtml(phase)}</td>
     </tr>`;
   }).join("");
 
   // Every banner, at the chosen date, in priority order. Rendering them all is the point:
-  // eleven skins that each looked right alone is how a board ends up with three oranges.
+  // twelve skins that each looked right alone is how a board ends up with three oranges.
   const gallery = EV.list.slice().sort((a, b) => b.priority - a.priority)
     .map((ev) => `<div class="ev-gal-item${evBannerOn(ev, d) ? "" : " off"}">
       <div class="ev-gal-head">
         <b>${escapeHtml(ev.name)}</b>
         <span class="m">${escapeHtml(ev.structure)}</span>
-        ${evBannerOn(ev, d) ? "" : `<span class="ev-no">out of season, shown anyway</span>`}
+        ${evBannerOn(ev, d) ? "" : `<span class="ev-no">${typeof ev.active === "function" && !ev.active(d)
+          ? "not drawn this year" : "out of season"}, shown anyway</span>`}
       </div>
       ${ev.bannerHtml ? ev.bannerHtml() : `<p class="ev-none">No banner.</p>`}
     </div>`).join("");

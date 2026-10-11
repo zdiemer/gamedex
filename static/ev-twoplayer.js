@@ -132,8 +132,10 @@ evRegister({
   priority: 80,
   window: { from: [2, 1], to: [2, 28] },
   core: { from: [2, 1], to: [2, 28] },
+  active: (d) => evFebruaryActive("twoplayer", d),
   cta: "Plan a night",
   blurb: "eight nights, each with somebody else's name on it",
+  offSeason: "February draws one of two events each year. Your plans stay here when Black History Month gets the banner.",
   skin: "--ev-disp:'Pacifico',var(--display);--ev-size:44px;--ev-dw:400;--ev-ls:0;" +
         "--ev-deco:#ff6fa5;--ev-fg:#ffeaf2;--ev-fg-2:#dcb6c8;--ev-edge:rgba(255,79,140,.36);" +
         "--ev-edge-hi:rgba(255,143,184,.72);--ev-glow:rgba(255,79,140,.4);--ev-t1:#fff2f7;" +
@@ -166,7 +168,7 @@ evRegister({
     }
     return changed;
   },
-  eyebrow: () => "Seasonal event · February",
+  eyebrow: () => "February's yearly draw",
   pitch: () => {
     const planned = twopPlanned(), started = twopStarted();
     const s = twopYearState();

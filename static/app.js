@@ -623,7 +623,7 @@ async function load() {
   /* The other events share one prefs object, and the same rule applies: fetch it when
      something on screen is going to read it — an event tab, the preview board, or a Home
      banner whose own line is built out of that state. Otherwise it is a request to be told
-     about eleven events nobody is looking at. */
+     about twelve events nobody is looking at. */
   if (typeof evLoadPrefs === "function"
       && (evIsTab(activeTab) || activeTab === "events" || evTopBanner())) evLoadPrefs();
   // A preview date survives a reload (sessionStorage), so the pill that says so has to come

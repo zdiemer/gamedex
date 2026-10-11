@@ -6414,7 +6414,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    Spooktober's skin, generalised. Everything a season decides — its ground, its
    wordmark face, its two accents — arrives as a --ev-* custom property set on the
    banner or the hero by the event file, so this block holds ONE banner and ONE
-   hero and eleven events wear them. As with .spk-banner, the poster keeps its own
+   hero and twelve events wear them. As with .spk-banner, the poster keeps its own
    colours on both themes: an event is supposed to look like it doesn't live here
    the rest of the year. The PAGE below the hero is the opposite — ordinary app
    surfaces, ordinary tokens — because you have to be able to read it.

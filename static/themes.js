@@ -2,7 +2,7 @@
 
 /* Themes — the evergreen half of the board.
 
-   The eleven seasonal events all answer the same question: what should I play IN OCTOBER.
+   The twelve seasonal events all answer the same question: what should I play IN OCTOBER.
    That is the whole point of a window, and it is also the whole limitation — nine months of
    the year the collection has nothing to say about the thing I actually want, which is "give
    me five cyberpunk games and get out of the way".
