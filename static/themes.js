@@ -1193,6 +1193,12 @@ function thmSlotHtml(t, run, slot) {
 
 const THM_BROWSER = { open: false, q: "" };
 
+function thmBrowserLock(on) {
+  if (typeof document === "undefined") return;
+  document.documentElement.classList.toggle("thm-browser-open", on);
+  document.body.classList.toggle("thm-browser-open", on);
+}
+
 function thmChoiceMeta(t) {
   const run = thmState().runs[t.id];
   if (!run || !Array.isArray(run.slate) || !run.slate.some(Boolean)) {
@@ -1305,13 +1311,19 @@ function thmRender(host) {
   const openBrowser = document.getElementById("thmBrowseOpen");
   if (openBrowser) openBrowser.onclick = () => {
     THM_BROWSER.open = true;
+    thmBrowserLock(true);
     repaint();
+    // A programmatic focus opens the software keyboard on iOS and covers half the catalog.
+    // Desktop pointer users still land in search immediately; touch users opt into it.
+    const finePointer = !window.matchMedia ||
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     const search = document.getElementById("thmBrowseSearch");
-    if (search) search.focus();
+    if (finePointer && search) search.focus({ preventScroll: true });
   };
   const closeBrowser = () => {
     THM_BROWSER.open = false;
     THM_BROWSER.q = "";
+    thmBrowserLock(false);
     repaint();
   };
   const close = document.getElementById("thmBrowseClose");
@@ -1338,6 +1350,7 @@ function thmRender(host) {
     el.onclick = () => {
       THM_BROWSER.open = false;
       THM_BROWSER.q = "";
+      thmBrowserLock(false);
       thmOpen(el.dataset.thmgo);
       evPickerClose();
       repaint();
@@ -1475,5 +1488,8 @@ evRegister({
      with nine seasons is that it stays quiet when it has nothing to say (Endangered's rule). */
   live: () => thmActive(thmRun(thmTheme())),
   render: thmRender,
-  reset: () => { EVP.slot = null; EVP.q = ""; EVP.all = false; },
+  reset: () => {
+    EVP.slot = null; EVP.q = ""; EVP.all = false;
+    THM_BROWSER.open = false; THM_BROWSER.q = ""; thmBrowserLock(false);
+  },
 });
