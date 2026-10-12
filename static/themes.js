@@ -975,7 +975,7 @@ const thmBreadth = (t) => evPool("thmall-" + t.id, (r) => t.match(r));
      open   which theme's page you were last on. A pref rather than a URL param, because
             every other event keeps its dial in state too (Class of 'XX, the Galaxy scope)
             and a theme is a place you return to, not a link you send.
-     runs   one run per theme, at most. { n, slate, pinned, rolls, started }
+     runs   one run per theme, at most. { n, slate, pinned, rolls, started, updated }
 
    There used to be a `past` here too — closed runs per theme, newest first, snapshotted with
    their verdicts — and a "Finish the run" button that filed them. Both are gone, because the
@@ -994,8 +994,10 @@ const thmTheme = () => THM_BY_ID[thmState().open] || THEMES[0];
 
 const thmBlankRun = (t) => ({
   // No `done` list: completion is read off the sheet, never stored here. See thmIsDone.
-  n: t.n, slate: new Array(t.n).fill(null), pinned: [], rolls: 0, started: null,
+  n: t.n, slate: new Array(t.n).fill(null), pinned: [], rolls: 0, started: null, updated: null,
 });
+
+const thmTouch = (run) => { run.updated = Date.now(); };
 
 // The open run, created on demand. An empty slate IS a run — it just hasn't been rolled.
 function thmRun(t) {
@@ -1084,6 +1086,7 @@ function thmRoll(t, only) {
   // A game rolled away is not a game you pinned. Keeps `pinned` from accumulating keys that
   // haven't been on the slate for six rolls.
   run.pinned = run.pinned.filter((k) => run.slate.includes(k));
+  thmTouch(run);
   evSave();
 }
 
@@ -1091,6 +1094,7 @@ function thmTogglePin(t, key) {
   const run = thmRun(t);
   const i = run.pinned.indexOf(key);
   if (i >= 0) run.pinned.splice(i, 1); else run.pinned.push(key);
+  thmTouch(run);
   evSave();
 }
 
@@ -1103,6 +1107,7 @@ function thmClearPins(t) {
   if (!run.pinned.length) return 0;
   const n = run.pinned.length;
   run.pinned = [];
+  thmTouch(run);
   evSave();
   return n;
 }
@@ -1115,6 +1120,7 @@ function thmSet(t, slot, key) {
   if (at >= 0 && at !== slot) run.slate[at] = run.slate[slot];
   run.slate[slot] = key;
   if (!run.started) run.started = evISO();
+  thmTouch(run);
   evSave();
 }
 
@@ -1123,6 +1129,7 @@ function thmDrop(t, slot) {
   const key = run.slate[slot];
   run.slate[slot] = null;
   run.pinned = run.pinned.filter((k) => k !== key);
+  thmTouch(run);
   evSave();
 }
 
@@ -1145,6 +1152,7 @@ function thmResize(t, n) {
   }
   run.n = n;
   while (run.slate.length < n) run.slate.push(null);
+  thmTouch(run);
   evSave();
 }
 
@@ -1192,6 +1200,29 @@ function thmSlotHtml(t, run, slot) {
 }
 
 const THM_BROWSER = { open: false, q: "" };
+const THM_SYNC_MS = 15000;
+let THM_SYNC_TIMER = null;
+
+function thmScheduleSync() {
+  if (typeof setTimeout !== "function") return;
+  if (THM_SYNC_TIMER) clearTimeout(THM_SYNC_TIMER);
+  THM_SYNC_TIMER = setTimeout(async () => {
+    THM_SYNC_TIMER = null;
+    if (typeof activeTab === "undefined" || activeTab !== "themes") return;
+    await evLoadPrefs(true);
+    if (activeTab === "themes" && !THM_SYNC_TIMER) thmScheduleSync();
+  }, THM_SYNC_MS);
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  const refreshThemes = () => {
+    if (typeof activeTab !== "undefined" && activeTab === "themes") evLoadPrefs(true);
+  };
+  window.addEventListener("focus", refreshThemes);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshThemes();
+  });
+}
 
 function thmBrowserLock(on) {
   if (typeof document === "undefined") return;
@@ -1389,6 +1420,7 @@ function thmRender(host) {
   if (typeof maybeEnrich === "function") {
     maybeEnrich(run.slate.filter(Boolean).map(evRow).filter(Boolean).concat(pool.slice(0, 40)));
   }
+  thmScheduleSync();
 }
 
 /* ---- the banner ------------------------------------------------------------
@@ -1436,25 +1468,33 @@ evRegister({
   deco: [{ i: "i-theme", x: 86, y: 66, s: 44, lift: 12 }],
   bannerHtml: thmBannerHtml,
   blank: () => ({ runs: {}, open: THEMES[0].id }),
-  /* Merging two devices, per theme rather than per file. The rules, and why:
-       slate   fill gaps, never overwrite — a slot you filled here is a decision.
-       pinned  union, then narrowed to what is actually on the slate.
-       done    nothing to merge — both devices read it off the same sheet.
-       open    left alone: which theme this browser is looking at is this browser's business. */
+  /* A slate and its pins are one decision, so sync them as one run. Every mutation stamps
+     `updated`; the newer device wins the whole run, which also lets an unpin propagate.
+     Legacy runs use roll count and then the server as their migration tie-break. `open`
+     stays local: which theme this browser is viewing is this browser's business. */
   merge: (mine, theirs) => {
     let changed = false;
     if (!mine.runs) { mine.runs = {}; changed = true; }
     for (const [id, t] of Object.entries(theirs.runs || {})) {
       const m = mine.runs[id];
       if (!m) { mine.runs[id] = t; changed = true; continue; }
-      (t.slate || []).forEach((k, i) => {
-        if (k && !m.slate[i] && !m.slate.includes(k)) { m.slate[i] = k; changed = true; }
-      });
-      for (const k of t.pinned || []) {
-        if (m.slate.includes(k) && !m.pinned.includes(k)) { m.pinned.push(k); changed = true; }
+      const mineAt = Number(m.updated) || 0;
+      const theirsAt = Number(t.updated) || 0;
+      let takeTheirs;
+      if (mineAt || theirsAt) {
+        // A tie is possible when roll and pin happen in one millisecond. The server copy is
+        // the end of the ordered save queue, so it is the complete one in that case.
+        takeTheirs = theirsAt >= mineAt;
+      } else {
+        // Migration for runs saved before `updated` existed. A roll advances freshness;
+        // with equal rolls the server is the only shared copy and wins the ambiguity.
+        const mineRolls = +m.rolls || 0, theirRolls = +t.rolls || 0;
+        takeTheirs = theirRolls >= mineRolls;
       }
-      if ((t.rolls || 0) > (m.rolls || 0)) { m.rolls = t.rolls; changed = true; }
-      if (t.started && (!m.started || t.started < m.started)) { m.started = t.started; changed = true; }
+      if (takeTheirs && JSON.stringify(m) !== JSON.stringify(t)) {
+        mine.runs[id] = t;
+        changed = true;
+      }
     }
     return changed;
   },
@@ -1491,5 +1531,6 @@ evRegister({
   reset: () => {
     EVP.slot = null; EVP.q = ""; EVP.all = false;
     THM_BROWSER.open = false; THM_BROWSER.q = ""; thmBrowserLock(false);
+    if (THM_SYNC_TIMER) { clearTimeout(THM_SYNC_TIMER); THM_SYNC_TIMER = null; }
   },
 });

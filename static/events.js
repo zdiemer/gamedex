@@ -221,6 +221,9 @@ const EV_LOCAL = "gamedex.events";
 const EV_V = 1;
 let EV_FILE = null;
 let EV_LOADED = false;
+let EV_LOAD_TASK = null;
+let EV_SAVE_TASK = null;
+let EV_SAVE_AGAIN = false;
 
 function evFile() {
   if (EV_FILE) return EV_FILE;
@@ -239,57 +242,79 @@ function evState(id) {
   return f.ev[id];
 }
 
-async function evSave() {
+function evSave() {
   const f = evFile();
   try { localStorage.setItem(EV_LOCAL, JSON.stringify(f)); } catch (_) { /* private mode */ }
   // Signed out the server refuses the write by design (prefs are the owner's). Their events
   // are real, they just live in this browser — don't fire a request to be told so.
-  if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return;
-  try {
-    const r = await fetch("api/prefs/events", {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
-    });
-    if (!r.ok) throw new Error(await r.text());
-  } catch (_) {
-    if (typeof showToast === "function") showToast("Saved on this device, couldn't reach the server");
-  }
+  if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return Promise.resolve();
+
+  /* Roll, then pin is two taps and therefore two saves. Independent PUTs can finish in the
+     opposite order and leave the server with the earlier, unpinned slate. Keep one writer
+     and, if state changes while it is in flight, follow it with the newest whole file. */
+  EV_SAVE_AGAIN = true;
+  if (EV_SAVE_TASK) return EV_SAVE_TASK;
+  const flush = async () => {
+    do {
+      EV_SAVE_AGAIN = false;
+      const body = JSON.stringify(evFile());
+      try {
+        const r = await fetch("api/prefs/events", {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body,
+        });
+        if (!r.ok) throw new Error(await r.text());
+      } catch (_) {
+        if (typeof showToast === "function") showToast("Saved on this device, couldn't reach the server");
+      }
+    } while (EV_SAVE_AGAIN);
+  };
+  EV_SAVE_TASK = flush().finally(() => {
+    EV_SAVE_TASK = null;
+    // A save can land after the loop's last condition but before finally runs.
+    if (EV_SAVE_AGAIN) evSave();
+  });
+  return EV_SAVE_TASK;
 }
 
-/* On boot: merge the server's copy in, per event, using whatever rule that event gave.
+/* On boot and on an explicit refresh: merge the server's copy in, per event, using whatever rule that event gave.
    Without a rule the server's branch wins only where this browser has nothing, which is the
    conservative answer — it can never delete work you did here. */
-async function evLoadPrefs() {
-  if (EV_LOADED) return;
-  if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return;   // /api/prefs answers {} to the public
-  EV_LOADED = true;             // deduplicate requests, but allow failed loads to retry
-  let remote = null;
-  try {
-    const r = await fetch("api/prefs");
-    if (!r.ok) throw new Error(`api/prefs returned ${r.status}`);
-    const j = await r.json();
-    remote = (j.prefs || {}).events;
-  } catch (_) {
-    EV_LOADED = false;
-    return;                                                  // offline: the mirror stands in
-  }
-  if (!remote || typeof remote !== "object" || !remote.ev) return;
-  const f = evFile();
-  let changed = false;
-  for (const [id, theirs] of Object.entries(remote.ev)) {
-    if (!theirs || typeof theirs !== "object") continue;
-    const ev = evById(id);
-    const mine = f.ev[id];
-    if (!mine) { f.ev[id] = theirs; changed = true; continue; }
-    if (ev && typeof ev.merge === "function") {
-      if (ev.merge(mine, theirs)) changed = true;
-    } else {
-      for (const [k, v] of Object.entries(theirs)) if (!(k in mine)) { mine[k] = v; changed = true; }
+function evLoadPrefs(force = false) {
+  if (typeof IS_ADMIN !== "undefined" && !IS_ADMIN) return Promise.resolve();
+  if (!force && EV_LOADED) return Promise.resolve();
+  if (EV_LOAD_TASK) return EV_LOAD_TASK;
+
+  EV_LOAD_TASK = (async () => {
+    let remote = null;
+    try {
+      const r = await fetch("api/prefs");
+      if (!r.ok) throw new Error(`api/prefs returned ${r.status}`);
+      const j = await r.json();
+      remote = (j.prefs || {}).events;
+      EV_LOADED = true;
+    } catch (_) {
+      return;                         // offline: the local mirror stands in
     }
-  }
-  if (!changed) return;
-  try { localStorage.setItem(EV_LOCAL, JSON.stringify(f)); } catch (_) {}
-  if (evIsTab(activeTab)) evRenderPage(activeTab);
-  else if (activeTab === "home") evPatchBanner();
+    if (!remote || typeof remote !== "object" || !remote.ev) return;
+    const f = evFile();
+    let changed = false;
+    for (const [id, theirs] of Object.entries(remote.ev)) {
+      if (!theirs || typeof theirs !== "object") continue;
+      const ev = evById(id);
+      const mine = f.ev[id];
+      if (!mine) { f.ev[id] = theirs; changed = true; continue; }
+      if (ev && typeof ev.merge === "function") {
+        if (ev.merge(mine, theirs)) changed = true;
+      } else {
+        for (const [k, v] of Object.entries(theirs)) if (!(k in mine)) { mine[k] = v; changed = true; }
+      }
+    }
+    if (!changed) return;
+    try { localStorage.setItem(EV_LOCAL, JSON.stringify(f)); } catch (_) {}
+    if (evIsTab(activeTab)) evRenderPage(activeTab);
+    else if (activeTab === "home") evPatchBanner();
+  })().finally(() => { EV_LOAD_TASK = null; });
+  return EV_LOAD_TASK;
 }
 
 /* ---- pools -----------------------------------------------------------------
