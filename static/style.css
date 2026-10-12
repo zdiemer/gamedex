@@ -6795,7 +6795,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .thm-browser-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .thm-browser-search input {
   width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--text);
-  background: transparent; font: 400 14px/1.4 var(--font);
+  background: transparent; font: 400 16px/1.4 var(--font);
 }
 .thm-browser-search small { font: 500 10.5px/1 var(--font); color: var(--dim); white-space: nowrap; }
 .thm-browser-grid {
