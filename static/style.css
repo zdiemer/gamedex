@@ -6748,18 +6748,96 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .ev-risk .ev-x { align-self: flex-start; }
 
 /* ---- Themes ---------------------------------------------------------------
-   Borrows Hearth's mantel for the slate and Class of 'XX's rungs for the theme rail — the
-   same two shapes, because a slate IS a shelf and a theme dial IS a year dial. What's here
-   is only what those two don't already say: the rail's icon, and the two states a slot can
-   be in that a mantel slot cannot (pinned, and finished). */
-.thm-rail { grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); }
-/* icon and name on one line, the count under both — .ev-rung's plain column would stack
-   the icon above the name and make every button 20px taller for no information. */
-.thm-rail .ev-rung { display: grid; grid-template-columns: auto 1fr; gap: 2px 7px; align-items: center; }
-.thm-rail .ev-rung .ico { grid-row: 1; color: var(--dim); }
-.thm-rail .ev-rung b { grid-row: 1; }
-.thm-rail .ev-rung i { grid-row: 2; grid-column: 1 / -1; }
-.thm-rail .ev-rung.on .ico { color: var(--ev-k, var(--accent)); }
+   The theme count has outgrown a permanent rail. One current-theme control opens a
+   searchable visual library; the slate keeps Hearth's mantel underneath it. */
+.thm-switcher {
+  width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px;
+  align-items: center; margin: 0; padding: 12px 14px; text-align: left; cursor: pointer;
+  color: var(--text); border: 1px solid var(--border); border-radius: var(--r);
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+  box-shadow: var(--shadow-sm); transition: border-color .16s, transform .16s;
+}
+.thm-switcher:hover { border-color: var(--ev-k, var(--accent)); transform: translateY(-1px); }
+.thm-switch-icon {
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px;
+  color: var(--ev-k, var(--accent)); background: var(--accent-soft);
+}
+.thm-switch-copy { min-width: 0; display: grid; gap: 2px; }
+.thm-switch-copy small, .thm-browser-head small {
+  font: 500 9.5px/1 var(--font); letter-spacing: .11em; text-transform: uppercase; color: var(--dim);
+}
+.thm-switch-copy b { font: 650 14px/1.2 var(--font); }
+.thm-switch-copy i { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 12px/1.3 var(--font); color: var(--muted); }
+.thm-switch-action {
+  display: inline-flex; align-items: center; gap: 6px; color: var(--ev-k, var(--accent));
+  font: 600 11.5px/1 var(--font); white-space: nowrap;
+}
+.thm-browser-scrim {
+  position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 24px;
+  background: rgba(4, 6, 12, .76); backdrop-filter: blur(8px);
+}
+.thm-browser {
+  width: min(1040px, 100%); max-height: min(820px, calc(100vh - 48px));
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; box-shadow: 0 28px 80px rgba(0,0,0,.5);
+}
+.thm-browser-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px 12px;
+}
+.thm-browser-head > span { display: grid; gap: 5px; }
+.thm-browser-head b { font: 700 22px/1.1 var(--display); }
+.thm-browser-search {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 9px; align-items: center;
+  margin: 0 20px 16px; padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--surface-2); color: var(--dim);
+}
+.thm-browser-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.thm-browser-search input {
+  width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--text);
+  background: transparent; font: 400 14px/1.4 var(--font);
+}
+.thm-browser-search small { font: 500 10.5px/1 var(--font); color: var(--dim); white-space: nowrap; }
+.thm-browser-grid {
+  min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: max-content; gap: 12px; align-content: start; padding: 0 20px 20px;
+}
+.thm-choice {
+  min-width: 0; min-height: 146px; display: grid; grid-template-rows: 62px auto; padding: 0; overflow: hidden;
+  text-align: left; cursor: pointer; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 14px; transition: border-color .16s, transform .16s;
+}
+.thm-choice:hover { border-color: var(--ev-k, var(--accent)); transform: translateY(-2px); }
+.thm-choice.on { border-color: var(--ev-k, var(--accent)); box-shadow: 0 0 0 2px var(--ev-glow); }
+.thm-choice[hidden] { display: none; }
+.thm-choice-art {
+  display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+  color: var(--ev-t2, var(--accent)); background: var(--ev-art); border-bottom: 1px solid var(--ev-edge);
+}
+.thm-choice-art .ico { filter: drop-shadow(0 2px 7px var(--ev-glow)); }
+.thm-choice-art em {
+  padding: 4px 7px; border: 1px solid var(--ev-edge-hi); border-radius: 999px;
+  color: var(--ev-t1); background: rgba(0,0,0,.28);
+  font: 600 9px/1 var(--font); letter-spacing: .08em; text-transform: uppercase;
+}
+.thm-choice-copy { min-width: 0; display: grid; gap: 4px; padding: 11px 13px 12px; }
+.thm-choice-copy b { font: 650 13.5px/1.2 var(--font); color: var(--text); }
+.thm-choice-copy i { min-height: 2.6em; font: 400 11.5px/1.3 var(--font); color: var(--muted); }
+.thm-choice-copy small { font: 500 10px/1.2 var(--font); color: var(--dim); }
+.thm-browser-empty { grid-row: 3; margin: 30px; text-align: center; color: var(--muted); }
+@media (max-width: 600px) {
+  .thm-switcher { grid-template-columns: auto minmax(0, 1fr); }
+  .thm-switch-action { grid-column: 2; justify-self: start; }
+  .thm-browser-scrim { place-items: end center; padding: 0; }
+  .thm-browser { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; border-bottom: 0; }
+  .thm-browser-head { padding: 16px 15px 11px; }
+  .thm-browser-search { margin: 0 15px 13px; }
+  .thm-browser-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 0 15px 18px; }
+  .thm-choice { min-height: 150px; grid-template-rows: 50px auto; }
+  .thm-choice-art { padding: 9px 11px; }
+  .thm-choice-copy { padding: 9px 10px 10px; }
+  .thm-choice-copy i { min-height: 3.9em; }
+}
 
 .thm-slot.pinned .ev-tile { border-color: var(--ev-k, var(--accent)); }
 /* Finished reads as settled rather than as highlighted: the accent ring marks what you

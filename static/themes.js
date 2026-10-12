@@ -75,6 +75,50 @@ const thmFamilyPlay = (r) => {
     ((+e.coopLocal || 0) > 1 || thmIgdb(r, "gameModes").includes("split screen"));
 };
 
+/* Comfort is measured from the sheet rather than guessed from genre labels. Primary genres
+   are narrow enough to say something useful ("Rhythm", not IGDB's umbrella "Music"), and
+   the cache follows the current rows array so a data refresh naturally rebuilds it. */
+let thmGenreRows = null, thmGenreDone = null, thmGenreEpoch = -1;
+function thmCompletedGenres() {
+  const rows = evRows();
+  const epoch = typeof _enrichEpoch === "number" ? _enrichEpoch : 0;
+  if (rows === thmGenreRows && thmGenreEpoch === epoch && thmGenreDone) return thmGenreDone;
+  const counts = new Map();
+  rows.forEach((r) => {
+    const genre = String(r.genre || "").trim();
+    if (r.completed && genre) counts.set(genre, (counts.get(genre) || 0) + 1);
+  });
+  thmGenreRows = rows;
+  thmGenreEpoch = epoch;
+  thmGenreDone = counts;
+  return counts;
+}
+const thmOutsideComfort = (r) => {
+  const genre = String(r.genre || "").trim();
+  const score = criticOf(r);
+  return !!genre && (thmCompletedGenres().get(genre) || 0) <= 5 && score != null && score >= .80;
+};
+
+/* A repeatable session needs stronger evidence than merely being a roguelike or having a
+   score. Explicit score-attack/endless modes qualify directly; otherwise both a score chase
+   and a run-reset signal must be present. */
+const thmOneMoreRun = (r) => {
+  const k = thmKw(r);
+  if (thmAny(k, "score attack", "endless mode", "endless waves")) return true;
+  return k.includes("high score") && thmAny(k, "roguelike", "roguelite", "rogue-like",
+    "rogue-lite", "procedural generation", "procedurally generated", "permadeath");
+};
+
+const thmCultClassic = (r) => {
+  const e = thmEn(r);
+  if (!e.igdbId) return false;
+  const year = thmYear(r);
+  const voters = +e.userRatingCount || 0;
+  return year != null && year <= new Date().getFullYear() - 10 &&
+    e.userRating != null && e.userRating >= .82 && voters >= 20 && voters <= 150 &&
+    (+e.criticCount || 0) <= 3;
+};
+
 /* The year the GAME came out, not the year the copy on the shelf did. The sheet's
    releaseYear dates the edition you own — The Mysterious Murasame Castle is 2014 on it,
    because that is when the 3DS Virtual Console sold it to you — and IGDB's `year` is
@@ -809,6 +853,81 @@ const THEMES = [
       { i: "i-heart", x: 58, y: 12, s: 15, r: 8, lift: 15, d: 250, o: .5 },
     ],
   },
+  {
+    id: "comfortzone",
+    name: "Outside the Comfort Zone",
+    blurb: "a great game from somewhere you rarely go",
+    icon: "i-globe",
+    n: 5,
+    note: "A critic score of 80% or better from a primary sheet genre in which you have " +
+          "finished five games or fewer. The sheet's specific primary genre is used instead " +
+          "of broad IGDB umbrellas, and a missing score never counts as a recommendation.",
+    match: thmOutsideComfort,
+    skin: "--ev-disp:'Big Shoulders Display',var(--display);--ev-size:48px;--ev-dw:800;--ev-ls:.015em;" +
+          "--ev-deco:#fb923c;--ev-fg:#fff4e8;--ev-fg-2:#cfb29b;--ev-edge:rgba(251,146,60,.34);" +
+          "--ev-edge-hi:rgba(251,146,60,.8);--ev-glow:rgba(251,146,60,.34);--ev-t1:#fff8f1;" +
+          "--ev-t2:#67e8f9;--ev-t3:#fb923c;--ev-on-cta:#241006;--ev-k:#67e8f9;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(251,146,60,.28),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(103,232,249,.2),transparent 60%)," +
+          "linear-gradient(150deg,#0b0705,#1a100a 70%,#08151a)",
+    deco: [
+      { i: "i-globe", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-target", x: 70, y: 22, s: 26, r: -7, lift: 11, d: 90 },
+      { i: "i-star", x: 24, y: 20, s: 22, r: 9, lift: 13, d: 40 },
+      { i: "i-globe", x: 47, y: 84, s: 18, r: -10, lift: 8, d: 210, o: .5 },
+    ],
+  },
+  {
+    id: "onemorerun",
+    name: "One More Run",
+    blurb: "quick reset, unfinished business",
+    icon: "i-refresh",
+    n: 4,
+    note: "Games IGDB explicitly marks for score attack, endless mode or endless waves, " +
+          "plus games that have both a high-score chase and a run-reset signal such as " +
+          "roguelike, procedural generation or permadeath. A broad roguelike tag alone is " +
+          "not enough: this pool is about repeatable sessions.",
+    match: thmOneMoreRun,
+    skin: "--ev-disp:'Press Start 2P',var(--display);--ev-size:22px;--ev-dw:400;--ev-ls:0;" +
+          "--ev-deco:#a3e635;--ev-fg:#f4ffe6;--ev-fg-2:#afc494;--ev-edge:rgba(163,230,53,.34);" +
+          "--ev-edge-hi:rgba(163,230,53,.8);--ev-glow:rgba(163,230,53,.34);--ev-t1:#f8ffed;" +
+          "--ev-t2:#f472b6;--ev-t3:#a3e635;--ev-on-cta:#142004;--ev-k:#f472b6;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(163,230,53,.25),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(244,114,182,.22),transparent 60%)," +
+          "linear-gradient(150deg,#070a04,#101807 70%,#180a13)",
+    deco: [
+      { i: "i-refresh", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-dice", x: 70, y: 22, s: 26, r: 8, lift: 11, d: 90 },
+      { i: "i-coin", x: 24, y: 20, s: 22, r: -8, lift: 13, d: 40 },
+      { i: "i-bolt", x: 47, y: 84, s: 18, r: 10, lift: 8, d: 210, o: .5 },
+    ],
+  },
+  {
+    id: "cultclassics",
+    name: "Cult Classics",
+    plural: "cult classics",
+    blurb: "small audience, fierce affection",
+    icon: "i-flame",
+    n: 5,
+    note: "At least ten years old, rated 82% or better by IGDB users, with 20–150 user " +
+          "ratings and no more than three critic scores. That requires a real audience but " +
+          "keeps it small, and separates beloved outsiders from merely obscure games with " +
+          "too little evidence to judge.",
+    match: thmCultClassic,
+    skin: "--ev-disp:'Special Elite',var(--display);--ev-size:43px;--ev-dw:400;--ev-ls:.01em;" +
+          "--ev-deco:#e879f9;--ev-fg:#fcecff;--ev-fg-2:#c6a8c8;--ev-edge:rgba(232,121,249,.34);" +
+          "--ev-edge-hi:rgba(232,121,249,.78);--ev-glow:rgba(232,121,249,.32);--ev-t1:#fff2ff;" +
+          "--ev-t2:#fbbf24;--ev-t3:#e879f9;--ev-on-cta:#220823;--ev-k:#fbbf24;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(232,121,249,.25),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(251,191,36,.18),transparent 60%)," +
+          "linear-gradient(150deg,#0a060b,#180d19 70%,#161006)",
+    deco: [
+      { i: "i-flame", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-star", x: 70, y: 22, s: 26, r: -7, lift: 11, d: 90 },
+      { i: "i-disc", x: 24, y: 20, s: 22, r: 9, lift: 13, d: 40 },
+      { i: "i-ribbon", x: 47, y: 84, s: 18, r: -8, lift: 8, d: 210, o: .5 },
+    ],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
@@ -1072,22 +1191,52 @@ function thmSlotHtml(t, run, slot) {
   </div>`;
 }
 
-function thmRailHtml(t) {
-  return `<div class="ev-rungs thm-rail">${THEMES.map((x) => {
-    const run = thmState().runs[x.id];
-    /* The denominator is the SLATE SIZE, not how many slots happen to be filled — same
-       number the page header and the meter use. Counting filled slots here was the one
-       place three views of one run disagreed: "2 of 3 done" on the rail beside "2 of 8
-       done" on the page, for the same run with five empty slots. */
-    const n = run && Array.isArray(run.slate) ? run.n : 0;
-    const done = run && Array.isArray(run.slate)
-      ? run.slate.filter((k) => thmIsDone(run, k)).length : 0;
-    return `<button class="ev-rung${x.id === t.id ? " on" : ""}" data-thmgo="${x.id}"
-        title="${escapeHtml(x.blurb)}">
-      ${icon(x.icon, 15)}<b>${escapeHtml(x.name)}</b>
-      <i>${n ? `${done} of ${n} done` : `${thmPool(x).length.toLocaleString()} to roll`}</i>
-    </button>`;
-  }).join("")}</div>`;
+const THM_BROWSER = { open: false, q: "" };
+
+function thmChoiceMeta(t) {
+  const run = thmState().runs[t.id];
+  if (!run || !Array.isArray(run.slate) || !run.slate.some(Boolean)) {
+    return `${thmPool(t).length.toLocaleString()} to roll`;
+  }
+  return `${run.slate.filter((k) => thmIsDone(run, k)).length} of ${run.n} done`;
+}
+
+/* Twenty-four themes are a catalog, not a dial. The page keeps one compact current-theme
+   control in the flow and opens the full, searchable catalog only when asked. Each card
+   wears its own poster palette, so browsing is recognition rather than reading a pill rail. */
+function thmBrowserHtml(t) {
+  const switcher = `<button class="thm-switcher" id="thmBrowseOpen" type="button"
+      aria-haspopup="dialog" aria-label="Browse all ${THEMES.length} themes">
+    <span class="thm-switch-icon">${icon(t.icon, 21)}</span>
+    <span class="thm-switch-copy"><small>Current theme</small><b>${escapeHtml(t.name)}</b>
+      <i>${escapeHtml(t.blurb)}</i></span>
+    <span class="thm-switch-action">${icon("i-grid", 15)} Browse ${THEMES.length}</span>
+  </button>`;
+  if (!THM_BROWSER.open) return switcher;
+  const cards = THEMES.map((x) => `<button class="thm-choice${x.id === t.id ? " on" : ""}"
+      type="button" data-thmgo="${x.id}"
+      data-thmhay="${escapeHtml((x.name + " " + x.blurb).toLowerCase())}" style="${x.skin}">
+    <span class="thm-choice-art">${icon(x.icon, 25)}${x.id === t.id
+      ? '<em>Current</em>' : ""}</span>
+    <span class="thm-choice-copy"><b>${escapeHtml(x.name)}</b>
+      <i>${escapeHtml(x.blurb)}</i><small>${thmChoiceMeta(x)}</small></span>
+  </button>`).join("");
+  return switcher + `<div class="thm-browser-scrim" id="thmBrowserScrim">
+    <section class="thm-browser" role="dialog" aria-modal="true" aria-labelledby="thmBrowserTitle">
+      <header class="thm-browser-head">
+        <span><small>Theme library</small><b id="thmBrowserTitle">Find a slate</b></span>
+        <button class="icon-btn" id="thmBrowseClose" type="button" aria-label="Close theme browser">
+          ${icon("i-close", 18)}</button>
+      </header>
+      <label class="thm-browser-search">${icon("i-search", 16)}
+        <input id="thmBrowseSearch" type="search" autocomplete="off" placeholder="Search themes"
+          aria-label="Search themes" value="${escapeHtml(THM_BROWSER.q)}">
+        <small id="thmBrowserCount">${THEMES.length} themes</small>
+      </label>
+      <div class="thm-browser-grid">${cards}</div>
+      <p class="thm-browser-empty" id="thmBrowserEmpty" hidden>No themes match that search.</p>
+    </section>
+  </div>`;
 }
 
 function thmRender(host) {
@@ -1130,7 +1279,7 @@ function thmRender(host) {
     // the shelf is a question about one game, which the tile is the place to answer.
     note: `${pool.length.toLocaleString()}/${breadth.length.toLocaleString()} to complete`,
   }) + `<div class="ev-wrap">
-    ${thmRailHtml(t)}
+    ${thmBrowserHtml(t)}
     <section class="ev-panel wide">
       <!-- One sentence of counting, in the order you'd ask it: how big is the slate, how
            much of it is behind you, how much of it isn't filled yet. The last part only
@@ -1153,8 +1302,46 @@ function thmRender(host) {
     ${evPickerHtml(used)}
   </div>`;
 
+  const openBrowser = document.getElementById("thmBrowseOpen");
+  if (openBrowser) openBrowser.onclick = () => {
+    THM_BROWSER.open = true;
+    repaint();
+    const search = document.getElementById("thmBrowseSearch");
+    if (search) search.focus();
+  };
+  const closeBrowser = () => {
+    THM_BROWSER.open = false;
+    THM_BROWSER.q = "";
+    repaint();
+  };
+  const close = document.getElementById("thmBrowseClose");
+  if (close) close.onclick = closeBrowser;
+  const scrim = document.getElementById("thmBrowserScrim");
+  if (scrim) {
+    scrim.onclick = (e) => { if (e.target === scrim) closeBrowser(); };
+    scrim.onkeydown = (e) => { if (e.key === "Escape") closeBrowser(); };
+  }
+  const search = document.getElementById("thmBrowseSearch");
+  if (search) search.oninput = () => {
+    THM_BROWSER.q = search.value.trim().toLowerCase();
+    let shown = 0;
+    host.querySelectorAll("[data-thmhay]").forEach((el) => {
+      el.hidden = !!THM_BROWSER.q && !el.dataset.thmhay.includes(THM_BROWSER.q);
+      if (!el.hidden) shown++;
+    });
+    const count = document.getElementById("thmBrowserCount");
+    if (count) count.textContent = `${shown} ${shown === 1 ? "theme" : "themes"}`;
+    const empty = document.getElementById("thmBrowserEmpty");
+    if (empty) empty.hidden = shown !== 0;
+  };
   host.querySelectorAll("[data-thmgo]").forEach((el) => {
-    el.onclick = () => { thmOpen(el.dataset.thmgo); evPickerClose(); repaint(); };
+    el.onclick = () => {
+      THM_BROWSER.open = false;
+      THM_BROWSER.q = "";
+      thmOpen(el.dataset.thmgo);
+      evPickerClose();
+      repaint();
+    };
   });
   const roll = document.getElementById("thmRoll");
   if (roll) roll.onclick = () => { thmRoll(t); repaint(); };
