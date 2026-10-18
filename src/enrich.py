@@ -364,6 +364,7 @@ class Enricher:
         # it's instant while nothing writes; and while a backfill IS writing (total_changes
         # ticks every match), serve the last build until it's _ALL_LIGHT_TTL seconds stale
         # rather than rebuilding on every request. The parse itself runs OUTSIDE the lock.
+        self._all_light_lock = threading.Lock()
         self._all_light_cache = None
         self._all_light_ver = -1
         self._all_light_ts = 0.0
@@ -883,27 +884,39 @@ class Enricher:
         return out
 
     def get_all_light(self):
+        # Covers and full responses share this build, even on concurrent misses.
+        with self._all_light_lock:
+            return self._build_all_light()
+
+    def _light_rows(self, table, columns):
+        # Keyset pages bound raw JSON memory and release the DB lock between
+        # batches. Writes during the scan invalidate this version on the next
+        # refresh; no single response needs a transaction spanning every table.
+        last = None
+        while True:
+            where = " AND match_key > ?" if last is not None else ""
+            with self._db_lock:
+                rows = self._db.execute(
+                    f"SELECT match_key,{columns} FROM {table} WHERE status='matched'"
+                    f"{where} ORDER BY match_key LIMIT 256",
+                    (last,) if last is not None else (),
+                ).fetchall()
+            if not rows:
+                return
+            last = rows[-1][0]
+            yield from rows
+
+    def _build_all_light(self):
         now = time.monotonic()
-        # Cache check + a snapshot of the raw rows, both under the lock (the fetch is fast);
-        # the ~3s JSON parse happens AFTER releasing it, so it never blocks a writer or a
-        # per-page get_light. Serve the last build when nothing has changed (total_changes) or
-        # when it's still fresh enough — during a backfill total_changes ticks constantly, and
-        # rebuilding every request is exactly what made this endpoint a 3s wall.
         with self._db_lock:
             ver = self._db.total_changes
             cache = self._all_light_cache
             if cache is not None and (self._all_light_ver == ver
                                       or now - self._all_light_ts < _ALL_LIGHT_TTL):
                 return cache
-            enr_rows = self._db.execute(
-                "SELECT match_key,data,manual FROM enrichment WHERE status='matched'").fetchall()
-            sec_rows = [
-                (extract, self._db.execute(
-                    f"SELECT match_key,data FROM {src} WHERE status='matched'").fetchall())
-                for src, extract in _SECONDARY_LIGHT.items() if src in self._secondary]
         bulk_facets = [f for f in _FACET_LIGHT if f not in _BULK_DROP]
         out = {}
-        for mk, data, manual in enr_rows:
+        for mk, data, manual in self._light_rows("enrichment", "data,manual"):
             if data:
                 d = json.loads(data)
                 out[mk] = {f: d.get(f) for f in bulk_facets}
@@ -916,8 +929,10 @@ class Enricher:
                         out[mk]["shots"] = shots
                 if manual:
                     out[mk]["manualMatch"] = True
-        for extract, rows in sec_rows:
-            for mk, data in rows:
+        for src, extract in _SECONDARY_LIGHT.items():
+            if src not in self._secondary:
+                continue
+            for mk, data in self._light_rows(src, "data"):
                 if data:
                     out.setdefault(mk, {}).update(
                         {k: v for k, v in extract(json.loads(data)).items()
