@@ -4,6 +4,6 @@ description: Gamedex — searchable browser for a Dropbox-hosted games spreadshe
 type: application
 version: 1.86.4
 # appVersion tracks the gamedex image tag in values.yaml (image.tag).
-appVersion: "1.86.4"
+appVersion: "renovate-20261019"
 maintainers:
   - name: zachd
