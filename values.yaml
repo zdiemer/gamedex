@@ -2,7 +2,7 @@ image:
   # Built + pushed to the in-cluster registry by build.sh, so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: registry.zachd.duckdns.org/zdiemer/gamedex
-  tag: "epic-wishlist-20261019"
+  tag: "one-and-only-20261019"
   pullPolicy: IfNotPresent
 
 service:

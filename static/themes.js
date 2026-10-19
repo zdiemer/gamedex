@@ -132,6 +132,60 @@ function thmYear(r) {
   return m ? +m[1] : null;
 }
 
+/* Uniqueness is relative to the full Gamedex list, before playability/completion
+   filtering. Count games, not copies, and rebuild when metadata or rows change. */
+const THM_ONLY_PLATFORM_MIN = 100, THM_ONLY_POPULAR_MIN = 10;
+let thmOnlyCache = null;
+function thmOnlyReasons() {
+  const rows = evRows();
+  const epoch = typeof _enrichEpoch === "number" ? _enrichEpoch : 0;
+  if (thmOnlyCache && thmOnlyCache.rows === rows && thmOnlyCache.epoch === epoch) {
+    return thmOnlyCache.reasons;
+  }
+  const platforms = new Map(), global = new Map(), entries = [];
+  const add = (map, key, id) => {
+    if (!map.has(key)) map.set(key, new Set());
+    map.get(key).add(id);
+  };
+  for (const row of rows) {
+    if (!row.title || !String(row.platform || "").trim()) continue;
+    const id = (typeof cachedGameId === "function" && cachedGameId(row)) ||
+      "title:" + row.title.trim().toLowerCase().replace(/\s+/g, " ");
+    const platform = row.platform.trim().toLowerCase();
+    if (!platforms.has(platform)) platforms.set(platform, { games: new Set(), categories: new Map() });
+    const p = platforms.get(platform);
+    p.games.add(id);
+    const categories = [];
+    for (const [kind, vals] of [
+      ["genre", unifiedGenreVals(row)],
+      ["developer", unifiedDevVals(row)],
+      ["franchise", unifiedFranchiseVals(row)],
+    ]) {
+      for (const raw of vals) {
+        const name = String(raw || "").trim();
+        if (!name || /^(unknown|n\/a|none|unspecified)$/i.test(name)) continue;
+        const key = kind + ":" + name.toLowerCase();
+        add(global, key, id);
+        add(p.categories, key, id);
+        categories.push({ kind, key, name });
+      }
+    }
+    entries.push({ row, platform, categories });
+  }
+  const reasons = new Map();
+  for (const { row, platform, categories } of entries) {
+    const p = platforms.get(platform);
+    if (p.games.size < THM_ONLY_PLATFORM_MIN) continue;
+    const hits = categories.filter(({ kind, key }) => p.categories.get(key).size === 1 &&
+      (kind === "genre" || global.get(key).size >= THM_ONLY_POPULAR_MIN));
+    if (hits.length) reasons.set(row._k, hits.map(({ kind, name }) =>
+      kind === "genre" ? `Only ${name} game` :
+        kind === "developer" ? `Only game by ${name}` : `Only ${name} franchise game`));
+  }
+  thmOnlyCache = { rows, epoch, reasons };
+  return reasons;
+}
+
 const THEMES = [
   {
     id: "cyberpunk",
@@ -928,6 +982,28 @@ const THEMES = [
       { i: "i-ribbon", x: 47, y: 84, s: 18, r: -8, lift: 8, d: 210, o: .5 },
     ],
   },
+  {
+    id: "oneandonly",
+    name: "One and Only",
+    plural: "one-and-only games",
+    blurb: "the lone representative on a well-stocked platform",
+    icon: "i-star",
+    n: 5,
+    note: "The only listed game in a genre, by a developer, or in a franchise on its platform. " +
+          "Counts the full Gamedex list, including finished, unowned and unplayable games, " +
+          "not every release ever published. Platforms need at least 100 distinct games; " +
+          "developers and franchises need at least 10 distinct games across the list. " +
+          "Uses known sheet and enrichment categories; missing metadata can affect uniqueness.",
+    match: (r) => thmOnlyReasons().has(r._k),
+    reason: (r) => (thmOnlyReasons().get(r._k) || []).join(" · "),
+    skin: "--ev-disp:var(--display);--ev-size:44px;--ev-dw:800;--ev-ls:.01em;" +
+          "--ev-deco:#fbbf24;--ev-fg:#fff7db;--ev-fg-2:#c8bd99;--ev-edge:rgba(251,191,36,.3);" +
+          "--ev-edge-hi:rgba(251,191,36,.75);--ev-glow:rgba(251,191,36,.3);--ev-t1:#fff9e6;" +
+          "--ev-t2:#fcd34d;--ev-t3:#fbbf24;--ev-on-cta:#211805;--ev-k:#fcd34d;" +
+          "--ev-art:radial-gradient(ellipse at 80% 20%,#423312,transparent 65%)," +
+          "linear-gradient(150deg,#100e08,#211a0c)",
+    deco: [{ i: "i-star", x: 84, y: 50, s: 64, lift: 10 }],
+  },
 ];
 
 const THM_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
@@ -1179,6 +1255,7 @@ function thmSlotHtml(t, run, slot) {
   return `<div class="ev-slot thm-slot${done ? " done" : ""}${pinned ? " pinned" : ""}">
     ${evTileHtml(row, { sub: `${row.platform || ""}${
       row.estimatedTime ? " · " + evHours(row.estimatedTime) : ""}` })}
+    ${t.reason ? `<p class="thm-note">${escapeHtml(t.reason(row))}</p>` : ""}
     ${done ? `<span class="thm-done-tag">${icon("i-check", 12)} Finished</span>` : ""}
     <!-- Four actions under a tile that is 166px wide at its narrowest, so they are all
          icon-only and the row is a four-column grid rather than a flex line: an equal
@@ -1238,7 +1315,7 @@ function thmChoiceMeta(t) {
   return `${run.slate.filter((k) => thmIsDone(run, k)).length} of ${run.n} done`;
 }
 
-/* Twenty-four themes are a catalog, not a dial. The page keeps one compact current-theme
+/* Themes are a catalog, not a dial. The page keeps one compact current-theme
    control in the flow and opens the full, searchable catalog only when asked. Each card
    wears its own poster palette, so browsing is recognition rather than reading a pill rail. */
 function thmBrowserHtml(t) {

@@ -53,6 +53,6 @@ assert.equal(match("cultclassics", "cult"), true, "older, loved, lightly covered
 assert.equal(match("cultclassics", "too-famous"), false, "large audiences stay out of the cult pool");
 assert.equal(match("cultclassics", "too-reviewed"), false, "broad critic coverage stays out");
 assert.equal(match("cultclassics", "too-new"), false, "games under ten years old are not classics yet");
-assert.equal(vm.runInContext("THEMES.length", context), 24, "theme catalog contains 24 themes");
+assert.equal(vm.runInContext("THEMES.length", context), 25, "theme catalog contains 25 themes");
 
 console.log("Discovery themes: comfort, repeat-session, and cult-classic boundaries passed");
