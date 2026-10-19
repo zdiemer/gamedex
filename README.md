@@ -461,3 +461,26 @@ Dropbox…"). `/api/health` returns `503` until that first load completes.
 - **A new spreadsheet column isn't typed right** — add it to the relevant schema
   list in `src/parse.py` (`_GAMES` / `_COMPLETED` / `_ON_ORDER`); unmapped
   columns pass through as plain text.
+
+### Epic wishlist sync
+
+Epic wishlist sync uses the Store platform REST endpoint
+`/api/v2/private/account/wishlist` with the linked account's existing launcher
+OAuth token. The current store frontend uses this endpoint; the legacy GraphQL
+wishlist resolver returns `notLoggedIn` for this integration. The existing
+`curl_cffi` dependency supplies browser-compatible TLS, which avoids the
+Cloudflare challenge plain `requests` receives. No browser cookies or separate
+website login are stored. Offer titles come from Epic's catalog API.
+
+A complete, validated snapshot is required before replacing cached entries.
+HTTP errors, malformed responses, duplicate offers, incomplete or inconsistent
+pagination, and failed title resolution preserve the previous wishlist and
+report a wishlist-stage error on the linked-account card. A successful empty
+snapshot still clears the wishlist. Library and playtime sync remain separate.
+The platform endpoint currently ignores requested pagination in live checks;
+if Epic returns a partial page, sync fails safely instead of truncating the
+cache. Validation on 2026-10-19 fetched all 10 account wishlist entries and
+resolved every title.
+
+Regression tests (with application dependencies installed):
+`PYTHONPATH=src python tools/tests/epic_wishlist.py`.

@@ -13,9 +13,9 @@ Three services, joined on the app name:
   * playtime — /playtime/account/<id>/all gives totalTime per artifactId
     (= appName). Epic, unlike GOG, actually reports hours.
 
-The Store wishlist lives behind a GraphQL endpoint on a different token, so it's
-best-effort: if the call works it syncs, otherwise the library + playtime still
-land and the wishlist stage just comes back empty.
+The Store wishlist uses its platform REST API with the existing launcher token
+and browser-compatible TLS. Failed or incomplete snapshots raise so the sync
+coordinator preserves cached entries and reports the failed wishlist stage.
 """
 
 from __future__ import annotations
@@ -26,6 +26,8 @@ import re
 import time
 
 import requests
+from curl_cffi import requests as browser_requests
+from urllib.parse import quote
 
 from ratelimiter import RateLimiter
 
@@ -38,6 +40,7 @@ _BASIC = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
 ACCOUNT = "https://account-public-service-prod.ol.epicgames.com"
 LAUNCHER = "https://launcher-public-service-prod06.ol.epicgames.com"
 CATALOG = "https://catalog-public-service-prod06.ol.epicgames.com"
+WISHLIST = "https://egs-platform-service.store.epicgames.com/api/v2/private/account/wishlist"
 LIBRARY = "https://library-service.live.use1a.on.epicgames.com"
 REDIRECT_HINT = ("https://www.epicgames.com/id/api/redirect?clientId="
                  + CLIENT_ID + "&responseType=code")
@@ -166,27 +169,86 @@ class EpicUserClient:
             })
         return [g for g in out if g["appId"] and g["name"]]
 
-    # ---- wishlist (best-effort, Store GraphQL) -------------------------------
+    # ---- wishlist (current Store platform API) -------------------------------
     def fetch_wishlist(self, creds: dict) -> list[dict]:
+        """Return a complete snapshot or raise, never turn failure into []."""
         try:
-            r = requests.post(
-                "https://store.epicgames.com/graphql",
-                json={"query": _WISHLIST_QUERY, "variables": {}},
-                headers={"Authorization": f"Bearer {self._token(creds)}",
-                         "Content-Type": "application/json"}, timeout=25)
-            r.raise_for_status()
-            elems = (((r.json().get("data") or {}).get("Wishlist") or {})
-                     .get("wishlistItems") or {}).get("elements") or []
-        except Exception as exc:
-            log.info("epic wishlist unavailable: %s", exc)
-            return []
-        out = []
-        for e in elems:
-            off = e.get("offer") or {}
-            out.append({"appId": str(e.get("offerId") or off.get("id") or ""),
-                        "name": off.get("title"), "addedAt": e.get("created"),
-                        "extra": {"namespace": e.get("namespace")}})
-        return [w for w in out if w["appId"]]
+            return self._fetch_wishlist(creds)
+        except Exception:
+            # Never log response bodies, tokens, cookies or account IDs. The
+            # coordinator records the failed stage and keeps the prior cache.
+            raise RuntimeError(
+                "Epic wishlist fetch failed; cached wishlist retained"
+            ) from None
+
+    def _fetch_wishlist(self, creds: dict) -> list[dict]:
+        # The legacy Store GraphQL Wishlist resolver no longer authenticates
+        # launcher tokens. This is the API used by the current Epic frontend.
+        # Browser TLS is required even with a valid OAuth bearer token.
+        entries = []
+        total = None
+        seen = set()
+        with browser_requests.Session(impersonate="chrome") as session:
+            for _ in range(100):
+                self._limiter.wait()
+                r = session.get(
+                    WISHLIST,
+                    params={"locale": "en-US", "country": "US",
+                            "start": len(entries), "count": 50},
+                    headers={"Authorization": f"Bearer {self._token(creds)}",
+                             "Accept": "application/json"},
+                    timeout=25, allow_redirects=False)
+                r.raise_for_status()
+                payload = r.json()
+                if not isinstance(payload, dict) or payload.get("errors"):
+                    raise ValueError("Invalid wishlist response")
+                page, paging = payload.get("data"), payload.get("paging")
+                if not isinstance(page, list) or not isinstance(paging, dict):
+                    raise ValueError("Missing wishlist snapshot")
+                expected = paging.get("total")
+                if type(expected) is not int or expected < 0:
+                    raise ValueError("Invalid wishlist total")
+                if total is None:
+                    total = expected
+                if expected != total or paging.get("start") != len(entries):
+                    raise ValueError("Wishlist changed or pagination was ignored")
+                for item in page:
+                    if not isinstance(item, dict):
+                        raise ValueError("Invalid wishlist entry")
+                    offer, namespace = item.get("offerId"), item.get("sandboxId")
+                    if not isinstance(offer, str) or not offer or not isinstance(namespace, str) or not namespace:
+                        raise ValueError("Missing wishlist identity")
+                    if offer in seen:
+                        raise ValueError("Duplicate wishlist offer")
+                    seen.add(offer)
+                    entries.append(item)
+                if len(entries) == total:
+                    break
+                if not page or len(entries) > total:
+                    raise ValueError("Incomplete wishlist snapshot")
+            else:
+                raise ValueError("Wishlist pagination limit exceeded")
+
+        # The platform API returns identities, not titles. Resolve offers with
+        # the same catalog service and OAuth token used by library sync.
+        by_namespace = {}
+        for item in entries:
+            by_namespace.setdefault(item["sandboxId"], []).append(item["offerId"])
+        titles = {}
+        for namespace, offers in by_namespace.items():
+            for start in range(0, len(offers), 50):
+                batch = offers[start:start + 50]
+                data = self._get(
+                    creds, f"{CATALOG}/catalog/api/shared/namespace/{quote(namespace, safe='')}/bulk/offers",
+                    {"id": batch, "country": "US", "locale": "en-US"})
+                for offer in batch:
+                    title = data[offer]["title"]
+                    if not isinstance(title, str) or not title.strip():
+                        raise ValueError("Missing wishlist offer title")
+                    titles[offer] = title
+        return [{"appId": item["offerId"], "name": titles[item["offerId"]],
+                 "addedAt": item.get("created"),
+                 "extra": {"namespace": item["sandboxId"]}} for item in entries]
 
     # ---- not available -------------------------------------------------------------
     def fetch_achievements(self, creds, app_id):
@@ -203,16 +265,3 @@ class EpicUserClient:
         r = requests.get(url, timeout=60)
         r.raise_for_status()
         return r.content
-
-
-_WISHLIST_QUERY = """
-query wishlist {
-  Wishlist {
-    wishlistItems {
-      elements { offerId namespace created
-        offer { id title keyImages { type url } }
-      }
-    }
-  }
-}
-"""
