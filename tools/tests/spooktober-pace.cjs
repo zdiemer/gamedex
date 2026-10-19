@@ -17,6 +17,7 @@ const rows = Array.from({ length: 20 }, (_, i) => ({
 const storage = new Map();
 const context = vm.createContext({
   TAB_RESET: {}, activeTab: 'other', IS_ADMIN: false, console,
+  evNow: () => new Date(2026, 9, 15),
   localStorage: { getItem: (k) => storage.get(k), setItem: (k, v) => storage.set(k, v) },
   fetch: async () => ({ ok: true, json: async () => ({}) }),
   document: { getElementById: () => null, querySelectorAll: () => [], querySelector: () => null },
@@ -113,11 +114,18 @@ for (const [start, end] of runs()) {
 }
 run(`spookRoll(${JSON.stringify(loose)})`);
 assert.deepEqual(runs()[0], first, 'a pinned run survives a re-roll unchanged');
+// Use a known three-night run: a random first game can last just one night,
+// making night 2 a valid next start instead of the middle this test needs.
+run("spookClearAll(); spookSet(1, 'g3'); spookSet(4, 'g1'); spookPin(1, true); spookPin(4, true)");
+assert.deepEqual(runs(), [[1, 3, 'g3'], [4, 4, 'g1']]);
 run('spookPin(2, true); spookSave()');
-assert.deepEqual(val('spookPins()'), [first[0]], 'a pin in the middle of a run is dropped on save');
-run(`spookClearDay(${first[0] + 1})`);
-assert.ok(!runs().some(([s]) => s === first[0]), 'clearing any night of a run clears the run');
-assert.deepEqual(val('spookPins()'), [], 'and takes its pin with it');
+assert.deepEqual(val('spookPins()'), [1, 4],
+  'an interior pin is dropped while multi-night and single-night starts stay pinned');
+run('spookClearDay(2)');
+assert.deepEqual(runs(), [[4, 4, 'g1']], 'clearing an interior night clears only its whole run');
+assert.deepEqual(val('spookPins()'), [4], 'clearing a run removes its pin and preserves its neighbour');
+run('spookClearDay(4)');
+assert.deepEqual(val('spookPins()'), [], 'clearing the final run takes its pin with it');
 
 // ---- a game you finish after it's on the calendar -------------------------
 // It stays, checked off, and nothing the dice do can take it: the bug this guards is a
