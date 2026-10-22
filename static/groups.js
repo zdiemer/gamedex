@@ -49,8 +49,30 @@ const grouping = (id) => GROUPINGS.find((g) => g.id === id);
 
 const MIN_GROUP = 2;      // one game is not a grouping
 
-let _grIndex = {};
-const resetGroups = () => { _grIndex = {}; };
+let _grIndex = {}, _grMembers = {};
+const resetGroups = () => { _grIndex = {}; _grMembers = {}; };
+
+// The landing tiles need membership and completion counts, not release sorting,
+// history joins, critics, or a next-game recommendation for every group.
+function groupMembers(kind) {
+  if (_grMembers[kind]) return _grMembers[kind];
+  const g = grouping(kind);
+  if (!g) return [];
+  const m = new Map();
+  for (const r of grRows()) {
+    for (const name of g.vals(r)) {
+      if (!name) continue;
+      let entry = m.get(name);
+      if (!entry) m.set(name, entry = { name, games: [], done: 0, owned: 0 });
+      entry.games.push(r);
+      if (r.completed) entry.done++;
+      if (r.owned) entry.owned++;
+    }
+  }
+  return (_grMembers[kind] = [...m.values()].map(entry => ({
+    ...entry, size: entry.games.length, pct: entry.done / entry.games.length,
+  })));
+}
 
 function groupIndex(kind) {
   const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
@@ -60,83 +82,86 @@ function groupIndex(kind) {
 
 function _groupIndex(kind) {
   if (_grIndex[kind]) return _grIndex[kind];
-  const g = grouping(kind);
-  if (!g) return [];
-  const m = new Map();
-  for (const r of grRows()) {
-    for (const k of g.vals(r)) {              // a game can belong to several groups now
-      if (!k) continue;
-      if (!m.has(k)) m.set(k, []);
-      m.get(k).push(r);
+  return (_grIndex[kind] = groupMembers(kind).map(member => {
+    let ordered = null, stats = null, next = null;
+    const entry = { name: member.name, size: member.size, done: member.done,
+      owned: member.owned, pct: member.pct,
+      get games() {
+        if (!ordered) ordered = member.games.slice().sort((a, b) =>
+          String(a.releaseDate || a.releaseYear || "").localeCompare(String(b.releaseDate || b.releaseYear || "")));
+        return ordered;
+      },
+    };
+    // Sorting by size/progress/name does no detail work. Rating/hours sorts ask
+    // for statistics; only an opened group asks for play-next relations.
+    for (const key of ["avgRating", "nRated", "avgCritic", "played", "left", "spent", "y0", "y1"]) {
+      Object.defineProperty(entry, key, { enumerable: true, get() {
+        if (!stats) stats = groupAggregates(entry.games);
+        return stats[key];
+      }});
     }
-  }
-  const out = [];
-  const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
-  // (playedHoursOf is defined below — hoisted, and only called once a group is being built.)
-  for (const [name, games] of m) {
-    // Release order is how any of these is meant to be read.
-    games.sort((a, b) => String(a.releaseDate || a.releaseYear || "").localeCompare(
-      String(b.releaseDate || b.releaseYear || "")));
-    const done = games.filter((x) => x.completed).length;
-    const owned = games.filter((x) => x.owned).length;
-    /* What to play next: the earliest unfinished game you can actually play — and NOT one
-       you have already played some other way. Release order alone offered Final Fantasy II
-       on the NES to someone who beat it on the PSP: a different row, a different IGDB id,
-       an unticked Completed box, and the same game. relations.js walks IGDB's port /
-       remaster / remake / edition graph for that, and its bundle contents for the games you
-       met inside a compilation (alreadyPlayed), so the pick skips everything you have
-       already finished in some form and lands on the first game here that is genuinely new. */
-    const alt = (x) => (typeof alreadyPlayed === "function" ? alreadyPlayed(x) : null);
-    const unfinished = games.filter((x) => !x.completed);
-    const fresh = unfinished.filter((x) => !alt(x));
-    const next = fresh.find((x) => (typeof isCandidate === "function" ? isCandidate(x) : x.owned))
-      || fresh[0];
-    // The one it stepped OVER, so the page can say why. Only worth naming when it really is
-    // earlier than the pick — a later skip isn't what the eye was going to ask about, and
-    // with no pick at all the "nothing new left" line below says it better.
-    const passed = unfinished.find((x) => alt(x));
-    const skipped = next && passed && games.indexOf(passed) < games.indexOf(next)
-      ? { game: passed, played: alt(passed) } : null;   // played: {game, how} from alreadyPlayed
-
-    /* What a group is actually WORTH knowing, aggregated over its members: how you rate
-       it against the critics, the hours it has already taken and the hours still in it,
-       what you spent, and the span it covers. All null-safe — a group where nothing is
-       rated simply doesn't show a rating. */
-    const rated = games.map((x) => x.rating).filter((v) => v != null);
-    const crits = games.map((x) => (typeof criticOf === "function" ? criticOf(x) : null))
-      .filter((v) => v != null);
-    const played = games.reduce((s, x) => s + (playedHoursOf(x) ?? 0), 0);
-    const left = games.filter((x) => !x.completed).reduce((s, x) => {
-      const t = typeof playtimeOf === "function" ? playtimeOf(x) : null;
-      return s + (t != null ? t : 0);
-    }, 0);
-    const spent = games.reduce((s, x) => s + (x.purchasePrice ? +x.purchasePrice : 0), 0);
-    const yrs = games.map((x) => +x.releaseYear).filter((y) => y > 1900);
-
-    out.push({
-      name, games, done, owned, next, skipped,
-      // Nothing left that you haven't played in some form — a different thing from
-      // finishing the group, and worth saying rather than showing an empty space.
-      allPlayed: !next && unfinished.length > 0,
-      pct: games.length ? done / games.length : 0,
-      avgRating: mean(rated), nRated: rated.length,
-      avgCritic: mean(crits),
-      played, left, spent,
-      y0: yrs.length ? Math.min(...yrs) : null,
-      y1: yrs.length ? Math.max(...yrs) : null,
-    });
-  }
-  return (_grIndex[kind] = out);
+    for (const key of ["next", "skipped", "allPlayed"]) {
+      Object.defineProperty(entry, key, { enumerable: true, get() {
+        if (!next) next = groupNext(entry.games);
+        return next[key];
+      }});
+    }
+    return entry;
+  }));
 }
 
-const grGroups = (kind) => groupIndex(kind).filter((s) => s.games.length >= MIN_GROUP);
+function groupNext(games) {
+  /* What to play next: the earliest unfinished game you can actually play — and NOT one
+     you have already played some other way. Release order alone offered Final Fantasy II
+     on the NES to someone who beat it on the PSP: a different row, a different IGDB id,
+     an unticked Completed box, and the same game. relations.js walks IGDB's port /
+     remaster / remake / edition graph for that, and its bundle contents for the games you
+     met inside a compilation (alreadyPlayed), so the pick skips everything you have
+     already finished in some form and lands on the first game here that is genuinely new. */
+  const alt = (x) => (typeof alreadyPlayed === "function" ? alreadyPlayed(x) : null);
+  const unfinished = games.filter((x) => !x.completed);
+  const fresh = unfinished.filter((x) => !alt(x));
+  const next = fresh.find((x) => (typeof isCandidate === "function" ? isCandidate(x) : x.owned))
+    || fresh[0];
+  // The one it stepped OVER, so the page can say why. Only worth naming when it really is
+  // earlier than the pick — a later skip isn't what the eye was going to ask about, and
+  // with no pick at all the "nothing new left" line below says it better.
+  const passed = unfinished.find((x) => alt(x));
+  const skipped = next && passed && games.indexOf(passed) < games.indexOf(next)
+    ? { game: passed, played: alt(passed) } : null;   // played: {game, how} from alreadyPlayed
+
+  return { next, skipped, allPlayed: !next && unfinished.length > 0 };
+}
+
+function groupAggregates(games) {
+  const mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+  const rated = games.map((x) => x.rating).filter((v) => v != null);
+  const crits = games.map((x) => (typeof criticOf === "function" ? criticOf(x) : null))
+    .filter((v) => v != null);
+  const played = games.reduce((s, x) => s + (playedHoursOf(x) ?? 0), 0);
+  const left = games.filter((x) => !x.completed).reduce((s, x) => {
+    const t = typeof playtimeOf === "function" ? playtimeOf(x) : null;
+    return s + (t != null ? t : 0);
+  }, 0);
+  const spent = games.reduce((s, x) => s + (x.purchasePrice ? +x.purchasePrice : 0), 0);
+  const yrs = games.map((x) => +x.releaseYear).filter((y) => y > 1900);
+
+  return {
+    avgRating: mean(rated), nRated: rated.length, avgCritic: mean(crits),
+    played, left, spent,
+    y0: yrs.length ? Math.min(...yrs) : null,
+    y1: yrs.length ? Math.max(...yrs) : null,
+  };
+}
+
+const grGroups = (kind) => groupIndex(kind).filter((s) => s.size >= MIN_GROUP);
 
 const GROUP_SORTS = {
-  size: { label: "Most games", cmp: (a, b) => b.games.length - a.games.length },
+  size: { label: "Most games", cmp: (a, b) => b.size - a.size },
   progress: { label: "Closest to done", cmp: (a, b) => (b.pct - a.pct) || (b.done - a.done) },
   done: { label: "Most completed", cmp: (a, b) => b.done - a.done },
   name: { label: "A–Z", cmp: (a, b) => a.name.localeCompare(b.name) },
-  untouched: { label: "Never started", cmp: (a, b) => (a.pct - b.pct) || (b.games.length - a.games.length) },
+  untouched: { label: "Never started", cmp: (a, b) => (a.pct - b.pct) || (b.size - a.size) },
   // Now that a group carries its own numbers, they're worth sorting on: which studio do
   // I actually rate highest, which series has eaten the most of my life.
   rating: { label: "Best rated", cmp: (a, b) => (b.avgRating ?? -1) - (a.avgRating ?? -1) },
@@ -300,6 +325,11 @@ function groupGameRow(g, i) {
 // ---- render --------------------------------------------------------------
 
 function renderGroups() {
+  const end = typeof gamedexPerf !== "undefined" ? gamedexPerf.start("renderGroups", activeTab) : () => {};
+  try { return _renderGroups(); } finally { end(); }
+}
+
+function _renderGroups() {
   const host = $("#groups");
   if (!DATA) return;
 
@@ -354,7 +384,7 @@ function renderGroups() {
   const q = groupState.q.toLowerCase().trim();
   const sorted = (list) => list.slice().sort((GROUP_SORTS[groupState.sort] || GROUP_SORTS.size).cmp);
   const shown = sorted(all.filter((s) => !q || s.name.toLowerCase().includes(q)));
-  const finished = all.filter((s) => s.done === s.games.length).length;
+  const finished = all.filter((s) => s.done === s.size).length;
 
   host.innerHTML =
     `<div class="fr-index-head">
@@ -391,9 +421,9 @@ function renderGroups() {
 // yields and names the biggest few, so the choice isn't blind.
 function renderGroupMenu(host) {
   const tiles = GROUPINGS.map((g) => {
-    const all = grGroups(g.id);
-    const top = all.slice().sort((a, b) => b.games.length - a.games.length).slice(0, 3);
-    const done = all.filter((s) => s.done === s.games.length).length;
+    const all = groupMembers(g.id).filter(s => s.size >= MIN_GROUP);
+    const top = all.slice().sort((a, b) => b.size - a.size).slice(0, 3);
+    const done = all.filter((s) => s.done === s.size).length;
     return `<button class="gr-tile" data-gk="${escapeHtml(g.id)}">
       <span class="gr-icon">${glyph(g.icon, 26)}</span>
       <span class="gr-tile-b">
@@ -401,7 +431,7 @@ function renderGroupMenu(host) {
         <span class="gr-n">${all.length.toLocaleString()} ${escapeHtml(g.units)}${done ? ` · ${done.toLocaleString()} completed` : ""}</span>
         <span class="muted">${escapeHtml(g.blurb)}</span>
         <span class="gr-eg">${top.map((s) =>
-          `<span>${escapeHtml(s.name)} <i>${s.games.length}</i></span>`).join("")}</span>
+          `<span>${escapeHtml(s.name)} <i>${s.size}</i></span>`).join("")}</span>
       </span>
       <span class="gr-go">→</span>
     </button>`;
