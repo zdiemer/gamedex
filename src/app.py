@@ -16,6 +16,7 @@ IGDB credentials are configured.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import logging
 import os
@@ -1596,13 +1597,13 @@ def enrichment_batch(batch: KeyBatch):
 # request, holding a worker thread and a connection that long. Cache the finished gzip bytes,
 # keyed on the same change-count + TTL the light map uses, so a steady library serves them
 # instantly and a live backfill re-serialises at most once every 20s.
-_enrich_all_cache: dict = {"ver": None, "ts": 0.0, "body": None}
+_enrich_all_cache: dict = {"ver": None, "ts": 0.0, "body": None, "etag": None}
 _ENRICH_ALL_TTL = 20.0
 _enrich_response_lock = threading.Lock()
 
 
 @app.get("/api/enrichment/all")
-def enrichment_all():
+def enrichment_all(request: Request):
     if not enricher:
         return {"enabled": False, "items": {}}
     with _enrich_response_lock:
@@ -1610,7 +1611,7 @@ def enrichment_all():
         ver = enricher.change_count()
         c = _enrich_all_cache
         if c["body"] is not None and (c["ver"] == ver or now - c["ts"] < _ENRICH_ALL_TTL):
-            body = c["body"]
+            body, etag = c["body"], c["etag"]
         else:
             payload = {
                 "enabled": True,
@@ -1621,18 +1622,24 @@ def enrichment_all():
                 "noMatch": enricher.resolved_no_match(),
                 "stats": enricher.stats(),
             }
-            body = gzip.compress(json.dumps(payload, separators=(",", ":")).encode("utf-8"), 6)
-            c.update(ver=ver, ts=now, body=body)
+            body = gzip.compress(json.dumps(payload, separators=(",", ":")).encode("utf-8"), 6, mtime=0)
+            # Content-based, so process restarts cannot reuse a version for different data.
+            etag = '"e-%s"' % hashlib.sha256(body).hexdigest()
+            c.update(ver=ver, ts=now, body=body, etag=etag)
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
         # Pre-gzipped: declare it so the gzip middleware leaves it alone and the browser inflates
         # it transparently (every browser sends Accept-Encoding: gzip).
         return Response(content=body, media_type="application/json",
-                        headers={"Content-Encoding": "gzip", "Content-Length": str(len(body))})
+                        headers={"Content-Encoding": "gzip", "Content-Length": str(len(body)),
+                                 "ETag": etag, "Cache-Control": "no-cache"})
 
 
 # Covers alone, pre-gzipped like its big sibling. Fetched from the document head (index.html)
 # rather than from boot code, so it is in flight before the 41 shell scripts have even been
 # parsed and is usually in hand before /api/data finishes. The whole-library map still comes,
 # later and unhurried, for the facets and the model.
+_covers_response_lock = threading.Lock()
 _covers_cache: dict = {"ver": None, "ts": 0.0, "body": None, "etag": None}
 
 
@@ -1640,7 +1647,7 @@ _covers_cache: dict = {"ver": None, "ts": 0.0, "body": None, "etag": None}
 def covers(request: Request):
     if not enricher:
         return {"enabled": False, "items": {}}
-    with _enrich_response_lock:
+    with _covers_response_lock:
         now = time.monotonic()
         ver = enricher.change_count()
         c = _covers_cache

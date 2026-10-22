@@ -869,22 +869,33 @@ class Enricher:
                     "thumbyCover", "vnCover")
 
     def get_all_covers(self):
-        """What the grid needs to paint, and only that: ~0.33 MB gzipped against the light
-        map's 2.9. Small enough to fetch from the document head and have in hand before the
-        sheet itself lands, which is the difference between covers at 3.5s and covers at
-        under 1s. Projected off get_all_light so it shares that cache rather than opening a
-        second expensive scan of the same tables. Games with no art at all are omitted, not
-        sent empty — `k in ENRICH` is how the UI decides to stop shimmering a placeholder,
-        and a cover-less entry here would stop the shimmer with nothing to show for it."""
+        """Build artwork independently of the full metadata map.
+
+        Only the primary and five artwork sources are needed. Project primary art in
+        SQLite so large descriptions, relations and screenshots never enter Python.
+        Keep the same secondary extractors as get_all_light for fallback semantics.
+        The HTTP response cache owns freshness and coalesces concurrent cover builds.
+        """
         out = {}
-        for mk, d in self.get_all_light().items():
-            c = {f: d[f] for f in self._COVER_LIGHT if d.get(f)}
+        for mk, cover, url in self._light_rows(
+                "enrichment", "json_extract(data, '$.cover'), json_extract(data, '$.coverUrl')"):
+            c = {k: v for k, v in (("cover", cover), ("coverUrl", url)) if v}
             if c:
                 out[mk] = c
+        for src in ("arcadedb", "vndb", "vgchartz", "thumby", "gametdb"):
+            if src not in self._secondary:
+                continue
+            extract = _SECONDARY_LIGHT[src]
+            for mk, data in self._light_rows(src, "data"):
+                if data:
+                    c = {k: v for k, v in extract(json.loads(data)).items()
+                         if k in self._COVER_LIGHT and v}
+                    if c:
+                        out.setdefault(mk, {}).update(c)
         return out
 
     def get_all_light(self):
-        # Covers and full responses share this build, even on concurrent misses.
+        # Full-map readers share this build, even on concurrent misses.
         with self._all_light_lock:
             return self._build_all_light()
 

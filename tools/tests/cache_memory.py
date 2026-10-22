@@ -58,5 +58,36 @@ class LightCacheTest(unittest.TestCase):
         self.e._all_light_lock.release()
 
 
+class CoverProjectionTest(unittest.TestCase):
+    def test_matches_full_map_without_building_it(self):
+        sources = ("arcadedb", "vndb", "vgchartz", "thumby", "gametdb", "hltb")
+        e = Enricher(None, ":memory:", secondary=dict.fromkeys(sources))
+        self.addCleanup(e._db.close)
+        records = {
+            "enrichment": [{"cover": "igdb", "coverUrl": "fallback"}, {}, {"cover": None}],
+            "arcadedb": [{"cabinet": "cab", "flyer": "fly"}, {"cabinet": "", "flyer": "fly"}, {"titleScreen": "screen"}],
+            "vndb": [{"cover": "vn"}, {}, {"cover": "secondary-only"}],
+            "vgchartz": [{"boxart": "vgc"}],
+            "thumby": [{"cover": "thumb"}],
+            "gametdb": [{"cover": "gtdb"}],
+            "hltb": [{"main": 100}],
+        }
+        for table, rows in records.items():
+            for i, row in enumerate(rows):
+                e._db.execute(f"INSERT INTO {table}(match_key,status,data) VALUES(?,'matched',?)",
+                              (f"game-{i}", json.dumps(row)))
+        e._db.execute("INSERT INTO enrichment(match_key,status,data) VALUES('unmatched','no_match',NULL)")
+        full = e.get_all_light()
+        expected = {k: {f: d[f] for f in e._COVER_LIGHT if d.get(f)} for k, d in full.items()}
+        expected = {k: d for k, d in expected.items() if d}
+        # A full-map rebuild in another request must not block artwork.
+        with e._all_light_lock, patch.object(e, "get_all_light", side_effect=AssertionError("full map requested")):
+            self.assertEqual(e.get_all_covers(), expected)
+        e._db.execute("UPDATE enrichment SET data=? WHERE match_key='game-0'",
+                      (json.dumps({"cover": "edited"}),))
+        self.assertEqual(e.get_all_covers()["game-0"]["cover"], "edited")
+        self.assertEqual(full["game-0"]["cover"], "igdb")
+
+
 if __name__ == "__main__":
     unittest.main()

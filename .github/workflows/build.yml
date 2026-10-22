@@ -18,3 +18,15 @@ jobs:
           -e PYTHONPATH=/app/src
           -v "$PWD/tools/tests:/tests:ro"
           gamedex-ci /tests/epic_wishlist.py
+      - name: Startup response regression tests
+        run: >-
+          docker run --rm --entrypoint python
+          -e PYTHONPATH=/app/src
+          -v "$PWD/tools/tests:/tests:ro"
+          gamedex-ci /tests/startup_responses.py
+      - name: Enrichment cache regression tests
+        run: >-
+          docker run --rm --entrypoint python
+          -e PYTHONPATH=/app/src
+          -v "$PWD/tools/tests:/tests:ro"
+          gamedex-ci /tests/cache_memory.py
