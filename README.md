@@ -55,8 +55,8 @@ the browser, so they cannot appear here either.
 <sub><b>My Games</b> — the collection as a cover wall, faceted.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/shots/galaxy.jpg" alt="The galaxy view"><br>
-<sub><b>Galaxy</b> — 3,000 stars, 9,313 links, coloured by franchise.</sub></td>
+<td width="50%"><img src="docs/shots/shelf.jpg" alt="The shelf view"><br>
+<sub><b>Shelf</b> — browse the collection on a virtual shelf.</sub></td>
 <td width="50%"><img src="docs/shots/drawer.jpg" alt="The detail drawer"><br>
 <sub><b>Detail</b> — the click-through drawer with IGDB metadata.</sub></td>
 </tr>

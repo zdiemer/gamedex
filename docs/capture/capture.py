@@ -21,7 +21,7 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shots")
 os.makedirs(OUT, exist_ok=True)
 
 # The tabs live behind the hamburger; the home dashboard is its own view.
-TABS = ["games", "shelf", "galaxy", "recs"]
+TABS = ["games", "shelf", "recs"]
 
 
 def open_tab(page, tab):
@@ -66,16 +66,6 @@ with sync_playwright() as p:
         except Exception as e:
             print(f"{tab:<10} skipped ({type(e).__name__})")
             continue
-        if tab == "galaxy":
-            # 3,000 stars and 9,300 links: the force layout needs to converge
-            # before it is worth photographing.
-            try:
-                page.wait_for_function(
-                    "!document.body.innerText.includes('charting the galaxy')",
-                    timeout=120000)
-            except Exception:
-                print(f"{tab:<10} (still charting; shot anyway)")
-            page.wait_for_timeout(6000)
         settle(page)
         page.screenshot(path=os.path.join(OUT, f"{tab}.jpg"), type="jpeg", quality=84)
         print(f"{tab:<10} tab")

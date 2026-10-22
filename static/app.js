@@ -15,7 +15,7 @@ let lastGroupedCount = -1;      // so the grouped view repaints once enrichment 
    "events" is the preview board behind it (events.js). The event IDS are not listed here:
    each ev-*.js file pushes its own into this array when it registers, which happens after
    this file parses. Anything that copies this list at parse time gets an incomplete one. */
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "galaxy", "swipe", "spooktober", "event", "events"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "swipe", "spooktober", "event", "events"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
   $("#searchpage").hidden = mode !== "search";
@@ -25,7 +25,6 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#home").hidden = mode !== "home";
   $("#health").hidden = mode !== "health";
   $("#groups").hidden = mode !== "groups";
-  $("#galaxy").hidden = mode !== "galaxy";
   $("#shelfview").hidden = mode !== "shelf";
   $("#picross").hidden = mode !== "picross";
   $("#dexle").hidden = mode !== "dexle";
@@ -47,9 +46,6 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   // rather than in TAB_RESET.shelf because back/forward deliberately doesn't reset, and
   // the lock has to be released either way.
   if (mode !== "shelf" && typeof shelfTeardown === "function") shelfTeardown();
-  // The galaxy runs a rAF force-sim; stop it the moment we leave so it isn't
-  // ticking a canvas nobody's looking at (mirrors shelfTeardown above).
-  if (mode !== "galaxy" && typeof galaxyTeardown === "function") galaxyTeardown();
   $(".resultbar").hidden = special;
   $("#pager").style.display = special ? "none" : "";
   document.querySelector(".facets").style.display = special ? "none" : "";
@@ -88,7 +84,6 @@ function renderAll() {
   if (activeTab === "challenges") { setSpecialMode("challenges"); renderChallenges(); return; }
   if (activeTab === "health") { setSpecialMode("health"); renderHealth(); return; }
   if (activeTab === "groups") { setSpecialMode("groups"); renderGroups(); return; }
-  if (activeTab === "galaxy") { setSpecialMode("galaxy"); renderGalaxy(); return; }
   if (activeTab === "shelf") { setSpecialMode("shelf"); renderShelf(); return; }
   if (activeTab === "picross") { setSpecialMode("picross"); renderPicross(); return; }
   if (activeTab === "dexle") { setSpecialMode("dexle"); renderDexle(); return; }
@@ -299,10 +294,6 @@ function syncURL(push) {
   } else if (activeTab === "stats") {
     if (statsState.section && statsState.section !== "overview") p.set("s", statsState.section);
     if (statsState.year) p.set("sy", String(statsState.year));
-  } else if (activeTab === "galaxy") {
-    if (galaxyState.scope !== "owned") p.set("gxs", galaxyState.scope);
-    if (galaxyState.colorBy !== "franchise") p.set("gxc", galaxyState.colorBy);
-    if (galaxyState.showSolo) p.set("gxsolo", "1");
   } else if (tabState[activeTab]) {
     // Guarded on tabState, not on a list of tab names. Home, Reviews and Health
     // have no row state, and the old `!== "stats"` test let them fall in here and
@@ -334,7 +325,7 @@ function applyStateFromURL() {
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
-         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "swipe", "wishlist", "search", "galaxy",
+         "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "swipe", "wishlist", "search",
          "translations", "spooktober", "events"]
     .concat(typeof EVENT_TABS !== "undefined" ? EVENT_TABS : []).includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
@@ -369,13 +360,6 @@ function applyStateFromURL() {
       statsState.section = STATS_SECTIONS.some((x) => x.id === s) ? s : "overview";
       const sy = parseInt(p.get("sy"), 10);
       if (sy) statsState.year = sy;
-    }
-    if (tab === "galaxy") {
-      const sc = p.get("gxs");
-      galaxyState.scope = ["owned", "completed", "all"].includes(sc) ? sc : "owned";
-      const cb = p.get("gxc");
-      galaxyState.colorBy = ["franchise", "developer", "genre", "decade"].includes(cb) ? cb : "franchise";
-      galaxyState.showSolo = p.get("gxsolo") === "1";
     }
     if (tab === "groups") {
       // ?fr=<franchise> was the old Series link; it means the franchise axis.

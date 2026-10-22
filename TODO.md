@@ -59,7 +59,7 @@ codebase audit.
 
 ## Features
 
-### Fun / interactive (brainstorm 2026-07-24 — Galaxy and Dexle built; these are the runners-up)
+### Fun / interactive (brainstorm 2026-07-24 — Dexle built; these are the runners-up)
 
 - [x] **Dexle + Hi-Lo** — the daily guess-the-game shipped in 1.58.101 (five
       rotating modes: zoomed cover, blurred screenshot, redacted summary, censored

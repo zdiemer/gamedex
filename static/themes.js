@@ -1049,7 +1049,7 @@ const thmBreadth = (t) => evPool("thmall-" + t.id, (r) => t.match(r));
 
 /* ---- state ----------------------------------------------------------------
      open   which theme's page you were last on. A pref rather than a URL param, because
-            every other event keeps its dial in state too (Class of 'XX, the Galaxy scope)
+            every other event keeps its dial in state too (Class of 'XX, for example)
             and a theme is a place you return to, not a link you send.
      runs   one run per theme, at most. { n, slate, pinned, rolls, started, updated }
 
