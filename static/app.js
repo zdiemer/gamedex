@@ -535,7 +535,7 @@ function setFreshness() {
    The typeof guards are load order, not optionality: load() runs from chrome.js before
    challenges.js and catalogue.js have parsed (see the note at the top of chrome.js). */
 function resetDerived() {
-  cancelFacetWork();
+  // Active counting notices the new epoch/source and restarts on its next task.
   _facetResult = null;
   resetCollections();
   resetHealth();

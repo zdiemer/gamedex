@@ -342,6 +342,12 @@ function renderFacets() {
     .map(([key, values]) => [facetColByKey(key), new Set(values)])
     .filter(([col, values]) => col && values.size);
   const work = countFacetRows(rows, cols, selections, combineOn());
+  const enqueue = () => {
+    // Nested timers acquire a minimum delay. Hundreds of batches can otherwise
+    // take long enough for a background enrichment refresh to restart the count.
+    if (typeof scheduler !== "undefined" && scheduler.postTask) scheduler.postTask(step, { priority: "user-visible" });
+    else _facetTimer = setTimeout(step, 0);
+  };
   const step = () => {
     _facetTimer = null;
     if (!current()) { if (run === _facetRun) renderFacets(); return; }
@@ -351,9 +357,9 @@ function renderFacets() {
     if (next.done) {
       _facetResult = { rows, key, schema, counts: next.value };
       paint(next.value);
-    } else _facetTimer = setTimeout(step, 0);
+    } else enqueue();
   };
-  _facetTimer = setTimeout(step, 0);
+  enqueue();
 }
 
 // A closed mobile panel may become a visible desktop sidebar without a render.
