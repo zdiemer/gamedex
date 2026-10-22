@@ -6,6 +6,8 @@
   <title>Gamedex</title>
   <!-- Fonts are self-hosted (see style.css). No external requests: the PWA has to
        work offline, and every byte here ships in the image. -->
+  <link rel="preload" href="fonts/archivo-800.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/plex-sans.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="style.css" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0B0D12" media="(prefers-color-scheme: dark)" />
@@ -28,6 +30,9 @@
        Failures resolve to null rather than rejecting — boot has its own retry loop for
        /api/data, and a missing cover map is a slower page, not a broken one. -->
   <script>
+    if (!(new URLSearchParams(location.search).get("tab")) || new URLSearchParams(location.search).get("tab") === "home") {
+      document.documentElement.setAttribute("data-home-boot", "");
+    }
     window.__boot = {
       me: fetch("api/me").catch(() => null),
       data: fetch("api/data", { cache: "no-cache" }).catch(() => null),

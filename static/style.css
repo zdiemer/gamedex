@@ -7165,3 +7165,10 @@ html.thm-browser-open, body.thm-browser-open { overflow: hidden; overscroll-beha
   .sw-card, .sw-action { transition-duration: .01ms !important; }
   .sw-card.saving::after, .sw-loader { animation-duration: 2s; }
 }
+
+/* Home's first shell has no listing sidebar. Match it before deferred JS paints
+   the Home skeleton, instead of shifting the whole results area 292px left. */
+:root[data-home-boot] .facets,
+:root[data-home-boot] .resultbar,
+:root[data-home-boot] #pager { display: none; }
+#hChalSlot[aria-busy="true"] { min-height: 200px; }

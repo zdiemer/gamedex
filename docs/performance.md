@@ -128,9 +128,4 @@ PYTHONPATH=src python3 tools/tests/performance_middleware.py
 The tests cover bounded buffers, URL query removal, disabled/unsupported browser
 features, metric replacement, span cleanup, streaming responses, correlation,
 existing Server-Timing preservation, exception propagation and non-HTTP traffic.
-The offline smoke-check limitation is recorded in the audit; cached instrumentation
-assets alone do not establish that the entire application works offline.
-See [the page audit](performance-audit-2026-10-22.md) for the initial measurements
-and prioritized opportunities. The [live release audit](performance-live-audit-2026-10-22.md)
-adds public HTTPS measurements after deploying v1.87.0, including touch/worker
-Home repeats and backend/browser timing correlation.
+Keep run-specific measurements, traces and audit reports outside the repository.

@@ -17,6 +17,10 @@ const hCompleted = () => ((DATA.sheets.completed || {}).rows || []);
 const hOrders = () => ((DATA.sheets.onOrder || {}).rows || []);
 
 const byStatus = (s) => hRows().filter((r) => r.playingStatus === s);
+function homePlaying() {
+  const rows = byStatus("Playing");
+  return (typeof groupByGame === "function" ? groupByGame(rows) : rows).sort(byDateDesc("dateStarted"));
+}
 const hToday = () => new Date();
 
 /* Rotate the recommendation shelves daily: the same picks all day, a fresh set
@@ -166,19 +170,46 @@ function onThisDay() {
 }
 
 // The three challenges you're closest to finishing.
-/* Painted one frame LATE, on purpose. computeChallenge runs every challenge over the whole
-   collection, and this section — three cards, ~1.6 KB of HTML, below the fold — measured at
-   795ms of renderHome's ~1040ms. That was the single biggest thing standing between a cold
-   load and box art on screen. Home now renders an empty slot for it and fills it after the
-   browser has painted, so nothing above it waits on a number that nobody has scrolled to
-   yet. The handlers are wired here rather than in wireHome for the same reason: the buttons
-   do not exist when wireHome runs. */
-const CHAL_SLOT = `<div id="hChalSlot"></div>`;
-
-function fillChallengeSpotlight() {
+/* Below-fold summaries should not block the hero. Observe the slot, then compute
+   one challenge per task; a tab change, rerender or enrichment update cancels it. */
+const CHAL_SLOT = `<div id="hChalSlot" aria-busy="true"></div>`;
+let _homeChallengeObserver = null, _homeChallengeRun = 0;
+function cancelHomeChallenges() {
+  _homeChallengeRun++;
+  if (_homeChallengeObserver) _homeChallengeObserver.disconnect();
+  _homeChallengeObserver = null;
+}
+function scheduleHomeChallenges() {
+  cancelHomeChallenges();
   const slot = document.getElementById("hChalSlot");
-  if (!slot) return;
-  slot.innerHTML = challengeSpotlight();
+  if (!slot || activeTab !== "home") return;
+  const run = _homeChallengeRun;
+  const start = () => {
+    if (run !== _homeChallengeRun || activeTab !== "home" || !slot.isConnected) return;
+    if (_homeChallengeObserver) _homeChallengeObserver.disconnect();
+    _homeChallengeObserver = null;
+    fillChallengeSpotlight(slot, run);
+  };
+  if (!("IntersectionObserver" in window)) { start(); return; }
+  _homeChallengeObserver = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) start();
+  }, { root: window.matchMedia("(max-width: 760px)").matches ? null : document.getElementById("home"), rootMargin: "400px 0px" });
+  _homeChallengeObserver.observe(slot);
+}
+async function fillChallengeSpotlight(slot, run) {
+  if (typeof CHALLENGES === "undefined") return;
+  const epoch = _enrichEpoch, data = DATA, day = chToday();
+  const results = [];
+  for (const challenge of CHALLENGES) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    if (run !== _homeChallengeRun || !slot.isConnected || activeTab !== "home") return;
+    if (epoch !== _enrichEpoch || data !== DATA || day !== chToday()) {
+      scheduleHomeChallenges(); return;
+    }
+    results.push(computeChallenge(challenge));
+  }
+  slot.innerHTML = challengeSpotlight(results);
+  slot.removeAttribute("aria-busy");
   const all = slot.querySelector("#hChalAll");
   if (all) all.onclick = (e) => { e.stopPropagation(); goTab("challenges"); };
   slot.querySelectorAll(".h-chal[data-chal]").forEach((el) => {
@@ -186,9 +217,9 @@ function fillChallengeSpotlight() {
   });
 }
 
-function challengeSpotlight() {
+function challengeSpotlight(results) {
   if (typeof CHALLENGES === "undefined") return "";
-  const live = CHALLENGES.map(computeChallenge).filter((r) => r.total && r.remaining.size);
+  const live = results.filter((r) => r.total && r.remaining.size);
   if (!live.length) return "";
   live.sort((a, b) => a.remaining.size - b.remaining.size);
   const cards = live.slice(0, 3).map((r) => {
@@ -241,8 +272,7 @@ function patchHomeCovers() {
   if (host.querySelector(".h-hero-cover.ph")) {
     // Same grouping as renderHome, or the hero pager and dots count differently
     // here than they did at render time.
-    const grp = (rows) => (typeof groupByGame === "function" ? groupByGame(rows) : rows);
-    const playing = grp(byStatus("Playing")).sort(byDateDesc("dateStarted"));
+    const playing = homePlaying();
     const cur = playing.length ? playing[homeState.heroIdx % playing.length] : null;
     if (cur && coverSrc(ENRICH[cur._k], "cover_big")) renderHero(playing);
   }
@@ -266,8 +296,13 @@ function patchHomeCovers() {
    Split out of renderHome so RECS landing in its own fetch can rebuild THIS SHELF instead
    of the whole page — see patchHomeRecs. */
 function recShelfRows() {
+  const byKey = new Map();
+  for (const row of hRows()) {
+    const key = String(row._k || "");
+    if (!byKey.has(key)) byKey.set(key, row); // same first-match rule as find()
+  }
   return dailyStable((RECS || []).map((rec) => {
-    const row = hRows().find((r) => String(r._k || "") === rec.key);
+    const row = byKey.get(rec.key);
     return row ? { row, rec } : null;
   }).filter(Boolean), 18, "recs", (x) => x.rec.key);
 }
@@ -340,7 +375,7 @@ function renderHome() {
   // on purpose, like the timeline: finishing a game on two platforms is two
   // finishes, and this shelf is a record of finishes, not of games.
   const grp = (rows) => (typeof groupByGame === "function" ? groupByGame(rows) : rows);
-  const playing = grp(byStatus("Playing")).sort(byDateDesc("dateStarted"));
+  const playing = homePlaying();
   const upNext = grp(byStatus("Up Next"));
   const onHold = grp(byStatus("On Hold"));
   const added = grp(hRows().filter((r) => r.dateAdded && !r.completed)).sort(byDateDesc("dateAdded")).slice(0, 18);
@@ -405,8 +440,7 @@ function renderHome() {
     CHAL_SLOT;
 
   wireHome(host, playing);
-  // Two frames out: one to paint what we just wrote, one to run the expensive part.
-  requestAnimationFrame(() => requestAnimationFrame(fillChallengeSpotlight));
+  scheduleHomeChallenges();
   if (typeof wireDailyHome === "function") wireDailyHome();
   if (typeof dailyHomeInit === "function") dailyHomeInit();
 
@@ -472,28 +506,47 @@ function wireHeroBits(scope, playing) {
 
 // The hero wants a screenshot backdrop; fetch the detail for the shown game
 // once, then redraw only the hero with it.
+const _homeHeroRequests = new Map();
 function loadHeroShot(playing) {
   if (!playing.length || !ENRICH_ENABLED) return;
   const row = playing[homeState.heroIdx % playing.length];
-  if (!row._k || DETAIL[row._k]) return;
-  fetch("api/enrichment/detail?key=" + encodeURIComponent(row._k))
-    .then((r) => r.json())
+  if (!row._k || DETAIL[row._k] || _homeHeroRequests.has(row._k)) return;
+  const request = fetch("api/enrichment/detail?key=" + encodeURIComponent(row._k))
+    .then((r) => r.ok ? r.json() : null)
     .then((j) => {
-      if (j.status === "matched" && j.detail && (j.detail.screenshots || []).length) {
-        DETAIL[row._k] = j.detail;
-        if (activeTab === "home") renderHero(playing);
+      if (!j || j.status !== "matched" || !j.detail) return;
+      DETAIL[row._k] = j.detail;
+      const shot = (j.detail.screenshots || [])[0];
+      if (!shot) return;
+      const src = IMG(shot, "screenshot_big");
+      const image = new Image();
+      image.fetchPriority = "high";
+      image.src = src; // start the hero image even if boot is still awaiting covers
+      if (activeTab !== "home") return;
+      const current = homePlaying();
+      if (!current.length || current[homeState.heroIdx % current.length]._k !== row._k) return;
+      const hero = document.querySelector(".h-hero");
+      if (hero) {
+        // Only the backdrop uses DETAIL. Preserve focused controls and the carousel timer.
+        hero.style.setProperty("--shot", `url('${src}')`);
+        const bg = hero.querySelector(".h-hero-bg");
+        if (bg) bg.classList.add("on");
       }
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => _homeHeroRequests.delete(row._k));
+  _homeHeroRequests.set(row._k, request);
+  return request;
 }
 
 /* Card clicks + shelf arrows for a SCOPE — the whole page from wireHome, or one repainted
    section from patchHomeRecs. Both need exactly this and nothing else. */
 function wireHomeCards(scope) {
+  const sources = { games: hRows(), completed: hCompleted(), onOrder: hOrders() };
   // Any card / hero button opens the game.
   scope.querySelectorAll("[data-hk]").forEach((el) => {
     const k = el.dataset.hk, sheetKey = el.dataset.hs;
-    const src = sheetKey === "completed" ? hCompleted() : sheetKey === "onOrder" ? hOrders() : hRows();
+    const src = sources[sheetKey] || sources.games;
     // Prefer the row the shelf actually rendered (possibly a group row) over a
     // raw-sheet lookup by key — see the registry note in renderHome.
     const row = (homeState.cardRows && homeState.cardRows.get(sheetKey + ":" + k))

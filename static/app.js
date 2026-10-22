@@ -18,6 +18,7 @@ let lastGroupedCount = -1;      // so the grouped view repaints once enrichment 
 const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "swipe", "spooktober", "event", "events"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
+  if (mode !== "home" && typeof cancelHomeChallenges === "function") cancelHomeChallenges();
   $("#searchpage").hidden = mode !== "search";
   $("#stats").hidden = mode !== "stats";
   $("#picker").hidden = mode !== "pick";
@@ -52,6 +53,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   // Filters/sort don't apply on Stats/Pick — leave only "back to top".
   $("#fabFilters").hidden = special;
   $("#fabSort").hidden = special;
+  document.documentElement.removeAttribute("data-home-boot");
   if (special) {
     setSheet(false); setFacets(false);
     $("#tablewrap").hidden = true;
@@ -546,6 +548,7 @@ function resetDerived() {
   resetRelations();
   _completedFranchises = null;
   if (typeof chReset === "function") chReset();
+  if (typeof scheduleHomeChallenges === "function") scheduleHomeChallenges();
   if (typeof resetCatalogue === "function") resetCatalogue();
   for (const k of Object.keys(_cmdkFacets)) delete _cmdkFacets[k];
 }
@@ -586,6 +589,9 @@ async function load() {
   // are a fraction of the sheet's size, so by now this is almost always already resolved —
   // awaiting it costs nothing and buys a first paint with real box art on it instead of a
   // grid of placeholders that fill in seconds later.
+  // Start the hero detail/image while the cover map is still in flight.
+  const bootTab = new URLSearchParams(location.search).get("tab") || "home";
+  if (bootTab === "home" && typeof homePlaying === "function") loadHeroShot(homePlaying());
   await applyCoverMap();
   restoreFromURL();             // restore tab/filters/sort/view + any deep-linked game drawer
   /* The whole-library map (global covers + IGDB facets, polls during backfill) — started

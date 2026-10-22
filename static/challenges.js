@@ -57,7 +57,15 @@ const CH_TEXT_GENRES = new Set([
   "Survival Horror", "Text Adventure", "Trivia",
 ]);
 
-const chToday = () => new Date().toISOString().slice(0, 10);
+let _chTodayDay = null, _chTodayISO = null;
+const chToday = () => {
+  const day = Math.floor(Date.now() / 86400000);
+  if (day !== _chTodayDay) {
+    _chTodayDay = day;
+    _chTodayISO = new Date(day * 86400000).toISOString().slice(0, 10);
+  }
+  return _chTodayISO;
+};
 
 // ExcelFilter's unplayed-candidate pool: not low priority, playable, playable
 // in a language I read, unplayed, and actually out.
@@ -198,19 +206,20 @@ function chPlaytimeBucket(r) {
   return `${h} Hour${h !== 1 ? "s" : ""}`;
 }
 
-// Memoised by date string: toLocaleDateString is expensive enough to dominate the
-// whole Challenges page when it runs over every purchase date in the library, and
-// fourteen thousand dates only land in a couple of hundred distinct months.
+// Only month/year affect the label. Reuse one formatter and one entry per month,
+// rather than constructing locale formatters for every purchase/completion date.
 const _chMonths = new Map();
+const _chMonthFormat = new Intl.DateTimeFormat("en-US", { month: "long" });
 const chMonth = (iso) => {
   if (!iso) return null;
-  let m = _chMonths.get(iso);
-  if (m === undefined) {
-    const d = new Date(iso + "T00:00:00");
-    m = `${d.toLocaleDateString("en-US", { month: "long" })}, ${d.getFullYear()}`;
-    _chMonths.set(iso, m);
+  const key = String(iso).slice(0, 7);
+  if (!_chMonths.has(key)) {
+    const d = new Date(key + "-01T00:00:00");
+    // Preserve the existing "Month, Year" labels (stored custom bucket keys).
+    _chMonths.set(key, Number.isNaN(d.getTime()) ? "Invalid Date, NaN"
+      : `${_chMonthFormat.format(d)}, ${d.getFullYear()}`);
   }
-  return m;
+  return _chMonths.get(key);
 };
 
 function chRatingBucket(r) {
@@ -525,10 +534,13 @@ function chReplay(c, groupsOf, universeKeys, poolKeys) {
    does. Keyed on the challenge object and the enrich epoch; chReset (which runs on every
    data reload) drops it, and so does a custom challenge being edited. */
 let _chComputed = new WeakMap();
-let _chComputedEpoch = -1;
+let _chComputedEpoch = -1, _chComputedDay = null;
 
 function computeChallenge(c) {
-  if (_chComputedEpoch !== _enrichEpoch) { _chComputedEpoch = _enrichEpoch; _chComputed = new WeakMap(); }
+  const today = chToday();
+  if (_chComputedEpoch !== _enrichEpoch || _chComputedDay !== today) {
+    _chComputedEpoch = _enrichEpoch; _chComputedDay = today; _chComputed = new WeakMap();
+  }
   const hit = _chComputed.get(c);
   if (hit) return hit;
   const out = _computeChallenge(c);
