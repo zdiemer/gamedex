@@ -71,6 +71,7 @@ from game_meta import GameMetaService
 from igdb import IgdbClient
 from metacritic import MetacriticClient
 from poller import DataStore
+from performance import PerformanceMiddleware
 import recommend
 from cooptimus import CooptimusClient
 from guides import GuideClient
@@ -1490,6 +1491,8 @@ def api_shelf_original(key: str):
 # right trade for bodies built per request. The two hand-rolled byte caches above already
 # chose 6 for the same reason.
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+app.add_middleware(PerformanceMiddleware,
+                   slow_ms=float(os.environ.get("GAMEDEX_SLOW_REQUEST_MS", "1000")))
 
 
 @app.get("/api/health")

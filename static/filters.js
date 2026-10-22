@@ -224,6 +224,12 @@ const resetSearchCache = () => { _searchBase = { tab: null, q: null, rows: null 
 // Callers never mutate the result (sortRows copies), so the no-facet case can
 // hand back the memoised array as-is.
 function filterRows(skipKey) {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("filterRows", activeTab) : () => {};
+  try { return _filterRows(skipKey); } finally { end(); }
+}
+
+function _filterRows(skipKey) {
   const st = tabState[activeTab];
   const active = Object.keys(st.facets)
     .map((k) => [facetColByKey(k), st.facets[k]])
@@ -246,6 +252,12 @@ function setFacets(open) {
 }
 
 function renderFacets() {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("renderFacets", activeTab) : () => {};
+  try { return _renderFacets(); } finally { end(); }
+}
+
+function _renderFacets() {
   const st = tabState[activeTab];
   const host = $("#facets");
 

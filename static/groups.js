@@ -53,6 +53,12 @@ let _grIndex = {};
 const resetGroups = () => { _grIndex = {}; };
 
 function groupIndex(kind) {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("groupIndex", activeTab) : () => {};
+  try { return _groupIndex(kind); } finally { end(); }
+}
+
+function _groupIndex(kind) {
   if (_grIndex[kind]) return _grIndex[kind];
   const g = grouping(kind);
   if (!g) return [];

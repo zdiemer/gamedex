@@ -75,6 +75,13 @@ function recsGate(host = "recs") {
 }
 
 function renderAll() {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  if (perf) perf.page(activeTab);
+  const end = perf ? perf.start("renderAll", activeTab) : () => {};
+  try { return _renderAll(); } finally { end(); }
+}
+
+function _renderAll() {
   // Recomputed by the row branch at the bottom. Cleared here so that navigating away from
   // a held list — clicking Home while it waits — doesn't leave the flag set behind you.
   ENRICH_WAITING = false;

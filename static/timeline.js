@@ -158,6 +158,12 @@ function patchTimelineCovers() {
 
 // rows: already filtered by the Completed tab's search + facets.
 function renderTimeline(rows) {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("renderTimeline", activeTab) : () => {};
+  try { return _renderTimeline(rows); } finally { end(); }
+}
+
+function _renderTimeline(rows) {
   const host = $("#timeline");
   // Sort by the active sort (the grid dropdown drives it now), PURELY by the spec — no search
   // relevance reorder — so rows sharing a bucket stay contiguous. The buckets then fall out in

@@ -1,0 +1,1891 @@
+{
+  "base_commit": "022b830",
+  "note": "Single-run lab observations against live anonymous data; see accompanying Markdown for caveats.",
+  "runs": {
+    "mobile_navigation": {
+      "capturedAt": "2026-10-22T05:51:47.578Z",
+      "base": "http://localhost:18090/",
+      "browser": "149.0.7827.55",
+      "cpu": 4,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cold": false,
+      "settle": 3000,
+      "serviceWorkers": "blocked",
+      "network": "unthrottled",
+      "results": [
+        {
+          "tab": "home",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "home:renderAll": {
+              "calls": 1,
+              "total": 779,
+              "max": 779
+            }
+          },
+          "longTasks": 4,
+          "blockingMs": 2635,
+          "maxTaskMs": 1798,
+          "errors": []
+        },
+        {
+          "tab": "games",
+          "since": 6822.5,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 528,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "games:filterRows": {
+              "calls": 43,
+              "total": 4,
+              "max": 1
+            },
+            "games:sortRows": {
+              "calls": 1,
+              "total": 91,
+              "max": 91
+            },
+            "games:renderTable": {
+              "calls": 1,
+              "total": 470,
+              "max": 470
+            },
+            "games:renderAll": {
+              "calls": 1,
+              "total": 472,
+              "max": 472
+            },
+            "games:renderFacets": {
+              "calls": 1,
+              "total": 3885,
+              "max": 3885
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 4293,
+          "maxTaskMs": 3898,
+          "errors": []
+        },
+        {
+          "tab": "completed",
+          "since": 14839.300000190735,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1240,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "completed:filterRows": {
+              "calls": 21,
+              "total": 2,
+              "max": 1
+            },
+            "completed:sortRows": {
+              "calls": 1,
+              "total": 55,
+              "max": 55
+            },
+            "completed:renderTable": {
+              "calls": 1,
+              "total": 576,
+              "max": 576
+            },
+            "completed:renderAll": {
+              "calls": 1,
+              "total": 577,
+              "max": 577
+            },
+            "completed:renderFacets": {
+              "calls": 1,
+              "total": 175,
+              "max": 175
+            }
+          },
+          "longTasks": 5,
+          "blockingMs": 1360,
+          "maxTaskMs": 1181,
+          "errors": []
+        },
+        {
+          "tab": "onOrder",
+          "since": 19854.699999809265,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1240,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "onOrder:filterRows": {
+              "calls": 14,
+              "total": 1,
+              "max": 0
+            },
+            "onOrder:sortRows": {
+              "calls": 1,
+              "total": 6,
+              "max": 6
+            },
+            "onOrder:renderTable": {
+              "calls": 1,
+              "total": 129,
+              "max": 129
+            },
+            "onOrder:renderAll": {
+              "calls": 1,
+              "total": 130,
+              "max": 130
+            },
+            "onOrder:renderFacets": {
+              "calls": 1,
+              "total": 46,
+              "max": 46
+            }
+          },
+          "longTasks": 3,
+          "blockingMs": 197,
+          "maxTaskMs": 180,
+          "errors": []
+        },
+        {
+          "tab": "groups",
+          "since": 23757.900000095367,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "groups:renderAll": {
+              "calls": 1,
+              "total": 1877,
+              "max": 1877
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 1862,
+          "maxTaskMs": 1912,
+          "errors": []
+        },
+        {
+          "tab": "stats",
+          "since": 29122.400000095367,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "stats:renderAll": {
+              "calls": 1,
+              "total": 61,
+              "max": 61
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 38,
+          "maxTaskMs": 88,
+          "errors": []
+        },
+        {
+          "tab": "pick",
+          "since": 32639.300000190735,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "pick:renderAll": {
+              "calls": 1,
+              "total": 14,
+              "max": 14
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "recs",
+          "since": 36118.699999809265,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "recs:renderAll": {
+              "calls": 2,
+              "total": 994,
+              "max": 992
+            },
+            "recs:filterRows": {
+              "calls": 14,
+              "total": 2,
+              "max": 1
+            },
+            "recs:sortRows": {
+              "calls": 1,
+              "total": 57,
+              "max": 57
+            },
+            "recs:renderTable": {
+              "calls": 1,
+              "total": 102,
+              "max": 102
+            },
+            "recs:renderFacets": {
+              "calls": 1,
+              "total": 630,
+              "max": 630
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 1701,
+          "maxTaskMs": 1160,
+          "errors": []
+        },
+        {
+          "tab": "translations",
+          "since": 39674,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "translations:renderAll": {
+              "calls": 2,
+              "total": 73,
+              "max": 71
+            },
+            "translations:filterRows": {
+              "calls": 17,
+              "total": 5,
+              "max": 1
+            },
+            "translations:sortRows": {
+              "calls": 1,
+              "total": 19,
+              "max": 19
+            },
+            "translations:renderTable": {
+              "calls": 1,
+              "total": 67,
+              "max": 67
+            },
+            "translations:renderFacets": {
+              "calls": 1,
+              "total": 42,
+              "max": 42
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 31,
+          "maxTaskMs": 79,
+          "errors": []
+        },
+        {
+          "tab": "challenges",
+          "since": 43263.40000009537,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "challenges:renderAll": {
+              "calls": 1,
+              "total": 1316,
+              "max": 1316
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 1307,
+          "maxTaskMs": 1357,
+          "errors": []
+        },
+        {
+          "tab": "themes",
+          "since": 48093.199999809265,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "themes:renderAll": {
+              "calls": 1,
+              "total": 126,
+              "max": 126
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 110,
+          "maxTaskMs": 160,
+          "errors": []
+        },
+        {
+          "tab": "shelf",
+          "since": 51719.09999990463,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "shelf:renderAll": {
+              "calls": 1,
+              "total": 4,
+              "max": 4
+            },
+            "shelf:renderShelf": {
+              "calls": 1,
+              "total": 1458,
+              "max": 1458
+            },
+            "shelf:renderFacets": {
+              "calls": 1,
+              "total": 11,
+              "max": 11
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 77,
+          "maxTaskMs": 91,
+          "errors": []
+        },
+        {
+          "tab": "daily",
+          "since": 55247.800000190735,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "daily:renderAll": {
+              "calls": 1,
+              "total": 5,
+              "max": 5
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "dexle",
+          "since": 58346.5,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "dexle:renderAll": {
+              "calls": 1,
+              "total": 8,
+              "max": 8
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "hilo",
+          "since": 61435.199999809265,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.06797231222344512,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "hilo:renderAll": {
+              "calls": 1,
+              "total": 8,
+              "max": 8
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "picross",
+          "since": 64576.59999990463,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.06797231222344512,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "picross:renderAll": {
+              "calls": 1,
+              "total": 7,
+              "max": 7
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "search",
+          "since": 67664.69999980927,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.06797231222344512,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "search:renderAll": {
+              "calls": 1,
+              "total": 3,
+              "max": 3
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 423,
+          "maxTaskMs": 473,
+          "errors": []
+        },
+        {
+          "tab": "spooktober",
+          "since": 70829,
+          "vitals": {
+            "TTFB": {
+              "value": 4.599999904632568,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 136,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 5648,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.06797231222344512,
+              "rating": "good"
+            },
+            "INP": {
+              "value": 1920,
+              "rating": "poor"
+            }
+          },
+          "spans": {
+            "spooktober:renderAll": {
+              "calls": 1,
+              "total": 8,
+              "max": 8
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        }
+      ]
+    },
+    "mobile_cold": {
+      "capturedAt": "2026-10-22T05:53:32.103Z",
+      "base": "http://localhost:18090/",
+      "browser": "149.0.7827.55",
+      "cpu": 4,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cold": true,
+      "settle": 3000,
+      "serviceWorkers": "blocked",
+      "network": "unthrottled",
+      "results": [
+        {
+          "tab": "home",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 116,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 3628,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.01628445003481503,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "home:renderAll": {
+              "calls": 1,
+              "total": 699,
+              "max": 699
+            }
+          },
+          "longTasks": 5,
+          "blockingMs": 2507,
+          "maxTaskMs": 1778,
+          "errors": []
+        },
+        {
+          "tab": "games",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 0.9000000953674316,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 88,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 88,
+              "rating": "good"
+            },
+            "CLS": {
+              "value": 0.08114594725969133,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "games:filterRows": {
+              "calls": 85,
+              "total": 7,
+              "max": 1
+            },
+            "games:sortRows": {
+              "calls": 1,
+              "total": 64,
+              "max": 64
+            },
+            "games:renderTable": {
+              "calls": 1,
+              "total": 228,
+              "max": 228
+            },
+            "games:renderAll": {
+              "calls": 1,
+              "total": 230,
+              "max": 230
+            },
+            "games:renderFacets": {
+              "calls": 2,
+              "total": 3237,
+              "max": 2169
+            }
+          },
+          "longTasks": 4,
+          "blockingMs": 3411,
+          "maxTaskMs": 2179,
+          "errors": []
+        },
+        {
+          "tab": "completed",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 0.9000000953674316,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 124,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2828,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 9.137145881603554e-05,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "completed:filterRows": {
+              "calls": 41,
+              "total": 1,
+              "max": 0
+            },
+            "completed:sortRows": {
+              "calls": 1,
+              "total": 55,
+              "max": 55
+            },
+            "completed:renderTimeline": {
+              "calls": 1,
+              "total": 481,
+              "max": 481
+            },
+            "completed:renderTable": {
+              "calls": 1,
+              "total": 539,
+              "max": 539
+            },
+            "completed:renderAll": {
+              "calls": 1,
+              "total": 541,
+              "max": 541
+            },
+            "completed:renderFacets": {
+              "calls": 2,
+              "total": 411,
+              "max": 355
+            }
+          },
+          "longTasks": 6,
+          "blockingMs": 1583,
+          "maxTaskMs": 641,
+          "errors": []
+        },
+        {
+          "tab": "groups",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 0.8999996185302734,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 128,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 1260,
+              "rating": "good"
+            },
+            "CLS": {
+              "value": 0,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "groups:groupIndex": {
+              "calls": 8,
+              "total": 630,
+              "max": 175
+            },
+            "groups:renderAll": {
+              "calls": 1,
+              "total": 643,
+              "max": 643
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 660,
+          "maxTaskMs": 684,
+          "errors": []
+        },
+        {
+          "tab": "challenges",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 1,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 92,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2424,
+              "rating": "good"
+            },
+            "CLS": {
+              "value": 0.08114594725969133,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "challenges:renderAll": {
+              "calls": 1,
+              "total": 1800,
+              "max": 1800
+            }
+          },
+          "longTasks": 3,
+          "blockingMs": 2777,
+          "maxTaskMs": 1842,
+          "errors": []
+        },
+        {
+          "tab": "recs",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 0.9000000953674316,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 128,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 4144,
+              "rating": "poor"
+            },
+            "CLS": {
+              "value": 0.00033475991450879704,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "recs:renderAll": {
+              "calls": 3,
+              "total": 881,
+              "max": 878
+            },
+            "recs:renderFacets": {
+              "calls": 2,
+              "total": 661,
+              "max": 659
+            },
+            "recs:recsRanked": {
+              "calls": 1,
+              "total": 485,
+              "max": 485
+            },
+            "recs:filterRows": {
+              "calls": 14,
+              "total": 1,
+              "max": 1
+            },
+            "recs:sortRows": {
+              "calls": 1,
+              "total": 19,
+              "max": 19
+            },
+            "recs:renderTable": {
+              "calls": 1,
+              "total": 53,
+              "max": 53
+            }
+          },
+          "longTasks": 4,
+          "blockingMs": 1607,
+          "maxTaskMs": 1028,
+          "errors": []
+        }
+      ]
+    },
+    "desktop_navigation": {
+      "capturedAt": "2026-10-22T05:55:31.728Z",
+      "base": "http://localhost:18090/",
+      "browser": "149.0.7827.55",
+      "cpu": 1,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "cold": false,
+      "settle": 3000,
+      "serviceWorkers": "blocked",
+      "network": "unthrottled",
+      "results": [
+        {
+          "tab": "home",
+          "since": 0,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "home:renderAll": {
+              "calls": 1,
+              "total": 172,
+              "max": 172
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 508,
+          "maxTaskMs": 428,
+          "errors": []
+        },
+        {
+          "tab": "games",
+          "since": 5008.599999904633,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 120,
+              "rating": "good"
+            }
+          },
+          "spans": {
+            "games:filterRows": {
+              "calls": 43,
+              "total": 1,
+              "max": 0
+            },
+            "games:sortRows": {
+              "calls": 1,
+              "total": 23,
+              "max": 23
+            },
+            "games:renderTable": {
+              "calls": 1,
+              "total": 97,
+              "max": 97
+            },
+            "games:renderAll": {
+              "calls": 1,
+              "total": 98,
+              "max": 98
+            },
+            "games:renderFacets": {
+              "calls": 1,
+              "total": 823,
+              "max": 823
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 829,
+          "maxTaskMs": 827,
+          "errors": []
+        },
+        {
+          "tab": "completed",
+          "since": 9321.900000095367,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 272,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "completed:filterRows": {
+              "calls": 21,
+              "total": 0,
+              "max": 0
+            },
+            "completed:sortRows": {
+              "calls": 1,
+              "total": 12,
+              "max": 12
+            },
+            "completed:renderTimeline": {
+              "calls": 1,
+              "total": 193,
+              "max": 193
+            },
+            "completed:renderTable": {
+              "calls": 1,
+              "total": 206,
+              "max": 206
+            },
+            "completed:renderAll": {
+              "calls": 1,
+              "total": 206,
+              "max": 206
+            },
+            "completed:renderFacets": {
+              "calls": 1,
+              "total": 29,
+              "max": 29
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 204,
+          "maxTaskMs": 254,
+          "errors": []
+        },
+        {
+          "tab": "onOrder",
+          "since": 13059.799999713898,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 272,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "onOrder:filterRows": {
+              "calls": 14,
+              "total": 0,
+              "max": 0
+            },
+            "onOrder:sortRows": {
+              "calls": 1,
+              "total": 1,
+              "max": 1
+            },
+            "onOrder:renderTable": {
+              "calls": 1,
+              "total": 26,
+              "max": 26
+            },
+            "onOrder:renderAll": {
+              "calls": 1,
+              "total": 26,
+              "max": 26
+            },
+            "onOrder:renderFacets": {
+              "calls": 1,
+              "total": 7,
+              "max": 7
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "groups",
+          "since": 16510.299999713898,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "groups:groupIndex": {
+              "calls": 8,
+              "total": 346,
+              "max": 86
+            },
+            "groups:renderAll": {
+              "calls": 1,
+              "total": 350,
+              "max": 350
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 306,
+          "maxTaskMs": 356,
+          "errors": []
+        },
+        {
+          "tab": "stats",
+          "since": 20338.799999713898,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "stats:renderAll": {
+              "calls": 1,
+              "total": 12,
+              "max": 12
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "pick",
+          "since": 23788.400000095367,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "pick:renderAll": {
+              "calls": 1,
+              "total": 3,
+              "max": 3
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "recs",
+          "since": 27222.599999904633,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "recs:renderAll": {
+              "calls": 2,
+              "total": 230,
+              "max": 230
+            },
+            "recs:recsRanked": {
+              "calls": 1,
+              "total": 195,
+              "max": 195
+            },
+            "recs:filterRows": {
+              "calls": 14,
+              "total": 0,
+              "max": 0
+            },
+            "recs:sortRows": {
+              "calls": 1,
+              "total": 14,
+              "max": 14
+            },
+            "recs:renderTable": {
+              "calls": 1,
+              "total": 24,
+              "max": 24
+            },
+            "recs:renderFacets": {
+              "calls": 1,
+              "total": 131,
+              "max": 131
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 325,
+          "maxTaskMs": 291,
+          "errors": []
+        },
+        {
+          "tab": "translations",
+          "since": 30676.199999809265,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "translations:renderAll": {
+              "calls": 2,
+              "total": 16,
+              "max": 15
+            },
+            "translations:filterRows": {
+              "calls": 17,
+              "total": 2,
+              "max": 1
+            },
+            "translations:sortRows": {
+              "calls": 1,
+              "total": 5,
+              "max": 5
+            },
+            "translations:renderTable": {
+              "calls": 1,
+              "total": 14,
+              "max": 14
+            },
+            "translations:renderFacets": {
+              "calls": 1,
+              "total": 9,
+              "max": 9
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "challenges",
+          "since": 34161.2999997139,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "challenges:renderAll": {
+              "calls": 1,
+              "total": 308,
+              "max": 308
+            }
+          },
+          "longTasks": 1,
+          "blockingMs": 266,
+          "maxTaskMs": 316,
+          "errors": []
+        },
+        {
+          "tab": "themes",
+          "since": 37941.40000009537,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "themes:renderAll": {
+              "calls": 1,
+              "total": 24,
+              "max": 24
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "shelf",
+          "since": 41441.90000009537,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "shelf:renderAll": {
+              "calls": 1,
+              "total": 1,
+              "max": 1
+            },
+            "shelf:renderShelf": {
+              "calls": 1,
+              "total": 2016,
+              "max": 2016
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "daily",
+          "since": 44928.09999990463,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "daily:renderAll": {
+              "calls": 1,
+              "total": 1,
+              "max": 1
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "dexle",
+          "since": 47979.7999997139,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "dexle:renderAll": {
+              "calls": 1,
+              "total": 2,
+              "max": 2
+            },
+            "dexle:renderFacets": {
+              "calls": 1,
+              "total": 1,
+              "max": 1
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "hilo",
+          "since": 51027.7999997139,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "hilo:renderAll": {
+              "calls": 1,
+              "total": 1,
+              "max": 1
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "picross",
+          "since": 54078.09999990463,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "picross:renderAll": {
+              "calls": 1,
+              "total": 2,
+              "max": 2
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        },
+        {
+          "tab": "search",
+          "since": 57113,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "search:renderAll": {
+              "calls": 1,
+              "total": 1,
+              "max": 1
+            },
+            "search:renderSearchResults": {
+              "calls": 1,
+              "total": 130,
+              "max": 130
+            }
+          },
+          "longTasks": 2,
+          "blockingMs": 104,
+          "maxTaskMs": 129,
+          "errors": []
+        },
+        {
+          "tab": "spooktober",
+          "since": 60180.40000009537,
+          "vitals": {
+            "TTFB": {
+              "value": 1.0999999046325684,
+              "rating": "good"
+            },
+            "FCP": {
+              "value": 44,
+              "rating": "good"
+            },
+            "LCP": {
+              "value": 2548,
+              "rating": "needs-improvement"
+            },
+            "CLS": {
+              "value": 0.19356390603566528,
+              "rating": "needs-improvement"
+            },
+            "INP": {
+              "value": 368,
+              "rating": "needs-improvement"
+            }
+          },
+          "spans": {
+            "spooktober:renderAll": {
+              "calls": 1,
+              "total": 2,
+              "max": 2
+            }
+          },
+          "longTasks": 0,
+          "blockingMs": 0,
+          "maxTaskMs": 0,
+          "errors": []
+        }
+      ]
+    }
+  }
+}

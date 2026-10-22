@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.86.6";
+const VERSION = "v1.87.0";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -20,6 +20,7 @@ const DATA = `gamedex-data-${VERSION}`;
 // not a load order); index.html owns that.
 const SHELL_URLS = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest", "./icon.svg",
+  "./performance.js", "./vendor/web-vitals-5.1.0.iife.js",
   "./app.js", "./attract.js", "./catalogue.js", "./challenges.js", "./charts.js", "./chrome.js",
   "./collections.js", "./core.js", "./data.js", "./dexle.js", "./drawer.js", "./edits.js", "./enrich.js",
   "./extras.js", "./filters.js", "./gamepad.js", "./groups.js", "./health.js", "./hero.js",

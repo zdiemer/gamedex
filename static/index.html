@@ -402,6 +402,8 @@
        these are in the order they had inside app.js, so the handful of statements that
        run at parse time still find what they need. chrome.js ends by calling load(),
        which is why it comes last of this group. -->
+  <script defer src="vendor/web-vitals-5.1.0.iife.js"></script>
+  <script defer src="performance.js"></script>
   <script defer src="core.js"></script>
   <script defer src="enrich.js"></script>
   <script defer src="mine.js"></script>

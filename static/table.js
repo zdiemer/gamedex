@@ -77,6 +77,12 @@ function effectiveSort() {
 // default) sort, so typing a few letters narrows the list in place rather than shuffling it.
 // Relevance ranking is the site search's job (search.js / searchScore), not this box's.
 function sortRows(rows) {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("sortRows", activeTab) : () => {};
+  try { return _sortRows(rows); } finally { end(); }
+}
+
+function _sortRows(rows) {
   const spec = effectiveSort();
   return [...rows].sort((a, b) => {
     for (const s of spec) { const c = cmpBy(a, b, s); if (c) return c; }
@@ -112,6 +118,12 @@ function onHeaderClick(col, shift) {
 
 // Dispatcher: sort → paginate → render as table or grid.
 function renderTable(rows) {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("renderTable", activeTab) : () => {};
+  try { return _renderTable(rows); } finally { end(); }
+}
+
+function _renderTable(rows) {
   const st = tabState[activeTab];
   // Combining: rows sharing an IGDB id ARE the same game, so collapse them before
   // sorting and paging — otherwise the counts and page numbers would lie.

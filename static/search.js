@@ -47,6 +47,12 @@ function renderSearch() {
 }
 
 function renderSearchResults(q) {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("renderSearchResults", activeTab) : () => {};
+  try { return _renderSearchResults(q); } finally { end(); }
+}
+
+function _renderSearchResults(q) {
   const host = $("#searchpage");
   if ((GLOBAL_SEARCH.q || "").trim() !== q) return;   // superseded by a newer keystroke
   const terms = foldText(q).split(/\s+/).filter(Boolean);

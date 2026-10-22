@@ -484,3 +484,12 @@ resolved every title.
 
 Regression tests (with application dependencies installed):
 `PYTHONPATH=src python tools/tests/epic_wishlist.py`.
+
+### Performance metrics and tracing
+
+Browser Web Vitals are available locally through `gamedexPerf.snapshot()`;
+open `/?perf=1` for detailed render and resource traces. API responses include
+`Server-Timing` and request IDs for slow-request log correlation. See
+[performance diagnostics](docs/performance.md) for export, configuration and
+the repeatable browser audit, and the [initial page audit](docs/performance-audit-2026-10-22.md)
+for measured bottlenecks and recommended speed improvements.

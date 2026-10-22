@@ -176,6 +176,12 @@ async function loadShelf() {
 }
 
 async function renderShelf() {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("renderShelf", activeTab) : () => {};
+  try { return await _renderShelf(); } finally { end(); }
+}
+
+async function _renderShelf() {
   const host = document.getElementById("shelfview");
   if (!SHELF.loaded) {
     host.innerHTML = `<div class="sh-empty">Reading the shelf…</div>`;

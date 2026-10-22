@@ -73,6 +73,12 @@ function recsBecause() {
    pool shrinks as enrichment matches more of the sheet (a game you own drops out). */
 let _recsRanked = null, _recsEpoch = -1;
 function recsRanked() {
+  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
+  const end = perf ? perf.start("recsRanked", activeTab) : () => {};
+  try { return _recsRankedImpl(); } finally { end(); }
+}
+
+function _recsRankedImpl() {
   if (_recsRanked && _recsEpoch === _enrichEpoch) return _recsRanked;
   const because = recsBecause();
   const out = [];
