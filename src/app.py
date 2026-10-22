@@ -23,6 +23,7 @@ import os
 import re
 import time
 import threading
+import zlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -1507,76 +1508,77 @@ def health():
     )
 
 
-# The sheet, cached ALREADY GZIPPED — the same medicine /api/enrichment/all got, for the
-# same disease. Returning the dict made FastAPI run jsonable_encoder over ~16.7k rows,
-# json.dumps them, then gzip 8 MB, on EVERY page load: measured at a flat ~1.05s of server
-# CPU per request against the live pod, for a body that is a pure function of the sheet.
-#
-# Keyed like the neighbour: an exact version when nothing is moving, plus a TTL so a live
-# backfill (which ticks change_count on every match) re-serialises at most once every 20s
-# instead of once per request. The volatile part is only meta.enrichment/meta.catalogue —
-# the stats — and the client has a live source for those in /api/enrichment/stats, so
-# serving them up to 20s stale here costs nothing.
-_data_cache: dict = {"ver": None, "edver": None, "ts": 0.0, "body": None, "etag": None}
+# Rows change with the workbook or staged edits; metadata changes during backfills.
+# Cache the compressed row prefix and a copyable compressor state. Finish a copy
+# with current metadata, producing one standard gzip stream without recompressing rows.
+_data_cache: dict = {"ver": None, "rows_key": None, "ts": 0.0, "body": None, "etag": None}
+_data_rows_cache: dict = {"key": None, "body": None, "compressor": None}
+_data_response_lock = threading.Lock()
 _DATA_TTL = 20.0
 
 
 @app.get("/api/data")
 def data(request: Request):
-    snap = store.snapshot()
-    if not store.ready:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "loading", "meta": snap["meta"], "sheets": {}},
+    with _data_response_lock:
+        snap = store.snapshot()
+        if not store.ready:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "loading", "meta": snap["meta"], "sheets": {}},
+            )
+        ver = (
+            snap["meta"].get("sourceHash"),
+            enricher.change_count() if enricher else 0,
+            catalogue.generation if catalogue else None,
         )
-    ver = (
-        snap["meta"].get("sourceHash"),
-        enricher.change_count() if enricher else 0,
-        catalogue.generation if catalogue else None,
-    )
-    # A staged write changes the rows without touching the workbook, so it gets its
-    # own leg of the key — and it bypasses the TTL rather than riding it. The TTL is
-    # there to stop a running backfill re-serialising 8 MB per request; an edit you
-    # just made is not a statistic, and waiting 20s to see it is a bug.
-    edver = EDITS.version()
-    now = time.monotonic()
-    c = _data_cache
-    if (c["body"] is not None and c["edver"] == edver
-            and (c["ver"] == ver or now - c["ts"] < _DATA_TTL)):
-        body, etag = c["body"], c["etag"]
-    else:
-        meta = dict(snap["meta"])
-        meta["enrichment"] = enricher.stats() if enricher else {"enabled": False}
-        # The catalogue's generation rides along here so the client can ask for
-        # /api/catalogue?g=<generation> — a URL it can cache for a day (see api_catalogue).
-        # It cannot learn the generation from the catalogue endpoint itself without
-        # defeating the point of the cache key.
-        meta["catalogue"] = catalogue.stats() if catalogue else {"enabled": False}
-        # Rides along so the nav badge knows its unseen-alert count without a second
-        # request — same reasoning as the catalogue generation above.
-        meta["translations"] = translations.stats() if translations else {"enabled": False}
-        # How much of what you're looking at hasn't been keyed into the spreadsheet
-        # yet — the badge on the pending-edits screen, and the public's "0".
-        meta["edits"] = EDITS.counts()
-        payload = {"meta": meta, "sheets": snap["data"]}
-        # ensure_ascii/allow_nan match what FastAPI's own JSONResponse did, so the bytes
-        # are the ones this endpoint has always sent (the rows are already plain
-        # str/float/bool/int by the time parse.py is done — jsonable_encoder was a
-        # pass-through here, and `default` is only a safety net for a future type).
-        body = gzip.compress(json.dumps(payload, separators=(",", ":"), ensure_ascii=False,
-                                        allow_nan=False, default=str).encode("utf-8"), 6)
-        etag = '"%s-%s-%s"' % (ver[0] or "0", ver[1], edver)
-        c.update(ver=ver, edver=edver, ts=now, body=body, etag=etag)
-    # A repeat visit re-downloaded all 1.2 MB of this for want of five lines. The sheet
-    # changes when the spreadsheet does — minutes to days apart — so the common case is a
-    # 304 and no body at all.
-    if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    # Pre-gzipped: declare it so the gzip middleware leaves it alone and the browser inflates
-    # it transparently (every browser sends Accept-Encoding: gzip).
-    return Response(content=body, media_type="application/json",
-                    headers={"Content-Encoding": "gzip", "Content-Length": str(len(body)),
-                             "ETag": etag, "Cache-Control": "no-cache"})
+        # A staged write changes the rows without touching the workbook, so it gets its
+        # own leg of the key — and it bypasses the TTL rather than riding it. The TTL is
+        # there to stop a running backfill re-serialising 8 MB per request; an edit you
+        # just made is not a statistic, and waiting 20s to see it is a bug.
+        edver = EDITS.version()
+        rows_key = (ver[0], edver, id(snap["data"]))
+        now = time.monotonic()
+        c = _data_cache
+        if (c["body"] is not None and c["rows_key"] == rows_key
+                and (c["ver"] == ver or now - c["ts"] < _DATA_TTL)):
+            body, etag = c["body"], c["etag"]
+        else:
+            meta = dict(snap["meta"])
+            meta["enrichment"] = enricher.stats() if enricher else {"enabled": False}
+            # The catalogue's generation rides along here so the client can ask for
+            # /api/catalogue?g=<generation> — a URL it can cache for a day (see api_catalogue).
+            # It cannot learn the generation from the catalogue endpoint itself without
+            # defeating the point of the cache key.
+            meta["catalogue"] = catalogue.stats() if catalogue else {"enabled": False}
+            # Rides along so the nav badge knows its unseen-alert count without a second
+            # request — same reasoning as the catalogue generation above.
+            meta["translations"] = translations.stats() if translations else {"enabled": False}
+            # How much of what you're looking at hasn't been keyed into the spreadsheet
+            # yet — the badge on the pending-edits screen, and the public's "0".
+            meta["edits"] = EDITS.counts()
+            if _data_rows_cache["key"] != rows_key:
+                rows_json = json.dumps(snap["data"], separators=(",", ":"), ensure_ascii=False,
+                                       allow_nan=False, default=str).encode("utf-8")
+                compressor = zlib.compressobj(level=6, wbits=31)
+                rows_body = compressor.compress(b'{"sheets":' + rows_json)
+                _data_rows_cache.update(key=rows_key, body=rows_body, compressor=compressor)
+            meta_json = json.dumps(meta, separators=(",", ":"), ensure_ascii=False,
+                                   allow_nan=False, default=str).encode("utf-8")
+            compressor = _data_rows_cache["compressor"].copy()
+            body = (_data_rows_cache["body"]
+                    + compressor.compress(b',"meta":' + meta_json + b'}') + compressor.flush())
+            etag = '"d-%s"' % hashlib.sha256(body).hexdigest()
+            c.update(ver=ver, rows_key=rows_key, ts=now, body=body, etag=etag)
+        # A repeat visit re-downloaded all 1.2 MB of this for want of five lines. The sheet
+        # changes when the spreadsheet does — minutes to days apart — so the common case is a
+        # 304 and no body at all.
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+        # Pre-gzipped: declare it so the gzip middleware leaves it alone and the browser inflates
+        # it transparently (every browser sends Accept-Encoding: gzip).
+        return Response(content=body, media_type="application/json",
+                        headers={"Content-Encoding": "gzip", "Content-Length": str(len(body)),
+                                 "ETag": etag, "Cache-Control": "no-cache"})
 
 
 class KeyBatch(BaseModel):
@@ -1872,11 +1874,9 @@ def api_translations_seen(user: dict = Depends(require_admin)):
     return {"ok": True}
 
 
-# Built once per crawl generation and held as serialized bytes: interning 34k games is
-# ~1.1s of work whose answer is identical for every visitor until the next crawl, so
-# re-doing it per request would be both slow and pointless. ~6.3MB of JSON held resident;
-# GZipMiddleware takes it to ~2.2MB on the way out.
+# Serialize and compress once per crawl generation, including concurrent cold requests.
 _cat_payload = {"gen": None, "body": None}
+_cat_response_lock = threading.Lock()
 
 
 @app.get("/api/catalogue")
@@ -1903,20 +1903,23 @@ def api_catalogue(response: Response):
     """
     if not catalogue:
         return {"enabled": False, "games": []}
-    gen = catalogue.generation
-    if not gen:
-        # Mid-first-crawl. Not an error — say so, and don't cache the emptiness.
-        response.headers["Cache-Control"] = "no-store"
-        return {"enabled": True, "ready": False, "games": []}
-    if _cat_payload["gen"] != gen:
-        _cat_payload.update(
-            {"gen": gen, "body": json.dumps(catalogue.payload(), separators=(",", ":"))})
-    return Response(
-        content=_cat_payload["body"],
-        media_type="application/json",
-        # Immutable per generation: the URL carries it, so a new crawl is a new URL.
-        headers={"Cache-Control": "public, max-age=86400, immutable"},
-    )
+    with _cat_response_lock:
+        gen = catalogue.generation
+        if not gen:
+            # Mid-first-crawl. Not an error — say so, and don't cache the emptiness.
+            response.headers["Cache-Control"] = "no-store"
+            return {"enabled": True, "ready": False, "games": []}
+        if _cat_payload["gen"] != gen:
+            _cat_payload.update(
+                {"gen": gen, "body": gzip.compress(
+                    json.dumps(catalogue.payload(), separators=(",", ":")).encode("utf-8"), 6, mtime=0)})
+        return Response(
+            content=_cat_payload["body"],
+            media_type="application/json",
+            # Immutable per generation: the URL carries it, so a new crawl is a new URL.
+            headers={"Cache-Control": "public, max-age=86400, immutable",
+                     "Content-Encoding": "gzip", "Content-Length": str(len(_cat_payload["body"]))},
+        )
 
 
 @app.get("/api/value-history")
