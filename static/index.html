@@ -37,6 +37,11 @@
       me: fetch("api/me").catch(() => null),
       data: fetch("api/data", { cache: "no-cache" }).catch(() => null),
       covers: fetch("api/covers").catch(() => null),
+      // Ranking needs the full map. Overlap it with script/data loading on this page;
+      // other pages keep their visible artwork ahead of this background download.
+      enrichment: new URLSearchParams(location.search).get("tab") === "recs"
+        ? fetch("api/enrichment/all", { priority: "low", cache: "no-cache" }).catch(() => null)
+        : null,
     };
   </script>
 
