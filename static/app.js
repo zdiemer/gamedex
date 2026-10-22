@@ -122,12 +122,8 @@ function _renderAll() {
   // A filter that reads enrichment cannot be answered before enrichment is here.
   ENRICH_WAITING = ENRICH_ENABLED && !ENRICH_READY && stateNeedsEnrichment();
   if (ENRICH_WAITING) { renderEnrichWait(); return; }
-  // The LIST first, the sidebar a frame later. Profiled: the first render of the Games tab
-  // spent 615ms of its 1453ms in renderFacets — 42 columns recounted across 14,842 rows —
-  // while renderTable, the thing you actually came to look at, takes 69ms. The counts are
-  // memoised now (filters.js) so this is a first-visit cost, but it was 615ms spent ahead of
-  // the content every time the collection or the filters moved. Nothing in renderTable reads
-  // what renderFacets writes, so the order was never load-bearing.
+  // Paint the list first. Facet counting yields between batches and waits until
+  // the filter panel is visible on mobile (filters.js).
   //
   // Completed shows every finished game individually — each episode of a series
   // stands on its own rather than collapsing into one collection card. (The
@@ -137,11 +133,10 @@ function _renderAll() {
   scheduleFacets();
 }
 
-/* One pending sidebar build at a time. render() can fire several times in a burst (a tab
-   switch that also restores a filter, an enrichment poll landing mid-paint); without this
-   each one would queue its own 600ms recount and they would run back to back. */
+/* Coalesce bursts of renders and invalidate an in-progress recount immediately. */
 let _facetFrame = null;
 function scheduleFacets() {
+  cancelFacetWork();
   if (_facetFrame !== null) cancelAnimationFrame(_facetFrame);
   _facetFrame = requestAnimationFrame(() => {
     _facetFrame = requestAnimationFrame(() => {
@@ -540,6 +535,8 @@ function setFreshness() {
    The typeof guards are load order, not optionality: load() runs from chrome.js before
    challenges.js and catalogue.js have parsed (see the note at the top of chrome.js). */
 function resetDerived() {
+  cancelFacetWork();
+  _facetResult = null;
   resetCollections();
   resetHealth();
   resetSearchCache();

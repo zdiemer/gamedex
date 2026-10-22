@@ -530,7 +530,7 @@ function fitWeights(train, enc) {
    the only games whose answer we know. The restricted scope simply isn't allowed to look
    at the sheet columns while doing it, which is exactly the handicap it will run under
    when it meets a game that has none. */
-function fitScope(done, scope) {
+function evaluateScope(done, scope) {
   const errs = [], errsMean = [], errsCritic = [];
   for (let f = 0; f < CV_FOLDS; f++) {
     const train = done.filter((_, i) => i % CV_FOLDS !== f);
@@ -547,10 +547,22 @@ function fitScope(done, scope) {
     }
   }
 
-  // The live model: trained on everything you have rated.
+  const mae = avg(errs), maeMean = avg(errsMean), maeCritic = avg(errsCritic);
+  return {
+    mae, maeMean, maeCritic,
+    liftVsMean: 1 - mae / (maeMean || 1),
+    liftVsCritic: 1 - mae / (maeCritic || 1),
+    tested: errs.length,
+    folds: CV_FOLDS,
+  };
+}
+
+function fitScope(done, scope) {
+  // Counts need predictions, not five-fold accuracy reporting. Keep evaluation
+  // lazy until a caller actually displays the model's accuracy.
   const enc = fitEncoder(done, scope);
   const predict = fitWeights(done, enc);
-  const mae = avg(errs), maeMean = avg(errsMean), maeCritic = avg(errsCritic);
+  let evaluation = null;
 
   return {
     global: enc.global,
@@ -563,12 +575,9 @@ function fitScope(done, scope) {
     scope,
     critic: { slope: enc.critic.slope, intercept: enc.critic.intercept, est: enc.critic.est, n: enc.critic.n },
     players: { est: enc.players.est, n: enc.players.n },
-    eval: {
-      mae, maeMean, maeCritic,
-      liftVsMean: 1 - mae / (maeMean || 1),
-      liftVsCritic: 1 - mae / (maeCritic || 1),
-      tested: errs.length,
-      folds: CV_FOLDS,
+    get eval() {
+      if (!evaluation) evaluation = evaluateScope(done, scope);
+      return evaluation;
     },
   };
 }
@@ -578,14 +587,14 @@ function tasteModel() {
   const done = ((DATA.sheets.completed || {}).rows || []).filter((r) => r.rating != null);
   if (done.length < MIN_HISTORY) return (_model = { ok: false, n: done.length });
 
-  // The full scope is spread at the top level so every existing caller (the Stats panel's
-  // homework, the drawer's error bar) keeps reading `m.eval` / `m.n` and means the same
+  // Copy full-scope descriptors (including the lazy eval getter), so the Stats panel's
+  // homework and the drawer's error bar keep reading `m.eval` / `m.n` and mean the same
   // thing by it. `m.igdb` is the restricted twin — a different model with a different,
   // worse, and correct error bar, and the one a recommendation must quote.
   const full = fitScope(done, SCOPES.full);
   let igdb = null;
-  return (_model = {
-    ok: true, n: done.length, ...full,
+  return (_model = Object.defineProperties({
+    ok: true, n: done.length,
     /* Lazily fitted, and it has to be. The restricted twin is another five folds of
        cross-validation — measured at +181ms, 68% on top of the full model — and
        tasteModel() sits behind the grid's Predicted facet, so it runs for anyone who
@@ -596,7 +605,7 @@ function tasteModel() {
       if (!igdb) igdb = fitScope(done, SCOPES.igdb);
       return igdb;
     },
-  });
+  }, Object.getOwnPropertyDescriptors(full)));
 }
 
 // ---- prediction ------------------------------------------------------------

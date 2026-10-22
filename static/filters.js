@@ -126,10 +126,6 @@ function rowHaystack(row, cols) {
 // sheet-only and immutable) and re-derived when enrichment lands, since ENRICH fills in
 // after the first paint. Cheap: unmatched rows return "" without touching the vocab.
 let _enrichEpoch = 0;
-// Per-column facet counts, keyed on the identity of the row array they were counted from.
-let _facetCounts = new Map();
-let _facetCountEpoch = -1;
-let _facetCountGrouping = null;
 const _genreHay = new WeakMap();
 const EMPTY_HAY = { s: "", words: [] };
 function searchGenreHay(row) {
@@ -249,15 +245,121 @@ function setFacets(open) {
   $("#facets").classList.toggle("open", open);
   $("#facetBackdrop").hidden = !open;
   syncScrollLock();
+  if (open) renderFacets();
+  else if (matchMedia("(max-width: 760px)").matches) cancelFacetWork();
+}
+
+let _facetRun = 0;
+let _facetTimer = null;
+let _facetResult = null;
+function cancelFacetWork() {
+  ++_facetRun;
+  clearTimeout(_facetTimer);
+  _facetTimer = null;
+  $("#facets").removeAttribute("aria-busy");
+}
+function facetsVisible() {
+  const host = $("#facets");
+  return !!tabState[activeTab] && host.style.display !== "none"
+    && (!matchMedia("(max-width: 760px)").matches || host.classList.contains("open"));
+}
+function facetStateKey() {
+  const st = tabState[activeTab];
+  return JSON.stringify([activeTab, st.search, combineOn(), _enrichEpoch,
+    Object.entries(st.facets).map(([key, values]) => [key, [...values].sort()])]);
+}
+
+// Test each selected facet once per row. A row contributes to every column if it
+// passes all selections, or only to its failed column if it fails exactly one.
+// This preserves "all OTHER facets" counts without rescanning for every column.
+function* countFacetRows(rows, cols, selections, grouping) {
+  const result = new Map(cols.map(col => [col.key, new Map()]));
+  const seen = new Map(cols.map(col => [col.key, new Map()]));
+  let deadline = performance.now() + 8;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    let failed = null, failures = 0;
+    for (const [col, selected] of selections) {
+      if (!matchesFacet(row, col, selected)) { failed = col.key; if (++failures > 1) break; }
+    }
+    if (failures < 2) {
+      // Row identity keeps unmatched copies distinct from numeric IGDB IDs.
+      const gid = grouping ? (cachedGameId(row) || row) : null;
+      for (const col of cols) {
+        if (failures && col.key !== failed) continue;
+        const counts = result.get(col.key), groups = seen.get(col.key);
+        for (const it of rowFacetItems(row, col)) {
+          if (grouping) {
+            let ids = groups.get(it.key);
+            if (!ids) groups.set(it.key, ids = new Set());
+            if (ids.has(gid)) continue;
+            ids.add(gid);
+          }
+          counts.set(it.key, (counts.get(it.key) || 0) + 1);
+        }
+      }
+    }
+    if (i % 8 === 0 && performance.now() >= deadline) {
+      yield;
+      deadline = performance.now() + 8;
+    }
+  }
+  return result;
 }
 
 function renderFacets() {
-  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
-  const end = perf ? perf.start("renderFacets", activeTab) : () => {};
-  try { return _renderFacets(); } finally { end(); }
+  cancelFacetWork();
+  if (!facetsVisible()) return;
+  const run = _facetRun, key = facetStateKey(), rows = searchedRows();
+  const source = sheet().rows, cols = facetCols();
+  const schema = cols.map(col => col.key).join("|");
+  const host = $("#facets");
+  const current = () => run === _facetRun && facetsVisible()
+    && key === facetStateKey() && source === sheet().rows;
+  const paint = counts => {
+    if (!current()) return;
+    const end = typeof gamedexPerf !== "undefined" ? gamedexPerf.start("renderFacets", activeTab) : () => {};
+    try { _renderFacets(counts, cols); } finally { host.removeAttribute("aria-busy"); end(); }
+  };
+  if (_facetResult && _facetResult.rows === rows && _facetResult.key === key && _facetResult.schema === schema) {
+    paint(_facetResult.counts);
+    return;
+  }
+  host.setAttribute("aria-busy", "true");
+  // On a new tab keep the close control available while the first counts load.
+  if (host.dataset.tab !== activeTab) {
+    host.replaceChildren();
+    const close = document.createElement("button");
+    close.className = "facet-close";
+    close.textContent = "✕ Close filters";
+    close.onclick = () => setFacets(false);
+    const status = document.createElement("p");
+    status.setAttribute("role", "status");
+    status.textContent = "Loading filters…";
+    host.append(close, status);
+  }
+  const selections = Object.entries(tabState[activeTab].facets)
+    .map(([key, values]) => [facetColByKey(key), new Set(values)])
+    .filter(([col, values]) => col && values.size);
+  const work = countFacetRows(rows, cols, selections, combineOn());
+  const step = () => {
+    _facetTimer = null;
+    if (!current()) { if (run === _facetRun) renderFacets(); return; }
+    const end = typeof gamedexPerf !== "undefined" ? gamedexPerf.start("facetCountChunk", activeTab) : () => {};
+    let next;
+    try { next = work.next(); } finally { end(); }
+    if (next.done) {
+      _facetResult = { rows, key, schema, counts: next.value };
+      paint(next.value);
+    } else _facetTimer = setTimeout(step, 0);
+  };
+  _facetTimer = setTimeout(step, 0);
 }
 
-function _renderFacets() {
+// A closed mobile panel may become a visible desktop sidebar without a render.
+matchMedia("(max-width: 760px)").addEventListener("change", () => renderFacets());
+
+function _renderFacets(allCounts, cols) {
   const st = tabState[activeTab];
   const host = $("#facets");
 
@@ -286,6 +388,11 @@ function _renderFacets() {
     if (opt && grp) refocus = { key: grp.dataset.key, val: opt.dataset.val };
   }
 
+  let searchFocus = null;
+  if (ae && ae.classList.contains("facet-filter") && host.contains(ae)) {
+    searchFocus = { key: ae.closest(".facet").dataset.key, start: ae.selectionStart, end: ae.selectionEnd };
+  }
+
   host.innerHTML = "";
 
   const closeBtn = document.createElement("button");   // mobile-only (CSS)
@@ -294,45 +401,8 @@ function _renderFacets() {
   closeBtn.onclick = () => setFacets(false);
   host.appendChild(closeBtn);
 
-  // With combine on, the list shows grouped cards — so the sidebar must count
-  // grouped cards too, or "PC 450" sits beside a list of 380. A value counts
-  // once per GROUP (any copy carrying it), not once per copy; ungrouped rows
-  // (no IGDB match) each count as their own group, same as the listing shows them.
-  const grouping = typeof combineOn === "function" && combineOn()
-    && typeof cachedGameId === "function";
-  /* The counting below is the sidebar's whole cost — ~445ms of the 485ms this function used
-     to take, because it walks every row of every column and, with combine on, builds a
-     gid|value string per item to dedupe on (~565k of them). None of it can change unless the
-     pool a column counts against changes, so key the result on exactly that: the array
-     filterRows(col.key) handed back (identity — filterRows already caches), plus the epoch
-     and the grouping flag. A tab switch, an enrichment poll or a repaint with nothing
-     touched now reuses the maps instead of rebuilding them. */
-  const cacheOk = _facetCountEpoch === _enrichEpoch && _facetCountGrouping === grouping;
-  if (!cacheOk) { _facetCounts = new Map(); _facetCountEpoch = _enrichEpoch; _facetCountGrouping = grouping; }
-  for (const col of facetCols()) {
-    // Count values across rows filtered by the OTHER facets + search.
-    const base = filterRows(col.key);
-    const cached = _facetCounts.get(col.key);
-    let counts;
-    if (cached && cached.base === base) {
-      counts = new Map(cached.counts);      // copied: the selected-values pass below mutates it
-    } else {
-      counts = new Map();
-      const seenGV = grouping ? new Set() : null;
-      let solo = 0;
-      for (const row of base) {
-        const gid = grouping ? (cachedGameId(row) || `r${solo++}`) : null;
-        for (const it of rowFacetItems(row, col)) {
-          if (grouping) {
-            const gv = gid + "|" + it.key;
-            if (seenGV.has(gv)) continue;
-            seenGV.add(gv);
-          }
-          counts.set(it.key, (counts.get(it.key) || 0) + 1);
-        }
-      }
-      _facetCounts.set(col.key, { base, counts: new Map(counts) });
-    }
+  for (const col of cols) {
+    const counts = new Map(allCounts.get(col.key));
     const selected = st.facets[col.key] || new Set();
     // Always include selected values even if their current count is 0.
     for (const s of selected) if (!counts.has(s)) counts.set(s, 0);
@@ -372,7 +442,7 @@ function _renderFacets() {
     head.innerHTML = `<span>${escapeHtml(col.label)}${nSel}</span><span class="chev">▼</span>`;
     head.onclick = () => {
       st.expanded[col.key] = st.expanded[col.key] === false;
-      renderFacets();
+      group.classList.toggle("collapsed", st.expanded[col.key] === false);
     };
     group.appendChild(head);
 
@@ -484,4 +554,13 @@ function _renderFacets() {
     const input = opt && opt.querySelector("input");
     if (input) input.focus({ preventScroll: true });
   }
+  if (searchFocus) {
+    const group = [...host.querySelectorAll(".facet")].find(el => el.dataset.key === searchFocus.key);
+    const input = group && group.querySelector(".facet-filter");
+    if (input) {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(searchFocus.start, searchFocus.end);
+    }
+  }
+
 }
