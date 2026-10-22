@@ -14,6 +14,8 @@ const tabs = (process.env.AUDIT_TABS || 'home,games,completed,onOrder,groups,sta
 const cpu = Number(process.env.AUDIT_CPU || 4);
 const settle = Number(process.env.AUDIT_SETTLE_MS || 3000);
 const cold = process.env.AUDIT_COLD === '1';
+const touch = process.env.AUDIT_TOUCH === '1';
+const serviceWorkers = process.env.AUDIT_SERVICE_WORKERS === 'allow' ? 'allow' : 'block';
 const trace = process.env.AUDIT_TRACE === '1';
 const profile = process.env.AUDIT_PROFILE === '1';
 const [width, height] = (process.env.AUDIT_VIEWPORT || '390x844').split('x').map(Number);
@@ -22,10 +24,32 @@ const [width, height] = (process.env.AUDIT_VIEWPORT || '390x844').split('x').map
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const results = [];
-  let context, page, cdp, errors;
+  let context, page, cdp, errors, failures;
   async function open(tab) {
-    context = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block' });
-    page = await context.newPage(); errors = [];
+    context = await browser.newContext({ viewport: { width, height }, isMobile: touch, hasTouch: touch, serviceWorkers });
+    page = await context.newPage(); errors = []; failures = {};
+    const failure = (url, status) => {
+      const parsed = new URL(url);
+      const key = `${status} ${parsed.origin === new URL(base).origin ? '' : parsed.origin}${parsed.pathname}`;
+      failures[key] = (failures[key] || 0) + 1;
+    };
+    page.on('response', r => { if (r.status() >= 400) failure(r.url(), r.status()); });
+    page.on('requestfailed', r => failure(r.url(), 'failed'));
+    await page.addInitScript(() => {
+      const label = el => el ? `${(el.tagName || el.nodeName || 'unknown').toLowerCase()}${el.id ? '#' + el.id : ''}${typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).filter(Boolean).join('.') : ''}` : null;
+      window.__auditPaint = { lcp: null, shifts: [] };
+      for (const type of ['largest-contentful-paint', 'layout-shift']) {
+        try { new PerformanceObserver(list => {
+          for (const e of list.getEntries()) {
+            if (type === 'largest-contentful-paint') window.__auditPaint.lcp = { startTime: e.startTime, size: e.size, element: label(e.element) };
+            else if (!e.hadRecentInput) {
+              window.__auditPaint.shifts.push({ startTime: e.startTime, value: e.value, elements: (e.sources || []).map(s => label(s.node)) });
+              if (window.__auditPaint.shifts.length > 50) window.__auditPaint.shifts.shift();
+            }
+          }
+        }).observe({ type, buffered: true }); } catch {}
+      }
+    });
     page.on('pageerror', e => errors.push(e.message));
     cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: cpu });
@@ -85,7 +109,7 @@ const [width, height] = (process.env.AUDIT_VIEWPORT || '390x844').split('x').map
       for (const s of Object.values(byName)) { s.total = Math.round(s.total); s.max = Math.round(s.max); }
       const result = { tab, since, vitals: snapshot.vitals, spans: byName, longTasks: tasks.length,
         blockingMs: Math.round(tasks.reduce((n, t) => n + Math.max(0, t.duration - 50), 0)),
-        maxTaskMs: Math.round(Math.max(0, ...tasks.map(t => t.duration))), errors: [...errors] };
+        maxTaskMs: Math.round(Math.max(0, ...tasks.map(t => t.duration))), errors: [...errors], failures: { ...failures }, paint: await page.evaluate(() => window.__auditPaint) };
       results.push(result);
       fs.writeFileSync(path.join(out, `${tab}.json`), JSON.stringify(snapshot, null, 2));
       console.log(JSON.stringify(result));
@@ -94,7 +118,7 @@ const [width, height] = (process.env.AUDIT_VIEWPORT || '390x844').split('x').map
     }
     if (!cold) await close('navigation');
     fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify({ capturedAt: new Date().toISOString(),
-      base, browser: browser.version(), cpu, viewport: { width, height }, cold, settle,
-      serviceWorkers: 'blocked', network: 'unthrottled', results }, null, 2));
+      base, browser: browser.version(), cpu, viewport: { width, height }, touch, cold, settle,
+      serviceWorkers, network: 'unthrottled', results }, null, 2));
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

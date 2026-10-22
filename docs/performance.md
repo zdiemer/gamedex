@@ -105,7 +105,12 @@ AUDIT_CPU=1 AUDIT_VIEWPORT=1440x900 \
   AUDIT_OUT=/tmp/gamedex-desktop node tools/performance/audit.cjs
 ```
 
-Other options: `AUDIT_URL`, `AUDIT_SETTLE_MS`, `GAMEDEX_SHOT_HOME`. Chrome traces
+Other options: `AUDIT_URL`, `AUDIT_SETTLE_MS`, `GAMEDEX_SHOT_HOME`.
+Use `AUDIT_TOUCH=1` for mobile/touch emulation and
+`AUDIT_SERVICE_WORKERS=allow` to exercise normal service-worker installation and
+caching. The default remains a desktop browser at a phone-sized viewport, with
+workers blocked for easier comparison. The audit also records query-free failed
+request counts and LCP/layout-shift node labels (no element text). Chrome traces
 and CPU profiles are raw DevTools artifacts and include full request URLs;
 the application snapshot is the smaller URL-sanitized report. For release
 comparisons use the same machine, data, viewport, CPU/network settings and cache
@@ -126,4 +131,6 @@ existing Server-Timing preservation, exception propagation and non-HTTP traffic.
 The offline smoke-check limitation is recorded in the audit; cached instrumentation
 assets alone do not establish that the entire application works offline.
 See [the page audit](performance-audit-2026-10-22.md) for the initial measurements
-and prioritized opportunities.
+and prioritized opportunities. The [live release audit](performance-live-audit-2026-10-22.md)
+adds public HTTPS measurements after deploying v1.87.0, including touch/worker
+Home repeats and backend/browser timing correlation.

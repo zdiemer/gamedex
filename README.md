@@ -492,4 +492,6 @@ open `/?perf=1` for detailed render and resource traces. API responses include
 `Server-Timing` and request IDs for slow-request log correlation. See
 [performance diagnostics](docs/performance.md) for export, configuration and
 the repeatable browser audit, and the [initial page audit](docs/performance-audit-2026-10-22.md)
-for measured bottlenecks and recommended speed improvements.
+for measured bottlenecks and recommended speed improvements. The
+[live v1.87.0 audit](docs/performance-live-audit-2026-10-22.md) verifies these findings
+on the deployed public site and ranks the next fixes.
