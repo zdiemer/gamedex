@@ -2951,6 +2951,11 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   .tl-rail { top: 72px; right: 4px; max-width: 58px; max-height: calc(100vh - 96px); padding: 4px 3px; }
   .tl-rail-chip { min-width: 0; max-width: 50px; padding: 5px 6px; font-size: 10px; }
 }
+.tl-batch:not(.loaded) { min-height: calc(var(--tl-count) * 150px); }
+.tl-load { margin: 12px 0; padding: 10px 14px; font: inherit; color: var(--accent); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; }
+@media (max-width: 760px) {
+  .tl-batch:not(.loaded) { min-height: calc(var(--tl-count) * 260px); }
+}
 .tl-entry {
   display: grid; grid-template-columns: 76px 20px 1fr; align-items: start;
   opacity: 0; transform: translateY(12px);

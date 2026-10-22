@@ -12,10 +12,20 @@
    Loaded after app.js; shares its globals (DATA, ENRICH, openDrawer, …). */
 
 const TL_SNIPPET = 190;                     // characters of review shown inline
-// Held so the next render can drop them. renderTimeline runs on every keystroke of the
-// inline filter, and each run was leaving behind a scroll-spy observing ~40 year headers
-// and a fade-in observer over up to 1,700 entries, all still firing against detached nodes.
-let _tlSpy = null, _tlFade = null;
+const TL_BATCH = 12;
+let _tlSpy = null, _tlLoad = null, _tlRun = 0;
+function disposeTimeline() {
+  ++_tlRun;
+  _tlSpy?.disconnect();
+  _tlLoad?.disconnect();
+  _tlSpy = _tlLoad = null;
+}
+const _tlDateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" });
+function tlDate(iso) {
+  if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const date = new Date(iso + "T00:00:00");
+  return Number.isNaN(date.getTime()) ? "Invalid Date" : _tlDateFormat.format(date);
+}
 // Set by timelineJumpToDay() and consumed by the next render — the entries don't exist
 // until renderTimeline has painted, so the request has to outlive the navigation.
 let _tlPendingDay = null;
@@ -122,7 +132,7 @@ function tlEntry(r, i) {
       data-td="${escapeHtml(String(r.date || "").slice(0, 10))}"
       style="--d:${Math.min(i, 12) * 45}ms">
     <div class="tl-when">
-      <b>${escapeHtml(r.date ? fmtDate(r.date).replace(/,? \d{4}$/, "") : "—")}</b>
+      <b>${escapeHtml(r.date ? tlDate(r.date).replace(/,? \d{4}$/, "") : "—")}</b>
     </div>
     <div class="tl-dot"></div>
     <div class="tl-card">
@@ -164,7 +174,10 @@ function renderTimeline(rows) {
 }
 
 function _renderTimeline(rows) {
+  disposeTimeline();
+  const run = _tlRun;
   const host = $("#timeline");
+  host.onclick = null;
   // Sort by the active sort (the grid dropdown drives it now), PURELY by the spec — no search
   // relevance reorder — so rows sharing a bucket stay contiguous. The buckets then fall out in
   // the sort's own order (dates newest-first, titles A→Z, ratings high→low …).
@@ -185,14 +198,22 @@ function _renderTimeline(rows) {
     else buckets.push({ label, games: [r] });
   }
 
-  let i = 0;
+  const batches = [];
   const flat = [];             // index -> row, for the click handler
   const sections = buckets.map((bk, bi) => {
     const games = bk.games;
     const hours = games.reduce((a, g) => a + (g.playTime || 0), 0);
     const rated = games.filter((g) => g.rating != null);
     const avg = rated.length ? rated.reduce((a, g) => a + g.rating, 0) / rated.length : null;
-    const entries = games.map((r) => { flat.push(r); return tlEntry(r, i++); }).join("");
+    const chunks = [];
+    for (let offset = 0; offset < games.length; offset += TL_BATCH) {
+      const start = flat.length, batch = games.slice(offset, offset + TL_BATCH);
+      flat.push(...batch);
+      const id = batches.length;
+      batches.push({ start, rows: batch, loaded: false });
+      chunks.push(`<div class="tl-batch" data-tbatch="${id}" style="--tl-count:${batch.length}"><button class="tl-load" type="button">Load ${batch.length} entries</button></div>`);
+    }
+    const entries = chunks.join("");
     return `<section class="tl-year" id="tlb-${bi}">
       <div class="tl-year-head">
         <h2>${escapeHtml(String(bk.label))}</h2>
@@ -214,11 +235,60 @@ function _renderTimeline(rows) {
 
   host.innerHTML = rail + `<div class="tl">${sections}</div>`;
 
+  const current = () => run === _tlRun && !host.hidden && activeTab === "completed";
+  const loadBatch = id => {
+    const batch = batches[id];
+    if (!current() || !batch || batch.loaded) return;
+    const slot = host.querySelector(`[data-tbatch="${id}"]`);
+    if (!slot) return;
+    const focused = slot.contains(document.activeElement);
+    const end = typeof gamedexPerf !== "undefined" ? gamedexPerf.start("timelineBatch", activeTab) : () => {};
+    try {
+      batch.loaded = true;
+      _tlLoad?.unobserve(slot);
+      slot.innerHTML = batch.rows.map((r, i) => tlEntry(r, batch.start + i)).join("");
+      slot.classList.add("loaded");
+      slot.querySelectorAll(".tl-entry").forEach(el => el.classList.add("in"));
+      // The load button also gives keyboard/screen-reader users a way forward.
+      if (focused) slot.querySelector(".tl-title")?.focus({ preventScroll: true });
+    } finally { end(); }
+  };
+  loadBatch(0);
+  // Queue one batch per task, including when a large scroll reveals several.
+  // A newer filter/render invalidates every queued callback before it can write.
+  const queued = new Set();
+  let scheduled = false;
+  const schedule = () => {
+    if (scheduled || !queued.size) return;
+    scheduled = true;
+    const step = () => {
+      scheduled = false;
+      if (!current()) return;
+      const id = queued.values().next().value;
+      queued.delete(id);
+      loadBatch(id);
+      schedule();
+    };
+    if (typeof scheduler !== "undefined" && scheduler.postTask) scheduler.postTask(step);
+    else setTimeout(step, 0);
+  };
+  if (typeof IntersectionObserver !== "undefined") {
+    _tlLoad = new IntersectionObserver(entries => {
+      if (!current()) return;
+      for (const entry of entries) if (entry.isIntersecting) queued.add(+entry.target.dataset.tbatch);
+      schedule();
+    }, { rootMargin: "600px 0px" });
+    host.querySelectorAll(".tl-batch:not(.loaded)").forEach(slot => _tlLoad.observe(slot));
+  }
+
+
   // Delegate clicks on the host instead of wiring each entry: covers fill in AFTER first paint
   // (patchTimelineCovers swaps placeholder→img), and a freshly-created img never had a per-node
   // handler — so those covers went dead. Delegation keys off the .tl-open class, which the
   // patched img keeps, so every cover stays clickable no matter when it arrived.
   host.onclick = (e) => {
+    const load = e.target.closest(".tl-load");
+    if (load) { loadBatch(+load.closest(".tl-batch").dataset.tbatch); return; }
     const openEl = e.target.closest(".tl-open");
     if (openEl) {
       const entry = openEl.closest(".tl-entry");
@@ -238,18 +308,18 @@ function _renderTimeline(rows) {
     }
   };
 
-  // A jump-nav should JUMP. Smooth-scrolling the PAGE across a 1,700-entry list is brutal on
-  // mobile: there's no virtualization there (the timeline is overflow:visible, every entry in the
-  // DOM), so Safari renders every entry it animates past AND the active-section observer fires a
-  // rail scroll the whole way down — together enough to crash the tab. Instant scroll paints only
-  // the destination. Desktop is its own scroll container and coped, so it keeps the smooth glide.
-  const mobile = window.matchMedia("(max-width: 760px)").matches;
-  const jump = mobile ? "auto" : "smooth";
+  // Jump directly to the hydrated destination. Animating through estimated
+  // offscreen heights would load every batch along the way.
+  const jump = "auto";
   // Click a rail chip → scroll to that section (scroll-margin clears the sticky heading).
   const chips = [...host.querySelectorAll(".tl-rail-chip")];
   chips.forEach((chip) => chip.onclick = () => {
     const sec = host.querySelector(`#tlb-${chip.dataset.tlb}`);
-    if (sec) sec.scrollIntoView({ behavior: jump, block: "start" });
+    if (sec) {
+      const slot = sec.querySelector(".tl-batch");
+      if (slot) loadBatch(+slot.dataset.tbatch);
+      sec.scrollIntoView({ behavior: jump, block: "start" });
+    }
   });
   // A day asked for from elsewhere (the Stats heatmap) — scroll to it once the entries exist.
   // Same instant-on-mobile rule as the rail: this is the 1,700-entry list the comment above
@@ -257,10 +327,12 @@ function _renderTimeline(rows) {
   if (_tlPendingDay) {
     const iso = _tlPendingDay;
     _tlPendingDay = null;
+    const index = flat.findIndex(row => String(row.date || "").slice(0, 10) === iso);
+    const batch = batches.findIndex(b => index >= b.start && index < b.start + b.rows.length);
+    if (batch >= 0) loadBatch(batch);
     const hit = host.querySelector(`.tl-entry[data-td="${CSS.escape(iso)}"]`);
     if (hit) {
-      // The fade-in observer below starts entries at opacity 0; mark it visible up front so
-      // the thing you jumped to is actually on screen when you land.
+      // Highlight the destination after its batch has been rendered.
       hit.classList.add("in", "tl-hit");
       hit.scrollIntoView({ behavior: jump, block: "center" });
       setTimeout(() => hit.classList.remove("tl-hit"), 2200);
@@ -278,6 +350,7 @@ function _renderTimeline(rows) {
     let activeBi = -1;
     _tlSpy?.disconnect();
     const spy = _tlSpy = new IntersectionObserver((es) => {
+      if (!current()) return;
       for (const e of es) {
         const bi = +e.target.id.slice(4);
         if (e.isIntersecting) visible.add(bi); else visible.delete(bi);
@@ -299,26 +372,14 @@ function _renderTimeline(rows) {
     // the screen with no hint they were there. Fade whichever edge has more beyond it.
     if (rail) {
       const updateFade = () => {
-        rail.classList.toggle("fade-top", rail.scrollTop > 2);
-        rail.classList.toggle("fade-bot", rail.scrollTop + rail.clientHeight < rail.scrollHeight - 2);
+        if (!current()) return;
+        const top = rail.scrollTop, height = rail.clientHeight, total = rail.scrollHeight;
+        rail.classList.toggle("fade-top", top > 2);
+        rail.classList.toggle("fade-bot", top + height < total - 2);
       };
       rail.addEventListener("scroll", updateFade, { passive: true });
       requestAnimationFrame(updateFade);        // after layout, so the heights are real
     }
   }
 
-  // Entries fade in as they arrive, so a 1,700-item scroll doesn't just appear.
-  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    _tlFade?.disconnect();
-    const io = _tlFade = new IntersectionObserver((es) => {
-      for (const e of es) {
-        if (!e.isIntersecting) continue;
-        io.unobserve(e.target);
-        e.target.classList.add("in");
-      }
-    }, { threshold: 0.08 });
-    host.querySelectorAll(".tl-entry").forEach((el) => io.observe(el));
-  } else {
-    host.querySelectorAll(".tl-entry").forEach((el) => el.classList.add("in"));
-  }
 }

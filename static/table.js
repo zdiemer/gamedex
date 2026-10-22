@@ -125,23 +125,12 @@ function renderTable(rows) {
 
 function _renderTable(rows) {
   const st = tabState[activeTab];
-  // Combining: rows sharing an IGDB id ARE the same game, so collapse them before
-  // sorting and paging — otherwise the counts and page numbers would lie.
-  // The sheet is the "universe" argument: the group card describes the filtered
-  // copies, but its drawer routes to every copy (see groupByGame).
-  const base = st.combine ? groupByGame(rows, sheet().rows) : rows;
-  const sorted = sortRows(base);
-  const per = pageSizeOf();
-  const pages = Math.max(1, Math.ceil(sorted.length / per));
-  if (st.page > pages) st.page = pages;
-  const start = (st.page - 1) * per;
-  const pageRows = sorted.slice(start, start + per);
-
   // The timeline is a view of the Completed rows — same filters, same search.
   const canTimeline = activeTab === "completed";
   $("#viewTimeline").hidden = !canTimeline;
   if (st.view === "timeline" && !canTimeline) st.view = "grid";
   const view = st.view;
+  if (view !== "timeline" && typeof disposeTimeline === "function") disposeTimeline();
   $("#tablewrap").hidden = view !== "table";
   $("#gridwrap").hidden = view !== "grid";
   $("#timeline").hidden = view !== "timeline";
@@ -168,6 +157,18 @@ function _renderTable(rows) {
     renderViews();
     return;
   }
+  // Combining: rows sharing an IGDB id ARE the same game, so collapse them before
+  // sorting and paging — otherwise the counts and page numbers would lie.
+  // The sheet is the "universe" argument: the group card describes the filtered
+  // copies, but its drawer routes to every copy (see groupByGame).
+  const base = st.combine ? groupByGame(rows, sheet().rows) : rows;
+  const sorted = sortRows(base);
+  const per = pageSizeOf();
+  const pages = Math.max(1, Math.ceil(sorted.length / per));
+  if (st.page > pages) st.page = pages;
+  const start = (st.page - 1) * per;
+  const pageRows = sorted.slice(start, start + per);
+
   if (!sorted.length) {
     const filtered = st.search || Object.keys(st.facets).length;
     const host = view === "grid" ? $("#grid") : $("#tbody");

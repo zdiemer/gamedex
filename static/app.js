@@ -55,6 +55,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#fabSort").hidden = special;
   document.documentElement.removeAttribute("data-home-boot");
   if (special) {
+    if (typeof disposeTimeline === "function") disposeTimeline();
     setSheet(false); setFacets(false);
     $("#tablewrap").hidden = true;
     $("#gridwrap").hidden = true;
@@ -67,6 +68,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
 // painted the message). Recommend isn't in SPECIAL_TABS — it's only "special" while its
 // catalogue data isn't ready yet — so this stands in for setSpecialMode's special branch.
 function recsGate(host = "recs") {
+  if (typeof disposeTimeline === "function") disposeTimeline();
   setSpecialMode(null);                       // hide the other special hosts, reset base state
   $("#" + host).hidden = false;
   $(".resultbar").hidden = true;
@@ -203,6 +205,7 @@ function enrichListChanged() {
 
 // Holding for the map: show the skeleton we booted with, not a list we know is wrong.
 function renderEnrichWait() {
+  if (typeof disposeTimeline === "function") disposeTimeline();
   $("#facets").innerHTML = "";     // the counts would be wrong for exactly the same reason
   $("#tablewrap").hidden = true;
   $("#timeline").hidden = true;
