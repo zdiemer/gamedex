@@ -86,6 +86,7 @@ function renderAll() {
 }
 
 function _renderAll() {
+  if (activeTab !== "recs" && typeof cancelRecsWork === "function") cancelRecsWork();
   // Recomputed by the row branch at the bottom. Cleared here so that navigating away from
   // a held list — clicking Home while it waits — doesn't leave the flag set behind you.
   ENRICH_WAITING = false;
@@ -595,12 +596,17 @@ async function load() {
   await applyCoverMap();
   restoreFromURL();             // restore tab/filters/sort/view + any deep-linked game drawer
   /* The whole-library map (global covers + IGDB facets, polls during backfill) — started
-     AFTER the page-scoped batch that restoreFromURL just fired has answered, or 2.5s,
+     AFTER the page-scoped batch that restoreFromURL just fired has answered, or 6s,
      whichever comes first. It is a few MB and nothing on screen needs it; letting it start
      first meant its download sat in front of the 18 KB request for the covers actually
      being looked at, and both finished together at t≈7s. The timeout is the escape hatch
      for the pages that never issue a batch at all. */
-  new Promise((resolve) => { ENRICH_BATCH_DONE = resolve; setTimeout(resolve, 6000); })
+  new Promise((resolve) => {
+    ENRICH_BATCH_DONE = resolve;
+    // Recommendations needs ownership and taste tags before it can rank correctly.
+    if (activeTab === "recs") resolve();
+    else setTimeout(resolve, 6000);
+  })
     .then(loadAllEnrichment);
   loadRomm();                   // which games we can actually play in the browser
   // Hours, achievements, ownership and the platform wishlist are the account owner's

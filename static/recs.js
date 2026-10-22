@@ -68,27 +68,74 @@ function recsBecause() {
   return out;
 }
 
-/* Score every catalogue game we don't own. ~25k rows through a 22-feature ridge — about a
-   second, so it's done ONCE per enrichment epoch and cached. The epoch is the right key: the
-   pool shrinks as enrichment matches more of the sheet (a game you own drops out). */
-let _recsRanked = null, _recsEpoch = -1;
+// Keep the synchronous accessor for Swipe; the Recommendations gate below fills
+// the same cache in scheduled batches before publishing its synthetic sheet.
+let _recsRanked = null, _recsEpoch = -1, _recsInputs = null;
+let _recsJob = null, _recsRun = 0, _recsSheetInputs = null, _recsDismissKey = null;
+const recsInputs = () => ({ cat: CAT, epoch: _enrichEpoch, predictions: PRED_CACHE,
+  votes: RECS, data: DATA.sheets.games.rows });
+const sameRecsInputs = (a, b) => !!a && a.cat === b.cat && a.epoch === b.epoch
+  && a.predictions === b.predictions && a.votes === b.votes && a.data === b.data;
 function recsRanked() {
-  const perf = typeof gamedexPerf !== "undefined" ? gamedexPerf : null;
-  const end = perf ? perf.start("recsRanked", activeTab) : () => {};
+  const end = typeof gamedexPerf !== "undefined" ? gamedexPerf.start("recsRanked", activeTab) : () => {};
   try { return _recsRankedImpl(); } finally { end(); }
 }
-
 function _recsRankedImpl() {
-  if (_recsRanked && _recsEpoch === _enrichEpoch) return _recsRanked;
-  const because = recsBecause();
-  const out = [];
+  const inputs = recsInputs();
+  if (_recsRanked && sameRecsInputs(_recsInputs, inputs)) return _recsRanked;
+  const because = recsBecause(), out = [];
   for (const row of catFresh()) {
     const p = predictedCached(row);
-    if (!p) continue;
-    out.push({ row, p, because: because.get(row.igdbId) || null });
+    if (p) out.push({ row, p, because: because.get(row.igdbId) || null });
   }
+  _recsInputs = inputs;
   _recsEpoch = _enrichEpoch;
   return (_recsRanked = out);
+}
+
+function cancelRecsWork() {
+  ++_recsRun;
+  _recsJob = null;
+}
+
+function* recsBuild(inputs, dismissed) {
+  let ranked = sameRecsInputs(_recsInputs, inputs) ? _recsRanked : null;
+  if (!ranked) {
+    // Fit the two models in separate tasks, then score in short batches. The
+    // accuracy evaluation remains lazy; ranking never asks for it.
+    const model = tasteModel();
+    yield;
+    if (model.ok) { void model.igdb; yield; }
+    const pool = catFresh(), because = recsBecause();
+    yield;
+    ranked = [];
+    let deadline = performance.now() + 8;
+    for (let i = 0; i < pool.length; i++) {
+      const row = pool[i], p = predictedCached(row);
+      if (p) ranked.push({ row, p, because: because.get(row.igdbId) || null });
+      if (i % 16 === 0 && performance.now() >= deadline) {
+        yield;
+        deadline = performance.now() + 8;
+      }
+    }
+    // The caller checks inputs before every resume. Only complete rankings enter
+    // the shared cache; partial predictions remain reusable in PRED_CACHE.
+    _recsRanked = ranked;
+    _recsInputs = inputs;
+    _recsEpoch = inputs.epoch;
+    yield;
+  }
+  const rows = [];
+  let deadline = performance.now() + 8;
+  for (let i = 0; i < ranked.length; i++) {
+    const x = ranked[i], id = x.row.igdbId;
+    if (id != null && !dismissed.has(id)) rows.push(recRow(x));
+    if (i % 32 === 0 && performance.now() >= deadline) {
+      yield;
+      deadline = performance.now() + 8;
+    }
+  }
+  return rows;
 }
 
 // "Best of both": the model's score, lifted a little by how hard the similar-games vote
@@ -135,24 +182,44 @@ function recRow(x) {
   };
 }
 
-// (Re)build DATA.sheets.recs from the ranked catalogue, minus your dismissals. Cheap enough
-// to redo on any epoch change; `force` rebuilds regardless (a dismiss, a meta merge).
+// Publish a whole sheet at once. Search, sort, and facets never see a partial
+// ranking; repeated renders while a job is running reuse that job.
 function buildRecsSheet(force) {
-  if (!DATA || !DATA.sheets) return;
-  if (!force && DATA.sheets.recs && _recsSheetEpoch === _enrichEpoch) return;
-  const dismissed = recsDismissed();
-  const rows = [];
-  for (const x of recsRanked()) {
-    const id = x.row.igdbId;
-    if (id == null || dismissed.has(id)) continue;
-    rows.push(recRow(x));
-  }
-  DATA.sheets.recs = { columns: REC_COLUMNS, rows };
-  _recsSheetEpoch = _enrichEpoch;
-  resetSearchCache();               // the rows array changed identity (see filters.js memo)
-  // Recs load after boot, so a ?game=<rec> deep link can't resolve until the sheet exists.
-  // No-op unless the URL still names a game with no drawer open (i.e. exactly that case).
-  if (typeof applyDrawerFromURL === "function") applyDrawerFromURL();
+  if (!DATA || !DATA.sheets) return false;
+  if (force) { _recsSheetInputs = null; cancelRecsWork(); }
+  const inputs = recsInputs(), dismissKey = JSON.stringify(prefsLocal("dismissed"));
+  if (DATA.sheets.recs && sameRecsInputs(_recsSheetInputs, inputs) && _recsDismissKey === dismissKey) return true;
+  if (activeTab !== "recs") return false;
+  if (_recsJob && sameRecsInputs(_recsJob.inputs, inputs) && _recsJob.dismissKey === dismissKey) return false;
+  cancelRecsWork();
+  const run = _recsRun, work = recsBuild(inputs, recsDismissed());
+  _recsJob = { inputs, dismissKey };
+  const enqueue = () => {
+    if (typeof scheduler !== "undefined" && scheduler.postTask) scheduler.postTask(step);
+    else setTimeout(step, 0);
+  };
+  const step = () => {
+    if (run !== _recsRun) return;
+    if (activeTab !== "recs") { cancelRecsWork(); return; }
+    if (!sameRecsInputs(inputs, recsInputs()) || dismissKey !== JSON.stringify(prefsLocal("dismissed"))) {
+      cancelRecsWork(); renderAll(); return;
+    }
+    const end = typeof gamedexPerf !== "undefined" ? gamedexPerf.start("recsBuildChunk", activeTab) : () => {};
+    let next;
+    try { next = work.next(); } finally { end(); }
+    if (!next.done) { enqueue(); return; }
+    DATA.sheets.recs = { columns: REC_COLUMNS, rows: next.value };
+    _recsSheetEpoch = inputs.epoch;
+    _recsSheetInputs = inputs;
+    _recsDismissKey = dismissKey;
+    _recsJob = null;
+    resetSearchCache();
+    mergeRecsMeta();
+    renderAll();
+    if (typeof applyDrawerFromURL === "function") applyDrawerFromURL();
+  };
+  enqueue();
+  return false;
 }
 
 // Merge freshly-fetched meta into the EXISTING rows + ENRICH in place — the trailer id (for
@@ -225,12 +292,23 @@ function recsReady() {
     host.innerHTML = recsMsg(CAT_ERROR ? "Couldn't fetch the catalog." : "The catalog is still being built. Check back shortly.");
     return false;
   }
-  const m = tasteModel();
-  if (!m.ok) {
-    host.innerHTML = recsMsg(`Not enough rated games yet to predict anything (${m.n} of ${MIN_HISTORY}).`);
+  // Wait for the ownership/tag map before spending time fitting a model that
+  // would immediately be invalidated (and briefly recommending tracked games).
+  if (typeof ENRICH_ENABLED !== "undefined" && ENRICH_ENABLED && !ENRICH_READY) {
+    ENRICH_WAITING = true;
+    if (typeof ENRICH_BATCH_DONE === "function") ENRICH_BATCH_DONE();
+    host.innerHTML = recsMsg("Loading your library’s game data…");
     return false;
   }
-  buildRecsSheet(false);
+  const n = ((DATA.sheets.completed || {}).rows || []).filter(r => r.rating != null).length;
+  if (n < MIN_HISTORY) {
+    host.innerHTML = recsMsg(`Not enough rated games yet to predict anything (${n} of ${MIN_HISTORY}).`);
+    return false;
+  }
+  if (!buildRecsSheet(false)) {
+    host.innerHTML = recsMsg("Finding your recommendations…");
+    return false;
+  }
   if (!DATA.sheets.recs.rows.length && recsDismissed().size) {
     host.innerHTML = recsMsg(`Everything's been dismissed. <button class="linkbtn" id="recUndo">Undo all</button>`);
     const u = host.querySelector("#recUndo");
@@ -265,4 +343,10 @@ function recsDrawerHtml(row) {
   </div>`;
 }
 
-function resetRecs() { _recsRanked = null; _recsEpoch = -1; _recsSheetEpoch = -1; }
+function resetRecs() {
+  const pending = !!_recsJob;
+  cancelRecsWork();
+  _recsRanked = _recsInputs = _recsSheetInputs = null;
+  _recsEpoch = _recsSheetEpoch = -1;
+  if (pending) setTimeout(() => { if (activeTab === "recs") renderAll(); }, 0);
+}

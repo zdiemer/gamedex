@@ -154,6 +154,7 @@ async function loadRecs() {
     // every <img> on the page, which now means wiping the covers that already painted.
     if (activeTab === "home") patchHomeRecs();
   } catch (_) { RECS = []; }
+  if (activeTab === "recs") renderAll();
 }
 
 // GameEye only knows today's price, so the trend has to be recorded as it

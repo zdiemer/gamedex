@@ -653,7 +653,10 @@ async function loadAllEnrichment() {
       // screen — patch in place rather than a full renderAll (which flickered the grid and
       // restarted the tour). Newly-owned games drop out on the next visit to the tab, when the
       // gate rebuilds the sheet.
-      else if (activeTab === "recs") patchEnrichedCells();
+      else if (activeTab === "recs") {
+        if (!DATA.sheets.recs || _recsJob) renderAll();
+        else patchEnrichedCells();
+      }
       // The global search groups copies and derives its owned/tracked chips FROM this map, so the
       // first render before it lands can't dedupe (Hollow Knight shows once per platform). Re-run
       // when the map arrives (and as a backfill refines it); renderSearch debounces the rebuild.
