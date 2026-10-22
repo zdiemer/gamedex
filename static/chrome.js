@@ -3,10 +3,8 @@
 /* Everything around the results: the header controls, the mobile sheet, the
    theme toggle, the command palette, and signing in.
 
-   Last of app.js's own files, and it ends by calling load() — which is what starts
-   the app. That position is deliberate and inherited: load() awaits almost
-   immediately, so home.js/shelf.js/challenges.js and the rest parse while the first
-   fetch is in flight, and by the time it resumes, every renderer it calls exists. */
+   Last of app.js's own files. Startup waits for DOMContentLoaded so the later
+   feature scripts have defined their shared globals before load() uses them. */
 
 // The top-bar box is the GLOBAL search: it lands on the cross-sheet "search" page (search.js)
 // and answers "do I already own this / is it on order?" — separate from each listing's own
@@ -772,4 +770,9 @@ $("#refresh").addEventListener("click", async () => {
   finally { btn.classList.remove("spinning"); btn.disabled = false; }
 });
 
-load().catch((err) => { console.error(err); $("#count").textContent = "Error: " + err.message; });
+// A warm API response can resume load() before later deferred scripts have
+// defined resetCollections/resetTaste/etc. DOMContentLoaded follows all of them;
+// the head's data and cover fetches still run in parallel with script loading.
+document.addEventListener("DOMContentLoaded", () => {
+  load().catch((err) => { console.error(err); $("#count").textContent = "Error: " + err.message; });
+}, { once: true });

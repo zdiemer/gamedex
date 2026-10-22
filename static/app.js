@@ -536,8 +536,7 @@ function setFreshness() {
    conditional branch, so landing on Home when enrichment arrived cached an EMPTY relations
    index for the session and every "you own it / you've beaten it" marker read wrong.
 
-   The typeof guards are load order, not optionality: load() runs from chrome.js before
-   challenges.js and catalogue.js have parsed (see the note at the top of chrome.js). */
+   The typeof guards also let isolated tests run with only the modules they need. */
 function resetDerived() {
   // Active counting notices the new epoch/source and restarts on its next task.
   _facetResult = null;
