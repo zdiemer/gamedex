@@ -116,16 +116,8 @@ function pickCard(row) {
   // The REAL grid card, not a bespoke one — so the trailer plays on hover here exactly as
   // it does in the listings (renderPicker hands it to wirePreviewFor).
   const rec = igdbRecOf(row);
-  const cs = coverSrc(rec, "cover_big");
-  const pend = coverPending(row);
-  const pixel = coverIsPixelArt(rec, cs) ? " pixel" : "";
-  const cover = cs
-    ? `<img class="card-cover${pixel}" src="${escapeHtml(cs)}" alt="">`
-    : `<div class="card-cover ph${pend ? " skel" : ""}">${pend ? "" : icon("i-library", 26)}</div>`;
-  const cstat = collectionStatus(row);
-  const cls = "card" + (cstat === "partial" ? " partial"
-    : (cstat === "complete" || rowCompleted(row)) ? " done" : "");
-  const game = `<div class="${cls}" id="pickGameCard">${cover}${vrBadgeHtml(row)}<div class="card-body">${cardBodyHtml(row)}</div></div>`;
+  const game = `<div class="${posterClassName(row)}" id="pickGameCard">${
+    posterContentHtml(row, cardBodyHtml(row), { enrichment: rec, pending: coverPending(row), eager: true })}</div>`;
 
   const chips = [row.platform, row.releaseYear, row.genre, row.franchise]
     .filter((x) => x != null && x !== "")

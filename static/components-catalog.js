@@ -36,7 +36,7 @@ const COMPONENT_SOURCES = [
     "name": "mineShotsHtml",
     "symbol": "mineShotsHtml",
     "file": "components/account/mine.js",
-    "line": 94,
+    "line": 95,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -46,7 +46,7 @@ const COMPONENT_SOURCES = [
     "name": "mineReviewHtml",
     "symbol": "mineReviewHtml",
     "file": "components/account/mine.js",
-    "line": 106,
+    "line": 108,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -56,7 +56,7 @@ const COMPONENT_SOURCES = [
     "name": "mineFixHtml",
     "symbol": "mineFixHtml",
     "file": "components/account/mine.js",
-    "line": 124,
+    "line": 127,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -66,7 +66,7 @@ const COMPONENT_SOURCES = [
     "name": "achTip",
     "symbol": "achTip",
     "file": "components/account/mine.js",
-    "line": 140,
+    "line": 143,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -76,7 +76,7 @@ const COMPONENT_SOURCES = [
     "name": "achTipShow",
     "symbol": "achTipShow",
     "file": "components/account/mine.js",
-    "line": 155,
+    "line": 158,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -86,7 +86,7 @@ const COMPONENT_SOURCES = [
     "name": "openPlatformsDialog",
     "symbol": "openPlatformsDialog",
     "file": "components/account/mine.js",
-    "line": 175,
+    "line": 178,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -96,7 +96,7 @@ const COMPONENT_SOURCES = [
     "name": "platCardsHtml",
     "symbol": "platCardsHtml",
     "file": "components/account/mine.js",
-    "line": 220,
+    "line": 223,
     "category": "Account & personal data",
     "tab": "games"
   },
@@ -471,12 +471,22 @@ const COMPONENT_SOURCES = [
     "tab": "home"
   },
   {
+    "id": "components-controls-dialog-js-mountUiDialog-229ea2ae72",
+    "legacyId": "dialog-mountUiDialog",
+    "name": "mountUiDialog",
+    "symbol": "mountUiDialog",
+    "file": "components/controls/dialog.js",
+    "line": 21,
+    "category": "Controls & dialogs",
+    "tab": "home"
+  },
+  {
     "id": "components-controls-dialog-js-uiPrompt-9798614cc5",
     "legacyId": "dialog-uiPrompt",
     "name": "uiPrompt",
     "symbol": "uiPrompt",
     "file": "components/controls/dialog.js",
-    "line": 47,
+    "line": 60,
     "category": "Controls & dialogs",
     "tab": "home"
   },
@@ -486,7 +496,17 @@ const COMPONENT_SOURCES = [
     "name": "uiConfirm",
     "symbol": "uiConfirm",
     "file": "components/controls/dialog.js",
-    "line": 76,
+    "line": 89,
+    "category": "Controls & dialogs",
+    "tab": "home"
+  },
+  {
+    "id": "components-controls-pager-js-createPager-6564e7170c",
+    "legacyId": "pager-createPager",
+    "name": "createPager",
+    "symbol": "createPager",
+    "file": "components/controls/pager.js",
+    "line": 5,
     "category": "Controls & dialogs",
     "tab": "home"
   },
@@ -696,7 +716,7 @@ const COMPONENT_SOURCES = [
     "name": "pickValueRowsHtml",
     "symbol": "pickValueRowsHtml",
     "file": "components/discovery/pick.js",
-    "line": 168,
+    "line": 160,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -706,7 +726,7 @@ const COMPONENT_SOURCES = [
     "name": "pickPopHtml",
     "symbol": "pickPopHtml",
     "file": "components/discovery/pick.js",
-    "line": 184,
+    "line": 176,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -716,7 +736,7 @@ const COMPONENT_SOURCES = [
     "name": "pickCondHtml",
     "symbol": "pickCondHtml",
     "file": "components/discovery/pick.js",
-    "line": 227,
+    "line": 219,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -726,7 +746,7 @@ const COMPONENT_SOURCES = [
     "name": "pickGroupHtml",
     "symbol": "pickGroupHtml",
     "file": "components/discovery/pick.js",
-    "line": 250,
+    "line": 242,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -736,7 +756,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPicker",
     "symbol": "renderPicker",
     "file": "components/discovery/pick.js",
-    "line": 283,
+    "line": 275,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -746,7 +766,7 @@ const COMPONENT_SOURCES = [
     "name": "pickPopRepaint",
     "symbol": "pickPopRepaint",
     "file": "components/discovery/pick.js",
-    "line": 495,
+    "line": 487,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -766,7 +786,7 @@ const COMPONENT_SOURCES = [
     "name": "rngPlayingChip",
     "symbol": "rngPlayingChip",
     "file": "components/discovery/rng.js",
-    "line": 71,
+    "line": 63,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -776,7 +796,7 @@ const COMPONENT_SOURCES = [
     "name": "rngPinMenuHtml",
     "symbol": "rngPinMenuHtml",
     "file": "components/discovery/rng.js",
-    "line": 82,
+    "line": 74,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -786,7 +806,7 @@ const COMPONENT_SOURCES = [
     "name": "rngCopyChip",
     "symbol": "rngCopyChip",
     "file": "components/discovery/rng.js",
-    "line": 102,
+    "line": 94,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -796,7 +816,7 @@ const COMPONENT_SOURCES = [
     "name": "rngTimeChip",
     "symbol": "rngTimeChip",
     "file": "components/discovery/rng.js",
-    "line": 116,
+    "line": 108,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -806,7 +826,7 @@ const COMPONENT_SOURCES = [
     "name": "rngChipsHtml",
     "symbol": "rngChipsHtml",
     "file": "components/discovery/rng.js",
-    "line": 123,
+    "line": 115,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -816,7 +836,7 @@ const COMPONENT_SOURCES = [
     "name": "rngSkeletonHtml",
     "symbol": "rngSkeletonHtml",
     "file": "components/discovery/rng.js",
-    "line": 129,
+    "line": 121,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -826,7 +846,7 @@ const COMPONENT_SOURCES = [
     "name": "rngResultHtml",
     "symbol": "rngResultHtml",
     "file": "components/discovery/rng.js",
-    "line": 143,
+    "line": 135,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -836,7 +856,7 @@ const COMPONENT_SOURCES = [
     "name": "rngPatch",
     "symbol": "rngPatch",
     "file": "components/discovery/rng.js",
-    "line": 165,
+    "line": 157,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -846,7 +866,7 @@ const COMPONENT_SOURCES = [
     "name": "rngReelHtml",
     "symbol": "rngReelHtml",
     "file": "components/discovery/rng.js",
-    "line": 202,
+    "line": 194,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -856,7 +876,7 @@ const COMPONENT_SOURCES = [
     "name": "playRngRoll",
     "symbol": "playRngRoll",
     "file": "components/discovery/rng.js",
-    "line": 212,
+    "line": 204,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -866,7 +886,7 @@ const COMPONENT_SOURCES = [
     "name": "playRngSlotRoll",
     "symbol": "playRngSlotRoll",
     "file": "components/discovery/rng.js",
-    "line": 255,
+    "line": 247,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1595,7 +1615,7 @@ const COMPONENT_SOURCES = [
     "name": "thmBannerHtml",
     "symbol": "thmBannerHtml",
     "file": "components/events/themes.js",
-    "line": 231,
+    "line": 234,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1933,7 +1953,7 @@ const COMPONENT_SOURCES = [
     "name": "posterSummaryHtml",
     "symbol": "posterSummaryHtml",
     "file": "components/lists/poster-card.js",
-    "line": 24,
+    "line": 23,
     "category": "Game tiles & lists",
     "tab": "games"
   },
@@ -1943,7 +1963,17 @@ const COMPONENT_SOURCES = [
     "name": "posterCardHtml",
     "symbol": "posterCardHtml",
     "file": "components/lists/poster-card.js",
-    "line": 36,
+    "line": 35,
+    "category": "Game tiles & lists",
+    "tab": "games"
+  },
+  {
+    "id": "components-lists-poster-card-js-posterClassName-7e7911a595",
+    "legacyId": "poster-card-posterClassName",
+    "name": "posterClassName",
+    "symbol": "posterClassName",
+    "file": "components/lists/poster-card.js",
+    "line": 41,
     "category": "Game tiles & lists",
     "tab": "games"
   },
@@ -2033,7 +2063,7 @@ const COMPONENT_SOURCES = [
     "name": "searchPager",
     "symbol": "searchPager",
     "file": "components/lists/search.js",
-    "line": 121,
+    "line": 120,
     "category": "Game tiles & lists",
     "tab": "games"
   },
@@ -2360,7 +2390,7 @@ const COMPONENT_SOURCES = [
     "name": "wireSoundtrack",
     "symbol": "wireSoundtrack",
     "file": "components/media/soundtrack.js",
-    "line": 48,
+    "line": 49,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2370,7 +2400,7 @@ const COMPONENT_SOURCES = [
     "name": "buildOstDock",
     "symbol": "buildOstDock",
     "file": "components/media/soundtrack.js",
-    "line": 92,
+    "line": 93,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2380,7 +2410,7 @@ const COMPONENT_SOURCES = [
     "name": "drawOstDock",
     "symbol": "drawOstDock",
     "file": "components/media/soundtrack.js",
-    "line": 126,
+    "line": 127,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2390,7 +2420,7 @@ const COMPONENT_SOURCES = [
     "name": "drawOstProgress",
     "symbol": "drawOstProgress",
     "file": "components/media/soundtrack.js",
-    "line": 137,
+    "line": 138,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2400,7 +2430,7 @@ const COMPONENT_SOURCES = [
     "name": "setOstPlayIcon",
     "symbol": "setOstPlayIcon",
     "file": "components/media/soundtrack.js",
-    "line": 147,
+    "line": 148,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2626,7 +2656,7 @@ const COMPONENT_SOURCES = [
     "name": "sourcePanelHtml",
     "symbol": "sourcePanelHtml",
     "file": "components/panels/panel.js",
-    "line": 10,
+    "line": 14,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -2636,7 +2666,7 @@ const COMPONENT_SOURCES = [
     "name": "panelRowHtml",
     "symbol": "panelRowHtml",
     "file": "components/panels/panel.js",
-    "line": 16,
+    "line": 20,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -2816,7 +2846,7 @@ const COMPONENT_SOURCES = [
     "name": "wishlistMapHtml",
     "symbol": "wishlistMapHtml",
     "file": "components/recommendations/wishlist.js",
-    "line": 49,
+    "line": 50,
     "category": "Recommendations & wishlist",
     "tab": "recs"
   },
@@ -2826,7 +2856,7 @@ const COMPONENT_SOURCES = [
     "name": "wishlistPriceBadge",
     "symbol": "wishlistPriceBadge",
     "file": "components/recommendations/wishlist.js",
-    "line": 66,
+    "line": 68,
     "category": "Recommendations & wishlist",
     "tab": "recs"
   },
@@ -2836,7 +2866,7 @@ const COMPONENT_SOURCES = [
     "name": "wishlistPriceLine",
     "symbol": "wishlistPriceLine",
     "file": "components/recommendations/wishlist.js",
-    "line": 82,
+    "line": 84,
     "category": "Recommendations & wishlist",
     "tab": "recs"
   },

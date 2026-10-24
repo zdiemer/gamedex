@@ -34,12 +34,13 @@ function wishlistDealHtml(row) {
   // low, a bundle, or free. At plain regular price the section is just the price
   // and where to buy it, so don't oversell it.
   const isDeal = !!bnd || (p && (p.cut > 0 || p.atLow || p.current === 0));
-  return `<div class="hltb wl-deal">
-    <div class="hltb-head">${icon("i-star", 14)} ${isDeal ? "Deal" : "Where to buy"}</div>
+  return panelHtml({ className: "wl-deal",
+    headingHtml: `${icon("i-star", 14)} ${isDeal ? "Deal" : "Where to buy"}`,
+    bodyHtml: `
     ${line}
     ${bnd && bnd.title ? `<div class="wl-bundle-line">In a bundle: <b>${escapeHtml(bnd.title)}</b></div>` : ""}
     ${chips.length ? `<div class="wl-deal-chips">${chips.join("")}</div>` : ""}
-  </div>`;
+  ` });
 }
 
 // Admin: map a wishlist-only row that DIDN'T match to an IGDB game, by pasting
@@ -48,8 +49,9 @@ function wishlistDealHtml(row) {
 // showing this too would be a redundant second box on every matched wish.
 function wishlistMapHtml(row) {
   if (!IS_ADMIN || !row._wlOnly || !row._wlAppIds || row._igdbId) return "";
-  return `<div class="hltb wl-map" data-wl-appids='${escapeHtml(JSON.stringify(row._wlAppIds))}'>
-    <div class="hltb-head">${icon("i-edit", 14)} Map to an IGDB game</div>
+  return panelHtml({ className: "wl-map", data: { "wl-appids": JSON.stringify(row._wlAppIds) },
+    headingHtml: `${icon("i-edit", 14)} Map to an IGDB game`,
+    bodyHtml: `
     <div class="map-src"><label>IGDB game URL</label>
       <div class="map-row">
         <input type="url" placeholder="igdb.com/games/&lt;slug&gt;" data-wl-map-input>
@@ -57,7 +59,7 @@ function wishlistMapHtml(row) {
       </div>
       <p class="auth-err" data-wl-map-err hidden></p>
     </div>
-  </div>`;
+  ` });
 }
 
 // The price BADGE on a card cover: current price, the cut %, and an all-time-low

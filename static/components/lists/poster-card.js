@@ -11,12 +11,11 @@ const vrBadgeHtml = (row) =>
 
 // Shared poster structure for listing, search, Home and challenge cards.
 // bodyHtml is trusted renderer output; callers own events and row registration.
-function posterContentHtml(row, bodyHtml, { pending = false } = {}) {
-  const enrichment = ENRICH[row._k];
+function posterContentHtml(row, bodyHtml, { pending = false, enrichment = ENRICH[row._k], eager = false } = {}) {
   const cs = coverSrc(enrichment, "cover_big");
   const pixel = coverIsPixelArt(enrichment, cs) ? " pixel" : "";
   const cover = cs
-    ? `<img class="card-cover${pixel}" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
+    ? `<img class="card-cover${pixel}" ${eager ? "" : 'loading="lazy" decoding="async" '}src="${escapeHtml(cs)}" alt="">`
     : `<div class="card-cover ph${pending ? " skel" : ""}">${pending ? "" : icon("i-library", 26)}</div>`;
   return `${cover}${vrBadgeHtml(row)}<div class="card-body">${bodyHtml}</div>`;
 }
@@ -36,4 +35,11 @@ function posterSummaryHtml(row, { note = "", afterHtml = "" } = {}) {
 function posterCardHtml(row, { cls = "", note = "", attrs = "" } = {}) {
   return `<button type="button" class="card${cls ? " " + escapeHtml(cls) : ""}" ${attrs}>${
     posterContentHtml(row, posterSummaryHtml(row, { note }))}</button>`;
+}
+
+// Partial collections take precedence over a completed copy in every grid-style card.
+function posterClassName(row) {
+  const status = collectionStatus(row);
+  return "card" + (status === "partial" ? " partial"
+    : (status === "complete" || rowCompleted(row)) ? " done" : "");
 }

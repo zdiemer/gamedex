@@ -7,10 +7,20 @@ function openUiDialog({ html, family = "modal", className = "", panelClass = "",
   label = "", role = "dialog", onClose = () => {}, dismissValue = null } = {}) {
   const prompt = family === "prompt";
   const host = document.createElement("div");
-  const previousFocus = document.activeElement;
   host.className = `${prompt ? "np-scrim" : "ce-scrim"}${className ? " " + className : ""}`;
   host.innerHTML = `<div class="${prompt ? "np-box" : "ce"} ${escapeHtml(panelClass)}" role="${escapeHtml(role)}" aria-modal="true"${label ? ` aria-label="${escapeHtml(String(label))}"` : ""}>
     ${prompt ? "" : '<button type="button" class="ce-x" aria-label="Close">✕</button>'}${html}</div>`;
+  const dialog = mountUiDialog(host, { onClose, dismissValue,
+    backdropEvent: prompt ? "click" : "mousedown" });
+  if (!prompt) host.querySelector(".ce-x").onclick = () => dialog.close();
+  return dialog;
+}
+
+// Adopt a specialized shell (manual viewer or theme browser) into the same
+// lifecycle. Connected hosts keep their placement and inherited feature styles.
+function mountUiDialog(host, { onClose = () => {}, dismissValue = null,
+  backdropEvent = "click", returnFocus = null } = {}) {
+  const previousFocus = document.activeElement;
   let done = false;
   const close = (result = dismissValue) => {
     if (done) return;
@@ -18,10 +28,12 @@ function openUiDialog({ html, family = "modal", className = "", panelClass = "",
     const top = uiDialogStack.at(-1) === host;
     uiDialogStack.splice(uiDialogStack.indexOf(host), 1);
     document.removeEventListener("keydown", onKey, true);
+    host.removeEventListener(backdropEvent, onBackdrop);
     host.remove();
     if (typeof syncScrollLock === "function") syncScrollLock();
-    if (top && previousFocus?.isConnected) previousFocus.focus();
     onClose(result);
+    const previous = returnFocus ? returnFocus(result) : previousFocus; // a caller may have repainted its trigger
+    if (top && previous?.isConnected) previous.focus({ preventScroll: true });
   };
   const onKey = (event) => {
     if (uiDialogStack.at(-1) !== host || event.key !== "Escape") return;
@@ -29,11 +41,12 @@ function openUiDialog({ html, family = "modal", className = "", panelClass = "",
     event.stopImmediatePropagation(); // don't also close the underlying game drawer
     close();
   };
-  host.addEventListener(prompt ? "click" : "mousedown", (event) => {
+  const onBackdrop = (event) => {
     if (event.target === host && uiDialogStack.at(-1) === host) close();
-  });
-  if (!prompt) host.querySelector(".ce-x").onclick = () => close();
-  document.body.appendChild(host);
+  };
+  host.addEventListener(backdropEvent, onBackdrop);
+  host.querySelector('[role="dialog"], [role="alertdialog"]')?.setAttribute("aria-modal", "true");
+  if (!host.isConnected) document.body.appendChild(host);
   uiDialogStack.push(host);
   document.addEventListener("keydown", onKey, true);
   if (typeof syncScrollLock === "function") syncScrollLock();

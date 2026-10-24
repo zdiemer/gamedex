@@ -116,38 +116,12 @@ function _renderSearchResults(q) {
   if (pages > 1) host.appendChild(searchPager(pages, q));
 }
 
-// A self-contained pager for the search page (the shared #pager is tied to the listing pipeline).
-// Reuses the .pager / .page-jump styles so it looks like the rest of the app.
+// Search owns its query/page state; the controls are shared with the listing.
 function searchPager(pages, q) {
-  const el = document.createElement("div");
-  el.className = "pager";
-  const go = (n) => {
-    _searchPage = Math.min(pages, Math.max(1, n));
+  return createPager({ page: _searchPage, pages, onChange: (page) => {
+    _searchPage = page;
     renderSearchResults(q);
     $("#searchpage").scrollTop = 0;
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  const mk = (label, page, disabled, title) => {
-    const btn = document.createElement("button");
-    btn.textContent = label; btn.disabled = disabled;
-    if (title) btn.title = title;
-    btn.onclick = () => go(page);
-    return btn;
-  };
-  el.appendChild(mk("«", 1, _searchPage <= 1, "First page"));
-  el.appendChild(mk("‹ Prev", _searchPage - 1, _searchPage <= 1));
-  const jump = document.createElement("span");
-  jump.className = "page-jump";
-  jump.innerHTML = `Page <input type="number" min="1" max="${pages}" value="${_searchPage}" aria-label="Page number"> of ${pages.toLocaleString()}`;
-  const input = jump.querySelector("input");
-  const commit = () => {
-    const n = parseInt(input.value, 10);
-    if (isFinite(n) && n !== _searchPage) go(n); else input.value = String(_searchPage);
-  };
-  input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
-  input.onblur = commit;
-  el.appendChild(jump);
-  el.appendChild(mk("Next ›", _searchPage + 1, _searchPage >= pages));
-  el.appendChild(mk("»", pages, _searchPage >= pages, "Last page"));
-  return el;
+  } });
 }

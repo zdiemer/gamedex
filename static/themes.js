@@ -1239,7 +1239,7 @@ function thmOpen(id) {
   evSave();
 }
 
-const THM_BROWSER = { open: false, q: "" };
+const THM_BROWSER = { open: false, q: "", dialog: null };
 const THM_SYNC_MS = 15000;
 let THM_SYNC_TIMER = null;
 
@@ -1262,12 +1262,6 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") refreshThemes();
   });
-}
-
-function thmBrowserLock(on) {
-  if (typeof document === "undefined") return;
-  document.documentElement.classList.toggle("thm-browser-open", on);
-  document.body.classList.toggle("thm-browser-open", on);
 }
 
 function thmChoiceMeta(t) {
@@ -1362,7 +1356,8 @@ evRegister({
   render: thmRender,
   reset: () => {
     EVP.slot = null; EVP.q = ""; EVP.all = false;
-    THM_BROWSER.open = false; THM_BROWSER.q = ""; thmBrowserLock(false);
+    THM_BROWSER.dialog?.close();
+    THM_BROWSER.open = false; THM_BROWSER.q = "";
     if (THM_SYNC_TIMER) { clearTimeout(THM_SYNC_TIMER); THM_SYNC_TIMER = null; }
   },
 });

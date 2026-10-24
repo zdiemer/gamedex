@@ -26,8 +26,9 @@ function soundtrackHtml(key) {
        <span class="ost-name">${escapeHtml(t.name || "")}</span>
        <span class="ost-dur">${t.dur ? escapeHtml(t.dur) : ""}</span>
      </li>`).join("");
-  return `<div class="hltb ost" data-ost-key="${escapeHtml(key)}">
-    <div class="hltb-head">${icon("i-music", 14)} Soundtrack (KHInsider)</div>
+  return panelHtml({ className: "ost", data: { "ost-key": key },
+    headingHtml: `${icon("i-music", 14)} Soundtrack (KHInsider)`,
+    bodyHtml: `
     <div class="ost-bar">
       ${cover}
       <button class="ost-play" data-ost-playall title="Play soundtrack">${icon("i-play", 18)}</button>
@@ -42,7 +43,7 @@ function soundtrackHtml(key) {
       <ol class="ost-list" data-ost-listhost>${tracks}</ol>
     </div>
     <a class="hltb-link" href="${escapeHtml(rec.url)}" target="_blank" rel="noopener">Open on KHInsider ↗</a>
-  </div>`;
+  ` });
 }
 
 function wireSoundtrack(key, host) {

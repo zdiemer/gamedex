@@ -407,11 +407,7 @@ function openCoverEditor({ key, platform, title, hasUpload, caseDefault, existin
   const isFullCrop = (c) => c.x1 <= 0.001 && c.y1 <= 0.001 && c.x2 >= 0.999 && c.y2 >= 0.999;
   let crop = (existing && existing.crop) ? { ...existing.crop } : { ...FULL_CROP };
 
-  const host = document.createElement("div");
-  host.className = "ce-scrim";
-  host.innerHTML = `
-    <div class="ce" role="dialog" aria-label="Box art for ${escapeHtml(title)}">
-      <button class="ce-x" aria-label="Close">✕</button>
+  const { host, close } = openUiDialog({ label: `Box art for ${title}`, html: `
       <h3>Box art</h3>
       <div class="ce-sub">${escapeHtml(title)} · ${escapeHtml(platform)}</div>
 
@@ -458,9 +454,7 @@ function openCoverEditor({ key, platform, title, hasUpload, caseDefault, existin
           <button class="sh-btn primary" id="ceSave" type="button" disabled>Save</button>
         </div>
       </div>
-    </div>`;
-  document.body.appendChild(host);
-  syncScrollLock?.();
+    ` });
 
   const $ = (s) => host.querySelector(s);
   const hint = $("#ceHint"), drop = $("#ceDrop"), input = drop.querySelector("input");
@@ -645,10 +639,7 @@ function openCoverEditor({ key, platform, title, hasUpload, caseDefault, existin
       .catch(() => {});
   }
 
-  const close = () => { host.remove(); syncScrollLock?.(); };
-  $("#ceCancel").onclick = close;
-  $(".ce-x").onclick = close;
-  host.addEventListener("click", (e) => { if (e.target === host) close(); });
+  $("#ceCancel").onclick = () => close();
   if (hasUpload) $("#ceRemove").onclick = async () => {
     $("#ceRemove").disabled = true;
     await fetch(`/api/shelf/cover?key=${encodeURIComponent(key)}`, { method: "DELETE" });

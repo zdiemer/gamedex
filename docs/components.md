@@ -60,6 +60,7 @@ new components are listed with their source even before an example exists.
 | Compact badge | `<span class="pill">…</span>` | `static/style.css` |
 | Game poster | `posterCardHtml(row, { cls, note, attrs })` | `static/components/lists/poster-card.js`; `.card` and descendants |
 | Poster cover + body / summary | `posterContentHtml(row, bodyHtml, { pending })`, `posterSummaryHtml(row, options)` | `static/components/lists/poster-card.js`; listing, search, Home, challenges |
+| Pagination controls | `createPager({ page, pages, onChange, host })` | `static/components/controls/pager.js`; shared by listing and search |
 | Listing / facets / pagination | `renderTable`, `renderGrid`, `renderPager`, existing listing pipeline | `static/components/lists/table.js`, `static/components/lists/preview.js`, `static/components/lists/filters.js` |
 | Collapsible game tags | `tagChipsHtml(items)` | `static/components/drawer/drawer-detail.js`; delegated actions in `static/components/navigation/chrome.js` |
 | Game detail hero / panels | `heroHtml`, `detailHtml`, shared source panel | `static/components/drawer/hero.js`, `static/components/drawer/drawer-detail.js`, `static/components/panels/panel.js` |
@@ -113,11 +114,14 @@ startup race. `--check` detects drift between the component source and served sh
 
 ### One panel, multiple configurations
 
-`panels/panel.js` exports `panelHtml({ headingHtml, bodyHtml })`,
+`panels/panel.js` exports `panelHtml({ headingHtml, bodyHtml, className, data })`,
 `panelRowHtml({ labelHtml, valueHtml, className, valueClass })` and
 `sourcePanelHtml(source, data)`. A null configuration hides the panel; omitting
 the heading supports compact panels such as critic scores. HTML arguments are
 **trusted renderer fragments**; adapters escape all external text and URLs.
+`className` adds escaped feature classes; `data` maps validated suffixes to escaped
+`data-*` attributes (for example `{ "ost-key": key }`). Achievements, screenshots,
+reviews, soundtrack, recommendations, wishlist and translations use this same shell.
 
 `panels/sources.js` is a configuration registry, not a collection of separate
 panel components. Its adapters retain each source's data rules, links, media,
@@ -177,9 +181,26 @@ their public APIs and use the same lifecycle. Replacing either wrapper closes th
 previous dialog, including its listeners. Escape must not dismiss the game drawer
 underneath a dialog.
 
+`mountUiDialog(host, options)` adopts a specialized manual-viewer or theme-browser
+shell into the same lifecycle. Connected hosts keep their parent and theme scope;
+unattached hosts are appended to the body. Options include `onClose`, `dismissValue`,
+`backdropEvent`, and an optional `returnFocus(result)` resolver for repainted triggers.
+Always close the previous instance before removing its host or leaving its route.
+The theme browser retains its mounted host through background page refreshes,
+preserving search, focus, and the order of nested dialogs.
+All registered dialogs participate in the app's shared scroll lock.
+
+`createPager({ page, pages, onChange, host })` fills an existing host or returns a new
+`.pager` element. Callers own page state and rerender on `onChange(page)`, including
+navigation and scrolling. It hides controls for a single page, clamps numeric jumps,
+and handles Enter/blur without duplicate navigation.
+
 `posterContentHtml` owns the shared cover, pixel-art class, placeholder, VR badge,
 and `.card-body`. `pending: true` shows the listing's existing skeleton when no
-cover exists. `posterSummaryHtml` owns title and platform/year markup, with optional
+cover exists. `enrichment` accepts a caller-resolved record (including combined game
+fallbacks), and `eager: true` preserves immediate loading for picker/randomizer cards.
+`posterClassName(row)` shares partial-collection/completion styling across the grid,
+picker and randomizer. `posterSummaryHtml` owns title and platform/year markup, with optional
 trusted `note` and `afterHtml`. `posterCardHtml` composes them for Home/challenges;
 listing and search compose their own bodies and retain row maps, status classes,
 click handlers, preview wiring, and tour behavior. Do not copy cover markup into
@@ -229,6 +250,9 @@ and `GAMEDEX_UI_URL` set to the server origin. The browser setup and library
 environment are the same as `tools/mobile-shot/shot.sh`. For the optional
 read-only live-data integration check, run `tools/tests/component-library-live.cjs`
 with `GAMEDEX_UI_URL` pointing to that static/API proxy and a nonempty library.
+`node tools/tests/component-consolidation.cjs` checks listing/search pagination,
+picker/randomizer cards, all feature panels, and cover/manual/theme-dialog lifecycle
+against the same proxy; it blocks API writes.
 Run `node tools/tests/component-library-spa.cjs` against the same proxy to check
 SPA history, admin routing, theme synchronization, responsive sizing, and fixture
 isolation. It stubs the signed-in identity locally and blocks API writes.

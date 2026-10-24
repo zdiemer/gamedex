@@ -28,3 +28,16 @@ assert.match(run('posterContentHtml(row, "body")'),/#i-library/);
 assert.match(run('posterSummaryHtml(row,{afterHtml:\'<div class="s-chips">Owned</div>\'})'),/s-chips/);
 assert.doesNotMatch(readAppSource('static/search.js','utf8'),/class="card-cover/);
 console.log('Shared posters preserve covers, skeletons, VR, escaped metadata, and feature content.');
+// Picker/randomizer pass their resolved record and retain eager cover loading.
+html=run('posterContentHtml(row,"body",{enrichment:{cover:"fallback.jpg",pixel:true},eager:true})');
+assert.match(html,/card-cover pixel/);
+assert.match(html,/fallback.jpg/);
+assert.doesNotMatch(html,/loading="lazy"/);
+ctx.collectionStatus=()=> 'partial'; ctx.rowCompleted=()=>true;
+assert.equal(run('posterClassName(row)'), 'card partial');
+ctx.collectionStatus=()=> 'complete'; ctx.rowCompleted=()=>false;
+assert.equal(run('posterClassName(row)'), 'card done');
+ctx.collectionStatus=()=>null;
+assert.equal(run('posterClassName(row)'), 'card');
+ctx.rowCompleted=()=>true;
+assert.equal(run('posterClassName(row)'), 'card done');

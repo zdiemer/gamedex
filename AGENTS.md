@@ -23,7 +23,11 @@ together and avoid a flat directory or duplicate implementations. Top-level feat
 modules own fetching, navigation orchestration and business state. Reuse the single
 `panels/panel.js` component; source-specific content belongs in the configuration
 registry `panels/sources.js`, not another panel component. Preserve source data
-rules, escaping and interaction hooks.
+rules, escaping and interaction hooks. Feature panels use the same shell with
+`className` and `data` hooks. Reuse `controls/pager.js` for pagination and
+`lists/poster-card.js` for poster markup/status styling. Use `openUiDialog` for
+standard dialogs or `mountUiDialog` for specialized shells; close through the
+shared lifecycle before removing their host or leaving their route.
 
 Canonical shell markup also lives in grouped HTML/SVG component files. Edit those
 sources and run `python3 tools/components/catalog.py` to regenerate their marked

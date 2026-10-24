@@ -27,3 +27,9 @@ assert.doesNotMatch(run('sourcePanelHtml("vndb","demo")'),/<script>/);
 context.unsafeClass='"><unsafe>';
 assert.match(run('panelRowHtml({labelHtml:"Label",valueHtml:"Value",valueClass:unsafeClass})'),/&quot;&gt;&lt;unsafe&gt;/);
 console.log('Generic panel: all source variants, missing data, zero values, fallback and escaping passed.');
+// Feature classes and data hooks remain attributes even with hostile values.
+context.unsafe='"\'><unsafe>&';
+const feature=run('panelHtml({className:unsafe, data:{"wl-appids":unsafe}, headingHtml:"Heading", bodyHtml:"Body"})');
+assert.match(feature,/data-wl-appids="&quot;&#39;&gt;&lt;unsafe&gt;&amp;"/);
+assert.doesNotMatch(feature,/<unsafe>/);
+assert.throws(()=>run('panelHtml({data:{"x onclick":"bad"}})'),/Invalid panel data key/);

@@ -223,6 +223,8 @@ function resetTab(tab) {
 function switchTab(tab, reset) {
   if (tab === "components" && !IS_ADMIN) tab = "home";
   if (reset) resetTab(tab);
+  // The theme browser belongs to its current page, including during Back/Forward.
+  if (tab !== activeTab && typeof THM_BROWSER !== "undefined") THM_BROWSER.dialog?.close();
   // Pick's criteria sheet is a modal over its own tab and nothing else — leaving the tab
   // closes it through the front door, which also hands back the scroll lock it holds.
   // pickSheetSet, not pickSheetDismiss: dismiss peels one layer per call, and a criterion

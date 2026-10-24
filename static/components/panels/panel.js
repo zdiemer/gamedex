@@ -4,8 +4,12 @@
 // A null configuration suppresses a source with no content; a missing heading is valid.
 function panelHtml(config) {
   if (!config) return "";
-  const { headingHtml = "", bodyHtml = "" } = config;
-  return `<div class="hltb">${headingHtml ? `<div class="hltb-head">${headingHtml}</div>` : ""}${bodyHtml}</div>`;
+  const { headingHtml = "", bodyHtml = "", className = "", data = {} } = config;
+  const attrs = Object.entries(data).map(([key, value]) => {
+    if (!/^[a-z][a-z0-9-]*$/.test(key)) throw new TypeError(`Invalid panel data key: ${key}`);
+    return ` data-${key}="${escapeHtml(String(value))}"`;
+  }).join("");
+  return `<div class="hltb${className ? " " + escapeHtml(className) : ""}"${attrs}>${headingHtml ? `<div class="hltb-head">${headingHtml}</div>` : ""}${bodyHtml}</div>`;
 }
 function sourcePanelHtml(source, data) {
   if (!Object.hasOwn(SOURCE_PANEL_DATA, source)) throw new TypeError(`Unknown panel source: ${source}`);

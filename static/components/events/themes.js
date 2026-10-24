@@ -77,6 +77,8 @@ function thmBrowserHtml(t) {
 }
 
 function thmRender(host) {
+  const focused = THM_BROWSER.dialog?.host.contains(document.activeElement) ? document.activeElement.id : null;
+  const browserDialog = THM_BROWSER.dialog;
   const ev = EV.byId.themes;
   const t = thmTheme();
   const run = thmRun(t);
@@ -142,7 +144,6 @@ function thmRender(host) {
   const openBrowser = document.getElementById("thmBrowseOpen");
   if (openBrowser) openBrowser.onclick = () => {
     THM_BROWSER.open = true;
-    thmBrowserLock(true);
     repaint();
     // A programmatic focus opens the software keyboard on iOS and covers half the catalog.
     // Desktop pointer users still land in search immediately; touch users opt into it.
@@ -151,18 +152,20 @@ function thmRender(host) {
     const search = document.getElementById("thmBrowseSearch");
     if (finePointer && search) search.focus({ preventScroll: true });
   };
-  const closeBrowser = () => {
-    THM_BROWSER.open = false;
-    THM_BROWSER.q = "";
-    thmBrowserLock(false);
-    repaint();
-  };
-  const close = document.getElementById("thmBrowseClose");
-  if (close) close.onclick = closeBrowser;
   const scrim = document.getElementById("thmBrowserScrim");
   if (scrim) {
-    scrim.onclick = (e) => { if (e.target === scrim) closeBrowser(); };
-    scrim.onkeydown = (e) => { if (e.key === "Escape") closeBrowser(); };
+    // Keep the open browser and its controls through background refreshes. This
+    // preserves focus, search and its stack position beneath any nested dialog.
+    if (browserDialog) scrim.replaceWith(browserDialog.host);
+    else THM_BROWSER.dialog = mountUiDialog(scrim, {
+      returnFocus: () => document.getElementById("thmBrowseOpen"),
+      onClose: () => {
+        THM_BROWSER.dialog = null;
+        THM_BROWSER.open = false;
+        THM_BROWSER.q = "";
+      },
+    });
+    document.getElementById("thmBrowseClose").onclick = () => THM_BROWSER.dialog.close();
   }
   const search = document.getElementById("thmBrowseSearch");
   if (search) search.oninput = () => {
@@ -177,11 +180,11 @@ function thmRender(host) {
     const empty = document.getElementById("thmBrowserEmpty");
     if (empty) empty.hidden = shown !== 0;
   };
+  if (search) search.oninput(); // reapply the current filter after a background repaint
+  if (focused) document.getElementById(focused)?.focus({ preventScroll: true });
   host.querySelectorAll("[data-thmgo]").forEach((el) => {
     el.onclick = () => {
-      THM_BROWSER.open = false;
-      THM_BROWSER.q = "";
-      thmBrowserLock(false);
+      THM_BROWSER.dialog.close();
       thmOpen(el.dataset.thmgo);
       evPickerClose();
       repaint();

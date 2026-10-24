@@ -118,10 +118,11 @@ function twDrawerHtml(row) {
         t.mine.english === "None" ? ", and had no translation" : ""}.</div>`
     : "";
 
-  return `<div class="hltb tw-drawer">
-    <div class="hltb-head">${icon("i-globe", 14)} Fan translation</div>
-    ${rows.map(([k, v]) => `<div class="hltb-row"><span>${k}</span><b>${v}</b></div>`).join("")}
+  return panelHtml({ className: "tw-drawer",
+    headingHtml: `${icon("i-globe", 14)} Fan translation`,
+    bodyHtml: `
+    ${rows.map(([k, v]) => panelRowHtml({ labelHtml: k, valueHtml: v })).join("")}
     ${mine}${machine}
     <div class="tw-drawer-links">${chips}</div>
-  </div>`;
+  ` });
 }

@@ -32,16 +32,8 @@ function rngSlotHtml(slot, pool) {
   }
 
   const rec = igdbRecOf(row);
-  const cs = coverSrc(rec, "cover_big");
-  const pend = coverPending(row);
-  const pixel = coverIsPixelArt(rec, cs) ? " pixel" : "";
-  const cover = cs
-    ? `<img class="card-cover${pixel}" src="${escapeHtml(cs)}" alt="">`
-    : `<div class="card-cover ph${pend ? " skel" : ""}">${pend ? "" : icon("i-library", 26)}</div>`;
-  const cstat = collectionStatus(row);
-  const cls = "card" + (cstat === "partial" ? " partial"
-    : (cstat === "complete" || rowCompleted(row)) ? " done" : "");
-  const card = `<div class="${cls}" data-rngcard="${slot.id}">${cover}${vrBadgeHtml(row)}<div class="card-body">${cardBodyHtml(row)}</div></div>`;
+  const card = `<div class="${posterClassName(row)}" data-rngcard="${slot.id}">${
+    posterContentHtml(row, cardBodyHtml(row), { enrichment: rec, pending: coverPending(row), eager: true })}</div>`;
 
   const copy = rngCopyChip(row);
   const time = rngTimeChip(row);

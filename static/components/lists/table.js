@@ -194,9 +194,7 @@ function renderGrid(pageRows) {
     card.style.setProperty("--i", Math.min(i, 24) * 22 + "ms");   // fan-in stagger
     // A part-finished collection is yellow, and that beats the green "done"
     // ring — the compilation itself isn't finished even on the Completed tab.
-    const cstat = collectionStatus(row);
-    card.className = "card" + (cstat === "partial" ? " partial"
-      : (cstat === "complete" || rowCompleted(row)) ? " done" : "");
+    card.className = posterClassName(row);
     if (row._k) card.dataset.k = row._k;
     CARD_ROW.set(card, row);
     card.innerHTML = posterContentHtml(row, cardBodyHtml(row), { pending: coverPending(row) });

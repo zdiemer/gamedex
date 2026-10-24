@@ -156,40 +156,11 @@ function populateGridSort() {
 
 function renderPager(pages) {
   const st = tabState[activeTab];
-  const el = $("#pager");
-  el.innerHTML = "";
-  if (pages <= 1) return;
-  const go = (page) => {
-    st.page = Math.min(pages, Math.max(1, page));
+  createPager({ host: $("#pager"), page: st.page, pages, onChange: (page) => {
+    st.page = page;
     renderTable(currentFiltered);
     $("#tablewrap").scrollTop = 0; $("#gridwrap").scrollTop = 0;
     window.scrollTo({ top: 0, behavior: "smooth" });
     nav();
-  };
-  const mk = (label, page, disabled, title) => {
-    const b = document.createElement("button");
-    b.textContent = label;
-    b.disabled = disabled;
-    if (title) b.title = title;
-    b.onclick = () => go(page);
-    return b;
-  };
-  el.appendChild(mk("«", 1, st.page <= 1, "First page"));
-  el.appendChild(mk("‹ Prev", st.page - 1, st.page <= 1));
-
-  // Jump straight to a page — at 295 pages, paging one at a time is useless.
-  const jump = document.createElement("span");
-  jump.className = "page-jump";
-  jump.innerHTML = `Page <input type="number" min="1" max="${pages}" value="${st.page}" aria-label="Page number"> of ${pages.toLocaleString()}`;
-  const input = jump.querySelector("input");
-  const commit = () => {
-    const n = parseInt(input.value, 10);
-    if (isFinite(n) && n !== st.page) go(n); else input.value = String(st.page);
-  };
-  input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
-  input.onblur = commit;
-  el.appendChild(jump);
-
-  el.appendChild(mk("Next ›", st.page + 1, st.page >= pages));
-  el.appendChild(mk("»", pages, st.page >= pages, "Last page"));
+  } });
 }

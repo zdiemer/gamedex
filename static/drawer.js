@@ -172,6 +172,7 @@ function anyOverlayOpen() {
     || !$("#attract-overlay").hidden                             // full-screen attract mode
     || (typeof cmdk !== "undefined" && cmdk.open)
     || $("#facets").classList.contains("open")
+    || (typeof uiDialogStack !== "undefined" && uiDialogStack.length > 0)
     || !!document.querySelector(".ce-scrim")                        // cover editor
     || !!document.querySelector(".np-scrim")                        // name-a-view/picker prompt
     // Pick's criteria sheet. clientHeight guards the desktop, where the "sheet" is

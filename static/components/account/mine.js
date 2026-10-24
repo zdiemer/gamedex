@@ -81,26 +81,28 @@ function mineAchHtml(provider, d) {
   };
   const FOLD = 24;
   const grid = (arr) => `<div class="mine-ach-grid">${arr.map(cell).join("")}</div>`;
-  return `<div class="hltb mine-ach">
-    <div class="hltb-head">${icon("i-trophy", 15)} ${MINE_PROVIDERS[provider].achWord} · ${done.length} / ${list.length} · ${escapeHtml(label)}</div>
+  return panelHtml({ className: "mine-ach",
+    headingHtml: `${icon("i-trophy", 15)} ${MINE_PROVIDERS[provider].achWord} · ${done.length} / ${list.length} · ${escapeHtml(label)}`,
+    bodyHtml: `
     <div class="mine-ach-track"><div class="mine-ach-bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     ${grid(sorted.slice(0, FOLD))}
     ${sorted.length > FOLD
       ? `<details class="mine-ach-more"><summary>All ${sorted.length}</summary>${grid(sorted.slice(FOLD))}</details>`
       : ""}
-  </div>`;
+  ` });
 }
 
 function mineShotsHtml(provider, d) {
   const shots = d.screenshots || [];
   if (!shots.length) return "";
-  return `<div class="hltb mine-shots-sect">
-    <div class="hltb-head">${icon("i-grid", 15)} Your screenshots <span class="muted">${shots.length}</span></div>
+  return panelHtml({ className: "mine-shots-sect",
+    headingHtml: `${icon("i-grid", 15)} Your screenshots <span class="muted">${shots.length}</span>`,
+    bodyHtml: `
     <div class="mine-shots" data-mineshots="${escapeHtml(provider)}">
       ${shots.map((s, i) => `<img loading="lazy" src="${escapeHtml(s.url)}" alt=""
         onerror="this.style.opacity=.25" data-shot="${i}" title="${escapeHtml([s.caption, s.takenAt ? fmtDate(String(s.takenAt).slice(0, 10)) : null].filter(Boolean).join(" · "))}">`).join("")}
     </div>
-  </div>`;
+  ` });
 }
 
 function mineReviewHtml(provider, d) {
@@ -111,12 +113,13 @@ function mineReviewHtml(provider, d) {
     : `<b class="${r.recommended ? "rating-good" : "rating-bad"}">${r.recommended ? "👍 Recommended" : "👎 Not recommended"}</b>`;
   const facts = [r.hoursAtReview != null ? `${r.hoursAtReview} hrs at review` : null,
                  r.postedAt || null].filter(Boolean).join(" · ");
-  return `<div class="hltb mine-rev">
-    <div class="hltb-head">${icon("i-review", 15)} Your ${escapeHtml(label)} review</div>
+  return panelHtml({ className: "mine-rev",
+    headingHtml: `${icon("i-review", 15)} Your ${escapeHtml(label)} review`,
+    bodyHtml: `
     <div class="mine-rev-verdict">${verdict}${facts ? ` <span class="muted">${escapeHtml(facts)}</span>` : ""}</div>
     ${r.text ? `<blockquote class="mine-review">${escapeHtml(r.text)}</blockquote>` : ""}
     ${r.url ? `<a class="hltb-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">On ${escapeHtml(label)} ↗</a>` : ""}
-  </div>`;
+  ` });
 }
 
 // Admin: repoint which library app this sheet row is matched to (the platform

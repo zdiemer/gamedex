@@ -67,13 +67,14 @@ function recsDrawerHtml(row) {
   if (!row || !row._recOnly) return "";
   const pct = Math.round((row.predicted || 0) * 100);
   const why = row._recWhy ? `<div class="rec-drawer-why">${escapeHtml(row._recWhy)}</div>` : "";
-  return `<div class="hltb rec-drawer">
-    <div class="hltb-head">${icon("i-sparkle", 14)} Recommended for you</div>
+  return panelHtml({ className: "rec-drawer",
+    headingHtml: `${icon("i-sparkle", 14)} Recommended for you`,
+    bodyHtml: `
     <div class="rec-drawer-line">
       <b class="rec-drawer-score ${ratingClass(row.predicted || 0)}">~${pct}%</b>
       <span class="muted">predicted · ${escapeHtml(row.confidence || "")} confidence${row.voters != null ? ` · ${row.voters.toLocaleString()} voted` : ""}</span>
     </div>
     ${why}
     <button class="sh-btn rec-dismiss" data-rec-no="${row._igdbId}">Not interested</button>
-  </div>`;
+  ` });
 }

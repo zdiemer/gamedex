@@ -108,7 +108,8 @@ function openManual(g) {
         <iframe src="${escapeHtml(src)}" allowfullscreen frameborder="0"></iframe>
       </div>
     </div>`;
-  document.body.appendChild(host);
+  let skeletonTimer;
+  const { close } = mountUiDialog(host, { onClose: () => clearTimeout(skeletonTimer) });
   /* The Archive's BookReader takes a few seconds to boot, and until it does the iframe is a blank
      white rectangle that reads as broken. Hold a pair of skeleton pages over it until it loads —
      and drop them on `load` whether or not it succeeded, so a failure shows the reader's own error
@@ -116,9 +117,6 @@ function openManual(g) {
   const frame = host.querySelector("iframe");
   const skel = host.querySelector(".md-skel");
   frame.addEventListener("load", () => skel.classList.add("gone"), { once: true });
-  setTimeout(() => skel.classList.add("gone"), 12000);      // never shimmer forever
-  syncScrollLock?.();
-  const close = () => { host.remove(); syncScrollLock?.(); };
-  host.querySelector("#mdClose").onclick = close;
-  host.addEventListener("click", (e) => { if (e.target === host) close(); });
+  skeletonTimer = setTimeout(() => skel.classList.add("gone"), 12000);      // never shimmer forever
+  host.querySelector("#mdClose").onclick = () => close();
 }
