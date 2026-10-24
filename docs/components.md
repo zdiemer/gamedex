@@ -7,7 +7,7 @@ when existing components cannot reasonably express the required behavior.
 
 ## Browse the whole site
 
-Sign in and choose **Menu → Admin → Component library** (`/components.html`).
+Sign in and choose **Menu → Admin → Component library** (`/?tab=components`).
 The catalogue has three complementary views, searchable by name, category, and
 owning file:
 
@@ -26,6 +26,12 @@ owning file:
   every top-level frontend module, including feature-specific UI. Each entry
   names its file/line and shows implementation source. It is a discovery index,
   not a claim that each function is a separately reusable primitive.
+
+The catalogue is an admin-only SPA tab: the app owns navigation, history, and
+theme. Its fixture document stays isolated in a frame so sample globals and DOM
+IDs cannot overwrite the running app. Leaving the tab disposes its previews.
+Legacy `/components.html` links redirect into the SPA. The workbench fills the
+available width up to 1500px; selecting an example does not resize its columns.
 
 The app-context previews are deliberately lazy: opening the catalogue alone does
 not boot a second app or issue API requests. All gallery-only JS/CSS and HTML are
@@ -163,6 +169,9 @@ and `GAMEDEX_UI_URL` set to the server origin. The browser setup and library
 environment are the same as `tools/mobile-shot/shot.sh`. For the optional
 read-only live-data integration check, run `tools/tests/component-library-live.cjs`
 with `GAMEDEX_UI_URL` pointing to that static/API proxy and a nonempty library.
+Run `node tools/tests/component-library-spa.cjs` against the same proxy to check
+SPA history, admin routing, theme synchronization, responsive sizing, and fixture
+isolation. It stubs the signed-in identity locally and blocks API writes.
 
 The static server above supports isolated examples and source browsing. For live
 app previews, use the real server or the static/API proxy described in

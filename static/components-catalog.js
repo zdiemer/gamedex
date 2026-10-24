@@ -4,7 +4,7 @@ const COMPONENT_SOURCES = [
     "id": "app-renderAll",
     "name": "renderAll",
     "file": "app.js",
-    "line": 81,
+    "line": 83,
     "category": "Other UI",
     "tab": "home"
   },
@@ -12,7 +12,7 @@ const COMPONENT_SOURCES = [
     "id": "app-renderEnrichWait",
     "name": "renderEnrichWait",
     "file": "app.js",
-    "line": 208,
+    "line": 211,
     "category": "Other UI",
     "tab": "home"
   },
@@ -20,7 +20,7 @@ const COMPONENT_SOURCES = [
     "id": "app-updateNavHere",
     "name": "updateNavHere",
     "file": "app.js",
-    "line": 495,
+    "line": 502,
     "category": "Other UI",
     "tab": "home"
   },
@@ -28,7 +28,7 @@ const COMPONENT_SOURCES = [
     "id": "app-setFreshness",
     "name": "setFreshness",
     "file": "app.js",
-    "line": 517,
+    "line": 524,
     "category": "Other UI",
     "tab": "home"
   },
@@ -359,6 +359,14 @@ const COMPONENT_SOURCES = [
     "line": 142,
     "category": "Collections & challenges",
     "tab": "groups"
+  },
+  {
+    "id": "component-library-renderComponentLibrary",
+    "name": "renderComponentLibrary",
+    "file": "component-library.js",
+    "line": 20,
+    "category": "Admin & editing",
+    "tab": "components"
   },
   {
     "id": "components-buttonHtml",

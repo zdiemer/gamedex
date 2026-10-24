@@ -6,7 +6,7 @@ import unittest
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 from starlette.testclient import TestClient
@@ -20,7 +20,7 @@ class GalleryAccessTest(unittest.TestCase):
         accounts = SimpleNamespace(resolve_session=lambda token:
                                    {'user_id': 1} if token == 'valid-test-session' else None)
         ns = dict(StaticFiles=StaticFiles, Request=Request, JSONResponse=JSONResponse,
-                  ACCOUNTS=accounts, SESSION_COOKIE='gamedex_session')
+                  RedirectResponse=RedirectResponse, ACCOUNTS=accounts, SESSION_COOKIE='gamedex_session')
         exec(compile(ast.Module(body=nodes, type_ignores=[]), 'app.py', 'exec'), ns)
         app = Starlette(routes=[Mount('/', ns['RevalidatingStatic'](directory='static', html=True))])
         self.client = TestClient(app)
@@ -36,13 +36,21 @@ class GalleryAccessTest(unittest.TestCase):
                     if token:
                         self.client.cookies.set('gamedex_session', token)
                     for method in ['get', 'head']:
-                        response = getattr(self.client, method)(path)
+                        response = getattr(self.client, method)(path + ("?embedded=1" if "html" in path else ""))
                         self.assertEqual(response.status_code, 200 if token == 'valid-test-session' else 401)
                         self.assertEqual(response.headers['cache-control'], 'private, no-store')
                         self.assertEqual(response.headers['vary'], 'Cookie')
 
+    def test_legacy_gallery_redirects_into_spa(self):
+        self.assertEqual(self.client.get('/components.html').status_code, 401)
+        self.client.cookies.set('gamedex_session', 'valid-test-session')
+        response = self.client.get('/components.html', follow_redirects=False)
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers['location'], '/?tab=components')
+        self.assertEqual(response.headers['cache-control'], 'private, no-store')
+
     def test_public_runtime_remains_public(self):
-        for path in ['/', '/components.js', '/core.js', '/style.css']:
+        for path in ['/', '/components.js', '/component-library.js', '/core.js', '/style.css']:
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.headers['cache-control'], 'no-cache')

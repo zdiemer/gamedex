@@ -23,7 +23,7 @@ remain in their documented owning files. Theme tokens and shared styles live in
 Preserve accessibility, selectors used by event delegation, and existing behavior.
 Escape data in HTML; keep state and event handlers in the consuming feature.
 
-Browse all UI via **Menu → Admin → Component library** (`/components.html`).
+Browse all UI via **Menu → Admin → Component library** (`/?tab=components`).
 Maintain isolated examples or app-context entries for UI changes, and regenerate
 `static/components-catalog.js` with `python3 tools/components/catalog.py`.
 Run `python3 tools/components/catalog.py --check` to prevent inventory drift. Run `node tools/tests/components.cjs`,

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # Every feature owner has an app destination; utility-only modules are still scanned
 # for renderers and show their source even when they don't own a separate tab.
 GROUPS = {
+ 'component-library': ('Admin & editing', 'components'),
  'core': ('Foundations', 'home'), 'components': ('Controls & dialogs', 'home'),
  'data': ('Controls & dialogs','games'), 'chrome': ('Navigation & account','home'),
  'filters': ('Lists & filtering','games'), 'table': ('Game tiles & lists','games'),

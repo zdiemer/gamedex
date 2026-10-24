@@ -424,17 +424,17 @@ button .ico, a .ico { pointer-events: none; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
 .nav-group[hidden] { display: none; }
 .nav-grp-h { font: 700 10px/1 var(--font); letter-spacing: .11em; text-transform: uppercase; color: var(--dim); padding: 8px 12px 5px; }
-#tabs :is(button, a) {
+#tabs button {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
   background: none; border: 0; border-radius: 10px; padding: 10px 12px; cursor: pointer;
   color: var(--muted); font: 600 14px/1 var(--display); position: relative;
   transition: background .14s, color .14s;
 }
-#tabs :is(button, a) .ico { color: var(--dim); transition: color .14s; }
-#tabs :is(button, a):hover { background: var(--surface-2); color: var(--text); }
-#tabs :is(button, a):hover .ico { color: var(--muted); }
-#tabs :is(button, a).active { background: var(--accent-soft); color: var(--accent); }
-#tabs :is(button, a).active .ico { color: var(--accent); }
+#tabs button .ico { color: var(--dim); transition: color .14s; }
+#tabs button:hover { background: var(--surface-2); color: var(--text); }
+#tabs button:hover .ico { color: var(--muted); }
+#tabs button.active { background: var(--accent-soft); color: var(--accent); }
+#tabs button.active .ico { color: var(--accent); }
 /* Attract mode lives at the foot of the menu now (it used to sit on Home). margin-top:auto
    drops it to the bottom of the panel; the hairline reads it as a footer action. */
 .nav-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border-soft);
@@ -7178,5 +7178,10 @@ html.thm-browser-open, body.thm-browser-open { overflow: hidden; overscroll-beha
 :root[data-home-boot] #pager { display: none; }
 #hChalSlot[aria-busy="true"] { min-height: 200px; }
 
-/* Navigation destinations share the menu controls' appearance. */
-#tabs a { text-decoration: none; }
+/* The component workbench is a regular special tab. Its isolated examples must
+   not overwrite the application's DATA, enrichment caches, or duplicate IDs. */
+#componentLibrary { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.component-library-frame { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); position: absolute; inset: 0; }
+@media (max-width: 760px) {
+  #componentLibrary { height: calc(100dvh - 72px); min-height: 480px; }
+}

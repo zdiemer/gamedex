@@ -15,9 +15,11 @@ let lastGroupedCount = -1;      // so the grouped view repaints once enrichment 
    "events" is the preview board behind it (events.js). The event IDS are not listed here:
    each ev-*.js file pushes its own into this array when it registers, which happens after
    this file parses. Anything that copies this list at parse time gets an incomplete one. */
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "swipe", "spooktober", "event", "events"];
+const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "swipe", "spooktober", "event", "events", "components"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
+  $("#componentLibrary").hidden = mode !== "components";
+  if (mode !== "components") disposeComponentLibrary();
   if (mode !== "home" && typeof cancelHomeChallenges === "function") cancelHomeChallenges();
   $("#searchpage").hidden = mode !== "search";
   $("#stats").hidden = mode !== "stats";
@@ -90,6 +92,7 @@ function _renderAll() {
   // Recomputed by the row branch at the bottom. Cleared here so that navigating away from
   // a held list — clicking Home while it waits — doesn't leave the flag set behind you.
   ENRICH_WAITING = false;
+  if (activeTab === "components") { setSpecialMode("components"); renderComponentLibrary(); return; }
   if (activeTab === "home") { setSpecialMode("home"); renderHome(); return; }
   if (activeTab === "stats") { setSpecialMode("stats"); renderStats(); return; }
   if (activeTab === "pick") { setSpecialMode("pick"); renderPicker(); return; }
@@ -237,6 +240,7 @@ function resetTab(tab) {
 // exits: popstate must restore what the URL says and nothing else. Anything that starts
 // passing `reset` from there breaks the Back button.
 function switchTab(tab, reset) {
+  if (tab === "components" && !IS_ADMIN) tab = "home";
   if (reset) resetTab(tab);
   // Pick's criteria sheet is a modal over its own tab and nothing else — leaving the tab
   // closes it through the front door, which also hands back the scroll lock it holds.
@@ -270,7 +274,9 @@ function syncURL(push) {
   if (applyingState) return;
   const p = new URLSearchParams();
   if (activeTab !== "home") p.set("tab", activeTab);
-  if (activeTab === "search") {
+  if (activeTab === "components") {
+    if (COMPONENT_LIBRARY.id !== "search") p.set("component", COMPONENT_LIBRARY.id);
+  } else if (activeTab === "search") {
     if (GLOBAL_SEARCH.q) p.set("gq", GLOBAL_SEARCH.q);   // the global query, for a shareable link
   } else if (activeTab === "pick") {
     // A preset is a name; anything you've edited since is a tree, and only the tree is
@@ -334,15 +340,16 @@ function applyStateFromURL() {
   // direct link, and a link has to actually work.
   tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
          "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "swipe", "wishlist", "search",
-         "translations", "spooktober", "events"]
+         "translations", "spooktober", "events", "components"]
     .concat(typeof EVENT_TABS !== "undefined" ? EVENT_TABS : []).includes(tab) ? tab : "home";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   // The preview board moves the app's clock and shows every event's state; it is a
   // workshop tool, not a page, so it lands on Home for anyone who isn't the owner.
-  if ((tab === "wishlist" || tab === "health" || tab === "events" || tab === "swipe")
+  if ((tab === "wishlist" || tab === "health" || tab === "events" || tab === "swipe" || tab === "components")
       && typeof IS_ADMIN !== "undefined" && !IS_ADMIN) tab = "home";
   if (SPECIAL_TABS.includes(tab)) {
+    if (tab === "components") COMPONENT_LIBRARY.id = componentLibraryId(p.get("component"));
     if (tab === "search") GLOBAL_SEARCH.q = p.get("gq") || "";
     if (tab === "pick") {
       const fb = p.get("fb");

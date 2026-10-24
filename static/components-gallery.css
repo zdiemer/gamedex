@@ -1,7 +1,8 @@
 .library-page { overflow: auto; }
 .library-header { display:flex; align-items:center; flex-wrap:wrap; gap:16px; padding:18px 28px; border-bottom:1px solid var(--border); background:var(--surface); }
 .library-header .brand-word { text-decoration:none; margin-right:auto; }
-.library { max-width:1500px; margin:auto; padding:36px 28px 80px; }
+/* Explicit width prevents auto margins in the flex body from sizing to each example. */
+.library { width:100%; max-width:1500px; min-width:0; margin:0 auto; padding:36px 28px 80px; }
 .library-intro { max-width:780px; margin-bottom:28px; }
 .library h1,.library h2 { font-family:var(--display); margin-bottom:12px; }
 .library h1 { font-size:clamp(28px,4vw,44px); }
@@ -62,3 +63,5 @@
 
 .library-preview > .field { display:flex; margin-bottom:14px; }
 .library-preview .px-guess { position:relative; }
+
+.library-embedded .library-header { display: none; }

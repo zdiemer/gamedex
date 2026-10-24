@@ -19,8 +19,15 @@ const vm = require('node:vm');
    await page.setViewportSize({width,height:900});
    for(const theme of ['dark','light']) {
     await page.evaluate(theme=>setTheme(theme),theme);
+    await page.evaluate(()=>selectEntry('search'));
+    const baseline=await page.locator('.library').boundingBox();
+    const detailBaseline=await page.locator('.library-detail').boundingBox();
     for(const id of entries) {
      await page.evaluate(id=>selectEntry(id),id);
+     const bounds=await page.locator('.library').boundingBox();
+     const detail=await page.locator('.library-detail').boundingBox();
+     assert.ok(Math.abs(bounds.width-baseline.width)<1 && Math.abs(bounds.x-baseline.x)<1, `${id} must keep catalogue width and position at ${width}`);
+     assert.ok(Math.abs(detail.width-detailBaseline.width)<1 && Math.abs(detail.x-detailBaseline.x)<1, `${id} must keep detail width and position at ${width}`);
      assert.equal(await page.locator('.preview-error').count(),0,`${id} must render`);
      assert.ok((await page.locator('#componentPreview').innerHTML()).trim(),`${id} must be populated`);
      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`${id} must fit ${width}`);
@@ -46,9 +53,9 @@ const vm = require('node:vm');
   assert.equal(await page.locator('#componentList [data-entry="account"]').count(),0);
   const nav=await page.evaluate(()=>{
    const link=templateDocument.querySelector('#navComponents');
-   return {href:link.getAttribute('href'),hidden:link.closest('#navAdmin').hidden};
+   return {tag:link.tagName,tab:link.dataset.tab,hidden:link.closest('#navAdmin').hidden};
   });
-  assert.deepEqual(nav,{href:'components.html',hidden:true});
+  assert.deepEqual(nav,{tag:'BUTTON',tab:'components',hidden:true});
   await page.evaluate(()=>selectEntry('posters'));
   assert.match(await page.locator('#componentSource').textContent(),/function posterCardHtml/);
   assert.equal(await page.evaluate(()=>location.hash),'#posters');

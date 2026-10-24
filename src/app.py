@@ -2028,6 +2028,9 @@ class RevalidatingStatic(StaticFiles):
         if gallery and current_user(Request(scope)) is None:
             return JSONResponse({"detail": "authentication required"}, status_code=401,
                                 headers={"Cache-Control": "private, no-store", "Vary": "Cookie"})
+        if path == "components.html" and Request(scope).query_params.get("embedded") != "1":
+            return RedirectResponse("/?tab=components", status_code=307,
+                                    headers={"Cache-Control": "private, no-store", "Vary": "Cookie"})
         response = await super().get_response(path, scope)
         if gallery:
             response.headers["Cache-Control"] = "private, no-store"

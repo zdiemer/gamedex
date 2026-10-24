@@ -150,7 +150,12 @@ const LIVE_SURFACES = [
   ["pending", "Pending edits, conflicts & staged rows", "Admin & editing", "edits.js", "games", ".ed-ce", "openPendingEdits"],
 ];
 const categorySelect = $("#libraryCategory");
-function setTheme(theme) {
+const libraryEmbedded = window.parent !== window;
+const libraryParams = new URLSearchParams(location.search);
+if (libraryEmbedded) document.documentElement.classList.add("library-embedded");
+function setTheme(theme, notifyParent = true) {
+  if (!["light", "dark"].includes(theme)) return;
+  if (libraryEmbedded && notifyParent) parent.postMessage({ type: "component-library-theme", theme }, location.origin);
   document.documentElement.dataset.theme = theme;
   $("#themeToggle").setAttribute("aria-pressed", String(theme === "light"));
   document.querySelectorAll("[data-set-theme]").forEach(btn => btn.classList.toggle("on", btn.dataset.setTheme === theme));
@@ -221,7 +226,8 @@ async function selectEntry(id, updateHash = true) {
   const entry = catalogue.find(item => item.id === id) || catalogue[0];
   selectedId = entry.id;
   const token = ++renderVersion;
-  if (updateHash) history.replaceState(null, "", `#${encodeURIComponent(entry.id)}`);
+  if (libraryEmbedded) parent.postMessage({ type: "component-library-selection", id: entry.id }, location.origin);
+  else if (updateHash) history.replaceState(null, "", `#${encodeURIComponent(entry.id)}`);
   $("#componentCategory").textContent = entry.category;
   $("#componentTitle").textContent = entry.name;
   $("#componentDescription").textContent = entry.description || "Production UI renderer. Inspect its implementation below, or open the app context to see it with your library data.";
@@ -278,7 +284,14 @@ async function initLibrary() {
   $("#componentList").onclick = event => { const button = event.target.closest("[data-entry]"); if (button) selectEntry(button.dataset.entry); };
   $("#themeToggle").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
   window.addEventListener("hashchange", () => selectEntry(decodeURIComponent(location.hash.slice(1)), false));
-  await selectEntry(decodeURIComponent(location.hash.slice(1)) || "search", false);
+  setTheme(libraryParams.get("theme") || document.documentElement.dataset.theme || "dark", false);
+  window.addEventListener("message", event => {
+    if (!libraryEmbedded || event.origin !== location.origin || event.source !== parent ||
+        event.data?.type !== "component-library-view") return;
+    setTheme(event.data.theme, false);
+    if (event.data.id !== selectedId) selectEntry(event.data.id, false);
+  });
+  await selectEntry((libraryEmbedded ? libraryParams.get("component") : decodeURIComponent(location.hash.slice(1))) || "search", false);
   document.body.dataset.libraryReady = "true";
 }
 initLibrary().catch(error => { say(`Unable to load the catalogue: ${error.message}`); console.error(error); });
