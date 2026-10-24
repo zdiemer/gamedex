@@ -1,107 +1,6 @@
 "use strict";
 
-/* The drawer's headline: the cinematic hero, and the prose under it.
-
-   A screenshot, blurred and dimmed, sits behind the cover and title; the numbers
-   that matter become a stat strip. Built from the light enrichment immediately,
-   then upgraded in place when the full detail lands (see fillHero in panels.js).
-
-   Also the age-rating art, the controller map, and the HowLongToBeat block --
-   everything that renders from a detail record rather than fetching one. */
-
-// The carousel's contents: trailers first (they autoplay, muted, when their
-// slide is showing), then screenshots, then key art.
-function mediaOf(d) {
-  return [
-    ...(d.videos || []).slice(0, 6).map((v) => ({ kind: "video", id: v.id, name: v.name || "Trailer" })),
-    ...(d.screenshots || []).map((id) => ({ kind: "image", id })),
-    ...(d.artworks || []).map((id) => ({ kind: "image", id, art: true })),
-  ];
-}
-
-// The drawer's Tags row: one combined list of chips (genres, themes, perspectives, modes,
-// then IGDB's long keyword tail). Past TAG_CAP the overflow collapses behind a "+N more"
-// chip — a game with fifty keywords otherwise pushes the whole drawer down. The reveal is
-// wired by delegation in chrome.js; each chip is still its own facet-link.
-const TAG_CAP = 12;
-function tagChipsHtml(items) {
-  if (!items.length) return "";
-  const chip = (it) => chipHtml(it.x, { facet: it.fk });
-  if (items.length <= TAG_CAP) return `<div class="chips tag-chips">${items.map(chip).join("")}</div>`;
-  const shown = items.slice(0, TAG_CAP).map(chip).join("");
-  const rest = items.slice(TAG_CAP).map(chip).join("");
-  return `<div class="chips tag-chips collapsed">${shown}` +
-    `<span class="tag-rest">${rest}</span>` +
-    `<button class="chip tag-more" type="button">+${items.length - TAG_CAP} more</button></div>`;
-}
-
-function detailHtml(d) {
-  if (!d) return "";
-  const cs = coverSrc(d, "cover_big");
-  const cover = cs ? `<img class="cover-big" src="${cs}" alt="">` : "";
-  const badge = d.manual ? `<span class="chip manual">★ Manually mapped</span>` : "";
-  const rating = d.rating != null
-    ? `<div class="igdb-rating ${ratingClass(d.rating)}">${Math.round(d.rating * 100)}<small>/100 IGDB</small>${d.ratingCount ? ` · ${d.ratingCount} ratings` : ""}</div>` : "";
-  const linkList = (arr, fk) => arr.map((x) =>
-    `<a class="facet-link" data-fk="${fk}" data-fv="${escapeHtml(String(x))}">${escapeHtml(String(x))}</a>`).join(", ");
-  const meta = [];
-  const uniq = (a) => [...new Set(a)];
-  if (d.developers && d.developers.length) meta.push(`<div class="detail-row"><div class="k">Developer</div><div class="v">${linkList(uniq(d.developers.map(canonDev)), "developer")}</div></div>`);
-  if (d.publishers && d.publishers.length) meta.push(`<div class="detail-row"><div class="k">Publisher</div><div class="v">${linkList(uniq(d.publishers.map(canonPub)), "publisher")}</div></div>`);
-  if (d.franchises && d.franchises.length) meta.push(`<div class="detail-row"><div class="k">Franchise</div><div class="v">${linkList(uniq(d.franchises.map(canonFran)), "franchise")}</div></div>`);
-  if (d.engines && d.engines.length) meta.push(`<div class="detail-row"><div class="k">Engine</div><div class="v">${linkList(uniq(d.engines), "__igdb_engine")}</div></div>`);
-  if (d.ageRating) meta.push(`<div class="detail-row"><div class="k">Rated</div><div class="v age-v">${ageBadgeHtml(d.ageRating)}<a class="facet-link" data-fk="__igdb_age" data-fv="${escapeHtml(d.ageRating)}">${escapeHtml(d.ageRating)}</a></div></div>`);
-  const nShots = mediaOf(d).length;
-  const shots = nShots
-    ? `<div class="shots"><div class="shot-view"></div>` +
-      (nShots > 1 ? `<button class="shot-nav prev" aria-label="Previous">‹</button><button class="shot-nav next" aria-label="Next">›</button>` : "") +
-      `<div class="shot-count"></div><div class="shot-cap"></div></div>` : "";
-  // Computed at home, not fetched: feature overlap (franchise, developer,
-  // keywords, era…) between this game and every game on the sheet, weighted by
-  // how rare each shared feature is in the collection (similar.js). IGDB's own
-  // similar_games list orbited the same few ubiquitous titles; this one has to
-  // earn each entry — and every entry opens in-app instead of navigating away.
-  const similar = typeof similarByFeatures === "function" ? similarByFeatures(d, drawerRow) : [];
-  const simHtml = similar.length
-    ? `<div class="detail-row notes"><div class="k">Similar games you own <span class="muted">${similar.length}</span></div>
-        <div class="similar">${similar.map((s) => {
-          const cover = s.cover ? IMG(s.cover, "cover_small") : coverSrc(ENRICH[s.row._k], "cover_small");
-          const mark = s.row.completed ? `<i class="sim-done" title="Beaten">✓</i>`
-            : s.row.owned ? `<i class="sim-owned" title="Owned">●</i>` : "";
-          return `<button class="sim" data-simk="${escapeHtml(String(s.row._k || ""))}" title="${escapeHtml(s.name + (s.why ? " — " + s.why : ""))}">
-            ${cover ? `<img loading="lazy" src="${escapeHtml(cover)}" alt="">` : `<span class="sim-ph">${icon("i-library", 18)}</span>`}
-            ${mark}
-            <span>${escapeHtml(s.name)}</span>
-          </button>`;
-        }).join("")}</div></div>`
-    : "";
-
-  const text = d.summary || d.storyline;
-  // Genre / theme / mode, under the summary. They're a way INTO the collection
-  // (every chip is a filter), so they belong next to the prose that made you
-  // curious, not stacked above the cover.
-  // Genre chips filter the UNIFIED genre facet (canonicalised so an IGDB "Platform"
-  // chip filters "Platformer"); themes/modes stay IGDB-only facets.
-  // Curated genres lead — "Nonogram" is the thing I actually went looking for, and IGDB's
-  // own list would only ever say "Puzzle".
-  const curated = drawerRow ? curatedGenres(drawerRow) : [];
-  const genreChips = [...new Set([...curated, ...(d.genres || []).map((g) => String(canonGenre(g)))])];
-  // One combined, capped list: genres/themes/perspectives/modes first, then IGDB's long
-  // keyword tail. Everything past TAG_CAP folds behind "+N more" (tagChipsHtml).
-  const tagItems = [
-    ...genreChips.map((x) => ({ x, fk: "genre" })),
-    ...(d.themes || []).map((x) => ({ x, fk: "__igdb_theme" })),
-    ...(d.perspectives || []).map((x) => ({ x, fk: "__igdb_persp" })),
-    ...(d.gameModes || []).map((x) => ({ x, fk: "__igdb_mode" })),
-    ...(d.keywords || []).map((x) => ({ x, fk: "__igdb_kw" })),
-  ];
-  const tags = tagChipsHtml(tagItems);
-  return (badge ? `<div class="badges">${badge}</div>` : "") +
-    (text ? `<div class="detail-row notes"><div class="k">Summary (${escapeHtml(d.source || "IGDB")})</div><div class="v">${escapeHtml(text)}</div></div>` : "") +
-    (tags ? `<div class="detail-row notes tag-row"><div class="k">Tags</div><div class="v">${tags}</div></div>` : "") +
-    meta.join("") + shots + simHtml +
-    igdbAttr(d);
-}
+/* Cinematic drawer hero and its in-place enrichment updates. */
 
 // ---- cinematic hero ------------------------------------------------------
 // A screenshot, blurred and dimmed, sits behind the cover and title; the numbers
@@ -287,139 +186,29 @@ function heroHtml(row, titleText) {
   </div>`;
 }
 
-/* The rating boards' badges — the real artwork, not a lookalike.
-
-   IGDB hands back a string ("ESRB M", "PEGI 18", "CERO Z") which maps straight onto an SVG
-   in static/ratings/. These are the official marks: the boards each have a specific, fussy
-   geometry (ESRB's split box, PEGI's notched shield, CERO's rounded lozenge) and a redrawn
-   approximation reads as slightly wrong in a way that's hard to place but easy to see.
-
-   Vector, so they stay crisp at any size, and they carry their own colours — a PEGI 18 that
-   went grey in dark mode would not be a PEGI 18. Boards we have no art for (USK, GRAC, ACB,
-   CLASS_IND) fall back to a plain drawn chip rather than a wrong picture. */
-const AGE_ART = {
-  "ESRB RP": "rp", "ESRB EC": "ec", "ESRB E": "e", "ESRB E10+": "e10",
-  "ESRB T": "t", "ESRB M": "m", "ESRB AO": "ao",
-};
-const ESRB_WORD = {
-  RP: "Rating Pending", EC: "Early Childhood", E: "Everyone", "E10+": "Everyone 10+",
-  T: "Teen", M: "Mature 17+", AO: "Adults Only",
-};
-
-function ageArtSrc(rating) {
-  const [board, ...rest] = String(rating || "").trim().split(/\s+/);
-  const val = rest.join(" ");
-  if (!board || !val) return null;
-  if (board === "ESRB") {
-    const slug = AGE_ART[`ESRB ${val}`];
-    return slug ? `ratings/esrb-${slug}.svg` : null;
+function fillHero(detail) {
+  const bg = $("#heroBg"), coverEl = $("#heroCover"), chipsEl = $("#heroChips");
+  if (!detail) return;
+  // Artwork first: it's cinematic key art, made to be looked at. A screenshot is
+  // a fallback — it's a picture of a HUD. Ask for the big version: this is a
+  // full-bleed banner now, not a blurred wash, so a low-res source would show.
+  const art = (detail.artworks || [])[0] || (detail.screenshots || [])[0];
+  if (bg && art) {
+    const img = new Image();          // fade it in only once it's actually there
+    img.onload = () => {
+      bg.style.backgroundImage = `url("${IMG(art, "1080p")}")`;
+      bg.classList.add("on");
+    };
+    img.src = IMG(art, "1080p");
   }
-  if (board === "PEGI" && ["3", "7", "12", "16", "18"].includes(val)) return `ratings/pegi-${val}.svg`;
-  if (board === "CERO" && ["A", "B", "C", "D", "Z"].includes(val)) return `ratings/cero-${val.toLowerCase()}.svg`;
-  if (board === "USK" && ["0", "6", "12", "16", "18"].includes(val)) return `ratings/usk-${val}.svg`;
-  return null;
-}
-
-function ageBadgeHtml(rating) {
-  if (!rating) return "";
-  const [board, ...rest] = String(rating).trim().split(/\s+/);
-  const val = rest.join(" ");
-  if (!val) return "";
-  const src = ageArtSrc(rating);
-  const alt = board === "ESRB" ? `ESRB ${ESRB_WORD[val] || val}` : `${board} ${val}`;
-  if (src) {
-    return `<img class="age-art ${escapeHtml(board.toLowerCase())}" src="${escapeHtml(src)}"
-      alt="${escapeHtml(alt)}" title="${escapeHtml(alt)}" loading="lazy">`;
+  const cs = coverSrc(detail, "cover_big");
+  if (coverEl && cs && coverEl.tagName !== "IMG") {
+    const img = document.createElement("img");
+    img.className = "cover-big"; img.id = "heroCover"; img.alt = ""; img.src = cs;
+    coverEl.replaceWith(img);
   }
-  // A board we have no artwork for: an honest chip beats a wrong picture.
-  return `<span class="age-b gen" title="${escapeHtml(alt)}"><b>${escapeHtml(val)}</b><em>${escapeHtml(board)}</em></span>`;
-}
-
-function igdbAttr(d) {
-  const name = d.source || "IGDB";
-  const link = d.url ? `<a href="${escapeHtml(d.url)}" target="_blank" rel="noopener">View on ${escapeHtml(name)} ↗</a> · ` : "";
-  const by = d.source
-    ? `Metadata via ${escapeHtml(name)}`
-    : `Metadata by <a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB</a>`;
-  return `<div class="igdb-attr">${link}${by}</div>`;
-}
-
-function mapControlHtml(key) {
-  // Current mapping per source, so the boxes show what a game is already matched to.
-  const d = DETAIL[key] || {};
-  const primary = d.source ? String(d.source).toLowerCase() : (d.igdbId ? "igdb" : null);
-  const cur = {
-    igdb: primary === "igdb" ? d.url || "" : "",
-    steam: primary === "steam" ? d.url || "" : "",
-    ign: primary === "ign" ? d.url || "" : "",
-    launchbox: primary === "launchbox" ? d.url || "" : "",
-    keitai: primary === "keitai wiki" ? d.url || "" : "",
-    hltb: (HLTBC[key] || {}).url || "",
-    metacritic: (MCC[key] || {}).url || "",
-    gameye: (GEC[key] || {}).url || "",
-    arcadedb: (ADBC[key] || {}).url || "",
-    vndb: (VNC[key] || {}).url || "",
-    vgchartz: (VGC[key] || {}).url || "",
-    steamx: (SXC[key] || {}).url || "",
-    speedrun: (SRC[key] || {}).url || "",
-    guides: (GDC[key] || {}).url || "",
-    khinsider: (KHC[key] || {}).url || "",
-  };
-  // IGDB / Steam / IGN all fill the same "primary metadata" slot.
-  const rows = [
-    { id: "igdb", label: "Metadata · IGDB", ph: "IGDB game URL" },
-    { id: "steam", label: "Metadata · Steam", ph: "Steam store URL (…/app/<id>/)" },
-    { id: "ign", label: "Metadata · IGN", ph: "IGN game URL" },
-    { id: "launchbox", label: "Metadata · LaunchBox", ph: "LaunchBox game URL" },
-    // The only source that knows the Japanese feature phones, so it's the one you reach
-    // for when a DoJa game's title on the wiki isn't the title in the sheet.
-    { id: "keitai", label: "Metadata · Keitai Wiki", ph: "keitaiwiki.com/wiki/<page>" },
-  ];
-  // Every configured source gets a box. The auto-enrichment gates (VNDB only asks about
-  // sheet-genre "Visual Novel"/"Adventure", Arcade Database only about MAME romsets, and
-  // so on) decide who we ASK — they must not decide who you can MAP. Gating the fix-it
-  // panel behind the same heuristic that made the mistake is what hid VNDB on Tōshin Toshi
-  // II, a VN the sheet happens to file as a Dungeon Crawler. The panel is collapsed behind
-  // "Fix mapping" anyway, so the cost of an extra row is nothing next to an unfixable game.
-  if (ENRICH_SOURCES.includes("hltb")) rows.push({ id: "hltb", label: "HowLongToBeat", ph: "HLTB game URL" });
-  if (ENRICH_SOURCES.includes("metacritic")) rows.push({ id: "metacritic", label: "Metacritic", ph: "Metacritic game URL" });
-  if (ENRICH_SOURCES.includes("gameye")) rows.push({ id: "gameye", label: "GameEye value", ph: "GameEye encyclopedia URL" });
-  if (ENRICH_SOURCES.includes("arcadedb")) rows.push({ id: "arcadedb", label: "Arcade Database", ph: "adb.arcadeitalia.net/?mame=<romset>" });
-  if (ENRICH_SOURCES.includes("vndb")) rows.push({ id: "vndb", label: "VNDB", ph: "vndb.org/v<id>" });
-  if (ENRICH_SOURCES.includes("vgchartz")) rows.push({ id: "vgchartz", label: "VGChartz sales", ph: "vgchartz.com/games/game.php?id=<id>" });
-  // Steam extras are keyed on the appid, so mapping means pointing at the store page.
-  if (ENRICH_SOURCES.includes("steamx")) rows.push({ id: "steamx", label: "Steam Deck / ProtonDB", ph: "store.steampowered.com/app/<appid>/" });
-  if (ENRICH_SOURCES.includes("speedrun")) rows.push({ id: "speedrun", label: "speedrun.com", ph: "speedrun.com/<game>" });
-  if (ENRICH_SOURCES.includes("cooptimus")) rows.push({ id: "cooptimus", label: "Co-Optimus", ph: "co-optimus.com/game/<id>/..." });
-  if (ENRICH_SOURCES.includes("guides")) rows.push({ id: "guides", label: "StrategyWiki guide", ph: "strategywiki.org/wiki/<Page>" });
-  if (ENRICH_SOURCES.includes("khinsider")) rows.push({ id: "khinsider", label: "KHInsider soundtrack", ph: "downloads.khinsider.com/game-soundtracks/album/<slug>" });
-  // These two join on an id rather than a title (the Steam appid, the IGDB slug), so they
-  // can't strictly be MIS-matched — but the id itself can be missing or point at the wrong
-  // entry, so the escape hatch still earns its place.
-  if (ENRICH_SOURCES.includes("pcgw")) rows.push({ id: "pcgw", label: "PCGamingWiki", ph: "pcgamingwiki.com/wiki/<Page>" });
-  if (ENRICH_SOURCES.includes("wikidata")) rows.push({ id: "wikidata", label: "Wikidata", ph: "igdb.com/games/<slug>" });
-  return `<details class="map-menu"><summary>${icon("i-edit", 13)} Fix mapping</summary>` +
-    rows.map((s) => `<div class="map-src" data-src="${s.id}"><label>${escapeHtml(s.label)}</label>
-      <div class="map-row"><input type="url" placeholder="${s.ph}" value="${escapeHtml(cur[s.id] || "")}" data-map-input>
-      <button class="btn" data-map-go>Map</button>
-      <button class="linkbtn" data-map-reset title="Re-run auto-matching">Auto</button>
-      <button class="linkbtn danger" data-map-remove title="Pin as no match. Auto-matching won't re-fill it">Remove</button>
-      </div></div>`).join("") +
-    `</details>`;
-}
-
-function hltbHtml(h) {
-  const est = drawerRow ? drawerRow.estimatedTime : null;
-  if (h) {
-    const rows = [["Main Story", h.main], ["Main + Extras", h.mainPlus], ["Completionist", h.hundred], ["All Styles", h.allStyles]]
-      .filter(([, v]) => v != null);
-    if (!rows.length && est == null) return "";
-    return `<div class="hltb"><div class="hltb-head">⏱ HowLongToBeat</div>` +
-      rows.map(([l, v]) => `<div class="hltb-row"><span>${l}</span><b>${fmtHours(v)}</b></div>`).join("") +
-      (h.url ? `<a class="hltb-link" href="${escapeHtml(h.url)}" target="_blank" rel="noopener">View on HowLongToBeat ↗</a>` : "") +
-      `</div>`;
-  }
-  if (est != null)
-    return `<div class="hltb"><div class="hltb-head">⏱ Playtime</div><div class="hltb-row"><span>Estimated (from sheet)</span><b>${fmtHours(est)}</b></div></div>`;
-  return "";
+  // Chips moved out of the hero: they crowded the cover and title, and the IGDB
+  // score chip repeated the "Players" figure already in the stat strip. They live
+  // under the summary now, which is where you're reading about the game anyway.
+  if (chipsEl) chipsEl.innerHTML = "";
 }

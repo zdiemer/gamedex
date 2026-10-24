@@ -37,9 +37,15 @@ GROUPS = {
 
 def inventory():
     records=[]
-    for path in sorted((ROOT/'static').glob('*.js')):
+    for path in sorted([*(ROOT/'static').glob('*.js'), *(ROOT/'static/components').glob('*.js')]):
         if path.stem.startswith('components-') or path.stem == 'sw': continue
         group, tab=GROUPS.get(path.stem, ('Events & themes','events') if path.stem.startswith('ev-') else ('Other UI','home'))
+        if path.parent.name == 'components':
+            group, tab = {
+                'dialog': ('Controls & dialogs', 'home'),
+                'poster-card': ('Game tiles & lists', 'games'),
+                'media-carousel': ('Media & audio', 'games'),
+            }.get(path.stem, ('Detail drawer', 'games'))
         source=path.read_text()
         pattern=r'^(?:async\s+)?function\s+(\w+)\s*\(|^(?:const|let)\s+(\w+)\s*=.*=>'
         matches=list(re.finditer(pattern,source,re.M))
@@ -49,7 +55,7 @@ def inventory():
             markup=bool(re.search(r'class=["\']|createElement\(|innerHTML\s*=',body))
             if not (markup or re.search(r'Html$',name) or re.match(r'(?:render|draw|svg)[A-Z]',name)
                     or name in {'searchField','icon','glyph','fmtCell','uiPrompt','uiConfirm','openUiDialog','acAttach','showToast','openAuthModal','editsModal','wireCarousel','openShotSet','searchPager'}): continue
-            records.append(dict(id=f'{path.stem}-{name}',name=name,file=path.name,
+            records.append(dict(id=f'{path.stem}-{name}',name=name,file=path.relative_to(ROOT/'static').as_posix(),
                                 line=source[:match.start()].count('\n')+1,category=group,tab=tab))
     return records
 

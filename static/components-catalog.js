@@ -369,6 +369,254 @@ const COMPONENT_SOURCES = [
     "tab": "components"
   },
   {
+    "id": "age-badge-ageBadgeHtml",
+    "name": "ageBadgeHtml",
+    "file": "components/age-badge.js",
+    "line": 36,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "dialog-openUiDialog",
+    "name": "openUiDialog",
+    "file": "components/dialog.js",
+    "line": 6,
+    "category": "Controls & dialogs",
+    "tab": "home"
+  },
+  {
+    "id": "dialog-uiPrompt",
+    "name": "uiPrompt",
+    "file": "components/dialog.js",
+    "line": 47,
+    "category": "Controls & dialogs",
+    "tab": "home"
+  },
+  {
+    "id": "dialog-uiConfirm",
+    "name": "uiConfirm",
+    "file": "components/dialog.js",
+    "line": 76,
+    "category": "Controls & dialogs",
+    "tab": "home"
+  },
+  {
+    "id": "drawer-detail-tagChipsHtml",
+    "name": "tagChipsHtml",
+    "file": "components/drawer-detail.js",
+    "line": 18,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "drawer-detail-detailHtml",
+    "name": "detailHtml",
+    "file": "components/drawer-detail.js",
+    "line": 29,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "drawer-detail-igdbAttr",
+    "name": "igdbAttr",
+    "file": "components/drawer-detail.js",
+    "line": 97,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "mapping-controls-mapControlHtml",
+    "name": "mapControlHtml",
+    "file": "components/mapping-controls.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "media-carousel-wireCarousel",
+    "name": "wireCarousel",
+    "file": "components/media-carousel.js",
+    "line": 7,
+    "category": "Media & audio",
+    "tab": "games"
+  },
+  {
+    "id": "media-carousel-ytFallback",
+    "name": "ytFallback",
+    "file": "components/media-carousel.js",
+    "line": 68,
+    "category": "Media & audio",
+    "tab": "games"
+  },
+  {
+    "id": "media-carousel-openShotSet",
+    "name": "openShotSet",
+    "file": "components/media-carousel.js",
+    "line": 94,
+    "category": "Media & audio",
+    "tab": "games"
+  },
+  {
+    "id": "panel-arcade-arcadeHtml",
+    "name": "arcadeHtml",
+    "file": "components/panel-arcade.js",
+    "line": 5,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-coop-coopHtml",
+    "name": "coopHtml",
+    "file": "components/panel-coop.js",
+    "line": 7,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-gameye-gameyeHtml",
+    "name": "gameyeHtml",
+    "file": "components/panel-gameye.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-guides-guidesHtml",
+    "name": "guidesHtml",
+    "file": "components/panel-guides.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-hltb-hltbHtml",
+    "name": "hltbHtml",
+    "file": "components/panel-hltb.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-metacritic-metacriticHtml",
+    "name": "metacriticHtml",
+    "file": "components/panel-metacritic.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-pcgw-pcgwCell",
+    "name": "pcgwCell",
+    "file": "components/panel-pcgw.js",
+    "line": 9,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-pcgw-pcgwHtml",
+    "name": "pcgwHtml",
+    "file": "components/panel-pcgw.js",
+    "line": 12,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-physical-physicalHtml",
+    "name": "physicalHtml",
+    "file": "components/panel-physical.js",
+    "line": 10,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-sales-salesHtml",
+    "name": "salesHtml",
+    "file": "components/panel-sales.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-speedrun-speedrunHtml",
+    "name": "speedrunHtml",
+    "file": "components/panel-speedrun.js",
+    "line": 4,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-steamx-steamxHtml",
+    "name": "steamxHtml",
+    "file": "components/panel-steamx.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-thumby-thumbyHtml",
+    "name": "thumbyHtml",
+    "file": "components/panel-thumby.js",
+    "line": 4,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-vndb-vndbHtml",
+    "name": "vndbHtml",
+    "file": "components/panel-vndb.js",
+    "line": 3,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "panel-wikidata-wikidataHtml",
+    "name": "wikidataHtml",
+    "file": "components/panel-wikidata.js",
+    "line": 7,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
+    "id": "poster-card-vrBadgeHtml",
+    "name": "vrBadgeHtml",
+    "file": "components/poster-card.js",
+    "line": 7,
+    "category": "Game tiles & lists",
+    "tab": "games"
+  },
+  {
+    "id": "poster-card-posterContentHtml",
+    "name": "posterContentHtml",
+    "file": "components/poster-card.js",
+    "line": 14,
+    "category": "Game tiles & lists",
+    "tab": "games"
+  },
+  {
+    "id": "poster-card-posterSummaryHtml",
+    "name": "posterSummaryHtml",
+    "file": "components/poster-card.js",
+    "line": 24,
+    "category": "Game tiles & lists",
+    "tab": "games"
+  },
+  {
+    "id": "poster-card-posterCardHtml",
+    "name": "posterCardHtml",
+    "file": "components/poster-card.js",
+    "line": 36,
+    "category": "Game tiles & lists",
+    "tab": "games"
+  },
+  {
+    "id": "source-panel-sourcePanelHtml",
+    "name": "sourcePanelHtml",
+    "file": "components/source-panel.js",
+    "line": 5,
+    "category": "Detail drawer",
+    "tab": "games"
+  },
+  {
     "id": "components-buttonHtml",
     "name": "buttonHtml",
     "file": "components.js",
@@ -397,30 +645,6 @@ const COMPONENT_SOURCES = [
     "name": "emptyState",
     "file": "components.js",
     "line": 29,
-    "category": "Controls & dialogs",
-    "tab": "home"
-  },
-  {
-    "id": "components-openUiDialog",
-    "name": "openUiDialog",
-    "file": "components.js",
-    "line": 41,
-    "category": "Controls & dialogs",
-    "tab": "home"
-  },
-  {
-    "id": "components-uiPrompt",
-    "name": "uiPrompt",
-    "file": "components.js",
-    "line": 82,
-    "category": "Controls & dialogs",
-    "tab": "home"
-  },
-  {
-    "id": "components-uiConfirm",
-    "name": "uiConfirm",
-    "file": "components.js",
-    "line": 111,
     "category": "Controls & dialogs",
     "tab": "home"
   },
@@ -1057,26 +1281,10 @@ const COMPONENT_SOURCES = [
     "tab": "health"
   },
   {
-    "id": "hero-tagChipsHtml",
-    "name": "tagChipsHtml",
-    "file": "hero.js",
-    "line": 27,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "hero-detailHtml",
-    "name": "detailHtml",
-    "file": "hero.js",
-    "line": 38,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
     "id": "hero-heroStatsHtml",
     "name": "heroStatsHtml",
     "file": "hero.js",
-    "line": 110,
+    "line": 9,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -1084,7 +1292,7 @@ const COMPONENT_SOURCES = [
     "id": "hero-predictWhyHtml",
     "name": "predictWhyHtml",
     "file": "hero.js",
-    "line": 151,
+    "line": 50,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -1092,39 +1300,15 @@ const COMPONENT_SOURCES = [
     "id": "hero-heroHtml",
     "name": "heroHtml",
     "file": "hero.js",
-    "line": 238,
+    "line": 137,
     "category": "Detail drawer",
     "tab": "games"
   },
   {
-    "id": "hero-ageBadgeHtml",
-    "name": "ageBadgeHtml",
+    "id": "hero-fillHero",
+    "name": "fillHero",
     "file": "hero.js",
-    "line": 323,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "hero-igdbAttr",
-    "name": "igdbAttr",
-    "file": "hero.js",
-    "line": 338,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "hero-mapControlHtml",
-    "name": "mapControlHtml",
-    "file": "hero.js",
-    "line": 347,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "hero-hltbHtml",
-    "name": "hltbHtml",
-    "file": "hero.js",
-    "line": 411,
+    "line": 189,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -1441,154 +1625,10 @@ const COMPONENT_SOURCES = [
     "tab": "games"
   },
   {
-    "id": "panels-wireCarousel",
-    "name": "wireCarousel",
-    "file": "panels.js",
-    "line": 14,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-ytFallback",
-    "name": "ytFallback",
-    "file": "panels.js",
-    "line": 75,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-openShotSet",
-    "name": "openShotSet",
-    "file": "panels.js",
-    "line": 101,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-metacriticHtml",
-    "name": "metacriticHtml",
-    "file": "panels.js",
-    "line": 105,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-gameyeHtml",
-    "name": "gameyeHtml",
-    "file": "panels.js",
-    "line": 122,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-arcadeHtml",
-    "name": "arcadeHtml",
-    "file": "panels.js",
-    "line": 151,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-vndbHtml",
-    "name": "vndbHtml",
-    "file": "panels.js",
-    "line": 185,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-salesHtml",
-    "name": "salesHtml",
-    "file": "panels.js",
-    "line": 204,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-thumbyHtml",
-    "name": "thumbyHtml",
-    "file": "panels.js",
-    "line": 216,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-coopHtml",
-    "name": "coopHtml",
-    "file": "panels.js",
-    "line": 237,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-steamxHtml",
-    "name": "steamxHtml",
-    "file": "panels.js",
-    "line": 261,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-speedrunHtml",
-    "name": "speedrunHtml",
-    "file": "panels.js",
-    "line": 289,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-guidesHtml",
-    "name": "guidesHtml",
-    "file": "panels.js",
-    "line": 304,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-pcgwCell",
-    "name": "pcgwCell",
-    "file": "panels.js",
-    "line": 320,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-pcgwHtml",
-    "name": "pcgwHtml",
-    "file": "panels.js",
-    "line": 323,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-wikidataHtml",
-    "name": "wikidataHtml",
-    "file": "panels.js",
-    "line": 355,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-physicalHtml",
-    "name": "physicalHtml",
-    "file": "panels.js",
-    "line": 378,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
-    "id": "panels-fillHero",
-    "name": "fillHero",
-    "file": "panels.js",
-    "line": 415,
-    "category": "Detail drawer",
-    "tab": "games"
-  },
-  {
     "id": "panels-renderIgdbSection",
     "name": "renderIgdbSection",
     "file": "panels.js",
-    "line": 442,
+    "line": 6,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -2345,42 +2385,10 @@ const COMPONENT_SOURCES = [
     "tab": "games"
   },
   {
-    "id": "table-vrBadgeHtml",
-    "name": "vrBadgeHtml",
-    "file": "table.js",
-    "line": 314,
-    "category": "Game tiles & lists",
-    "tab": "games"
-  },
-  {
-    "id": "table-posterContentHtml",
-    "name": "posterContentHtml",
-    "file": "table.js",
-    "line": 321,
-    "category": "Game tiles & lists",
-    "tab": "games"
-  },
-  {
-    "id": "table-posterSummaryHtml",
-    "name": "posterSummaryHtml",
-    "file": "table.js",
-    "line": 331,
-    "category": "Game tiles & lists",
-    "tab": "games"
-  },
-  {
-    "id": "table-posterCardHtml",
-    "name": "posterCardHtml",
-    "file": "table.js",
-    "line": 343,
-    "category": "Game tiles & lists",
-    "tab": "games"
-  },
-  {
     "id": "table-renderGrid",
     "name": "renderGrid",
     "file": "table.js",
-    "line": 348,
+    "line": 310,
     "category": "Game tiles & lists",
     "tab": "games"
   },

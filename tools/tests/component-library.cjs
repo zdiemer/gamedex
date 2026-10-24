@@ -15,6 +15,14 @@ const vm = require('node:vm');
   await page.waitForFunction(()=>document.body.dataset.libraryReady==='true');
   const entries=await page.evaluate(()=>sampleEntries().map(entry=>entry.id));
   assert.ok(entries.length>=40);
+  const extracted=await page.evaluate(()=>sampleEntries().filter(e=>e.file.startsWith('components/')).map(({id,file,symbol})=>({id,file,symbol})));
+  assert.ok(extracted.length>=19, 'Extracted examples link to component files');
+  for (const entry of extracted) {
+   await page.evaluate(id=>selectEntry(id),entry.id);
+   assert.equal(await page.locator('#componentFullSource').getAttribute('href'),entry.file);
+   assert.ok((await page.locator('#componentOwner').textContent()).includes(entry.file));
+   assert.ok((await page.locator('#componentSource').textContent()).includes('function '+entry.symbol+'('),entry.id+' source must show its extracted implementation');
+  }
   for(const width of [390,1280]) {
    await page.setViewportSize({width,height:900});
    for(const theme of ['dark','light']) {

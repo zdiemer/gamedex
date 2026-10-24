@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ctx = vm.createContext({});
-for (const file of ['core', 'components', 'hero']) {
+for (const file of ['core', 'components', 'components/drawer-detail', 'hero']) {
   vm.runInContext(fs.readFileSync(`static/${file}.js`, 'utf8'), ctx);
 }
 const run = (code) => vm.runInContext(code, ctx);

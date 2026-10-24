@@ -23,7 +23,7 @@ owning file:
   These use the current library/account and have real app behavior; previews
   explicitly say so. Some components require selecting a game with matching data.
 - **Source inventory** indexes UI builders, renderers, and DOM construction across
-  every top-level frontend module, including feature-specific UI. Each entry
+  every top-level frontend module and `static/components/`, including feature-specific UI. Each entry
   names its file/line and shows implementation source. It is a discovery index,
   not a claim that each function is a separately reusable primitive.
 
@@ -35,8 +35,7 @@ available width up to 1500px; selecting an example does not resize its columns.
 
 The app-context previews are deliberately lazy: opening the catalogue alone does
 not boot a second app or issue API requests. All gallery-only JS/CSS and HTML are
-server-gated and bypass service-worker caching. Production modules stay in their
-existing owners; the catalogue does not duplicate their implementations.
+server-gated and bypass service-worker caching. The catalogue uses the production implementations directly.
 
 `tools/components/catalog.py` generates `static/components-catalog.js`. Run it
 when adding/moving UI implementations, and run it with `--check` in validation.
@@ -54,20 +53,41 @@ scanner cannot infer every component's intended usage or required data.
 | Icon / emoji | `icon(id, size)`, `glyph(value, size)` | `static/core.js`; sprite in `static/index.html`, `.ico` |
 | Icon-only control | `<button type="button" class="refreshbtn" aria-label="…">` + `icon()` | `static/style.css`; use `disabled` / `.spinning` as needed |
 | Compact badge | `<span class="pill">…</span>` | `static/style.css` |
-| Game poster | `posterCardHtml(row, { cls, note, attrs })` | `static/table.js`; `.card` and descendants |
-| Poster cover + body / summary | `posterContentHtml(row, bodyHtml, { pending })`, `posterSummaryHtml(row, options)` | `static/table.js`; listing, search, Home, challenges |
+| Game poster | `posterCardHtml(row, { cls, note, attrs })` | `static/components/poster-card.js`; `.card` and descendants |
+| Poster cover + body / summary | `posterContentHtml(row, bodyHtml, { pending })`, `posterSummaryHtml(row, options)` | `static/components/poster-card.js`; listing, search, Home, challenges |
 | Listing / facets / pagination | `renderTable`, `renderGrid`, `renderPager`, existing listing pipeline | `static/table.js`, `static/preview.js`, `static/filters.js` |
-| Collapsible game tags | `tagChipsHtml(items)` | `static/hero.js`; delegated actions in `static/chrome.js` |
-| Game detail hero / panels | `heroHtml`, `detailHtml`, source panel builders | `static/hero.js`, `static/panels.js` |
-| Text prompt / confirmation | `uiPrompt(options)`, `uiConfirm(options)` | `static/components.js`; `.np-*` |
-| Dialog lifecycle / shell | `openUiDialog(options)` | `static/components.js`; `.ce-*` / `.np-*` |
+| Collapsible game tags | `tagChipsHtml(items)` | `static/components/drawer-detail.js`; delegated actions in `static/chrome.js` |
+| Game detail hero / panels | `heroHtml`, `detailHtml`, source panel builders | `static/hero.js`, `static/components/drawer-detail.js`, `static/components/panel-*.js` |
+| Text prompt / confirmation | `uiPrompt(options)`, `uiConfirm(options)` | `static/components/dialog.js`; `.np-*` |
+| Dialog lifecycle / shell | `openUiDialog(options)` | `static/components/dialog.js`; `.ce-*` / `.np-*` |
 | Toast | `showToast(message, iconId)` | `static/chrome.js`; `.toast` |
 | Autocomplete | `acAttach(input, getItems)` | `static/core.js`; `.ac-*` |
-| Media carousel / lightbox | `wireCarousel`, `openShotSet` | `static/panels.js` |
+| Media carousel / lightbox | `wireCarousel`, `openShotSet` | `static/components/media-carousel.js` |
 
-These existing components remain in their owning files. Do not copy them into a
-second implementation just to put everything in one directory. Read their
-signatures and callers before using them; domain components require app state.
+## Component file boundaries
+
+`static/components/` holds focused presentation components using the existing
+plain-script globals. Extract reusable UI here rather than embedding it in feature
+controllers. Move implementations, update the app and gallery script lists and
+service-worker shell, and regenerate the inventory. Keep business state, fetching,
+and navigation in feature modules. Avoid a file per trivial helper: keep helpers,
+constants, and interaction state with the component they serve.
+
+- `poster-card.js`: shared cover, VR badge, summary and poster composition.
+- `dialog.js`: modal lifecycle, prompt and confirmation.
+- `media-carousel.js`: screenshot/trailer carousel and shared lightbox.
+- `drawer-detail.js`: detail prose, tags, media descriptors and attribution.
+- `age-badge.js`: age-rating artwork and fallback badges.
+- `mapping-controls.js`: source-mapping form presentation.
+- `panel-*.js`: one source panel per file, including playtime and physical media.
+- `source-panel.js`: shared panel shell. `sourcePanelHtml(headingHtml, bodyHtml)`
+  accepts **trusted renderer HTML**; source components escape all data, decide
+  whether they have content, and retain their own rows, links and interactions.
+
+`panels.js` now orchestrates enrichment loading and drawer composition.
+`hero.js` owns the cinematic hero and its in-place updates; `table.js` owns list
+sorting, rendering and row registration. Domain components still read existing
+caches; extraction does not introduce a new state or module system.
 
 ## Primitive API
 

@@ -105,6 +105,7 @@ console.log("Swipe: tracked-only sheet rows stay out of the deck");
   const loader = source.slice(source.indexOf("let allTimer = null;"));
   let renders = 0;
   const panelContext = vm.createContext({
+    window: {},
     ENRICH_ENABLED: true, ENRICH: {}, NO_MATCH: new Set(), ENRICH_READY: false,
     ENRICH_WAITING: false, _enrichEpoch: 0, activeTab: "swipe",
     fetch: async () => ({ json: async () => ({ items: { owned: { igdbId: 338105 } } }) }),

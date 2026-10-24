@@ -118,7 +118,7 @@ function load(extra = {}) {
     DATA: JSON.parse(JSON.stringify(SHEET)),
     ...extra,
   });
-  for (const file of ['components', 'edits']) vm.runInContext(fs.readFileSync(
+  for (const file of ['components', 'components/dialog', 'edits']) vm.runInContext(fs.readFileSync(
     path.join(__dirname, `../../static/${file}.js`), 'utf8'), ctx);
   return { ctx, document };
 }

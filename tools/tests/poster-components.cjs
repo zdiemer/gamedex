@@ -6,7 +6,7 @@ const ctx = vm.createContext({
  ENRICH: {test:{cover:'cover".jpg',pixel:true}},
  coverSrc: e => e?.cover || '', coverIsPixelArt: e => !!e?.pixel,
 });
-for (const file of ['core','components','table']) vm.runInContext(fs.readFileSync(`static/${file}.js`,'utf8'),ctx);
+for (const file of ['core','components','components/poster-card','table']) vm.runInContext(fs.readFileSync(`static/${file}.js`,'utf8'),ctx);
 ctx.row = {_k:'test',title:'<Game>',platform:'A&B',releaseYear:2026,vr:true};
 const run = code => vm.runInContext(code,ctx);
 let html = run('posterCardHtml(row, {note:"<em>Recommended</em>",attrs:\'data-game="1"\'})');

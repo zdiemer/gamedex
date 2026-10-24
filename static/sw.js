@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.87.14";
+const VERSION = "v1.87.15";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -19,6 +19,13 @@ const DATA = `gamedex-data-${VERSION}`;
 // missing here is simply absent offline. Order does not matter (this is a cache,
 // not a load order); index.html owns that.
 const SHELL_URLS = [
+  "./components/source-panel.js", "./components/media-carousel.js", "./components/panel-metacritic.js",
+  "./components/panel-gameye.js", "./components/panel-arcade.js", "./components/panel-vndb.js",
+  "./components/panel-sales.js", "./components/panel-thumby.js", "./components/panel-coop.js",
+  "./components/panel-steamx.js", "./components/panel-speedrun.js", "./components/panel-guides.js",
+  "./components/panel-pcgw.js", "./components/panel-wikidata.js", "./components/panel-physical.js",
+  "./components/drawer-detail.js", "./components/age-badge.js", "./components/mapping-controls.js",
+  "./components/panel-hltb.js", "./components/poster-card.js", "./components/dialog.js",
   "./", "./index.html", "./style.css", "./manifest.webmanifest", "./icon.svg",
   "./performance.js", "./vendor/web-vitals-5.1.0.iife.js",
   "./app.js", "./attract.js", "./catalogue.js", "./challenges.js", "./charts.js", "./chrome.js",

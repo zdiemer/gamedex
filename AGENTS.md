@@ -17,8 +17,12 @@ Search the inventory and existing implementations/callers, then:
    the requirement. Explain that gap in the change description and add the new
    component to the library inventory and gallery where applicable.
 
-Shared primitives live in `static/components.js`; existing domain components
-remain in their documented owning files. Theme tokens and shared styles live in
+Shared primitives live in `static/components.js`; focused component implementations
+live in `static/components/`. Extract reusable presentation from large feature files
+into a file named for its responsibility. Move the implementation and update every
+caller/load manifest; do not keep a copied implementation. Feature modules own
+fetching, navigation, and business state. Consolidate shared panel structure through
+`sourcePanelHtml`, preserving each source’s data rules and escaping. Theme tokens and shared styles live in
 `static/style.css`. Use those tokens and classes; keep feature layout scoped.
 Preserve accessibility, selectors used by event delegation, and existing behavior.
 Escape data in HTML; keep state and event handlers in the consuming feature.
