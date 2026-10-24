@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
@@ -30,7 +31,7 @@ const context = vm.createContext({
   recsRanked: () => rows,
   _enrichEpoch: 1,
 });
-vm.runInContext(fs.readFileSync("static/swipe.js", "utf8"), context);
+vm.runInContext(readAppSource("static/swipe.js", "utf8"), context);
 const ids = () => JSON.parse(vm.runInContext("JSON.stringify(swipeDeck().map(x => x.row.igdbId))", context));
 
 assert.deepEqual(ids(), [1], "history and every deck setting filter the candidate pool");
@@ -53,11 +54,11 @@ const cardContext = vm.createContext({
   DATA: { sheets: { games: { rows: [{ platform: "PC" }] } } },
   IMG: () => "/cover.jpg", ratingClass: () => "great", escapeHtml: (value) => String(value), icon: () => "",
 });
-vm.runInContext(fs.readFileSync("static/swipe.js", "utf8"), cardContext);
+vm.runInContext(readAppSource("static/swipe.js", "utf8"), cardContext);
 const cardHtml = vm.runInContext("swipeCardHtml(cardRec)", cardContext);
 assert.match(cardHtml, /data-sw-art/, "the art is an explicit details target");
 assert.doesNotMatch(cardHtml, /Picked from the shape of your ratings|class="sw-why"/, "generic rating-shape copy is omitted");
-assert.match(fs.readFileSync("static/swipe.js", "utf8"), /art\.onclick[\s\S]*openDrawer/, "clicking art opens the detail drawer");
+assert.match(readAppSource("static/swipe.js", "utf8"), /art\.onclick[\s\S]*openDrawer/, "clicking art opens the detail drawer");
 console.log("Swipe: box art opens details and generic rationale is removed");
 
 const loadingHost = { innerHTML: "" };
@@ -71,7 +72,7 @@ const loadingContext = vm.createContext({
   icon: () => "",
   escapeHtml: (value) => String(value),
 });
-vm.runInContext(fs.readFileSync("static/swipe.js", "utf8"), loadingContext);
+vm.runInContext(readAppSource("static/swipe.js", "utf8"), loadingContext);
 vm.runInContext("renderSwipe()", loadingContext);
 assert.match(loadingHost.innerHTML, /Checking your library/, "the deck waits for ownership ids before showing a card");
 assert.equal(loadingContext.ENRICH_WAITING, true, "the enrichment loader knows Swipe is waiting");
@@ -85,7 +86,7 @@ const catalogueContext = vm.createContext({
   ENRICH: {}, NO_MATCH: new Set(), _enrichEpoch: 1,
   resetRecs() {}, resetSwipe() {},
 });
-vm.runInContext(fs.readFileSync("static/catalogue.js", "utf8"), catalogueContext);
+vm.runInContext(readAppSource("static/catalogue.js", "utf8"), catalogueContext);
 vm.runInContext(`CAT = [
   {igdbId:42, _norm:"trackedgame", _parent:null, _vparent:null, releaseYear:2020,
     _igdb:{year:2020, gameModes:[]}},
@@ -101,7 +102,7 @@ assert.deepEqual(freshIds, [43, 45], "tracked-only rows are excluded before IGDB
 console.log("Swipe: tracked-only sheet rows stay out of the deck");
 
 (async () => {
-  const source = fs.readFileSync("static/panels.js", "utf8");
+  const source = readAppSource("static/panels.js", "utf8");
   const loader = source.slice(source.indexOf("let allTimer = null;"));
   let renders = 0;
   const panelContext = vm.createContext({
@@ -142,7 +143,7 @@ console.log("Swipe: tracked-only sheet rows stay out of the deck");
     SPECIAL_TABS: [],
     tabState: {},
   });
-  vm.runInContext(fs.readFileSync("static/extras.js", "utf8"), prefContext);
+  vm.runInContext(readAppSource("static/extras.js", "utf8"), prefContext);
   await vm.runInContext("loadPrefs()", prefContext);
   assert.deepEqual(JSON.parse(storage.get("gamedex.swiped")), [], "a cleared server pref beats stale local history");
   assert.equal(writes.length, 0, "stale local history is not uploaded after a server-side clear");

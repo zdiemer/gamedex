@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -30,7 +31,7 @@ const context = vm.createContext({
   unifiedFranchiseVals: r => [r.franchise],
 });
 for (const file of ['events.js', 'themes.js']) vm.runInContext(
-  fs.readFileSync(path.join(__dirname, '../../static', file), 'utf8'), context);
+  readAppSource(path.join(__dirname, '../../static', file), 'utf8'), context);
 const match = row => { context.row = row; return vm.runInContext('THM_BY_ID.oneandonly.match(row)', context); };
 assert.equal(match(rows[0]), true, '100 distinct platform games qualifies; copies count once');
 assert.equal(match(rows[1]), true, 'developer with ten distinct games qualifies');

@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -17,7 +18,7 @@ const context = {
   criticOf: () => 0.8, playtimeOf: () => 5, isCandidate: r => r.owned,
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/groups.js','utf8'), context);
+vm.runInContext(readAppSource('static/groups.js','utf8'), context);
 const run = code => vm.runInContext(code, context);
 const plain = value => JSON.parse(JSON.stringify(value));
 assert.deepEqual(plain(run('groupMembers("platform").map(s=>[s.name,s.size,s.done,s.owned])')), [['PC',3,1,3],['PS',1,0,0]]);

@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 /* Public primitive contract, consumer compatibility, and offline/load wiring.
    Run from the repository root: node tools/tests/components.cjs */
 const assert = require('node:assert/strict');
@@ -5,7 +6,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ctx = vm.createContext({});
 for (const file of ['core', 'components', 'components/drawer-detail', 'hero']) {
-  vm.runInContext(fs.readFileSync(`static/${file}.js`, 'utf8'), ctx);
+  vm.runInContext(readAppSource(`static/${file}.js`, 'utf8'), ctx);
 }
 const run = (code) => vm.runInContext(code, ctx);
 const unsafe = '<img src=x onerror="alert(1)">&\'';
@@ -36,16 +37,16 @@ const tags = run('tagChipsHtml(Array.from({length:14}, (_,i)=>({x:`Tag ${i}`,fk:
 assert.ok(tags.includes('collapsed'));
 assert.ok(tags.includes('+2 more'));
 assert.equal((tags.match(/data-fk="genre"/g) || []).length, 14);
-const html = fs.readFileSync('static/index.html', 'utf8');
-assert.ok(html.indexOf('src="core.js"') < html.indexOf('src="components.js"'));
-assert.ok(html.indexOf('src="components.js"') < html.indexOf('src="enrich.js"'));
-const sw = fs.readFileSync('static/sw.js', 'utf8');
+const html = readAppSource('static/index.html', 'utf8');
+assert.ok(html.indexOf('src="core.js"') < html.indexOf('src="components/controls/primitives.js"'));
+assert.ok(html.indexOf('src="components/controls/primitives.js"') < html.indexOf('src="enrich.js"'));
+const sw = readAppSource('static/sw.js', 'utf8');
 for (const [, file] of html.matchAll(/<script defer src="([^"]+)"/g)) {
   assert.ok(sw.includes(`"./${file}"`), `${file} must be available offline`);
   assert.ok(fs.existsSync(`static/${file}`));
 }
-assert.ok(!fs.readFileSync('static/enrich.js', 'utf8').includes('const chips ='));
-assert.ok(!fs.readFileSync('static/preview.js', 'utf8').includes('function emptyState('));
+assert.ok(!readAppSource('static/enrich.js', 'utf8').includes('const chips ='));
+assert.ok(!readAppSource('static/preview.js', 'utf8').includes('function emptyState('));
 console.log('Component escaping, variants, existing consumers, load order, and offline assets passed.');
 
 // Even a previously cached admin response must never bypass server auth.

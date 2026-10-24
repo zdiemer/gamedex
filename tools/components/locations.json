@@ -1,0 +1,312 @@
+{
+  "bindings": {
+    "app.js": [
+      "components/navigation/app.js",
+      "app.js"
+    ],
+    "attract.js": [
+      "components/media/attract.js",
+      "attract.js"
+    ],
+    "challenges.js": [
+      "components/collections/challenges.js",
+      "challenges.js"
+    ],
+    "charts.js": [
+      "components/statistics/charts.js",
+      "charts.js"
+    ],
+    "chrome.js": [
+      "components/navigation/chrome.js",
+      "chrome.js"
+    ],
+    "collections.js": [
+      "components/collections/collections.js",
+      "collections.js"
+    ],
+    "component-library.js": [
+      "components/admin/component-library.js",
+      "component-library.js"
+    ],
+    "components/age-badge.js": [
+      "components/drawer/age-badge.js"
+    ],
+    "components/dialog.js": [
+      "components/controls/dialog.js"
+    ],
+    "components/drawer-detail.js": [
+      "components/drawer/drawer-detail.js"
+    ],
+    "components/mapping-controls.js": [
+      "components/admin/mapping-controls.js"
+    ],
+    "components/media-carousel.js": [
+      "components/media/media-carousel.js"
+    ],
+    "components/poster-card.js": [
+      "components/lists/poster-card.js"
+    ],
+    "components.js": [
+      "components/controls/primitives.js"
+    ],
+    "core.js": [
+      "components/foundations/core.js",
+      "core.js"
+    ],
+    "data.js": [
+      "components/controls/data.js",
+      "data.js"
+    ],
+    "dexle.js": [
+      "components/games/dexle.js",
+      "dexle.js"
+    ],
+    "drawer.js": [
+      "components/drawer/drawer.js",
+      "drawer.js"
+    ],
+    "edits.js": [
+      "components/admin/edits.js",
+      "edits.js"
+    ],
+    "enrich.js": [
+      "components/feedback/enrich.js",
+      "enrich.js"
+    ],
+    "ev-audit.js": [
+      "components/events/ev-audit.js",
+      "ev-audit.js"
+    ],
+    "ev-blackhistory.js": [
+      "components/events/ev-blackhistory.js",
+      "ev-blackhistory.js"
+    ],
+    "ev-bracket.js": [
+      "components/events/ev-bracket.js",
+      "ev-bracket.js"
+    ],
+    "ev-classof.js": [
+      "components/events/ev-classof.js",
+      "ev-classof.js"
+    ],
+    "ev-doors.js": [
+      "components/events/ev-doors.js",
+      "ev-doors.js"
+    ],
+    "ev-endangered.js": [
+      "components/events/ev-endangered.js",
+      "ev-endangered.js"
+    ],
+    "ev-hearth.js": [
+      "components/events/ev-hearth.js",
+      "ev-hearth.js"
+    ],
+    "ev-nobuy.js": [
+      "components/events/ev-nobuy.js",
+      "ev-nobuy.js"
+    ],
+    "ev-twoplayer.js": [
+      "components/events/ev-twoplayer.js",
+      "ev-twoplayer.js"
+    ],
+    "ev-underthree.js": [
+      "components/events/ev-underthree.js",
+      "ev-underthree.js"
+    ],
+    "ev-wrapped.js": [
+      "components/events/ev-wrapped.js",
+      "ev-wrapped.js"
+    ],
+    "events.js": [
+      "components/events/events.js",
+      "events.js"
+    ],
+    "extras.js": [
+      "components/drawer/extras.js",
+      "extras.js"
+    ],
+    "filters.js": [
+      "components/lists/filters.js",
+      "filters.js"
+    ],
+    "gamepad.js": [
+      "components/navigation/gamepad.js",
+      "gamepad.js"
+    ],
+    "groups.js": [
+      "components/collections/groups.js",
+      "groups.js"
+    ],
+    "health.js": [
+      "components/admin/health.js",
+      "health.js"
+    ],
+    "hero.js": [
+      "components/drawer/hero.js"
+    ],
+    "hilo.js": [
+      "components/games/hilo.js",
+      "hilo.js"
+    ],
+    "home.js": [
+      "components/discovery/home.js",
+      "home.js"
+    ],
+    "jukebox.js": [
+      "components/media/jukebox.js",
+      "jukebox.js"
+    ],
+    "konami.js": [
+      "components/navigation/konami.js",
+      "konami.js"
+    ],
+    "launch.js": [
+      "components/drawer/launch.js",
+      "launch.js"
+    ],
+    "media.js": [
+      "components/shelf/media.js",
+      "media.js"
+    ],
+    "mine.js": [
+      "components/account/mine.js",
+      "mine.js"
+    ],
+    "panels.js": [
+      "components/drawer/panels.js",
+      "panels.js"
+    ],
+    "pick.js": [
+      "components/discovery/pick.js",
+      "pick.js"
+    ],
+    "picross.js": [
+      "components/games/picross.js",
+      "picross.js"
+    ],
+    "preview.js": [
+      "components/lists/preview.js",
+      "preview.js"
+    ],
+    "recs.js": [
+      "components/recommendations/recs.js",
+      "recs.js"
+    ],
+    "relations.js": [
+      "components/drawer/relations.js",
+      "relations.js"
+    ],
+    "reviews.js": [
+      "components/statistics/reviews.js",
+      "reviews.js"
+    ],
+    "rng.js": [
+      "components/discovery/rng.js",
+      "rng.js"
+    ],
+    "search.js": [
+      "components/lists/search.js",
+      "search.js"
+    ],
+    "shelf.js": [
+      "components/shelf/shelf.js",
+      "shelf.js"
+    ],
+    "soundtrack.js": [
+      "components/media/soundtrack.js",
+      "soundtrack.js"
+    ],
+    "spooktober.js": [
+      "components/events/spooktober.js",
+      "spooktober.js"
+    ],
+    "stats.js": [
+      "components/statistics/stats.js",
+      "stats.js"
+    ],
+    "swipe.js": [
+      "components/recommendations/swipe.js",
+      "swipe.js"
+    ],
+    "table.js": [
+      "components/lists/table.js",
+      "table.js"
+    ],
+    "themes.js": [
+      "components/events/themes.js",
+      "themes.js"
+    ],
+    "timeline.js": [
+      "components/lists/timeline.js",
+      "timeline.js"
+    ],
+    "translations.js": [
+      "components/recommendations/translations.js",
+      "translations.js"
+    ],
+    "wishlist.js": [
+      "components/recommendations/wishlist.js",
+      "wishlist.js"
+    ],
+    "components/panel-arcade.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-coop.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-gameye.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-guides.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-hltb.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-metacritic.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-pcgw.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-physical.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-sales.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-speedrun.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-steamx.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-thumby.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-vndb.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/panel-wikidata.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ],
+    "components/source-panel.js": [
+      "components/panels/panel.js",
+      "components/panels/sources.js"
+    ]
+  }
+}

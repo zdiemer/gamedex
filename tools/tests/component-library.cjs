@@ -15,13 +15,19 @@ const vm = require('node:vm');
   await page.waitForFunction(()=>document.body.dataset.libraryReady==='true');
   const entries=await page.evaluate(()=>sampleEntries().map(entry=>entry.id));
   assert.ok(entries.length>=40);
+  const inventory=await page.evaluate(()=>COMPONENT_SOURCES);
+  assert.ok(inventory.length>=300, 'The full site inventory remains discoverable');
+  for (const entry of inventory) {
+   assert.ok(entry.file.startsWith('components/'),entry.name+' must belong to the grouped component tree');
+   assert.ok(fs.existsSync('static/'+entry.file),entry.file);
+  }
   const extracted=await page.evaluate(()=>sampleEntries().filter(e=>e.file.startsWith('components/')).map(({id,file,symbol})=>({id,file,symbol})));
   assert.ok(extracted.length>=19, 'Extracted examples link to component files');
   for (const entry of extracted) {
    await page.evaluate(id=>selectEntry(id),entry.id);
    assert.equal(await page.locator('#componentFullSource').getAttribute('href'),entry.file);
    assert.ok((await page.locator('#componentOwner').textContent()).includes(entry.file));
-   assert.ok((await page.locator('#componentSource').textContent()).includes('function '+entry.symbol+'('),entry.id+' source must show its extracted implementation');
+   if (entry.symbol) assert.ok((await page.locator('#componentSource').textContent()).includes('function '+entry.symbol+'('),entry.id+' source must show its extracted implementation');
   }
   for(const width of [390,1280]) {
    await page.setViewportSize({width,height:900});
@@ -73,8 +79,8 @@ const vm = require('node:vm');
   const html=fs.readFileSync('static/components.html','utf8');
   for(const [,file] of html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g))assert.ok(fs.existsSync(`static/${file}`),file);
   // Production admin gating controls the parent of the nav link.
-  const chrome=fs.readFileSync('static/chrome.js','utf8');
-  const method=chrome.slice(chrome.indexOf('function applyAdminUI()'),chrome.indexOf('let authDialog ='));
+  const chrome=fs.readFileSync('static/components/navigation/chrome.js','utf8');
+  const method=chrome.match(/function applyAdminUI\(\) \{[\s\S]*?^}/m)[0];
   const elements=new Map();
   const get=id=>{if(!elements.has(id))elements.set(id,{hidden:true,innerHTML:'',classList:{add(){},remove(){}},setAttribute(){}});return elements.get(id);};
   const ctx=vm.createContext({$:get,IS_ADMIN:false,ME:{username:'Admin'},icon:()=>''});

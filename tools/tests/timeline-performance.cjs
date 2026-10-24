@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -29,7 +30,7 @@ const context = {
 };
 context.window=context;
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/timeline.js','utf8'),context);
+vm.runInContext(readAppSource('static/timeline.js','utf8'),context);
 const run = s=>vm.runInContext(s,context);
 for(const value of ['2024-02-29','2025-01-01','2025-99-99','unknown','']) {
   context.date=value;

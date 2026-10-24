@@ -1,69 +1,64 @@
 #!/usr/bin/env python3
-"""Generate the UI source inventory. --check fails when a renderer is unregistered."""
+"""Refresh the static preview catalogue and shell templates; production discovers live."""
 import argparse
-import json
 from pathlib import Path
 import re
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-# Every feature owner has an app destination; utility-only modules are still scanned
-# for renderers and show their source even when they don't own a separate tab.
-GROUPS = {
- 'component-library': ('Admin & editing', 'components'),
- 'core': ('Foundations', 'home'), 'components': ('Controls & dialogs', 'home'),
- 'data': ('Controls & dialogs','games'), 'chrome': ('Navigation & account','home'),
- 'filters': ('Lists & filtering','games'), 'table': ('Game tiles & lists','games'),
- 'preview': ('Game tiles & lists','games'), 'search': ('Lists & filtering','search'),
- 'hero': ('Detail drawer','games'), 'panels': ('Detail drawer','games'),
- 'drawer': ('Detail drawer','games'), 'enrich': ('Loading & feedback','games'),
- 'mine': ('Account & personal data','games'), 'launch': ('Detail drawer','games'),
- 'edits': ('Admin & editing','health'), 'health': ('Admin & editing','health'),
- 'shelf': ('Shelf & physical media','shelf'), 'media': ('Shelf & physical media','shelf'),
- 'soundtrack': ('Media & audio','games'), 'jukebox': ('Media & audio','home'),
- 'home': ('Home & discovery','home'), 'pick': ('Home & discovery','pick'), 'rng': ('Home & discovery','pick'),
- 'groups': ('Collections & challenges','groups'), 'collections': ('Collections & challenges','groups'),
- 'challenges': ('Collections & challenges','challenges'),
- 'stats': ('Charts & statistics','stats'), 'charts': ('Charts & statistics','stats'),
- 'reviews': ('Charts & statistics','stats'), 'timeline': ('Game tiles & lists','completed'),
- 'events': ('Events & themes','events'), 'themes': ('Events & themes','themes'),
- 'spooktober': ('Events & themes','spooktober'),
- 'recs': ('Recommendations & wishlist','recs'), 'swipe': ('Recommendations & wishlist','swipe'),
- 'wishlist': ('Recommendations & wishlist','wishlist'), 'translations': ('Recommendations & wishlist','translations'),
- 'picross': ('Daily games','picross'), 'dexle': ('Daily games','dexle'), 'hilo': ('Daily games','hilo'),
- 'relations': ('Detail drawer','games'), 'similar': ('Detail drawer','games'),
- 'predict': ('Detail drawer','games'), 'extras': ('Detail drawer','games'),
- 'attract': ('Media & audio','home'), 'gamepad': ('Navigation & account','home'),
-}
+sys.path.insert(0, str(ROOT / "src"))
+from component_catalog import catalogue_script, inventory
 
-def inventory():
-    records=[]
-    for path in sorted([*(ROOT/'static').glob('*.js'), *(ROOT/'static/components').glob('*.js')]):
-        if path.stem.startswith('components-') or path.stem == 'sw': continue
-        group, tab=GROUPS.get(path.stem, ('Events & themes','events') if path.stem.startswith('ev-') else ('Other UI','home'))
-        if path.parent.name == 'components':
-            group, tab = {
-                'dialog': ('Controls & dialogs', 'home'),
-                'poster-card': ('Game tiles & lists', 'games'),
-                'media-carousel': ('Media & audio', 'games'),
-            }.get(path.stem, ('Detail drawer', 'games'))
-        source=path.read_text()
-        pattern=r'^(?:async\s+)?function\s+(\w+)\s*\(|^(?:const|let)\s+(\w+)\s*=.*=>'
-        matches=list(re.finditer(pattern,source,re.M))
+
+def check_component_boundaries():
+    """Keep presentation in components/ while allowing feature orchestration."""
+    for path in sorted((ROOT / "static").glob("*.js")):
+        if path.stem.startswith("components-") or path.stem == "sw":
+            continue
+        source = path.read_text()
+        matches = list(re.finditer(
+            r"^(?:async\s+)?function\s+(\w+)\s*\(|^(?:const|let)\s+(\w+)\s*=.*=>",
+            source, re.M))
         for i, match in enumerate(matches):
-            name=match.group(1) or match.group(2)
-            body=source[match.end():matches[i+1].start() if i+1<len(matches) else len(source)]
-            markup=bool(re.search(r'class=["\']|createElement\(|innerHTML\s*=',body))
-            if not (markup or re.search(r'Html$',name) or re.match(r'(?:render|draw|svg)[A-Z]',name)
-                    or name in {'searchField','icon','glyph','fmtCell','uiPrompt','uiConfirm','openUiDialog','acAttach','showToast','openAuthModal','editsModal','wireCarousel','openShotSet','searchPager'}): continue
-            records.append(dict(id=f'{path.stem}-{name}',name=name,file=path.relative_to(ROOT/'static').as_posix(),
-                                line=source[:match.start()].count('\n')+1,category=group,tab=tab))
-    return records
+            name = match.group(1) or match.group(2)
+            body = source[match.end():matches[i+1].start() if i+1 < len(matches) else len(source)]
+            body = re.sub(r"/\*.*?\*/|^\s*//[^\n]*", "", body, flags=re.S | re.M)
+            if re.search(r'class=["\x27]|createElement\(|innerHTML\s*=', body) or re.search(r"Html$", name):
+                raise SystemExit(f"UI implementation outside components/: {path.name}:{name}")
 
-if __name__=='__main__':
-    parser=argparse.ArgumentParser(); parser.add_argument('--check',action='store_true');args=parser.parse_args()
-    text='// Generated by tools/components/catalog.py; do not edit by hand.\nconst COMPONENT_SOURCES = '+json.dumps(inventory(),indent=2)+';\n'
-    target=ROOT/'static/components-catalog.js'
-    if args.check:
-        if not target.exists() or target.read_text()!=text: raise SystemExit('Component inventory is stale: run python3 tools/components/catalog.py')
-    else: target.write_text(text)
-    print(f'{len(inventory())} UI renderers inventoried')
+
+def shell_templates(check=False):
+    index = ROOT / "static/index.html"
+    source = index.read_text()
+    def include(match):
+        path = ROOT / "static" / match.group(1)
+        if not path.resolve().is_relative_to((ROOT / "static/components").resolve()):
+            raise SystemExit("Shell component must live under static/components/")
+        return "<!-- component: " + match.group(1) + " -->\n" + path.read_text().rstrip() + "\n<!-- /component -->"
+    generated = re.sub(r"<!-- component: (components/[^ ]+) -->.*?<!-- /component -->",
+                       include, source, flags=re.S)
+    if check and generated != source:
+        raise SystemExit("Shell templates are stale: run python3 tools/components/catalog.py")
+    if not check:
+        index.write_text(generated)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--stdout", action="store_true", help="Emit live catalogue for the local preview server")
+    parser.add_argument("--static-dir", type=Path, default=ROOT / "static")
+    args = parser.parse_args()
+    if args.stdout:
+        print(catalogue_script(args.static_dir), end="")
+    else:
+        check_component_boundaries()
+        shell_templates(args.check)
+        text = catalogue_script(args.static_dir)
+        target = args.static_dir / "components-catalog.js"
+        if args.check:
+            if not target.exists() or target.read_text() != text:
+                raise SystemExit("Static preview catalogue is stale: run python3 tools/components/catalog.py")
+        else:
+            target.write_text(text)
+        print(f"{len(inventory(args.static_dir))} component source entries discovered")

@@ -37,62 +37,98 @@ The app-context previews are deliberately lazy: opening the catalogue alone does
 not boot a second app or issue API requests. All gallery-only JS/CSS and HTML are
 server-gated and bypass service-worker caching. The catalogue uses the production implementations directly.
 
-`tools/components/catalog.py` generates `static/components-catalog.js`. Run it
-when adding/moving UI implementations, and run it with `--check` in validation.
-It scans named renderers and functions that construct DOM/markup. For template-only
-or unusually named UI, also add a curated entry in `components-gallery.js`; the
-scanner cannot infer every component's intended usage or required data.
+The library discovers `static/components/` recursively on every admin page load.
+New JS/MJS, HTML, SVG, CSS and JSON files appear automatically, including nested
+folders and modules without recognizable declarations. Names, source locations and
+categories come from the files and folders; no registration list is required.
+The scanner reads source without executing newly discovered modules.
+
+`src/component_catalog.py` powers the server, local preview proxy and static
+snapshot generator. The Docker build refreshes the snapshot and shell templates
+automatically. Curated examples and app-context previews are optional enhancements;
+new components are listed with their source even before an example exists.
 
 ## Find a component
 
 | Need | Reuse | Owner / styles |
 | --- | --- | --- |
-| Text action | `buttonHtml(label, options)` | `static/components.js`; `.btn`, `.ghost`, `.danger` |
-| Metadata / facet chip | `chipHtml(value, { facet })`, `chips(values, facet)` | `static/components.js`; `.chip`, `.chips`, `.facet-link` |
-| Empty results with optional action | `emptyState(title, hint, action, options)` | `static/components.js`; `.empty` |
-| Icon / emoji | `icon(id, size)`, `glyph(value, size)` | `static/core.js`; sprite in `static/index.html`, `.ico` |
+| Text action | `buttonHtml(label, options)` | `static/components/controls/primitives.js`; `.btn`, `.ghost`, `.danger` |
+| Metadata / facet chip | `chipHtml(value, { facet })`, `chips(values, facet)` | `static/components/controls/primitives.js`; `.chip`, `.chips`, `.facet-link` |
+| Empty results with optional action | `emptyState(title, hint, action, options)` | `static/components/controls/primitives.js`; `.empty` |
+| Icon / emoji | `icon(id, size)`, `glyph(value, size)` | `static/components/foundations/core.js`; sprite in `static/components/foundations/icons.svg`, `.ico` |
 | Icon-only control | `<button type="button" class="refreshbtn" aria-label="…">` + `icon()` | `static/style.css`; use `disabled` / `.spinning` as needed |
 | Compact badge | `<span class="pill">…</span>` | `static/style.css` |
-| Game poster | `posterCardHtml(row, { cls, note, attrs })` | `static/components/poster-card.js`; `.card` and descendants |
-| Poster cover + body / summary | `posterContentHtml(row, bodyHtml, { pending })`, `posterSummaryHtml(row, options)` | `static/components/poster-card.js`; listing, search, Home, challenges |
-| Listing / facets / pagination | `renderTable`, `renderGrid`, `renderPager`, existing listing pipeline | `static/table.js`, `static/preview.js`, `static/filters.js` |
-| Collapsible game tags | `tagChipsHtml(items)` | `static/components/drawer-detail.js`; delegated actions in `static/chrome.js` |
-| Game detail hero / panels | `heroHtml`, `detailHtml`, source panel builders | `static/hero.js`, `static/components/drawer-detail.js`, `static/components/panel-*.js` |
-| Text prompt / confirmation | `uiPrompt(options)`, `uiConfirm(options)` | `static/components/dialog.js`; `.np-*` |
-| Dialog lifecycle / shell | `openUiDialog(options)` | `static/components/dialog.js`; `.ce-*` / `.np-*` |
-| Toast | `showToast(message, iconId)` | `static/chrome.js`; `.toast` |
-| Autocomplete | `acAttach(input, getItems)` | `static/core.js`; `.ac-*` |
-| Media carousel / lightbox | `wireCarousel`, `openShotSet` | `static/components/media-carousel.js` |
+| Game poster | `posterCardHtml(row, { cls, note, attrs })` | `static/components/lists/poster-card.js`; `.card` and descendants |
+| Poster cover + body / summary | `posterContentHtml(row, bodyHtml, { pending })`, `posterSummaryHtml(row, options)` | `static/components/lists/poster-card.js`; listing, search, Home, challenges |
+| Listing / facets / pagination | `renderTable`, `renderGrid`, `renderPager`, existing listing pipeline | `static/components/lists/table.js`, `static/components/lists/preview.js`, `static/components/lists/filters.js` |
+| Collapsible game tags | `tagChipsHtml(items)` | `static/components/drawer/drawer-detail.js`; delegated actions in `static/components/navigation/chrome.js` |
+| Game detail hero / panels | `heroHtml`, `detailHtml`, shared source panel | `static/components/drawer/hero.js`, `static/components/drawer/drawer-detail.js`, `static/components/panels/panel.js` |
+| Text prompt / confirmation | `uiPrompt(options)`, `uiConfirm(options)` | `static/components/controls/dialog.js`; `.np-*` |
+| Dialog lifecycle / shell | `openUiDialog(options)` | `static/components/controls/dialog.js`; `.ce-*` / `.np-*` |
+| Toast | `showToast(message, iconId)` | `static/components/navigation/chrome.js`; `.toast` |
+| Autocomplete | `acAttach(input, getItems)` | `static/components/foundations/core.js`; `.ac-*` |
+| Media carousel / lightbox | `wireCarousel`, `openShotSet` | `static/components/media/media-carousel.js` |
 
 ## Component file boundaries
 
-`static/components/` holds focused presentation components using the existing
-plain-script globals. Extract reusable UI here rather than embedding it in feature
-controllers. Move implementations, update the app and gallery script lists and
-service-worker shell, and regenerate the inventory. Keep business state, fetching,
-and navigation in feature modules. Avoid a file per trivial helper: keep helpers,
-constants, and interaction state with the component they serve.
+All indexed UI implementations live under `static/components/`, grouped by domain.
+Related renderers share a module; the inventory counts implementations, not files.
 
-- `poster-card.js`: shared cover, VR badge, summary and poster composition.
-- `dialog.js`: modal lifecycle, prompt and confirmation.
-- `media-carousel.js`: screenshot/trailer carousel and shared lightbox.
-- `drawer-detail.js`: detail prose, tags, media descriptors and attribution.
-- `age-badge.js`: age-rating artwork and fallback badges.
-- `mapping-controls.js`: source-mapping form presentation.
-- `panel-*.js`: one source panel per file, including playtime and physical media.
-- `source-panel.js`: shared panel shell. `sourcePanelHtml(headingHtml, bodyHtml)`
-  accepts **trusted renderer HTML**; source components escape all data, decide
-  whether they have content, and retain their own rows, links and interactions.
+| Folder | Responsibility |
+| --- | --- |
+| `foundations/` | Icons, formatting, autocomplete and sprite |
+| `controls/` | Buttons, chips, empty states, dialogs and search fields |
+| `navigation/` | Header, sidebar, account controls, palette and app navigation UI |
+| `lists/` | Posters, grids, tables, search, facets, pagination and timelines |
+| `drawer/` | Hero, detail, relationships and drawer composition |
+| `panels/` | One generic panel and its source-data configurations |
+| `account/` | Personal progress, achievements and screenshots |
+| `admin/` | Editors, health, mapping and library UI |
+| `discovery/` | Home, picker and random-game UI |
+| `collections/` | Collections, groups and challenges |
+| `statistics/` | Charts, stats and review UI |
+| `recommendations/` | Recommendations, swipe, wishlist and translations |
+| `games/` | Daily game interfaces |
+| `events/` | Seasonal events and theme UI |
+| `media/` | Carousel, lightbox, soundtracks, jukebox and attract mode |
+| `shelf/` | Physical media, manuals and shelf UI |
+| `feedback/` | Loading, progress and status |
 
-`panels.js` now orchestrates enrichment loading and drawer composition.
-`hero.js` owns the cinematic hero and its in-place updates; `table.js` owns list
-sorting, rendering and row registration. Domain components still read existing
-caches; extraction does not introduce a new state or module system.
+Top-level feature modules retain state, fetching and orchestration. Components use
+the same shared globals and public APIs; no framework or runtime bundler is needed.
+Component declarations load before the controller that can invoke them. Update
+both HTML script manifests and the service-worker shell whenever a file moves.
+
+`tools/components/locations.json` only maps former feature-file locations to
+component declarations for VM tests. It is not a component registry and is not
+used to discover the library. New files require no entry there. The catalogue
+maintenance check still rejects UI renderers outside `components/`.
+
+Static UI also has canonical component sources: header, sidebar, listing toolbar,
+mobile controls, drawer, lightbox, palette, attract overlay, status and icon sprite.
+Edit their grouped HTML/SVG files, then run `python3 tools/components/catalog.py`.
+It refreshes the marked sections of `index.html` alongside the catalogue. These
+sections are included in the initial HTML, so they add no runtime requests or
+startup race. `--check` detects drift between the component source and served shell.
+
+### One panel, multiple configurations
+
+`panels/panel.js` exports `panelHtml({ headingHtml, bodyHtml })`,
+`panelRowHtml({ labelHtml, valueHtml, className, valueClass })` and
+`sourcePanelHtml(source, data)`. A null configuration hides the panel; omitting
+the heading supports compact panels such as critic scores. HTML arguments are
+**trusted renderer fragments**; adapters escape all external text and URLs.
+
+`panels/sources.js` is a configuration registry, not a collection of separate
+panel components. Its adapters retain each source's data rules, links, media,
+availability and formatting. Add a configuration for a new source and reuse the
+panel and row renderers. The gallery shows one generic panel example plus source
+variants. The drawer keeps its existing order and PC/platform/admin gates.
 
 ## Primitive API
 
-`static/components.js` loads immediately after `core.js` and before features.
-Its HTML builders are synchronous, return HTML strings, and escape labels and attribute
+`static/components/controls/primitives.js` loads immediately after `core.js` and before features.
+These HTML builders are synchronous, return HTML strings, and escape labels and attribute
 values (including numbers). They neither fetch data nor attach event handlers.
 Dialog helpers also manage DOM insertion and dismissal, as described below.
 
@@ -169,7 +205,7 @@ another feature or force feature-specific badges into the shared shell.
 From the repository root:
 
 ```sh
-python3 -m http.server 8080 --bind 127.0.0.1 --directory static
+PORT=8080 node tools/mobile-shot/serve.js
 # Open http://localhost:8080/components.html
 python3 tools/components/catalog.py --check
 node tools/tests/components.cjs
@@ -180,8 +216,12 @@ python tools/tests/component_gallery.py # requires Starlette and httpx
 
 When served by Gamedex, `/components.html` and its gallery-only scripts/styles require an
 admin session and are never cached by the browser, CDN, or service worker. Sign
-in through the app first. The local static-only preview command above is for
-development and has no authentication; bind it to localhost on shared machines.
+in through the app first. The local preview proxy above is for development and has no authentication;
+use it only in a trusted development environment.
+
+For automatic discovery, run `node tools/tests/component-library-discovery.cjs`
+against the preview proxy. It adds/removes a temporary component and checks the
+gallery after each reload without regeneration.
 
 For catalogue and dialog regressions, serve the gallery locally and run
 `node tools/tests/component-library.cjs` and `node tools/tests/dialog-components.cjs` with Playwright available on `NODE_PATH`
@@ -193,7 +233,9 @@ Run `node tools/tests/component-library-spa.cjs` against the same proxy to check
 SPA history, admin routing, theme synchronization, responsive sizing, and fixture
 isolation. It stubs the signed-in identity locally and blocks API writes.
 
-The static server above supports isolated examples and source browsing. For live
+The preview proxy above discovers components on every gallery reload and supports
+isolated examples and source browsing. A generic static HTTP server instead uses
+the snapshot from `python3 tools/components/catalog.py`. For live
 app previews, use the real server or the static/API proxy described in
 `tools/mobile-shot/README.md`. Check light/dark, phone/desktop, keyboard focus,
 and disabled/empty/loading states. The admin gate is enforced by FastAPI, not

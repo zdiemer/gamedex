@@ -50,17 +50,6 @@ const FACET_VALUE_ORDER = {
 // The rank function for a column, or null when its values have no inherent order.
 const valueOrderOf = (col) => (col && (col.vorder || FACET_VALUE_ORDER[col.key])) || null;
 
-/* One search field. There were three — the top bar, Groupings and Reviews — each
-   styled separately and drifting apart. Same markup everywhere now, so the icon,
-   the height, the radius and the focus ring can't disagree. */
-function searchField(id, placeholder, value = "", cls = "") {
-  return `<span class="field ${cls}">
-    <svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-search"/></svg>
-    <input id="${id}" type="search" placeholder="${escapeHtml(placeholder)}"
-      value="${escapeHtml(String(value))}" autocomplete="off" spellcheck="false">
-  </span>`;
-}
-
 /* Sort keys that aren't sheet columns. The estimated rating is computed in the
    browser (ridge regression over your own ratings), so there is no cell to sort
    on — cmpBy has to be told how to get the value instead of reading a[key].

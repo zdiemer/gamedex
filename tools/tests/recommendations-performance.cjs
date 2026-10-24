@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -18,7 +19,7 @@ const context={
  $:()=>({innerHTML:'',querySelector:()=>null}),icon:()=>'',
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/recs.js','utf8'),context);
+vm.runInContext(readAppSource('static/recs.js','utf8'),context);
 const run=code=>vm.runInContext(code,context);
 context.renderAll=()=>{if(context.activeTab==='recs')context.buildRecsSheet(false);};
 const flush=()=>{let n=0;while(jobs.length){assert.ok(n++<10000,'work must terminate');jobs.shift()();}};

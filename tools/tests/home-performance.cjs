@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 /* Behavior checks for deferred Home work and reusable date labels. No browser needed. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -23,7 +24,7 @@ const context = {
 };
 context.window = context;
 vm.createContext(context);
-for (const name of ['challenges', 'home']) vm.runInContext(fs.readFileSync(`static/${name}.js`, 'utf8'), context);
+for (const name of ['challenges', 'home']) vm.runInContext(readAppSource(`static/${name}.js`, 'utf8'), context);
 const run = code => vm.runInContext(code, context);
 assert.equal(run('chToday()'), '2026-10-22');
 const before = dates;

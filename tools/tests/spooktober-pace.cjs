@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 /* Spooktober's pace: spans, packing, eviction and pins.
 
    The calendar arithmetic is the part of that file worth a test — every other piece of it is
@@ -30,7 +31,7 @@ const context = vm.createContext({
   escapeHtml: (s) => String(s), icon: () => '', fmtHours: (h) => `${h}h`,
   posterCardHtml: () => '', coverSrc: () => '', searchField: () => '', maybeEnrich: () => {},
 });
-vm.runInContext(fs.readFileSync(path.join(__dirname, '../../static/spooktober.js'), 'utf8'), context);
+vm.runInContext(readAppSource(path.join(__dirname, '../../static/spooktober.js'), 'utf8'), context);
 
 const run = (src) => vm.runInContext(src, context);
 // Anything structural comes back through JSON: an array built inside the vm has the vm's

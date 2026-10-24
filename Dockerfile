@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY src/ /app/src/
 COPY static/ /app/static/
+# Refresh preview assets and canonical shell fragments on every image build.
+COPY tools/components/catalog.py /app/tools/components/catalog.py
+RUN python /app/tools/components/catalog.py
 # Which Cover Project scan belongs to each game, and which way up. Decided
 # offline by tools/resolve_covers.py; the scans themselves are fetched lazily.
 COPY data/covers-resolved.json /app/data/covers-resolved.json

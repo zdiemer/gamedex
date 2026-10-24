@@ -1,0 +1,27 @@
+<div class="resultbar">
+        <button id="facetToggle" class="facet-toggle"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-filter"/></svg>Filters</button>
+        <span class="field field-inline">
+          <svg class="ico" width="14" height="14" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="tabsearch" type="search" placeholder="Filter this list…" autocomplete="off" spellcheck="false" />
+        </span>
+        <span id="count">Loading…</span>
+        <button id="resetsort" class="linkbtn" hidden>Reset sort</button>
+        <button id="clear" class="linkbtn" hidden>Clear filters</button>
+        <span class="spacer"></span>
+        <div class="rb-controls" id="rbControls">
+          <span id="gridsortwrap" class="ctl" hidden>
+            <label>Sort <select id="gridsort"></select></label>
+            <button id="gridsortdir" class="dirbtn" title="Toggle direction">▼</button>
+          </span>
+          <label class="ctl">Per page
+            <select id="pagesize">
+              <option>25</option><option selected>50</option><option>100</option><option>200</option><option>500</option>
+            </select>
+          </label>
+          <span class="viewtoggle">
+            <button id="viewTable" title="List view" aria-label="List view"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-list"/></svg></button>
+            <button id="viewGrid" class="active" title="Grid view" aria-label="Grid view"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-grid"/></svg></button>
+            <button id="viewTimeline" title="Timeline (completed games)" aria-label="Timeline view" hidden><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-timeline"/></svg></button>
+          </span>
+        </div>
+      </div>

@@ -9,6 +9,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
 
 const ROOT = process.env.GAMEDEX_STATIC || path.resolve(__dirname, "../../static");
 const [POD_HOST, POD_PORT] = (process.env.GAMEDEX_API || "localhost:18080").split(":");
@@ -22,6 +23,15 @@ http.createServer((req, res) => {
   const url = req.url.split("?")[0];
   const rel = url === "/" ? "index.html" : url.replace(/^\//, "");
   const local = path.join(ROOT, rel);
+  if (rel === "components-catalog.js") {
+    execFile("python3", [path.resolve(__dirname, "../components/catalog.py"), "--stdout", "--static-dir", ROOT],
+      { maxBuffer: 4 * 1024 * 1024 }, (error, script) => {
+        if (error) { res.writeHead(500); res.end("Unable to generate component catalogue"); return; }
+        res.writeHead(200, { "content-type": "application/javascript", "cache-control": "no-store" });
+        res.end(req.method === "HEAD" ? "" : script);
+      });
+    return;
+  }
   // A real file under static/ wins; the /api guard keeps a stray file from shadowing the API.
   if (!url.startsWith("/api") && local.startsWith(ROOT) && fs.existsSync(local) && fs.statSync(local).isFile()) {
     res.writeHead(200, { "content-type": CT[path.extname(local)] || "application/octet-stream" });

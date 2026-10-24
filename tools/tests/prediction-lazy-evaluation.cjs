@@ -1,9 +1,10 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context = {};
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/predict.js', 'utf8'), context);
+vm.runInContext(readAppSource('static/predict.js', 'utf8'), context);
 vm.runInContext(`
 let fits = 0, evaluations = 0;
 const DATA = {sheets: {completed: {rows: Array.from({length: 100}, () => ({rating: 0.8}))}}};

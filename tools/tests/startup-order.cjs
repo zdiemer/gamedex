@@ -1,7 +1,8 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync('static/chrome.js', 'utf8');
+const source = readAppSource('static/chrome.js', 'utf8');
 const start = source.lastIndexOf('document.addEventListener("DOMContentLoaded"');
 assert.ok(start >= 0, 'startup must wait for deferred scripts');
 assert.doesNotMatch(source.slice(0, start), /^load\(\)/m, 'no eager startup remains');
@@ -18,7 +19,7 @@ assert.equal(calls, 1);
 assert.equal(options.once, true);
 console.log('Startup waits for deferred script dependencies before loading data.');
 
-const html = fs.readFileSync('static/index.html', 'utf8');
+const html = readAppSource('static/index.html', 'utf8');
 const headBoot = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 for (const tab of ['home', 'games', 'recs']) {
   const requests = [];

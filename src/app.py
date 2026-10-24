@@ -31,6 +31,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
+from component_catalog import catalogue_script
 from pydantic import BaseModel
 
 import accounts as accounts_mod
@@ -2031,6 +2033,14 @@ class RevalidatingStatic(StaticFiles):
         if path == "components.html" and Request(scope).query_params.get("embedded") != "1":
             return RedirectResponse("/?tab=components", status_code=307,
                                     headers={"Cache-Control": "private, no-store", "Vary": "Cookie"})
+        if path == "components-catalog.js":
+            if scope["method"] not in {"GET", "HEAD"}:
+                return await super().get_response(path, scope)
+            script = await run_in_threadpool(catalogue_script, Path(self.directory))
+            return Response(content="" if scope["method"] == "HEAD" else script,
+                            media_type="application/javascript",
+                            headers={"Cache-Control": "private, no-store", "Vary": "Cookie",
+                                     "Content-Length": str(len(script.encode("utf-8")))})
         response = await super().get_response(path, scope)
         if gallery:
             response.headers["Cache-Control"] = "private, no-store"

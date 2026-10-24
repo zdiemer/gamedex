@@ -1,7 +1,8 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync('static/performance.js', 'utf8');
+const source = readAppSource('static/performance.js', 'utf8');
 function setup(enabled, supported = true) {
   const callbacks = {}, vitals = {}, marks = new Set();
   let now = 0;

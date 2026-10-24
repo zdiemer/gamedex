@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -12,7 +13,7 @@ const context = vm.createContext({
   ENRICH: {},
 });
 
-const read = (name) => fs.readFileSync(path.join(__dirname, "../../static", name), "utf8");
+const read = (name) => readAppSource(path.join(__dirname, "../../static", name), "utf8");
 vm.runInContext(read("events.js"), context);
 vm.runInContext(read("ev-blackhistory.js"), context);
 

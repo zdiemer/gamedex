@@ -71,6 +71,7 @@
      Inlined rather than fetched: the CSP blocks external hosts, the PWA has to
      work offline, and 31 icons cost less than one round-trip.
      ========================================================================== -->
+<!-- component: components/foundations/icons.svg -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
@@ -204,8 +205,10 @@
     <symbol id="i-nosignal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10.4a10 10 0 0 1 3.8-2.2M15.2 8.2a10 10 0 0 1 3.8 2.2M8.3 14a6 6 0 0 1 7.4 0"/><circle cx="12" cy="17.9" r=".2" stroke-width="2.2"/><path d="M3.6 3.6 20.4 20.4"/></g></symbol>
   </defs>
 </svg>
+<!-- /component -->
 
-  <header class="topbar">
+  <!-- component: components/navigation/header.html -->
+<header class="topbar">
     <button id="navToggle" class="refreshbtn nav-toggle" title="Menu" aria-label="Open menu" aria-expanded="false" aria-controls="navdrawer">
       <svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-menu"/></svg>
     </button>
@@ -232,10 +235,14 @@
       <button id="account" class="avatar" title="Sign in" aria-label="Sign in"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-user"/></svg></button>
     </div>
   </header>
-  <div class="progress" id="progress" hidden><div class="progress-bar" id="progressBar"></div></div>
+<!-- /component -->
+  <!-- component: components/feedback/status.html -->
+<div class="progress" id="progress" hidden><div class="progress-bar" id="progressBar"></div></div>
   <div id="toast" class="toast" hidden></div>
+<!-- /component -->
 
-  <div class="navdrawer" id="navdrawer" hidden>
+  <!-- component: components/navigation/sidebar.html -->
+<div class="navdrawer" id="navdrawer" hidden>
     <div class="navdrawer-backdrop" id="navBackdrop"></div>
     <aside class="navdrawer-panel" aria-label="Main menu">
       <div class="nav-head">
@@ -281,12 +288,14 @@
       </div>
     </aside>
   </div>
+<!-- /component -->
 
   <main class="layout">
     <div class="facet-backdrop" id="facetBackdrop" hidden></div>
     <aside class="facets" id="facets"></aside>
     <section class="results">
-      <div class="resultbar">
+      <!-- component: components/lists/toolbar.html -->
+<div class="resultbar">
         <button id="facetToggle" class="facet-toggle"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-filter"/></svg>Filters</button>
         <span class="field field-inline">
           <svg class="ico" width="14" height="14" aria-hidden="true"><use href="#i-search"/></svg>
@@ -313,6 +322,7 @@
           </span>
         </div>
       </div>
+<!-- /component -->
       <div class="views" id="views" hidden></div>
       <div class="tablewrap" id="tablewrap">
         <table id="table">
@@ -349,20 +359,23 @@
     </section>
   </main>
 
-  <div class="drawer-overlay" id="overlay" hidden>
+  <!-- component: components/drawer/shell.html -->
+<div class="drawer-overlay" id="overlay" hidden>
     <div class="drawer" id="drawer" role="dialog" aria-modal="true">
       <button class="drawer-back" id="drawerBack" hidden>← Back</button>
       <button class="drawer-close" id="drawerClose" aria-label="Close"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-close"/></svg></button>
       <div id="drawerBody"></div>
     </div>
   </div>
+<!-- /component -->
 
   <!-- The Jukebox dock: shuffle radio over every matched OST (jukebox.js). Pinned to the
        page corner, outside the tab layout, so it keeps playing wherever you browse. -->
   <div class="jukebox" id="jukebox" hidden></div>
 
   <!-- Mobile: filters/sort reachable without scrolling back to the top -->
-  <div class="fab" id="fab">
+  <!-- component: components/navigation/mobile-controls.html -->
+<div class="fab" id="fab">
     <button id="fabFilters"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-filter"/></svg>Filters</button>
     <button id="fabSort"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-sort"/></svg>Sort</button>
     <button id="fabTop" title="Back to top" aria-label="Back to top">↑</button>
@@ -372,18 +385,22 @@
     <div class="sheet-head"><b>Sort &amp; view</b><button id="sheetClose" aria-label="Close"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-close"/></svg></button></div>
     <div class="sheet-body" id="sheetBody"></div>
   </div>
+<!-- /component -->
 
-  <div class="lightbox" id="lightbox" hidden>
+  <!-- component: components/media/lightbox.html -->
+<div class="lightbox" id="lightbox" hidden>
     <button class="lb-close" id="lbClose" aria-label="Close"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#i-close"/></svg></button>
     <button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous">‹</button>
     <img id="lbImg" alt="" />
     <button class="lb-nav lb-next" id="lbNext" aria-label="Next">›</button>
     <div class="lb-count" id="lbCount"></div>
   </div>
+<!-- /component -->
 
   <!-- Attract mode: full-screen slideshow of random games, trailer autoplaying
        behind. Stages are built/torn down by attract.js; the controls are fixtures. -->
-  <div class="attract-overlay" id="attract-overlay" hidden>
+  <!-- component: components/media/attract-shell.html -->
+<div class="attract-overlay" id="attract-overlay" hidden>
     <div class="attract-progress"><i id="attractProgressFill"></i></div>
     <div class="attract-stages" id="attractStages"></div>
     <div class="attract-hint">Esc to exit · ← → to browse · click the cover for details</div>
@@ -394,16 +411,19 @@
       <button class="attract-btn" id="attractClose" aria-label="Exit attract mode"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
   </div>
+<!-- /component -->
 
   <div id="banner" class="banner" hidden></div>
 
-  <div class="cmdk" id="cmdkOverlay" hidden>
+  <!-- component: components/navigation/command-palette.html -->
+<div class="cmdk" id="cmdkOverlay" hidden>
     <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Command palette">
       <input id="cmdkInput" type="text" placeholder="Jump to a game, tab or filter…" autocomplete="off" spellcheck="false" />
       <div class="cmdk-results" id="cmdkResults"></div>
       <div class="cmdk-foot"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>↵</kbd> open · <kbd>esc</kbd> close</div>
     </div>
   </div>
+<!-- /component -->
 
   <!-- Controller hints. Hidden until a pad announces itself (gamepad.js), which then
        fills it with the buttons that mean something on whatever surface is on top. -->
@@ -416,88 +436,129 @@
        which is why it comes last of this group. -->
   <script defer src="vendor/web-vitals-5.1.0.iife.js"></script>
   <script defer src="performance.js"></script>
+  <script defer src="components/foundations/core.js"></script>
   <script defer src="core.js"></script>
-  <script defer src="components.js"></script>
-  <script defer src="components/source-panel.js"></script>
-  <script defer src="components/media-carousel.js"></script>
-  <script defer src="components/panel-metacritic.js"></script>
-  <script defer src="components/panel-gameye.js"></script>
-  <script defer src="components/panel-arcade.js"></script>
-  <script defer src="components/panel-vndb.js"></script>
-  <script defer src="components/panel-sales.js"></script>
-  <script defer src="components/panel-thumby.js"></script>
-  <script defer src="components/panel-coop.js"></script>
-  <script defer src="components/panel-steamx.js"></script>
-  <script defer src="components/panel-speedrun.js"></script>
-  <script defer src="components/panel-guides.js"></script>
-  <script defer src="components/panel-pcgw.js"></script>
-  <script defer src="components/panel-wikidata.js"></script>
-  <script defer src="components/panel-physical.js"></script>
-  <script defer src="components/drawer-detail.js"></script>
-  <script defer src="components/age-badge.js"></script>
-  <script defer src="components/mapping-controls.js"></script>
-  <script defer src="components/panel-hltb.js"></script>
-  <script defer src="components/poster-card.js"></script>
-  <script defer src="components/dialog.js"></script>
+  <script defer src="components/controls/primitives.js"></script>
+  <script defer src="components/panels/panel.js"></script>
+  <script defer src="components/panels/sources.js"></script>
+  <script defer src="components/media/media-carousel.js"></script>
+
+  <script defer src="components/drawer/drawer-detail.js"></script>
+  <script defer src="components/drawer/age-badge.js"></script>
+  <script defer src="components/admin/mapping-controls.js"></script>
+
+  <script defer src="components/lists/poster-card.js"></script>
+  <script defer src="components/controls/dialog.js"></script>
+  <script defer src="components/admin/component-library.js"></script>
   <script defer src="component-library.js"></script>
+  <script defer src="components/feedback/enrich.js"></script>
   <script defer src="enrich.js"></script>
+  <script defer src="components/account/mine.js"></script>
   <script defer src="mine.js"></script>
-  <script defer src="hero.js"></script>
+  <script defer src="components/drawer/hero.js"></script>
+  <script defer src="components/drawer/panels.js"></script>
   <script defer src="panels.js"></script>
+  <script defer src="components/media/soundtrack.js"></script>
   <script defer src="soundtrack.js"></script>
+  <script defer src="components/controls/data.js"></script>
   <script defer src="data.js"></script>
+  <script defer src="components/drawer/launch.js"></script>
   <script defer src="launch.js"></script>
+  <script defer src="components/lists/filters.js"></script>
   <script defer src="filters.js"></script>
+  <script defer src="components/lists/table.js"></script>
   <script defer src="table.js"></script>
+  <script defer src="components/lists/preview.js"></script>
   <script defer src="preview.js"></script>
+  <script defer src="components/drawer/drawer.js"></script>
   <script defer src="drawer.js"></script>
+  <script defer src="components/events/events.js"></script>
   <script defer src="events.js"></script>
+  <script defer src="components/navigation/app.js"></script>
   <script defer src="app.js"></script>
+  <script defer src="components/statistics/stats.js"></script>
   <script defer src="stats.js"></script>
+  <script defer src="components/discovery/pick.js"></script>
   <script defer src="pick.js"></script>
+  <script defer src="components/discovery/rng.js"></script>
   <script defer src="rng.js"></script>
+  <script defer src="components/navigation/chrome.js"></script>
   <script defer src="chrome.js"></script>
+  <script defer src="components/media/attract.js"></script>
   <script defer src="attract.js"></script>
+  <script defer src="components/navigation/gamepad.js"></script>
   <script defer src="gamepad.js"></script>
+  <script defer src="components/statistics/charts.js"></script>
   <script defer src="charts.js"></script>
+  <script defer src="components/statistics/reviews.js"></script>
   <script defer src="reviews.js"></script>
+  <script defer src="components/discovery/home.js"></script>
   <script defer src="home.js"></script>
+  <script defer src="components/events/spooktober.js"></script>
   <script defer src="spooktober.js"></script>
   <!-- The seasonal events, in the order the year runs them. Each one registers itself with
        events.js at parse time, so this list IS the running order on the preview board. -->
+  <script defer src="components/events/ev-classof.js"></script>
   <script defer src="ev-classof.js"></script>
+  <script defer src="components/events/ev-twoplayer.js"></script>
   <script defer src="ev-twoplayer.js"></script>
+  <script defer src="components/events/ev-blackhistory.js"></script>
   <script defer src="ev-blackhistory.js"></script>
+  <script defer src="components/events/ev-bracket.js"></script>
   <script defer src="ev-bracket.js"></script>
+  <script defer src="components/events/ev-audit.js"></script>
   <script defer src="ev-audit.js"></script>
+  <script defer src="components/events/ev-underthree.js"></script>
   <script defer src="ev-underthree.js"></script>
+  <script defer src="components/events/ev-nobuy.js"></script>
   <script defer src="ev-nobuy.js"></script>
+  <script defer src="components/events/ev-hearth.js"></script>
   <script defer src="ev-hearth.js"></script>
+  <script defer src="components/events/ev-doors.js"></script>
   <script defer src="ev-doors.js"></script>
+  <script defer src="components/events/ev-wrapped.js"></script>
   <script defer src="ev-wrapped.js"></script>
+  <script defer src="components/events/ev-endangered.js"></script>
   <script defer src="ev-endangered.js"></script>
   <!-- Themes: the same four pieces as an event with the window taken out, and one registry
        entry for all 24 of them (themes.js). Last, so its priority-35 banner is read
        after every season's. -->
+  <script defer src="components/events/themes.js"></script>
   <script defer src="themes.js"></script>
+  <script defer src="components/admin/health.js"></script>
   <script defer src="health.js"></script>
+  <script defer src="components/collections/groups.js"></script>
   <script defer src="groups.js"></script>
+  <script defer src="components/shelf/media.js"></script>
   <script defer src="media.js"></script>
+  <script defer src="components/games/picross.js"></script>
   <script defer src="picross.js"></script>
+  <script defer src="components/games/dexle.js"></script>
   <script defer src="dexle.js"></script>
+  <script defer src="components/games/hilo.js"></script>
   <script defer src="hilo.js"></script>
+  <script defer src="components/media/jukebox.js"></script>
   <script defer src="jukebox.js"></script>
+  <script defer src="components/navigation/konami.js"></script>
   <script defer src="konami.js"></script>
+  <script defer src="components/lists/timeline.js"></script>
   <script defer src="timeline.js"></script>
+  <script defer src="components/lists/search.js"></script>
   <script defer src="search.js"></script>
+  <script defer src="components/drawer/relations.js"></script>
   <script defer src="relations.js"></script>
   <script defer src="similar.js"></script>
   <script defer src="predict.js"></script>
   <script defer src="catalogue.js"></script>
+  <script defer src="components/recommendations/recs.js"></script>
   <script defer src="recs.js"></script>
+  <script defer src="components/recommendations/swipe.js"></script>
   <script defer src="swipe.js"></script>
+  <script defer src="components/recommendations/translations.js"></script>
   <script defer src="translations.js"></script>
+  <script defer src="components/recommendations/wishlist.js"></script>
   <script defer src="wishlist.js"></script>
+  <script defer src="components/drawer/extras.js"></script>
   <script defer src="extras.js"></script>
   <script>
     // Installable + offline. The SW is opt-out-safe: if registration fails the
@@ -520,12 +581,16 @@
       window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
     }
   </script>
+  <script defer src="components/shelf/shelf.js"></script>
   <script defer src="shelf.js"></script>
+  <script defer src="components/collections/collections.js"></script>
   <script defer src="collections.js"></script>
+  <script defer src="components/collections/challenges.js"></script>
   <script defer src="challenges.js"></script>
   <!-- Writes from the web: the drawer's quick-log strip, "Add a game" (IGDB search)
        and the pending-edits list. Defines functions and wires two menu buttons, so
        it has no ordering constraint beyond core.js. -->
+  <script defer src="components/admin/edits.js"></script>
   <script defer src="edits.js"></script>
 </body>
 </html>

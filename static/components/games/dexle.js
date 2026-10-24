@@ -1,0 +1,346 @@
+"use strict";
+
+// UI components for dexle.js. Feature state and orchestration remain in that module.
+
+// ---- render ----------------------------------------------------------------
+function renderDexle() {
+  const host = $("#dexle");
+  if (!host) return;
+  if (!DX.loaded && !DX.failed) {
+    host.innerHTML = `<div class="px-wrap"><p class="muted">Loading today's game…</p></div>`;
+    loadDexle();
+    return;
+  }
+  if (DX.failed || !DX.mode) {
+    host.innerHTML = `<div class="px-wrap">${emptyState("No round today",
+      "Couldn't cut a puzzle from the library. It'll try again tomorrow.")}</div>`;
+    return;
+  }
+
+  const m = DX_MODES[DX.mode] || { label: DX.mode, icon: "i-dice", blurb: "" };
+  const st = dxStreak();
+  const tally = dxPracticeTally();
+  host.innerHTML = `<div class="px-wrap dx-wrap">
+    <div class="px-head">
+      <div>
+        <span class="h-eyebrow">${icon("i-dice", 13)} Dexle · ${DX.practice ? "endless practice" : escapeHtml(DX.date)}</span>
+        <h1>Guess the game</h1>
+        <p class="muted"><b class="dx-mode">${icon(m.icon, 13)} ${escapeHtml(m.label)}</b>
+          — ${escapeHtml(m.blurb)}</p>
+      </div>
+      ${DX.practice ? `<div class="px-streak">
+        <b>${tally.won}</b><span>practice wins</span>
+        <em>${tally.played} round${tally.played === 1 ? "" : "s"} this device</em>
+      </div>` : `<div class="px-streak">
+        <b>${dxCurrentStreak()}</b><span>day streak</span>
+        <em>best ${st.best || 0} · ${st.solved || 0} solved</em>
+      </div>`}
+    </div>
+
+    <div class="dx-clue" id="dxClue">${dxClueHtml()}</div>
+
+    ${DX.done ? dxEndHtml() : `
+      <div class="dx-dots">${dxDotsHtml()}</div>
+      <div class="px-guess">
+        <span class="ac-wrap"><input id="dxGuessIn" type="text" placeholder="Name the game…" autocomplete="off"></span>
+        <button class="btn" id="dxGuessGo">Guess</button>
+        <button class="btn ghost" id="dxSkip" title="Burn a guess for the next hint">Skip →</button>
+        <span class="px-guess-msg" id="dxMsg"></span>
+      </div>`}
+
+    ${DX.hints.length ? `<div class="dx-hints">${DX.hints.map((h) =>
+      `<span class="dx-hint"><i>${escapeHtml(h.label)}</i>${escapeHtml(h.value)}</span>`).join("")}</div>` : ""}
+
+    ${DX.guesses.length ? `<ol class="dx-log">${DX.guesses.map((g, i) => `<li>
+        <span class="dx-log-t${!g.title ? " skip" : (DX.won && i === DX.guesses.length - 1) ? " hit" : ""}">${g.title ? escapeHtml(g.title) : "Skipped"}</span>
+        ${g.near ? `<span class="dx-log-near">${escapeHtml(g.near)}</span>` : ""}
+      </li>`).join("")}</ol>` : ""}
+
+    ${dxPracticeHtml()}
+  </div>`;
+
+  wireDexle(host);
+}
+
+function dxPracticeHtml() {
+  const chips = ["any", ...Object.keys(DX_MODES)].map((k) => {
+    const label = k === "any" ? "Any clue" : DX_MODES[k].label;
+    return `<button class="dx-chip${dxPracticeMode === k ? " on" : ""}" data-dxmode="${k}">${escapeHtml(label)}</button>`;
+  }).join("");
+  if (DX.practice) {
+    return `<div class="dx-practice">
+      <div class="dx-practice-h"><b>Endless practice</b>
+        <span class="muted">No streak, no stakes — a fresh game every round.</span></div>
+      <div class="dx-chips">${chips}</div>
+      <div class="px-guess">
+        <button class="btn" id="dxNextRound">Next round</button>
+        <button class="btn ghost" id="dxBackToday">← Back to today's</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="dx-practice">
+    <div class="dx-practice-h"><b>Endless practice</b>
+      <span class="muted">${DX.done ? "Still warm? Keep going —" : "Done already, or just warming up?"}
+        a fresh game every round, no streak on the line.</span></div>
+    <div class="dx-chips">${chips}</div>
+    <div class="px-guess"><button class="btn" id="dxPracticeGo">Start a round</button></div>
+  </div>`;
+}
+
+function dxClueHtml() {
+  const stage = DX.done ? DX.maxGuesses - 1 : dxStage();
+  const c = DX.clue || {};
+  if (DX.mode === "cover") {
+    const src = IMG(c.cover, "cover_big");
+    // Where the zoom looks is the date's business, not mine — same crop for everyone.
+    const ox = 25 + (dxHash(DX.date) % 51), oy = 18 + (dxHash(DX.date + "y") % 48);
+    const scale = DX.done ? 1 : DX_ZOOM[stage];
+    return `<div class="dx-frame dx-cover${DX.done ? " done" : ""}">
+      <img src="${escapeHtml(src)}" alt="" draggable="false"
+        style="transform:scale(${scale});transform-origin:${ox}% ${oy}%">
+    </div>`;
+  }
+  if (DX.mode === "shot") {
+    const src = IMG(c.shot, "screenshot_big");
+    const blur = DX.done ? 0 : DX_BLUR[stage];
+    return `<div class="dx-frame dx-shot">
+      <img src="${escapeHtml(src)}" alt="" draggable="false" style="filter:blur(${blur}px)">
+    </div>`;
+  }
+  if (DX.mode === "summary") {
+    const sents = c.sentences || [];
+    const shown = DX.done ? sents.length : Math.min(sents.length, stage + 1);
+    const held = sents.length - shown;
+    return `<blockquote class="dx-prose">
+      ${sents.slice(0, shown).map((s) => `<p>${dxRedact(s)}</p>`).join("")}
+      ${held > 0 ? `<p class="dx-held muted">… ${held} more sentence${held === 1 ? "" : "s"} behind your next miss.</p>` : ""}
+    </blockquote>`;
+  }
+  if (DX.mode === "ost") {
+    const limit = DX.done ? Infinity : DX_CLIP[stage];
+    const label = limit === Infinity ? "the whole track" : `the first ${limit} seconds`;
+    return `<div class="dx-tune">
+      <button class="btn dx-play" id="dxPlay">${icon("i-play", 15)} <span>Play</span></button>
+      <div class="dx-tune-b">
+        <div class="dx-tunebar"><i id="dxTuneFill"></i></div>
+        <span class="muted" id="dxTuneMsg">You've unlocked ${label}${c.track && c.track.dur ? ` of ${escapeHtml(c.track.dur)}` : ""}.</span>
+      </div>
+      <audio id="dxAudio" preload="none" src="api/dexle/track${DX.practice
+        ? `?seed=${encodeURIComponent(DX.practice.seed)}&mode=${encodeURIComponent(DX.practice.mode)}` : ""}"></audio>
+    </div>`;
+  }
+  return "";
+}
+
+// The server censors with ▇▇▇; wrap the blocks so they read as redaction bars, not tofu.
+function dxRedact(s) {
+  return escapeHtml(s).replace(/▇+/g, `<span class="dx-redact">&#9608;&#9608;&#9608;</span>`);
+}
+
+function dxDotsHtml() {
+  return Array.from({ length: DX.maxGuesses }, (_, i) => {
+    const g = DX.guesses[i];
+    const won = DX.won && i === DX.guesses.length - 1;   // the last guess was the right one
+    const cls = !g ? "" : won ? " hit" : g.title ? " miss" : " skip";
+    return `<i class="dx-dot${cls}"></i>`;
+  }).join("");
+}
+
+function dxEndHtml() {
+  const g = DX.answer || {};
+  const cs = g.cover ? IMG(g.cover, "cover_big") : "";
+  const tries = DX.guesses.filter((x) => x.title).length;
+  return `<div class="px-win">
+    ${cs ? `<img src="${escapeHtml(cs)}" alt="">` : ""}
+    <div class="px-win-b">
+      <span class="h-eyebrow">${DX.won ? (tries <= 1 ? "First try!" : "Got it") : "Out of guesses"}</span>
+      <h2>${escapeHtml(String(g.title || ""))}</h2>
+      <p class="muted">${[g.platform, g.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ")}</p>
+      ${DX.won ? `<p class="px-bonus">★ Named it in ${DX.guesses.length} guess${DX.guesses.length === 1 ? "" : "es"}.</p>`
+                : `<p class="muted">${DX.practice ? "The next round costs nothing." : "Tomorrow's another clue."}</p>`}
+      <div class="px-win-actions">
+        ${DX.practice ? "" : `<button class="btn" id="dxShare">Share result</button>`}
+        <button class="btn${DX.practice ? "" : " ghost"}" id="dxOpen">Open in library</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* The listen limit is enforced here: the <audio> src is the indirect /api/dexle/track (no
+   album name anywhere), and playback snaps back to the start when it hits the stage's cap. */
+function wireDexleTune(host, audio) {
+  const play = host.querySelector("#dxPlay");
+  const fill = host.querySelector("#dxTuneFill");
+  const limit = () => (DX.done ? Infinity : DX_CLIP[dxStage()]);
+  play.onclick = () => { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); };
+  const setBtn = () => {
+    play.innerHTML = `${icon(audio.paused ? "i-play" : "i-pause", 15)} <span>${audio.paused ? "Play" : "Pause"}</span>`;
+  };
+  audio.onplay = setBtn; audio.onpause = setBtn;
+  audio.ontimeupdate = () => {
+    const cap = Math.min(limit(), audio.duration || Infinity);
+    if (audio.currentTime >= limit()) { audio.pause(); audio.currentTime = 0; }
+    if (fill && isFinite(cap) && cap > 0) fill.style.width = `${Math.min(100, (audio.currentTime / cap) * 100)}%`;
+  };
+  audio.onerror = () => {
+    const msg = host.querySelector("#dxTuneMsg");
+    if (msg) msg.textContent = "The track wouldn't load — try again in a moment.";
+  };
+}
+
+// Same small shower the Picross throws; same class, same CSS.
+function dxCelebrate() {
+  const host = $("#dexle");
+  if (!host || !WANTS_MOTION) return;
+  const box = document.createElement("div");
+  box.className = "px-confetti";
+  box.innerHTML = Array.from({ length: 40 }, () =>
+    `<i style="--x:${Math.random() * 100}%;--d:${(Math.random() * 0.6).toFixed(2)}s;--r:${Math.round(Math.random() * 360)}deg"></i>`).join("");
+  host.appendChild(box);
+  setTimeout(() => box.remove(), 2600);
+}
+
+/* ---- the Daily games landing page ------------------------------------------
+   One page for the whole morning ritual: the Picross and the Dexle side by side,
+   each with its state and streak. Reached from Home, the palette, or ?tab=daily. */
+function renderDaily() {
+  const host = $("#daily");
+  if (!host) return;
+  if (typeof picrossHomeInit === "function") picrossHomeInit();
+  dexleMetaInit();
+  if (typeof hiloMetaInit === "function") hiloMetaInit();
+
+  const pxDone = typeof PX !== "undefined" && PX.solved;
+  const pxStarted = typeof PX !== "undefined" && (PX.cells || []).some((c) => c === 1);
+  const pxLine = pxDone
+    ? `Solved! It was <b>${escapeHtml(String((PX.game || {}).title || "…"))}</b>`
+    : pxStarted ? "Half drawn. Finish it." : "A cover from your shelf, hidden in a grid.";
+  const pxMini = (typeof PX !== "undefined" && PX.w)
+    ? `<span class="px-mini" style="--w:${PX.w}">${PX.cells.map((c) =>
+        `<i class="${c === 1 ? "on" : ""}"></i>`).join("")}</span>`
+    : `<span class="px-mini px-mini-ph"></span>`;
+
+  const m = DX.mode ? (DX_MODES[DX.mode] || { label: DX.mode, icon: "i-dice" }) : null;
+  const dxLine = DX.done
+    ? (DX.won ? `Got it — <b>${escapeHtml(String((DX.answer || {}).title || "…"))}</b>` : "Out of guesses. Tomorrow's another clue.")
+    : DX.guesses.length ? `${DX.maxGuesses - DX.guesses.length} guess${DX.maxGuesses - DX.guesses.length === 1 ? "" : "es"} left.`
+    : m ? `Today's clue: ${m.label}.` : "Six guesses, one game a day.";
+
+  const hd = (typeof HL !== "undefined" && HL.dim && typeof HL_DIMS !== "undefined")
+    ? (HL_DIMS[HL.dim] || { label: HL.dim, icon: "i-trend" }) : null;
+  const hlDone = typeof HL !== "undefined" && HL.over;
+  const hlLine = typeof HL === "undefined" ? "Call the numbers."
+    : HL.over ? (HL.cleared ? `Cleared the deck — <b>${HL.score} in a row</b>` : `Run of <b>${HL.score}</b> today.`)
+    : HL.score ? `${HL.score} in a row and counting.`
+    : hd ? `Today's stat: ${hd.label}.` : "Higher or lower, one stat a day.";
+  const hlRec = typeof hlRecord === "function" ? hlRecord() : { best: 0 };
+
+  host.innerHTML = `<div class="px-wrap">
+    <div class="px-head">
+      <div>
+        <span class="h-eyebrow">${icon("i-dice", 13)} Daily games${DX.date || (typeof PX !== "undefined" && PX.date) ? ` · ${escapeHtml(DX.date || PX.date)}` : ""}</span>
+        <h1>Three a day</h1>
+        <p class="muted">A nonogram cut from your own shelf, a guessing game cut from
+          everything the library knows, and a higher-or-lower run on its numbers.
+          Fresh at midnight UTC.</p>
+      </div>
+    </div>
+    <div class="dl-cards">
+      <button class="dl-card${pxDone ? " done" : ""}" id="dlPicross">
+        ${pxMini}
+        <span class="dl-card-b">
+          <b>${icon("i-target", 15)} Daily Picross</b>
+          <span class="muted">${pxLine}</span>
+        </span>
+        <span class="px-home-s"><b>${typeof pxCurrentStreak === "function" ? pxCurrentStreak() : 0}</b><i>day streak</i></span>
+        <span class="gr-go">→</span>
+      </button>
+      <button class="dl-card${DX.done ? " done" : ""}" id="dlDexle">
+        <span class="dl-dexle-mini">${m ? icon(m.icon, 26) : icon("i-dice", 26)}
+          <em>${m ? escapeHtml(m.label) : "…"}</em>
+          <span class="dx-dots">${dxDotsHtml()}</span></span>
+        <span class="dl-card-b">
+          <b>${icon("i-dice", 15)} Dexle</b>
+          <span class="muted">${dxLine}</span>
+        </span>
+        <span class="px-home-s"><b>${dxCurrentStreak()}</b><i>day streak</i></span>
+        <span class="gr-go">→</span>
+      </button>
+      <button class="dl-card${hlDone ? " done" : ""}" id="dlHilo">
+        <span class="dl-dexle-mini">${hd ? icon(hd.icon, 26) : icon("i-trend", 26)}
+          <em>${hd ? escapeHtml(hd.label) : "…"}</em></span>
+        <span class="dl-card-b">
+          <b>${icon("i-trend", 15)} Daily Hi-Lo</b>
+          <span class="muted">${hlLine}</span>
+        </span>
+        <span class="px-home-s"><b>${hlRec.best || 0}</b><i>best run</i></span>
+        <span class="gr-go">→</span>
+      </button>
+    </div>
+  </div>`;
+
+  const px = host.querySelector("#dlPicross");
+  if (px) px.onclick = () => goTab("picross");
+  const dx = host.querySelector("#dlDexle");
+  if (dx) dx.onclick = () => goTab("dexle");
+  const hl = host.querySelector("#dlHilo");
+  if (hl) hl.onclick = () => goTab("hilo");
+}
+
+/* ---- the way in from Home ---------------------------------------------------
+   The old single Picross card, grown into the daily pair. Each half goes straight to
+   its game; the section header link goes to the landing page. */
+function dailyHomeCardHtml() {
+  const pxDone = typeof PX !== "undefined" && PX.solved;
+  const m = DX.mode ? (DX_MODES[DX.mode] || { label: DX.mode, icon: "i-dice" }) : null;
+  const pxMini = (typeof PX !== "undefined" && PX.w)
+    ? `<span class="px-mini" style="--w:${PX.w}">${PX.cells.map((c) =>
+        `<i class="${c === 1 ? "on" : ""}"></i>`).join("")}</span>`
+    : `<span class="px-mini px-mini-ph"></span>`;
+  const pxLine = pxDone ? "Done for today" : "Draw the box art";
+  const dxLine = DX.done ? (DX.won ? "Got it today" : "Out of guesses")
+    : DX.guesses.length ? `${DX.guesses.length}/${DX.maxGuesses} guesses in`
+    : m ? `Today: ${m.label}` : "Guess the game";
+  const hd = (typeof HL !== "undefined" && HL.dim && typeof HL_DIMS !== "undefined")
+    ? (HL_DIMS[HL.dim] || { label: HL.dim, icon: "i-trend" }) : null;
+  const hlDone = typeof HL !== "undefined" && HL.over;
+  const hlLine = hlDone ? `Run of ${HL.score} today`
+    : (typeof HL !== "undefined" && HL.score) ? `${HL.score} in a row, live`
+    : hd ? `Today: ${hd.label}` : "Higher or lower";
+  const hlRec = typeof hlRecord === "function" ? hlRecord() : { best: 0 };
+  return `<section class="h-sect">
+    <div class="h-sect-head"><h2>${icon("i-dice", 17)} Daily games</h2>
+      <div class="h-sect-act"><button class="linkbtn" id="hDailyAll">All three, one page →</button></div></div>
+    <div class="dl-home">
+      <button class="px-home${pxDone ? " done" : ""}" id="hPicross">
+        ${pxMini}
+        <span class="px-home-b">
+          <b>Daily Picross</b>
+          <span class="muted">${pxLine}</span>
+        </span>
+        <span class="px-home-s"><b>${typeof pxCurrentStreak === "function" ? pxCurrentStreak() : 0}</b><i>day streak</i></span>
+        <span class="gr-go">→</span>
+      </button>
+      <button class="px-home${DX.done ? " done" : ""}" id="hDexle">
+        <span class="dl-dexle-mini">${m ? icon(m.icon, 26) : icon("i-dice", 26)}
+          <em>${m ? escapeHtml(m.label) : "…"}</em></span>
+        <span class="px-home-b">
+          <b>Dexle</b>
+          <span class="muted">${dxLine}</span>
+        </span>
+        <span class="px-home-s"><b>${dxCurrentStreak()}</b><i>day streak</i></span>
+        <span class="gr-go">→</span>
+      </button>
+      <button class="px-home${hlDone ? " done" : ""}" id="hHilo">
+        <span class="dl-dexle-mini">${hd ? icon(hd.icon, 26) : icon("i-trend", 26)}
+          <em>${hd ? escapeHtml(hd.label) : "…"}</em></span>
+        <span class="px-home-b">
+          <b>Daily Hi-Lo</b>
+          <span class="muted">${hlLine}</span>
+        </span>
+        <span class="px-home-s"><b>${hlRec.best || 0}</b><i>best run</i></span>
+        <span class="gr-go">→</span>
+      </button>
+    </div>
+  </section>`;
+}

@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 /* Counts must match the independent per-column definition, including grouping. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,7 +11,7 @@ const context = {
   rowFacetItems: (row, col) => { calls++; return (row[col.key] || []).map(key => ({key})); },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/filters.js', 'utf8'), context);
+vm.runInContext(readAppSource('static/filters.js', 'utf8'), context);
 const cols = ['platform', 'genre', 'owned'].map(key => ({key}));
 const rows = Array.from({length: 300}, (_, i) => ({
   id: i % 7 ? Math.floor(i / 3) : null,

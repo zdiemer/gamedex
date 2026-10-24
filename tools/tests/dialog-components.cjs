@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 /* Browser regression test. Requires Playwright (tools/mobile-shot/setup.sh).
    Run with GAMEDEX_UI_URL pointing to a local static server. */
 const { chromium } = require('playwright');
@@ -12,10 +13,10 @@ const fs = require('node:fs');
   await page.waitForFunction(() => document.body.dataset.libraryReady === 'true');
   await page.evaluate(() => selectEntry('dialogs'));
   // Exercise the actual compatibility wrappers without booting API-backed app chrome.
-  const chrome = fs.readFileSync('static/chrome.js','utf8');
-  const edits = fs.readFileSync('static/edits.js','utf8');
-  await page.addScriptTag({content: chrome.slice(chrome.indexOf('let authDialog ='),chrome.indexOf('function openLoginDialog()'))});
-  await page.addScriptTag({content: 'const esc = value => escapeHtml(String(value));\n'+edits.slice(edits.indexOf('let editDialog ='),edits.indexOf('// Distinct values'))});
+  const chrome = readAppSource('static/chrome.js','utf8');
+  const edits = readAppSource('static/edits.js','utf8');
+  await page.addScriptTag({content: 'let authDialog = null;\n'+chrome.match(/function closeAuthModal\([^\n]*/)[0]+'\n'+chrome.match(/function openAuthModal\([^]*?^}/m)[0]});
+  await page.addScriptTag({content: 'const esc = value => escapeHtml(String(value));\n'+'let editDialog = null;\n'+edits.match(/function editsModal\([^]*?^}/m)[0]});
   for (const width of [390,1280]) {
    await page.setViewportSize({width,height:900});
    for (const theme of ['light','dark']) {

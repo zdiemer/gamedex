@@ -17,22 +17,7 @@ function disposeComponentLibrary() {
   COMPONENT_LIBRARY.frame?.remove();
   COMPONENT_LIBRARY.frame = null;
 }
-function renderComponentLibrary() {
-  const host = $("#componentLibrary");
-  if (!IS_ADMIN) { disposeComponentLibrary(); host.replaceChildren(); return; }
-  if (COMPONENT_LIBRARY.frame) { syncComponentLibrary(); return; }
-  const frame = document.createElement("iframe");
-  frame.title = "Component library";
-  frame.className = "component-library-frame";
-  const query = new URLSearchParams({ embedded: "1", component: COMPONENT_LIBRARY.id,
-    theme: document.documentElement.dataset.theme || "dark" });
-  frame.src = `components.html?${query}`;
-  COMPONENT_LIBRARY.frame = frame;
-  host.replaceChildren(frame);
-  frame.addEventListener("load", syncComponentLibrary);
-  COMPONENT_LIBRARY.observer = new MutationObserver(syncComponentLibrary);
-  COMPONENT_LIBRARY.observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-}
+
 window.addEventListener("message", event => {
   if (!IS_ADMIN || activeTab !== "components" || event.origin !== location.origin
       || event.source !== COMPONENT_LIBRARY.frame?.contentWindow) return;

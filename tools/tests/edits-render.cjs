@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 /* Render-path check for static/edits.js.
 
    The write surfaces are ~500 lines of template literal, and the failure mode they
@@ -118,7 +119,7 @@ function load(extra = {}) {
     DATA: JSON.parse(JSON.stringify(SHEET)),
     ...extra,
   });
-  for (const file of ['components', 'components/dialog', 'edits']) vm.runInContext(fs.readFileSync(
+  for (const file of ['components', 'components/dialog', 'edits']) vm.runInContext(readAppSource(
     path.join(__dirname, `../../static/${file}.js`), 'utf8'), ctx);
   return { ctx, document };
 }

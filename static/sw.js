@@ -1,43 +1,63 @@
 /* Service worker.
-
    Two strategies, because the two kinds of request want opposite things:
-
    * The app shell (HTML/CSS/JS) is cache-first — it changes only on deploy, and
      serving it from cache is what makes the app open instantly offline.
    * The data (/api/data, /api/enrichment/all) is network-first with a cache
      fallback — you always want today's spreadsheet if the network can give it,
      but yesterday's is far better than an error screen on the train.
-
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
-
-const VERSION = "v1.87.15";
+const VERSION = "v1.87.16";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
-
 // Keep in sync with the <script> tags in index.html — a file loaded there but
 // missing here is simply absent offline. Order does not matter (this is a cache,
 // not a load order); index.html owns that.
 const SHELL_URLS = [
-  "./components/source-panel.js", "./components/media-carousel.js", "./components/panel-metacritic.js",
-  "./components/panel-gameye.js", "./components/panel-arcade.js", "./components/panel-vndb.js",
-  "./components/panel-sales.js", "./components/panel-thumby.js", "./components/panel-coop.js",
-  "./components/panel-steamx.js", "./components/panel-speedrun.js", "./components/panel-guides.js",
-  "./components/panel-pcgw.js", "./components/panel-wikidata.js", "./components/panel-physical.js",
-  "./components/drawer-detail.js", "./components/age-badge.js", "./components/mapping-controls.js",
-  "./components/panel-hltb.js", "./components/poster-card.js", "./components/dialog.js",
-  "./", "./index.html", "./style.css", "./manifest.webmanifest", "./icon.svg",
-  "./performance.js", "./vendor/web-vitals-5.1.0.iife.js",
-  "./app.js", "./attract.js", "./catalogue.js", "./challenges.js", "./charts.js", "./chrome.js",
-  "./collections.js", "./core.js", "./components.js", "./component-library.js", "./data.js", "./dexle.js", "./drawer.js", "./edits.js", "./enrich.js",
-  "./extras.js", "./filters.js", "./gamepad.js", "./groups.js", "./health.js", "./hero.js",
-  "./hilo.js", "./home.js", "./jukebox.js", "./konami.js", "./launch.js", "./media.js", "./mine.js", "./panels.js",
-  "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./recs.js", "./swipe.js",
-  "./relations.js", "./rng.js", "./similar.js", "./spooktober.js", "./translations.js",
-  "./events.js", "./ev-classof.js", "./ev-twoplayer.js", "./ev-blackhistory.js", "./ev-bracket.js", "./ev-audit.js",
-  "./ev-underthree.js", "./ev-nobuy.js", "./ev-hearth.js", "./ev-doors.js", "./ev-wrapped.js",
-  "./ev-endangered.js", "./themes.js",
-  "./reviews.js", "./search.js", "./shelf.js", "./soundtrack.js", "./stats.js", "./table.js", "./timeline.js", "./wishlist.js",
+  "./", "./index.html", "./style.css",
+  "./manifest.webmanifest", "./icon.svg", "./vendor/web-vitals-5.1.0.iife.js",
+  "./performance.js", "./components/foundations/core.js", "./core.js",
+  "./components/controls/primitives.js", "./components/panels/panel.js", "./components/panels/sources.js",
+  "./components/media/media-carousel.js", "./components/drawer/drawer-detail.js", "./components/drawer/age-badge.js",
+  "./components/admin/mapping-controls.js", "./components/lists/poster-card.js", "./components/controls/dialog.js",
+  "./components/admin/component-library.js", "./component-library.js", "./components/feedback/enrich.js",
+  "./enrich.js", "./components/account/mine.js", "./mine.js",
+  "./components/drawer/hero.js", "./components/drawer/panels.js", "./panels.js",
+  "./components/media/soundtrack.js", "./soundtrack.js", "./components/controls/data.js",
+  "./data.js", "./components/drawer/launch.js", "./launch.js",
+  "./components/lists/filters.js", "./filters.js", "./components/lists/table.js",
+  "./table.js", "./components/lists/preview.js", "./preview.js",
+  "./components/drawer/drawer.js", "./drawer.js", "./components/events/events.js",
+  "./events.js", "./components/navigation/app.js", "./app.js",
+  "./components/statistics/stats.js", "./stats.js", "./components/discovery/pick.js",
+  "./pick.js", "./components/discovery/rng.js", "./rng.js",
+  "./components/navigation/chrome.js", "./chrome.js", "./components/media/attract.js",
+  "./attract.js", "./components/navigation/gamepad.js", "./gamepad.js",
+  "./components/statistics/charts.js", "./charts.js", "./components/statistics/reviews.js",
+  "./reviews.js", "./components/discovery/home.js", "./home.js",
+  "./components/events/spooktober.js", "./spooktober.js", "./components/events/ev-classof.js",
+  "./ev-classof.js", "./components/events/ev-twoplayer.js", "./ev-twoplayer.js",
+  "./components/events/ev-blackhistory.js", "./ev-blackhistory.js", "./components/events/ev-bracket.js",
+  "./ev-bracket.js", "./components/events/ev-audit.js", "./ev-audit.js",
+  "./components/events/ev-underthree.js", "./ev-underthree.js", "./components/events/ev-nobuy.js",
+  "./ev-nobuy.js", "./components/events/ev-hearth.js", "./ev-hearth.js",
+  "./components/events/ev-doors.js", "./ev-doors.js", "./components/events/ev-wrapped.js",
+  "./ev-wrapped.js", "./components/events/ev-endangered.js", "./ev-endangered.js",
+  "./components/events/themes.js", "./themes.js", "./components/admin/health.js",
+  "./health.js", "./components/collections/groups.js", "./groups.js",
+  "./components/shelf/media.js", "./media.js", "./components/games/picross.js",
+  "./picross.js", "./components/games/dexle.js", "./dexle.js",
+  "./components/games/hilo.js", "./hilo.js", "./components/media/jukebox.js",
+  "./jukebox.js", "./components/navigation/konami.js", "./konami.js",
+  "./components/lists/timeline.js", "./timeline.js", "./components/lists/search.js",
+  "./search.js", "./components/drawer/relations.js", "./relations.js",
+  "./similar.js", "./predict.js", "./catalogue.js",
+  "./components/recommendations/recs.js", "./recs.js", "./components/recommendations/swipe.js",
+  "./swipe.js", "./components/recommendations/translations.js", "./translations.js",
+  "./components/recommendations/wishlist.js", "./wishlist.js", "./components/drawer/extras.js",
+  "./extras.js", "./components/shelf/shelf.js", "./shelf.js",
+  "./components/collections/collections.js", "./collections.js", "./components/collections/challenges.js",
+  "./challenges.js", "./components/admin/edits.js", "./edits.js",
   "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2", "./fonts/creepster.woff2",
   // One display face per seasonal event. They are only ever requested when a banner uses
   // them, but the shell has to hold them or an event opened offline loses its wordmark —
@@ -47,7 +67,6 @@ const SHELL_URLS = [
   "./fonts/saira-stencil-one.woff2", "./fonts/special-elite.woff2", "./fonts/orbitron.woff2",
   "./fonts/big-shoulders-display.woff2",
 ];
-
 // Cache each URL on its own. addAll() is atomic — one 404 rejects the whole
 // batch, the install fails, and the app silently has NO offline cache at all.
 // That is exactly what happened when reviews.js was deleted in 1.11.4 and this
@@ -61,7 +80,6 @@ self.addEventListener("install", (e) => {
       .then(() => self.skipWaiting())
   );
 });
-
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
@@ -71,21 +89,17 @@ self.addEventListener("activate", (e) => {
       .then(() => self.clients.claim())
   );
 });
-
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
-
   // Admin gallery is always authorized by the server, including after logout.
   // Decode aliases as well; never consult or populate the offline shell cache.
   if (/\/(components\.html|components-(?:gallery\.(?:js|css)|catalog\.js))$/.test(decodeURIComponent(url.pathname))) {
     e.respondWith(fetch(e.request, { cache: "no-store" }));
     return;
   }
-
   // Never cache a mutation or a live status poll.
   if (url.pathname.includes("/api/refresh") || url.pathname.includes("/api/enrichment/stats")) return;
-
   // Server-cached images (/api/img proxy, /api/shelf/face box cuts): the bytes for a
   // given URL never change, so cache-first with no revalidation — one hit on the
   // network, everything after off the device. This MUST precede the generic /api/
@@ -102,7 +116,6 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-
   // Data: network first, fall back to the last good copy.
   if (url.pathname.startsWith("/api/")) {
     e.respondWith(
@@ -118,7 +131,6 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-
   // Cover art: cache-first, it never changes for a given URL.
   if (/images\.igdb\.com|images\.launchbox-app\.com|t\.vndb\.org|adb\.arcadeitalia\.net/.test(url.host)) {
     e.respondWith(
@@ -129,7 +141,6 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-
   // Shell: cache first, revalidate in the background.
   if (url.origin === self.location.origin) {
     e.respondWith(

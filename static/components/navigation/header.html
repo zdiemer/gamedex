@@ -1,0 +1,27 @@
+<header class="topbar">
+    <button id="navToggle" class="refreshbtn nav-toggle" title="Menu" aria-label="Open menu" aria-expanded="false" aria-controls="navdrawer">
+      <svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <button id="brand" class="brand" title="Back to the home page (clears filters)" aria-label="Home">
+      <svg class="brand-mark" width="26" height="26" aria-hidden="true"><use href="#mark"/></svg>
+      <span class="brand-word">Game<span>dex</span></span>
+    </button>
+    <span id="navHere" class="nav-here" hidden></span>
+    <span class="field field-top">
+      <svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="search" type="search" placeholder="Search my games…" autocomplete="off" />
+      <button id="searchClear" class="search-x" title="Clear search" aria-label="Clear search" tabindex="-1">
+        <svg class="ico" width="12" height="12" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </span>
+    <div class="freshness" id="freshness"></div>
+    <div class="topctl">
+      <button id="cmdk" class="kbdbtn" title="Search everything" aria-label="Command palette"><kbd id="cmdkMod">Ctrl</kbd><kbd>K</kbd></button>
+      <span class="thseg" id="themeToggle" role="group" aria-label="Theme">
+        <button type="button" class="th-opt" data-set-theme="light" title="Light" aria-label="Light"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-sun"/></svg></button>
+        <button type="button" class="th-opt" data-set-theme="dark" title="Dark" aria-label="Dark"><svg class="ico" width="15" height="15" aria-hidden="true"><use href="#i-moon"/></svg></button>
+      </span>
+      <button id="refresh" class="iconcoin" title="Refresh the library now" aria-label="Refresh data" hidden><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+      <button id="account" class="avatar" title="Sign in" aria-label="Sign in"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-user"/></svg></button>
+    </div>
+  </header>

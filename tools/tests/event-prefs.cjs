@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -32,7 +33,7 @@ async function check(script, load, read, remote, local, expected = { '1': 'local
         };
       },
     });
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '../../static', script), 'utf8'), context);
+    vm.runInContext(readAppSource(path.join(__dirname, '../../static', script), 'utf8'), context);
     await vm.runInContext(`${load}()`, context);
     assert.equal(calls, failure === 'signed-out' ? 0 : 1);
     recover = true;
