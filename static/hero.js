@@ -26,8 +26,7 @@ function mediaOf(d) {
 const TAG_CAP = 12;
 function tagChipsHtml(items) {
   if (!items.length) return "";
-  const chip = (it) =>
-    `<span class="chip facet-link" data-fk="${it.fk}" data-fv="${escapeHtml(String(it.x))}">${escapeHtml(String(it.x))}</span>`;
+  const chip = (it) => chipHtml(it.x, { facet: it.fk });
   if (items.length <= TAG_CAP) return `<div class="chips tag-chips">${items.map(chip).join("")}</div>`;
   const shown = items.slice(0, TAG_CAP).map(chip).join("");
   const rest = items.slice(TAG_CAP).map(chip).join("");

@@ -248,7 +248,7 @@ function coopHtml(key) {
   // The numbers say co-op is possible; coopExperience says what it's actually LIKE — which
   // is the bit you want before committing someone else's evening. Stored, never shown.
   const feats = (c.features || []).slice(0, 8)
-    .map((f) => `<span class="chip">${escapeHtml(String(f))}</span>`).join("");
+    .map((f) => chipHtml(f)).join("");
   const prose = c.coopExperience
     ? `<p class="coop-desc">${escapeHtml(c.coopExperience)}</p>` : "";
   if (!rows.length && !prose && !feats) return "";
@@ -305,7 +305,7 @@ function guidesHtml(key) {
   const g = GDC[key];
   if (!g) return "";
   const secs = (g.sections || []).slice(0, 6)
-    .map((x) => `<span class="chip">${escapeHtml(x)}</span>`).join("");
+    .map((x) => chipHtml(x)).join("");
   return `<div class="hltb"><div class="hltb-head">${icon("i-review", 15)} Guide (StrategyWiki)</div>` +
     (secs ? `<div class="chips">${secs}</div>` : "") +
     `<a class="hltb-link" href="${escapeHtml(g.url)}" target="_blank" rel="noopener">${g.hasWalkthrough ? "Read the walkthrough" : "Open the guide"} ↗</a></div>`;

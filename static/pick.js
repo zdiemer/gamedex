@@ -878,7 +878,7 @@ function pickCard(row) {
 
   const chips = [row.platform, row.releaseYear, row.genre, row.franchise]
     .filter((x) => x != null && x !== "")
-    .map((x) => `<span class="chip">${escapeHtml(String(x))}</span>`).join("");
+    .map((x) => chipHtml(x)).join("");
   // launchHtml, not rommHtml: it composes BOTH — "Play now" via RomM and the storefront the
   // copy you own actually came from. The pick is a game you're deciding whether to play right
   // now, so the way to start playing it belongs on the card, not one click away in the drawer.

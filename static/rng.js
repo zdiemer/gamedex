@@ -685,7 +685,7 @@ function rngTimeChip(row) {
 
 const rngChipsHtml = (row) => [row.platform, rngYear(row) || null, row.genre]
   .filter((x) => x != null && x !== "")
-  .map((x) => `<span class="chip">${escapeHtml(String(x))}</span>`).join("");
+  .map((x) => chipHtml(x)).join("");
 
 // A slot mid-load: the same box, the same eyebrow, and a shimmer where the count, the
 // cover and the title will be. Shaped like the card it becomes, so nothing jumps.

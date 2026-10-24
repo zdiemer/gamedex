@@ -282,8 +282,3 @@ function showHomeSkeleton() {
       </div></div></div>
     ${sect()}${sect()}`;
 }
-
-const chips = (arr, fk) => (arr && arr.length
-  ? `<div class="chips">${arr.map((x) => fk
-      ? `<span class="chip facet-link" data-fk="${fk}" data-fv="${escapeHtml(String(x))}">${escapeHtml(String(x))}</span>`
-      : `<span class="chip">${escapeHtml(String(x))}</span>`).join("")}</div>` : "");

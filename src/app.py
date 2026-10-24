@@ -2020,7 +2020,17 @@ class RevalidatingStatic(StaticFiles):
     """
 
     async def get_response(self, path, scope):
+        # Gate inside the static handler, after StaticFiles normalizes the path:
+        # encoded/alternate URLs must not bypass authentication. Never cache the
+        # gallery (including its script), even after a successful admin request.
+        gallery = path in {"components.html", "components-gallery.js"}
+        if gallery and current_user(Request(scope)) is None:
+            return JSONResponse({"detail": "authentication required"}, status_code=401,
+                                headers={"Cache-Control": "private, no-store", "Vary": "Cookie"})
         response = await super().get_response(path, scope)
+        if gallery:
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["Vary"] = "Cookie"
         response.headers.setdefault("Cache-Control", "no-cache")
         return response
 

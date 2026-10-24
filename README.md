@@ -493,3 +493,11 @@ open `/?perf=1` for detailed render and resource traces. API responses include
 [performance diagnostics](docs/performance.md) for export, configuration and
 the repeatable browser audit. Keep run-specific measurements and reports outside
 the repository; they are session artifacts.
+
+## UI component library
+
+Use the [component library](docs/components.md) for shared UI primitives, existing
+feature components, and theme conventions. Preview the primitives at
+`/components.html` while signed in as admin (or serve `static/` locally). Repository agent instructions in
+[AGENTS.md](AGENTS.md), also imported by Claude, require reuse or extension of
+existing components before introducing new ones.

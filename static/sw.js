@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.87.10";
+const VERSION = "v1.87.11";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -22,7 +22,7 @@ const SHELL_URLS = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest", "./icon.svg",
   "./performance.js", "./vendor/web-vitals-5.1.0.iife.js",
   "./app.js", "./attract.js", "./catalogue.js", "./challenges.js", "./charts.js", "./chrome.js",
-  "./collections.js", "./core.js", "./data.js", "./dexle.js", "./drawer.js", "./edits.js", "./enrich.js",
+  "./collections.js", "./core.js", "./components.js", "./data.js", "./dexle.js", "./drawer.js", "./edits.js", "./enrich.js",
   "./extras.js", "./filters.js", "./gamepad.js", "./groups.js", "./health.js", "./hero.js",
   "./hilo.js", "./home.js", "./jukebox.js", "./konami.js", "./launch.js", "./media.js", "./mine.js", "./panels.js",
   "./pick.js", "./picross.js", "./predict.js", "./preview.js", "./recs.js", "./swipe.js",
@@ -68,6 +68,13 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
+
+  // Admin gallery is always authorized by the server, including after logout.
+  // Decode aliases as well; never consult or populate the offline shell cache.
+  if (/\/(components\.html|components-gallery\.js)$/.test(decodeURIComponent(url.pathname))) {
+    e.respondWith(fetch(e.request, { cache: "no-store" }));
+    return;
+  }
 
   // Never cache a mutation or a live status poll.
   if (url.pathname.includes("/api/refresh") || url.pathname.includes("/api/enrichment/stats")) return;

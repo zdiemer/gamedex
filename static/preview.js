@@ -529,13 +529,3 @@ function renderPager(pages) {
   el.appendChild(mk("Next ›", st.page + 1, st.page >= pages));
   el.appendChild(mk("»", pages, st.page >= pages, "Last page"));
 }
-
-// A real empty state beats an empty grid.
-function emptyState(title, hint, action) {
-  return `<div class="empty">
-    <div class="empty-art">${icon("i-library", 40)}</div>
-    <h3>${escapeHtml(title)}</h3>
-    <p>${escapeHtml(hint)}</p>
-    ${action ? `<button class="btn" id="emptyAction">${escapeHtml(action)}</button>` : ""}
-  </div>`;
-}
