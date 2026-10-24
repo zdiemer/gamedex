@@ -1,5 +1,5 @@
 # Pinned for reproducible image builds — bump deliberately.
-fastapi==0.143.3
+fastapi==0.162.0
 uvicorn[standard]==0.54.0
 openpyxl==3.1.5
 requests==2.34.2
