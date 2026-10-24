@@ -119,29 +119,18 @@ function _renderSearchResults(q) {
   stopPreview();                                // any card the tour was on is gone
   shown.forEach((h, i) => {
     const row = h.row;
-    const cs = coverSrc(ENRICH[row._k], "cover_big");
-    const pixel = coverIsPixelArt(ENRICH[row._k], cs) ? " pixel" : "";
-    const cover = cs
-      ? `<img class="card-cover${pixel}" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
-      : `<div class="card-cover ph">${icon("i-library", 26)}</div>`;
     const chips = [];
     if (h.owned) chips.push(`<span class="s-chip owned">Owned</span>`);
     else if (h.tracked) chips.push(`<span class="s-chip tracked">Tracked</span>`);
     if (h.completed) chips.push(`<span class="s-chip done">Completed</span>`);
     if (h.onorder) chips.push(`<span class="s-chip order">On order</span>`);
-    const title = escapeHtml(String(row.title || row.game || "Untitled"));
-    // row.platform reads "2 platforms" for a merged group (groupRow), the real platform otherwise.
-    const sub = [row.platform, row.releaseYear].filter((x) => x != null && x !== "")
-      .map((x) => escapeHtml(String(x))).join(" · ");
     const card = document.createElement("div");
     card.className = "card" + (h.completed ? " done" : "");
     card.style.setProperty("--i", Math.min(i, 24) * 22 + "ms");
     if (row._k) card.dataset.k = row._k;
-    card.innerHTML = `${cover}${vrBadgeHtml(row)}<div class="card-body">
-        <div class="card-title" title="${title}">${title}</div>
-        <div class="card-sub">${sub}</div>
-        <div class="s-chips">${chips.join("")}</div>
-      </div>`;
+    card.innerHTML = posterContentHtml(row, posterSummaryHtml(row, {
+      afterHtml: `<div class="s-chips">${chips.join("")}</div>`,
+    }));
     card.onclick = () => openDrawer(row, h.sheet);
     CARD_ROW.set(card, row);
     wirePreview(card);                          // hover previews, but don't arm the idle tour here

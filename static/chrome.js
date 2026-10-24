@@ -401,86 +401,6 @@ $("#cmdkInput").addEventListener("keydown", (e) => {
   else if (e.key === "Enter") { e.preventDefault(); cmdkRun(cmdk.sel); }
 });
 
-// A native, in-app replacement for window.prompt — used for "name this view/picker".
-// It looks like the rest of the site instead of the OS chrome, and its input is 16px
-// so iOS doesn't zoom the page on focus. Returns a Promise of the trimmed name, or
-// null if cancelled/empty. Registers as an overlay (.np-scrim) for the scroll lock.
-function uiPrompt({ title, value = "", placeholder = "", ok = "Save", maxlength = 40 } = {}) {
-  return new Promise((resolve) => {
-    const host = document.createElement("div");
-    host.className = "np-scrim";
-    host.innerHTML = `
-      <div class="np-box" role="dialog" aria-modal="true">
-        <label class="np-title" for="npInput">${escapeHtml(title || "")}</label>
-        <input id="npInput" class="np-input" type="text" autocomplete="off" spellcheck="false"
-               maxlength="${maxlength}" placeholder="${escapeHtml(placeholder)}" />
-        <div class="np-actions">
-          <button type="button" class="np-btn" data-np="cancel">Cancel</button>
-          <button type="button" class="np-btn np-ok" data-np="ok">${escapeHtml(ok)}</button>
-        </div>
-      </div>`;
-    document.body.appendChild(host);
-    const input = host.querySelector("#npInput");
-    input.value = value;
-    if (typeof syncScrollLock === "function") syncScrollLock();
-    let done = false;
-    const close = (result) => {
-      if (done) return;
-      done = true;
-      host.remove();
-      if (typeof syncScrollLock === "function") syncScrollLock();
-      resolve(result);
-    };
-    const commit = () => close(input.value.trim() || null);
-    host.querySelector('[data-np="cancel"]').onclick = () => close(null);
-    host.querySelector('[data-np="ok"]').onclick = commit;
-    host.addEventListener("click", (e) => { if (e.target === host) close(null); });
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); commit(); }
-      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(null); }
-    });
-    // Focus + select so a suggested name can just be overtyped.
-    requestAnimationFrame(() => { input.focus(); input.select(); });
-  });
-}
-
-// Companion to uiPrompt — a native yes/no dialog in place of window.confirm, for the
-// handful of destructive actions that ask before they wipe something. Resolves true
-// on confirm, false on cancel/backdrop/Escape. Pass danger:true to redden the button.
-function uiConfirm({ title = "", body = "", ok = "OK", cancel = "Cancel", danger = false } = {}) {
-  return new Promise((resolve) => {
-    const host = document.createElement("div");
-    host.className = "np-scrim";
-    host.innerHTML = `
-      <div class="np-box" role="alertdialog" aria-modal="true">
-        ${title ? `<div class="np-title">${escapeHtml(title)}</div>` : ""}
-        <div class="np-body">${escapeHtml(body)}</div>
-        <div class="np-actions">
-          <button type="button" class="np-btn" data-np="cancel">${escapeHtml(cancel)}</button>
-          <button type="button" class="np-btn np-ok${danger ? " np-danger" : ""}" data-np="ok">${escapeHtml(ok)}</button>
-        </div>
-      </div>`;
-    document.body.appendChild(host);
-    if (typeof syncScrollLock === "function") syncScrollLock();
-    let done = false;
-    const close = (result) => {
-      if (done) return;
-      done = true;
-      host.remove();
-      if (typeof syncScrollLock === "function") syncScrollLock();
-      resolve(result);
-    };
-    host.querySelector('[data-np="cancel"]').onclick = () => close(false);
-    host.querySelector('[data-np="ok"]').onclick = () => close(true);
-    host.addEventListener("click", (e) => { if (e.target === host) close(false); });
-    host.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); close(true); }
-      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(false); }
-    });
-    requestAnimationFrame(() => host.querySelector('[data-np="ok"]').focus());
-  });
-}
-
 // Wordmark = home: back to the landing page with nothing filtered/sorted.
 $("#brand").addEventListener("click", () => {
   // Every tab, not just Home: the wordmark is the "put it all back" affordance. resetTab
@@ -636,22 +556,14 @@ function applyAdminUI() {
   }
 }
 
-function closeAuthModal() {
-  document.querySelector(".ce-scrim.auth")?.remove();
-  if (typeof syncScrollLock === "function") syncScrollLock();
-}
+let authDialog = null;
+function closeAuthModal() { authDialog?.close(); }
 
 function openAuthModal(inner) {
   closeAuthModal();
-  const host = document.createElement("div");
-  host.className = "ce-scrim auth";
-  host.innerHTML = `<div class="ce ce-narrow" role="dialog" aria-modal="true">
-      <button class="ce-x" aria-label="Close">✕</button>${inner}</div>`;
-  host.addEventListener("mousedown", (e) => { if (e.target === host) closeAuthModal(); });
-  host.querySelector(".ce-x").onclick = closeAuthModal;
-  document.body.appendChild(host);
-  if (typeof syncScrollLock === "function") syncScrollLock();
-  return host;
+  authDialog = openUiDialog({ html: inner, className: "auth", panelClass: "ce-narrow",
+    onClose: () => { authDialog = null; } });
+  return authDialog.host;
 }
 
 function openLoginDialog() {
@@ -743,9 +655,6 @@ function openPasswordDialog() {
 
 $("#account").addEventListener("click", () => {
   if (IS_ADMIN) openAccountMenu(); else openLoginDialog();
-});
-addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeAuthModal();
 });
 
 $("#refresh").addEventListener("click", async () => {

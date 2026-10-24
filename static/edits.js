@@ -242,29 +242,18 @@ async function editsDiscardAdded(rowId) {
 }
 
 /* ---- a modal ------------------------------------------------------------- */
+let editDialog = null;
 function editsModal(title, inner, cls) {
-  document.querySelectorAll(".ce-scrim.ed").forEach((n) => n.remove());
-  const host = document.createElement("div");
-  host.className = `ce-scrim ed ${cls || ""}`;
-  host.innerHTML = `<div class="ce ed-ce" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <button class="ce-x" aria-label="Close">✕</button>
-      <h3>${esc(title)}</h3>
-      <div class="ed-body"></div>
-    </div>`;
-  host.querySelector(".ed-body").innerHTML = inner;
-  const close = () => { host.remove(); syncScrollLock?.(); document.removeEventListener("keydown", onEsc, true); };
-  // Capture, and stopped: chrome.js's Escape handler would otherwise walk the
-  // drawer stack out from under an open dialog.
-  // NOT named `esc` — a block-scoped const by that name puts the module-level
-  // esc() helper into TDZ for this whole function, so every interpolation above
-  // throws before you ever get here.
-  const onEsc = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); close(); } };
-  document.addEventListener("keydown", onEsc, true);
-  host.querySelector(".ce-x").onclick = close;
-  host.addEventListener("mousedown", (e) => { if (e.target === host) close(); });
-  document.body.appendChild(host);
-  syncScrollLock?.();
-  return { host, close, body: host.querySelector(".ed-body") };
+  editDialog?.close();
+  editDialog = openUiDialog({
+    className: `ed ${cls || ""}`, panelClass: "ed-ce", label: title,
+    html: `<h3>${esc(title)}</h3><div class="ed-body"></div>`,
+    onClose: () => { editDialog = null; },
+  });
+  const { host, close } = editDialog;
+  const body = host.querySelector(".ed-body");
+  body.innerHTML = inner;
+  return { host, close, body };
 }
 
 // Distinct values a Games column already uses, most common first — so the add

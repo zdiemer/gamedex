@@ -316,33 +316,33 @@ const vrBadgeHtml = (row) =>
     ? `<span class="vr-badge" title="Playable in VR" aria-label="Playable in VR">${icon("i-vr", 15)}</span>`
     : "";
 
-/* The listing card, in ONE place.
-
-   The grid builds its cards imperatively — it needs the row map, the hover-preview wiring
-   and the fan-in stagger — but everywhere else just wants a string of the same thing. Home's
-   shelves, the Challenges timeline and the grid all render the identical poster: cover,
-   title, platform · year, and an optional note line. When they each had their own copy of
-   this markup they drifted, and a game looked like a different kind of object depending on
-   which tab you found it on.
-
-   `note` is free HTML because the callers mean different things by it — Home says why it
-   picked the game, the timeline says which bucket it cleared and when. */
-function posterCardHtml(row, { cls = "", note = "", attrs = "" } = {}) {
-  const cs = coverSrc(ENRICH[row._k], "cover_big");
-  const pixel = coverIsPixelArt(ENRICH[row._k], cs) ? " pixel" : "";
-  const title = escapeHtml(String(row.title || row.game || "Untitled"));
+// Shared poster structure for listing, search, Home and challenge cards.
+// bodyHtml is trusted renderer output; callers own events and row registration.
+function posterContentHtml(row, bodyHtml, { pending = false } = {}) {
+  const enrichment = ENRICH[row._k];
+  const cs = coverSrc(enrichment, "cover_big");
+  const pixel = coverIsPixelArt(enrichment, cs) ? " pixel" : "";
   const cover = cs
     ? `<img class="card-cover${pixel}" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
-    : `<div class="card-cover ph">${icon("i-library", 26)}</div>`;
+    : `<div class="card-cover ph${pending ? " skel" : ""}">${pending ? "" : icon("i-library", 26)}</div>`;
+  return `${cover}${vrBadgeHtml(row)}<div class="card-body">${bodyHtml}</div>`;
+}
+
+function posterSummaryHtml(row, { note = "", afterHtml = "" } = {}) {
+  const title = escapeHtml(String(row.title || row.game || "Untitled"));
   const sub = [row.platform, row.releaseYear].filter((x) => x != null && x !== "")
     .map((x) => escapeHtml(String(x))).join(" · ");
-  return `<button class="card${cls ? " " + cls : ""}" ${attrs}>
-    ${cover}${vrBadgeHtml(row)}
-    <div class="card-body">
-      <div class="card-title">${title}</div>
-      <div class="card-sub">${sub}</div>
-      ${note ? `<div class="card-note">${note}</div>` : ""}
-    </div></button>`;
+  return `<div class="card-title" title="${title}">${title}</div>
+    <div class="card-sub">${sub}</div>
+    ${note ? `<div class="card-note">${note}</div>` : ""}${afterHtml}`;
+}
+
+// Home and Challenges need HTML buttons; the grid and search create elements so
+// they can attach row maps and hover previews. All use the same poster structure.
+// note and attrs retain the existing trusted-HTML contract.
+function posterCardHtml(row, { cls = "", note = "", attrs = "" } = {}) {
+  return `<button type="button" class="card${cls ? " " + escapeHtml(cls) : ""}" ${attrs}>${
+    posterContentHtml(row, posterSummaryHtml(row, { note }))}</button>`;
 }
 
 function renderGrid(pageRows) {
@@ -350,12 +350,6 @@ function renderGrid(pageRows) {
   stopPreview();                 // the card it was attached to is about to vanish
   grid.innerHTML = "";
   pageRows.forEach((row, i) => {
-    const cs = coverSrc(ENRICH[row._k], "cover_big");
-    const pend = coverPending(row);
-    const pixel = coverIsPixelArt(ENRICH[row._k], cs) ? " pixel" : "";
-    const cover = cs
-      ? `<img class="card-cover${pixel}" loading="lazy" decoding="async" src="${cs}" alt="">`
-      : `<div class="card-cover ph${pend ? " skel" : ""}">${pend ? "" : icon("i-library", 26)}</div>`;
     const card = document.createElement("div");
     card.style.setProperty("--i", Math.min(i, 24) * 22 + "ms");   // fan-in stagger
     // A part-finished collection is yellow, and that beats the green "done"
@@ -365,7 +359,7 @@ function renderGrid(pageRows) {
       : (cstat === "complete" || rowCompleted(row)) ? " done" : "");
     if (row._k) card.dataset.k = row._k;
     CARD_ROW.set(card, row);
-    card.innerHTML = `${cover}${vrBadgeHtml(row)}<div class="card-body">${cardBodyHtml(row)}</div>`;
+    card.innerHTML = posterContentHtml(row, cardBodyHtml(row), { pending: coverPending(row) });
     card.onclick = () => openDrawer(row);
     wirePreview(card);
     grid.appendChild(card);

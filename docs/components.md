@@ -16,10 +16,12 @@ when existing components cannot reasonably express the required behavior.
 | Icon-only control | `<button type="button" class="refreshbtn" aria-label="…">` + `icon()` | `static/style.css`; use `disabled` / `.spinning` as needed |
 | Compact badge | `<span class="pill">…</span>` | `static/style.css` |
 | Game poster | `posterCardHtml(row, { cls, note, attrs })` | `static/table.js`; `.card` and descendants |
+| Poster cover + body / summary | `posterContentHtml(row, bodyHtml, { pending })`, `posterSummaryHtml(row, options)` | `static/table.js`; listing, search, Home, challenges |
 | Listing / facets / pagination | `renderTable`, `renderGrid`, `renderPager`, existing listing pipeline | `static/table.js`, `static/preview.js`, `static/filters.js` |
 | Collapsible game tags | `tagChipsHtml(items)` | `static/hero.js`; delegated actions in `static/chrome.js` |
 | Game detail hero / panels | `heroHtml`, `detailHtml`, source panel builders | `static/hero.js`, `static/panels.js` |
-| Text prompt / confirmation | `uiPrompt(options)`, `uiConfirm(options)` | `static/chrome.js`; `.np-*` |
+| Text prompt / confirmation | `uiPrompt(options)`, `uiConfirm(options)` | `static/components.js`; `.np-*` |
+| Dialog lifecycle / shell | `openUiDialog(options)` | `static/components.js`; `.ce-*` / `.np-*` |
 | Toast | `showToast(message, iconId)` | `static/chrome.js`; `.toast` |
 | Autocomplete | `acAttach(input, getItems)` | `static/core.js`; `.ac-*` |
 | Media carousel / lightbox | `wireCarousel`, `openShotSet` | `static/panels.js` |
@@ -31,8 +33,9 @@ signatures and callers before using them; domain components require app state.
 ## Primitive API
 
 `static/components.js` loads immediately after `core.js` and before features.
-Its builders are synchronous, return HTML strings, and escape labels and attribute
+Its HTML builders are synchronous, return HTML strings, and escape labels and attribute
 values (including numbers). They neither fetch data nor attach event handlers.
+Dialog helpers also manage DOM insertion and dismissal, as described below.
 
 ```js
 host.innerHTML = buttonHtml("Clear filters", { id: "clearFilters", variant: "ghost" });
@@ -63,6 +66,30 @@ Raw HTML is not accepted by these primitives. Older domain helpers such as
 with `escapeHtml(String(value))`, validate URLs, and never pass API content as
 markup. `icon` / `glyph` also expect trusted icon identifiers or escaped content.
 
+## Shared dialogs and posters
+
+`openUiDialog({ html, family, className, panelClass, label, role, onClose,
+dismissValue })` returns `{ host, close }`. It owns the shell, backdrop dismissal,
+Escape handling (only the top dialog), scroll locking, listener removal, and
+restoring the prior focus when possible. `close(result)` is idempotent and calls
+`onClose` once. The default family uses `.ce-scrim` / `.ce` and a close button;
+`family: "prompt"` uses `.np-scrim` / `.np-box`. Content is **trusted HTML**:
+escape data before interpolating it. Callers own initial focus, forms, and business
+actions. Close through the returned API instead of removing the host directly.
+
+Prefer `uiPrompt` / `uiConfirm` for simple questions. Auth and edit wrappers retain
+their public APIs and use the same lifecycle. Replacing either wrapper closes the
+previous dialog, including its listeners. Escape must not dismiss the game drawer
+underneath a dialog.
+
+`posterContentHtml` owns the shared cover, pixel-art class, placeholder, VR badge,
+and `.card-body`. `pending: true` shows the listing's existing skeleton when no
+cover exists. `posterSummaryHtml` owns title and platform/year markup, with optional
+trusted `note` and `afterHtml`. `posterCardHtml` composes them for Home/challenges;
+listing and search compose their own bodies and retain row maps, status classes,
+click handlers, preview wiring, and tour behavior. Do not copy cover markup into
+another feature or force feature-specific badges into the shared shell.
+
 ## Design and behavior contracts
 
 - `static/style.css` owns the theme tokens (`:root` and the light-theme override),
@@ -87,6 +114,7 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory static
 # Open http://localhost:8080/components.html
 node tools/tests/components.cjs
 node tools/tests/startup-order.cjs
+node tools/tests/poster-components.cjs
 python tools/tests/component_gallery.py # requires Starlette and httpx
 ```
 
@@ -94,6 +122,11 @@ When served by Gamedex, `/components.html` and its gallery script require an
 admin session and are never cached by the browser, CDN, or service worker. Sign
 in through the app first. The local static-only preview command above is for
 development and has no authentication; bind it to localhost on shared machines.
+
+For dialog lifecycle regressions, serve the gallery locally and run
+`node tools/tests/dialog-components.cjs` with Playwright available on `NODE_PATH`
+and `GAMEDEX_UI_URL` set to the server origin. The browser setup and library
+environment are the same as `tools/mobile-shot/shot.sh`.
 
 The gallery renders the real primitives and shared styles without an API. Toggle
 light/dark and check desktop and phone widths, focus, and disabled controls. It

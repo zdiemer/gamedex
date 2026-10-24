@@ -118,8 +118,8 @@ function load(extra = {}) {
     DATA: JSON.parse(JSON.stringify(SHEET)),
     ...extra,
   });
-  vm.runInContext(fs.readFileSync(
-    path.join(__dirname, '../../static/edits.js'), 'utf8'), ctx);
+  for (const file of ['components', 'edits']) vm.runInContext(fs.readFileSync(
+    path.join(__dirname, `../../static/${file}.js`), 'utf8'), ctx);
   return { ctx, document };
 }
 
