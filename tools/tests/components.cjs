@@ -53,7 +53,7 @@ console.log('Component escaping, variants, existing consumers, load order, and o
 let fetchHandler;
 const requests = [];
 const swContext = vm.createContext({
-  URL, self: {location:{origin:'https://gamedex.test'}, addEventListener(name, fn) {
+  URL, self: {location:{origin:'https://gamedex.test',href:'https://gamedex.test/sw.js'}, addEventListener(name, fn) {
     if (name === 'fetch') fetchHandler = fn;
   }},
   fetch(request, options) { requests.push({request, options}); return Promise.resolve({ok:true}); },

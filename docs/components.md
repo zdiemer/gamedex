@@ -275,7 +275,16 @@ the public contract changes. Migrate the affected callers in the same change.
 
 New app runtime assets must be loaded in dependency order in `static/index.html` and
 included in `static/sw.js`'s shell cache. Change the shell version when changing
-cached assets so existing installations receive them together.
+cached assets so existing installations receive them together. The worker installs
+the complete shell atomically and keeps it immutable until the next worker takes
+over. It serves the same cached index for every SPA query route; partial per-file
+refreshes can mix incompatible component declarations.
+
+Run `node tools/tests/service-worker.cjs` for installation/cache contracts.
+With Playwright and the local read-only API proxy available,
+`node tools/tests/service-worker-upgrade.cjs` reproduces the older worker’s mixed
+cache failure, upgrades that browser, and verifies online/offline recovery.
+The latter uses the `fa105a7` release from git history as its upgrade fixture.
 
 Gallery-only assets must stay out of the offline shell cache and remain covered by
 the static handler's admin gate and the service worker's network-only gallery rule.

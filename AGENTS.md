@@ -50,7 +50,11 @@ Check affected UI in light/dark themes and at phone/desktop widths. For API-back
 screens, use the workflow in `tools/mobile-shot/README.md`.
 
 Keep script ordering and the offline shell list in `static/sw.js` in sync when
-adding runtime files; update its cache version for changed shell assets.
+adding runtime files; update its cache version for changed shell assets. The worker
+installs the shell atomically and serves it from its own versioned cache. Never
+revalidate individual shell assets into an active release: shared-global scripts
+from different builds can prevent startup. Validate cache upgrades with
+`tools/tests/service-worker.cjs` and `tools/tests/service-worker-upgrade.cjs`.
 
 `AGENTS.md` is the repository's canonical agent guidance. `CLAUDE.md` imports it;
 put shared policy here so both agents follow the same instructions.

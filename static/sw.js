@@ -7,7 +7,7 @@
      but yesterday's is far better than an error screen on the train.
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
-const VERSION = "v1.87.17";
+const VERSION = "v1.87.18";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 // Keep in sync with the <script> tags in index.html — a file loaded there but
@@ -67,16 +67,15 @@ const SHELL_URLS = [
   "./fonts/saira-stencil-one.woff2", "./fonts/special-elite.woff2", "./fonts/orbitron.woff2",
   "./fonts/big-shoulders-display.woff2",
 ];
-// Cache each URL on its own. addAll() is atomic — one 404 rejects the whole
-// batch, the install fails, and the app silently has NO offline cache at all.
-// That is exactly what happened when reviews.js was deleted in 1.11.4 and this
-// list kept asking for it: sixteen releases with a dead service worker and no
-// symptom, because online everything still works.
+// The shared-global scripts are one release: a partial install or per-file
+// background refresh can pair new callers with old/missing components and stop
+// startup. Publish the shell atomically, bypassing HTTP caches during install.
+const SHELL_PATHS = new Set(SHELL_URLS.map((u) => new URL(u, self.location.href).pathname));
 self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(SHELL)
-      .then((c) => Promise.all(SHELL_URLS.map((u) =>
-        c.add(u).catch((err) => console.warn("sw: skipped", u, err)))))
+      .then((cache) => cache.addAll(SHELL_URLS.map((u) =>
+        new Request(new URL(u, self.location.href), { cache: "reload" }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -141,16 +140,16 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  // Shell: cache first, revalidate in the background.
-  if (url.origin === self.location.origin) {
+  // Only this worker's complete shell is eligible. Query strings select SPA
+  // state, not different HTML releases; every route gets the same cached index.
+  // Never overwrite individual assets in an active release with network bytes.
+  if (url.origin === self.location.origin && SHELL_PATHS.has(url.pathname)) {
+    const shellURL = new URL(url.pathname, self.location.origin);
+    if (url.pathname === new URL("./", self.location.href).pathname)
+      shellURL.pathname = new URL("./index.html", self.location.href).pathname;
     e.respondWith(
-      caches.match(e.request).then((hit) => {
-        const net = fetch(e.request).then((res) => {
-          if (res.ok) { const copy = res.clone(); caches.open(SHELL).then((c) => c.put(e.request, copy)); }
-          return res;
-        }).catch(() => hit);
-        return hit || net;
-      })
+      caches.open(SHELL).then((cache) => cache.match(shellURL.href))
+        .then((hit) => hit || fetch(e.request))
     );
   }
 });
