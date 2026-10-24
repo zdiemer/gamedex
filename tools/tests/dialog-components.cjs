@@ -9,6 +9,8 @@ const fs = require('node:fs');
   const page = await browser.newPage();
   const errors=[]; page.on('pageerror', e=>errors.push(e.message));
   await page.goto(`${process.env.GAMEDEX_UI_URL || 'http://127.0.0.1:18091'}/components.html`);
+  await page.waitForFunction(() => document.body.dataset.libraryReady === 'true');
+  await page.evaluate(() => selectEntry('dialogs'));
   // Exercise the actual compatibility wrappers without booting API-backed app chrome.
   const chrome = fs.readFileSync('static/chrome.js','utf8');
   const edits = fs.readFileSync('static/edits.js','utf8');

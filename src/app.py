@@ -2023,7 +2023,8 @@ class RevalidatingStatic(StaticFiles):
         # Gate inside the static handler, after StaticFiles normalizes the path:
         # encoded/alternate URLs must not bypass authentication. Never cache the
         # gallery (including its script), even after a successful admin request.
-        gallery = path in {"components.html", "components-gallery.js"}
+        gallery = path in {"components.html", "components-gallery.js",
+                           "components-gallery.css", "components-catalog.js"}
         if gallery and current_user(Request(scope)) is None:
             return JSONResponse({"detail": "authentication required"}, status_code=401,
                                 headers={"Cache-Control": "private, no-store", "Vary": "Cookie"})

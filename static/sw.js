@@ -11,7 +11,7 @@
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
 
-const VERSION = "v1.87.12";
+const VERSION = "v1.87.13";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 
@@ -71,7 +71,7 @@ self.addEventListener("fetch", (e) => {
 
   // Admin gallery is always authorized by the server, including after logout.
   // Decode aliases as well; never consult or populate the offline shell cache.
-  if (/\/(components\.html|components-gallery\.js)$/.test(decodeURIComponent(url.pathname))) {
+  if (/\/(components\.html|components-(?:gallery\.(?:js|css)|catalog\.js))$/.test(decodeURIComponent(url.pathname))) {
     e.respondWith(fetch(e.request, { cache: "no-store" }));
     return;
   }

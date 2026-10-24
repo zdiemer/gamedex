@@ -3,34 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gamedex component library</title>
+  <title>Component library · Gamedex</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    .library { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
-    .library h1, .library h2 { font-family: var(--display); margin-bottom: 12px; }
-    .library p { color: var(--muted); margin-bottom: 16px; }
-    .library section { margin-top: 28px; padding: 20px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
-    .library .examples { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-    .library code { color: var(--accent); overflow-wrap: anywhere; }
-    .library .empty { padding: 24px 0; }
-    .library #feedback { min-height: 24px; margin-top: 16px; }
-  </style>
+  <link rel="stylesheet" href="components-gallery.css">
   <script defer src="core.js"></script>
   <script defer src="components.js"></script>
+  <script defer src="enrich.js"></script>
+  <script defer src="mine.js"></script>
+  <script defer src="hero.js"></script>
+  <script defer src="panels.js"></script>
+  <script defer src="data.js"></script>
+  <script defer src="launch.js"></script>
+  <script defer src="table.js"></script>
+  <script defer src="stats.js"></script>
+  <script defer src="charts.js"></script>
+  <script defer src="components-catalog.js"></script>
   <script defer src="components-gallery.js"></script>
 </head>
-<body>
-  <main class="library">
-    <h1>Gamedex components</h1>
-    <p>Shared primitives, rendered with the app's own builders and theme. Full inventory and usage: <code>docs/components.md</code>.</p>
+<body class="library-page">
+  <header class="library-header">
+    <a href="index.html" class="brand-word">Game<span>dex</span></a>
+    <span class="pill">Admin</span>
+    <a href="index.html">Back to app</a>
     <button type="button" class="btn ghost" id="themeToggle" aria-pressed="false">Light theme</button>
-    <section><h2>Buttons</h2><p><code>buttonHtml(label, options)</code></p><div class="examples" id="buttons"></div></section>
-    <section><h2>Chips and badges</h2><p><code>chipHtml(value)</code> / <code>chips(values)</code> / <code>.pill</code></p><div class="examples" id="chips"></div></section>
-    <section><h2>Empty state</h2><p><code>emptyState(title, hint, action)</code></p><div id="empty"></div></section>
-    <section><h2>Empty state without an action</h2><div id="passive"></div></section>
-    <section><h2>Dialogs</h2><p>Shared overlay lifecycle; feature-owned content.</p><div class="examples" id="dialogs"></div></section>
-    <p id="feedback" role="status" aria-live="polite"></p>
-    <a href="index.html">Back to Gamedex</a>
+  </header>
+  <main class="library">
+    <div class="library-intro"><p class="library-eyebrow">DESIGN &amp; DEVELOPMENT</p>
+      <h1>Component library</h1>
+      <p>The UI across Gamedex: controls, game tiles, drawers, media, account tools, and feature components. Reuse these implementations before adding another.</p>
+      <p id="libraryCounts" class="muted" role="status"></p>
+    </div>
+    <div class="library-workbench">
+      <aside class="library-browser" aria-label="Component catalogue">
+        <label for="librarySearch">Find a component</label>
+        <input type="search" id="librarySearch" placeholder="Search, avatar, drawer, toggle…" autocomplete="off">
+        <label for="libraryCategory">Category</label>
+        <select id="libraryCategory"><option value="">All components</option></select>
+        <p id="resultCount" role="status" class="muted"></p>
+        <nav id="componentList" aria-label="Components"></nav>
+      </aside>
+      <article class="library-detail" id="componentDetail" aria-labelledby="componentTitle">
+        <p id="componentCategory" class="library-eyebrow"></p>
+        <h2 id="componentTitle"></h2>
+        <p id="componentDescription"></p>
+        <p id="componentOwner"></p>
+        <div class="library-actions" id="componentActions"></div>
+        <div class="library-preview" id="componentPreview"></div>
+        <p id="feedback" role="status" aria-live="polite"></p>
+        <details class="library-source"><summary>Implementation and reuse</summary>
+          <p id="componentUsage"></p><a id="componentFullSource" target="_blank" rel="noopener">Open full source ↗</a><p class="muted">Source excerpt (up to 100 lines)</p><pre><code id="componentSource"></code></pre>
+        </details>
+      </article>
+    </div>
   </main>
 </body>
 </html>

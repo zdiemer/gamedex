@@ -5,6 +5,39 @@ feature-aware components. There is no framework or build step. Start here before
 adding UI: reuse a component, extend it if needed, and introduce a new one only
 when existing components cannot reasonably express the required behavior.
 
+## Browse the whole site
+
+Sign in and choose **Menu → Admin → Component library** (`/components.html`).
+The catalogue has three complementary views, searchable by name, category, and
+owning file:
+
+- **Isolated examples** call production builders or clone current `index.html`
+  markup. They use local fixture data: search fields, avatars, toggles, dropdowns,
+  buttons, tags, autocomplete, posters and status variants, drawer heroes/source
+  panels, achievements, charts, dialogs, and feedback. They never request live API
+  data. Switch light/dark themes and resize to inspect the same implementations.
+- **App surfaces** open the real app in an iframe on demand: navigation/account
+  forms, facets, table/pagination, complete detail drawers, shelf boxes/media,
+  Home, picker, collections/challenges, timelines, statistics, events/themes,
+  daily games, jukebox, recommendations, wishlist, translations, and admin tools.
+  These use the current library/account and have real app behavior; previews
+  explicitly say so. Some components require selecting a game with matching data.
+- **Source inventory** indexes UI builders, renderers, and DOM construction across
+  every top-level frontend module, including feature-specific UI. Each entry
+  names its file/line and shows implementation source. It is a discovery index,
+  not a claim that each function is a separately reusable primitive.
+
+The app-context previews are deliberately lazy: opening the catalogue alone does
+not boot a second app or issue API requests. All gallery-only JS/CSS and HTML are
+server-gated and bypass service-worker caching. Production modules stay in their
+existing owners; the catalogue does not duplicate their implementations.
+
+`tools/components/catalog.py` generates `static/components-catalog.js`. Run it
+when adding/moving UI implementations, and run it with `--check` in validation.
+It scans named renderers and functions that construct DOM/markup. For template-only
+or unusually named UI, also add a curated entry in `components-gallery.js`; the
+scanner cannot infer every component's intended usage or required data.
+
 ## Find a component
 
 | Need | Reuse | Owner / styles |
@@ -112,34 +145,42 @@ From the repository root:
 ```sh
 python3 -m http.server 8080 --bind 127.0.0.1 --directory static
 # Open http://localhost:8080/components.html
+python3 tools/components/catalog.py --check
 node tools/tests/components.cjs
 node tools/tests/startup-order.cjs
 node tools/tests/poster-components.cjs
 python tools/tests/component_gallery.py # requires Starlette and httpx
 ```
 
-When served by Gamedex, `/components.html` and its gallery script require an
+When served by Gamedex, `/components.html` and its gallery-only scripts/styles require an
 admin session and are never cached by the browser, CDN, or service worker. Sign
 in through the app first. The local static-only preview command above is for
 development and has no authentication; bind it to localhost on shared machines.
 
-For dialog lifecycle regressions, serve the gallery locally and run
-`node tools/tests/dialog-components.cjs` with Playwright available on `NODE_PATH`
+For catalogue and dialog regressions, serve the gallery locally and run
+`node tools/tests/component-library.cjs` and `node tools/tests/dialog-components.cjs` with Playwright available on `NODE_PATH`
 and `GAMEDEX_UI_URL` set to the server origin. The browser setup and library
-environment are the same as `tools/mobile-shot/shot.sh`.
+environment are the same as `tools/mobile-shot/shot.sh`. For the optional
+read-only live-data integration check, run `tools/tests/component-library-live.cjs`
+with `GAMEDEX_UI_URL` pointing to that static/API proxy and a nonempty library.
 
-The gallery renders the real primitives and shared styles without an API. Toggle
-light/dark and check desktop and phone widths, focus, and disabled controls. It
-covers primitives; inspect domain components on the corresponding app surfaces
-with real data (see `tools/mobile-shot/README.md`).
+The static server above supports isolated examples and source browsing. For live
+app previews, use the real server or the static/API proxy described in
+`tools/mobile-shot/README.md`. Check light/dark, phone/desktop, keyboard focus,
+and disabled/empty/loading states. The admin gate is enforced by FastAPI, not
+by the local development static server.
 
 For UI changes, search this inventory and existing callers first. Extend a shared
 component for a missing variant when that keeps its purpose clear. Add a new
 component only for a distinct responsibility or behavior that existing components
 cannot reasonably support; explain why in the change description. Avoid speculative
-options. Update this inventory, gallery where applicable, and behavior tests when
+options. Update the generated inventory, the relevant isolated example or app-surface entry,
+and behavior tests when
 the public contract changes. Migrate the affected callers in the same change.
 
-New runtime assets must be loaded in dependency order in `static/index.html` and
+New app runtime assets must be loaded in dependency order in `static/index.html` and
 included in `static/sw.js`'s shell cache. Change the shell version when changing
 cached assets so existing installations receive them together.
+
+Gallery-only assets must stay out of the offline shell cache and remain covered by
+the static handler's admin gate and the service worker's network-only gallery rule.

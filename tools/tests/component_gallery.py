@@ -26,7 +26,8 @@ class GalleryAccessTest(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_gallery_requires_admin_on_every_request(self):
-        for path in ['/components.html', '/components-gallery.js', '/%63omponents.html',
+        for path in ['/components.html', '/components-gallery.js', '/components-gallery.css', '/components-catalog.js',
+                     '/%63omponents.html',
                      '/x/../components.html', '/x/%2e%2e/components.html']:
             with self.subTest(path=path):
                 self.client.cookies.clear()

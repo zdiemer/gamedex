@@ -59,7 +59,7 @@ const swContext = vm.createContext({
   caches: {match() { throw Error('Gallery must not read caches'); }, open() { throw Error('Gallery must not write caches'); }},
 });
 vm.runInContext(sw, swContext);
-for (const path of ['components.html', 'components-gallery.js', '%63omponents.html']) {
+for (const path of ['components.html', 'components-gallery.js', 'components-gallery.css', 'components-catalog.js', '%63omponents.html']) {
   let handled = false;
   fetchHandler({request:{url:`https://gamedex.test/${path}`,method:'GET'}, respondWith() {handled = true;}});
   assert.ok(handled);
