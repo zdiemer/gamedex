@@ -624,10 +624,11 @@ class Enricher:
         out = {}
         with self._db_lock:
             qs = ",".join("?" * len(keys))
-            for mk, status, data in self._db.execute(
-                f"SELECT match_key,status,data FROM {table} WHERE match_key IN ({qs})", keys
-            ):
-                out[mk] = (status, json.loads(data) if data else None)
+            rows = self._db.execute(
+                f"SELECT match_key,status,data FROM {table} WHERE match_key IN ({qs})",
+                keys).fetchall()
+        for mk, status, data in rows:
+            out[mk] = (status, json.loads(data) if data else None)
         return out
 
     def _status(self, table, key):
@@ -748,31 +749,41 @@ class Enricher:
 
     # -- request / read -----------------------------------------------------
     def request(self, keys, front=True):
-        with self._cv:
-            for k in keys:
-                if k not in self._key_meta:
-                    continue
-                meta = self._key_meta[k]
-                for src in self._sources:
-                    gate = _SOURCE_GATE.get(src)
-                    if gate and not gate(meta):
+        # A library refresh can contain 15k keys across 17 sources. Do bounded
+        # bulk reads outside the queue lock, not one DB lookup per key/source
+        # while blocking workers, stats, and interactive requests for the whole run.
+        keys = list(dict.fromkeys(keys))
+        for offset in range(0, len(keys), 256):
+            batch = keys[offset:offset + 256]
+            resolved = {}
+            qs = ",".join("?" * len(batch))
+            for src in self._sources:
+                with self._db_lock:
+                    resolved[src] = {r[0] for r in self._db.execute(
+                        f"SELECT match_key FROM {self._table(src)} "
+                        f"WHERE match_key IN ({qs}) AND status IS NOT NULL AND status != ''",
+                        batch).fetchall()}
+            with self._cv:
+                for k in batch:
+                    meta = self._key_meta.get(k)
+                    if meta is None:
                         continue
-                    if self._status(self._table(src), k):
-                        continue
-                    q = self._q[src]
-                    if k in self._queued[src]:
-                        # Already queued (e.g. by backfill at the back) — promote
-                        # an on-demand request to the front so it resolves now.
-                        if front:
-                            try:
-                                q.remove(k)
-                            except ValueError:
-                                pass
-                            q.appendleft(k)
-                        continue
-                    (q.appendleft if front else q.append)(k)
-                    self._queued[src].add(k)
-            self._cv.notify_all()
+                    for src in self._sources:
+                        gate = _SOURCE_GATE.get(src)
+                        if (gate and not gate(meta)) or k in resolved[src]:
+                            continue
+                        q = self._q[src]
+                        if k in self._queued[src]:
+                            if front:
+                                try:
+                                    q.remove(k)
+                                except ValueError:
+                                    pass
+                                q.appendleft(k)
+                            continue
+                        (q.appendleft if front else q.append)(k)
+                        self._queued[src].add(k)
+                self._cv.notify_all()
 
     def _secondary_light(self, key):
         out = {}
@@ -825,13 +836,13 @@ class Enricher:
         """{match_key: igdb record} for every matched game. Used by the recommender,
         which needs the `similar_games` list we've been storing all along."""
         out = {}
-        with self._db_lock:
-            for mk, data in self._db.execute(
-                    "SELECT match_key,data FROM enrichment WHERE status='matched' AND data IS NOT NULL"):
-                try:
-                    out[mk] = json.loads(data)
-                except Exception:
-                    continue
+        for mk, data in self._light_rows("enrichment", "data"):
+            if not data:
+                continue
+            try:
+                out[mk] = json.loads(data)
+            except (TypeError, ValueError):
+                continue
         return out
 
     @property
