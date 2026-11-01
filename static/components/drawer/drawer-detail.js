@@ -15,6 +15,17 @@ function mediaOf(d) {
 // chip — a game with fifty keywords otherwise pushes the whole drawer down. The reveal is
 // wired by delegation in chrome.js; each chip is still its own facet-link.
 const TAG_CAP = 12;
+/**
+ * @component Render facet tags with overflow collapsed after twelve items.
+ * @param {Array<{x:string,fk:string}>} items - Label/facet pairs; an empty array produces no markup.
+ * @returns {string} Tag-chip HTML with a +N more button when needed.
+ * @requires chipHtml, TAG_CAP; .tag-chips/.tag-rest styles; chrome.js delegation for .tag-more and .facet-link.
+ * @events The builder installs no handlers. App delegation expands .tag-more and applies facets.
+ * @cleanup No resources or listeners are allocated; the caller owns any inserted DOM.
+ * @escaping Labels and facet values are escaped by chipHtml.
+ * @example
+ * tagChipsHtml([{ x: "Adventure", fk: "genre" }]);
+ */
 function tagChipsHtml(items) {
   if (!items.length) return "";
   const chip = (it) => chipHtml(it.x, { facet: it.fk });

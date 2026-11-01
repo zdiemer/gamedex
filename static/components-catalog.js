@@ -446,9 +446,30 @@ const COMPONENT_SOURCES = [
     "name": "searchField",
     "symbol": "searchField",
     "file": "components/controls/data.js",
-    "line": 8,
+    "line": 22,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Render a search input with the shared search icon.",
+      "params": [
+        "{string} id - Trusted, unique input ID.",
+        "{string} placeholder - Escaped placeholder text.",
+        "{string|number} [value=\"\"] - Initial field value.",
+        "{string} [cls=\"\"] - Trusted wrapper classes."
+      ],
+      "returns": "{string} A .field wrapper and type=\"search\" input.",
+      "requires": [
+        "escapeHtml; i-search sprite symbol and .field styles."
+      ],
+      "events": [
+        "Caller wires input/change events and supplies an accessible label; placeholder alone is not a label."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "placeholder and value are escaped. id and cls are interpolated unchanged and must be application constants.",
+      "examples": [
+        "host.innerHTML = '<label for=\"gameQuery\">Search games</label>' + searchField(\"gameQuery\", \"Title\u2026\");"
+      ]
+    }
   },
   {
     "id": "components-controls-dialog-js-uiDialogStack-6837361db2",
@@ -466,9 +487,35 @@ const COMPONENT_SOURCES = [
     "name": "openUiDialog",
     "symbol": "openUiDialog",
     "file": "components/controls/dialog.js",
-    "line": 6,
+    "line": 28,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Open the standard modal or prompt shell using the shared dialog lifecycle.",
+      "params": [
+        "{Object} options - Dialog configuration.",
+        "{string} options.html - Trusted dialog contents.",
+        "{\"modal\"|\"prompt\"} [options.family=\"modal\"] - Prompt uses .np-*; other values use .ce-* and a close button.",
+        "{string} [options.className=\"\"] - Extra scrim classes.",
+        "{string} [options.panelClass=\"\"] - Extra panel classes.",
+        "{string} [options.label=\"\"] - Accessible name; supply a label or label content appropriately.",
+        "{string} [options.role=\"dialog\"] - ARIA role, usually dialog or alertdialog.",
+        "{function(*):void} [options.onClose=()=>{}] - Called once with the close result.",
+        "{*} [options.dismissValue=null] - Result used for Escape, backdrop or the close button."
+      ],
+      "returns": "{{host: HTMLElement, close: function(*):void}} Dialog handle; close(result) is idempotent.",
+      "requires": [
+        "escapeHtml, mountUiDialog; .ce-* or .np-* styles; app syncScrollLock when available."
+      ],
+      "events": [
+        "Only the top dialog handles Escape/backdrop. Caller owns initial focus, form actions and content handlers. This helper does not trap Tab focus."
+      ],
+      "cleanup": "Always call close(), including on route teardown or host replacement. It removes the host/listeners, updates scroll locking, invokes onClose and restores prior focus when connected.",
+      "escaping": "html is trusted renderer output. label, role and panelClass are escaped; className is assigned through the DOM className property.",
+      "examples": [
+        "const dialog = openUiDialog({ html: \"<h3>Details</h3>\", label: \"Details\" });\ndialog.host.querySelector(\".ce-x\").focus();\n// On route teardown:\ndialog.close();"
+      ]
+    }
   },
   {
     "id": "components-controls-dialog-js-mountUiDialog-229ea2ae72",
@@ -476,9 +523,32 @@ const COMPONENT_SOURCES = [
     "name": "mountUiDialog",
     "symbol": "mountUiDialog",
     "file": "components/controls/dialog.js",
-    "line": 21,
+    "line": 60,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Adopt a specialized dialog shell into the shared lifecycle.",
+      "params": [
+        "{HTMLElement} host - Scrim with a role=dialog or role=alertdialog descendant; mount each host only once.",
+        "{Object} [options={}] - Lifecycle hooks.",
+        "{function(*):void} [options.onClose=()=>{}] - Called once after removal.",
+        "{*} [options.dismissValue=null] - Default close result.",
+        "{string} [options.backdropEvent=\"click\"] - Backdrop dismissal event; standard modals use mousedown.",
+        "{function(*):HTMLElement|null} [options.returnFocus=null] - Resolve a focus target after close; otherwise use the initially focused element."
+      ],
+      "returns": "{{host: HTMLElement, close: function(*):void}} A handle for idempotent dismissal.",
+      "requires": [
+        "Browser document; uiDialogStack from this file; optional syncScrollLock. Caller supplies shell styles."
+      ],
+      "events": [
+        "Connected hosts retain their parent; detached hosts are appended to body. Captures top-dialog Escape and backdrop events; caller wires close buttons. Does not trap Tab focus."
+      ],
+      "cleanup": "Use close() before removing the host or leaving its route. Caller must clear its own timers/subscriptions in onClose. Keeping a mounted host across a repaint preserves stack position.",
+      "escaping": "Does not sanitize supplied DOM; construct the shell with escaped external content.",
+      "examples": [
+        "const dialog = mountUiDialog(host, { onClose: () => clearTimeout(timer) });\nhost.querySelector(\"[data-close]\").onclick = () => dialog.close();"
+      ]
+    }
   },
   {
     "id": "components-controls-dialog-js-uiPrompt-9798614cc5",
@@ -486,9 +556,32 @@ const COMPONENT_SOURCES = [
     "name": "uiPrompt",
     "symbol": "uiPrompt",
     "file": "components/controls/dialog.js",
-    "line": 60,
+    "line": 116,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Ask for a trimmed name using the shared prompt dialog.",
+      "params": [
+        "{Object} [options={}] - Prompt options.",
+        "{string} [options.title=\"\"] - Input label and dialog name.",
+        "{string} [options.value=\"\"] - Initial input value; focused and selected on the next frame.",
+        "{string} [options.placeholder=\"\"] - Input hint.",
+        "{string} [options.ok=\"Save\"] - Submit label.",
+        "{number} [options.maxlength=40] - Trusted positive integer character limit."
+      ],
+      "returns": "{Promise<string|null>} Trimmed nonempty name, or null for dismissal/empty input.",
+      "requires": [
+        "openUiDialog, escapeHtml and prompt styles."
+      ],
+      "events": [
+        "Enter submits; Cancel, Escape and backdrop dismiss. Only one #npInput prompt should be open at a time."
+      ],
+      "cleanup": "The dialog closes itself on completion and removes its listeners. No external close handle is returned.",
+      "escaping": "Labels and placeholder are escaped; value is assigned via input.value. maxlength is a trusted numeric attribute.",
+      "examples": [
+        "const name = await uiPrompt({ title: \"Name this collection\", value: \"Favorites\" });\nif (name !== null) saveName(name);"
+      ]
+    }
   },
   {
     "id": "components-controls-dialog-js-uiConfirm-75781f07ed",
@@ -496,9 +589,32 @@ const COMPONENT_SOURCES = [
     "name": "uiConfirm",
     "symbol": "uiConfirm",
     "file": "components/controls/dialog.js",
-    "line": 89,
+    "line": 161,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Ask a yes/no question using the shared confirmation dialog.",
+      "params": [
+        "{Object} [options={}] - Confirmation options.",
+        "{string} [options.title=\"\"] - Accessible dialog name.",
+        "{string} [options.body=\"\"] - Plain message text.",
+        "{string} [options.ok=\"OK\"] - Confirm label.",
+        "{string} [options.cancel=\"Cancel\"] - Cancel label.",
+        "{boolean} [options.danger=false] - Destructive-action appearance."
+      ],
+      "returns": "{Promise<boolean>} True on confirmation; false on Cancel, Escape or backdrop dismissal.",
+      "requires": [
+        "openUiDialog, escapeHtml and prompt styles."
+      ],
+      "events": [
+        "Focuses the confirm button on the next frame; Enter confirms. Callers perform any business action only after awaiting the result."
+      ],
+      "cleanup": "The dialog closes itself and removes its listeners; no external close handle is returned.",
+      "escaping": "All text is escaped. body does not accept HTML.",
+      "examples": [
+        "if (await uiConfirm({ title: \"Delete collection?\", body: \"This removes the collection.\", danger: true })) deleteCollection();"
+      ]
+    }
   },
   {
     "id": "components-controls-pager-js-createPager-6564e7170c",
@@ -506,9 +622,31 @@ const COMPONENT_SOURCES = [
     "name": "createPager",
     "symbol": "createPager",
     "file": "components/controls/pager.js",
-    "line": 5,
+    "line": 21,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Build pagination controls while the caller owns page state and rerendering.",
+      "params": [
+        "{Object} options - Required pagination configuration.",
+        "{number} options.page - Current one-based integer page, within the page range.",
+        "{number} options.pages - Total integer pages; controls are empty when pages <= 1.",
+        "{function(number):void} options.onChange - Update state and rerender the pager for the new page.",
+        "{HTMLElement} [options.host=document.createElement(\"div\")] - Existing or newly created host; its children are replaced."
+      ],
+      "returns": "{HTMLElement} The host with .pager; append it if it was newly created.",
+      "requires": [
+        "Browser DOM and .pager/.page-jump styles."
+      ],
+      "events": [
+        "Buttons, Enter, and blur call onChange with a clamped page. An unchanged page does not call it; Enter followed by blur does not double-navigate."
+      ],
+      "cleanup": "Handlers belong to the generated children. Reuse the host on rerender or remove it on teardown; no document listeners are installed.",
+      "escaping": "page and pages must be trusted finite integers; they are interpolated into input attributes. Button labels use textContent.",
+      "examples": [
+        "const draw = page => createPager({ host, page, pages: 12, onChange: draw });\ndraw(1);"
+      ]
+    }
   },
   {
     "id": "components-controls-primitives-js-buttonHtml-2c81559f8a",
@@ -516,9 +654,32 @@ const COMPONENT_SOURCES = [
     "name": "buttonHtml",
     "symbol": "buttonHtml",
     "file": "components/controls/primitives.js",
-    "line": 5,
+    "line": 22,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Render a text action button; use an anchor for navigation.",
+      "params": [
+        "{string|number} label - Visible text; nullish values become an empty label.",
+        "{Object} [options={}] - Optional button attributes.",
+        "{string} [options.id=\"\"] - Unique ID for caller wiring.",
+        "{\"default\"|\"ghost\"|\"danger\"} [options.variant=\"default\"] - Unknown variants throw TypeError.",
+        "{boolean} [options.disabled=false] - Native disabled state.",
+        "{string} [options.title=\"\"] - Optional tooltip."
+      ],
+      "returns": "{string} HTML for a type=\"button\" control.",
+      "requires": [
+        "escapeHtml from foundations/core.js; shared .btn styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Text and attribute values are escaped; do not pass markup as labels.",
+      "examples": [
+        "host.innerHTML = buttonHtml(\"Save\", { id: \"save\", disabled: busy });\nhost.querySelector(\"#save\").onclick = save;"
+      ]
+    }
   },
   {
     "id": "components-controls-primitives-js-chipHtml-a2d9c9ce07",
@@ -526,9 +687,29 @@ const COMPONENT_SOURCES = [
     "name": "chipHtml",
     "symbol": "chipHtml",
     "file": "components/controls/primitives.js",
-    "line": 11,
+    "line": 41,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Render metadata or a delegated facet chip.",
+      "params": [
+        "{string|number} value - Chip text and facet value; nullish values become empty.",
+        "{Object} [options={}] - Chip options.",
+        "{string} [options.facet=\"\"] - Facet key; empty renders a non-interactive span."
+      ],
+      "returns": "{string} Chip span, with data-fk/data-fv when a facet is provided.",
+      "requires": [
+        "escapeHtml; .chip styles; app facet delegation for interactive chips."
+      ],
+      "events": [
+        "Facet clicks are handled by app delegation, not this builder."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Text and attribute values are escaped; do not pass markup as labels.",
+      "examples": [
+        "chipHtml(\"Adventure\", { facet: \"genre\" });"
+      ]
+    }
   },
   {
     "id": "components-controls-primitives-js-chips-21161f7f6f",
@@ -536,9 +717,28 @@ const COMPONENT_SOURCES = [
     "name": "chips",
     "symbol": "chips",
     "file": "components/controls/primitives.js",
-    "line": 18,
+    "line": 60,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Wrap a collection of metadata or facet chips.",
+      "params": [
+        "{Array<string|number>|null} arr - Chip values; absent or empty returns an empty string.",
+        "{string} [fk] - Optional facet key shared by every chip."
+      ],
+      "returns": "{string} A .chips wrapper or an empty string.",
+      "requires": [
+        "chipHtml from this file."
+      ],
+      "events": [
+        "Delegated facet behavior is inherited from chipHtml."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Text and attribute values are escaped; do not pass markup as labels.",
+      "examples": [
+        "chips([\"Adventure\", \"Puzzle\"], \"genre\");"
+      ]
+    }
   },
   {
     "id": "components-controls-primitives-js-emptyState-251c4b4f01",
@@ -546,9 +746,31 @@ const COMPONENT_SOURCES = [
     "name": "emptyState",
     "symbol": "emptyState",
     "file": "components/controls/primitives.js",
-    "line": 23,
+    "line": 81,
     "category": "Controls & dialogs",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Render an empty-results message with an optional action.",
+      "params": [
+        "{string} title - Main message.",
+        "{string} hint - Supporting message.",
+        "{string|null} [action] - Action label; omitted or empty hides the button.",
+        "{Object} [options={}] - Action options.",
+        "{string} [options.actionId=\"emptyAction\"] - Use a unique ID when multiple empty states coexist."
+      ],
+      "returns": "{string} Empty-state HTML.",
+      "requires": [
+        "icon, escapeHtml, buttonHtml; i-library sprite symbol and .empty styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Text and attribute values are escaped; do not pass markup as labels.",
+      "examples": [
+        "host.innerHTML = emptyState(\"No games\", \"Try another filter.\", \"Reset\", { actionId: \"resetFilters\" });\nhost.querySelector(\"#resetFilters\").onclick = resetFilters;"
+      ]
+    }
   },
   {
     "id": "components-discovery-home-js-shelf-ef78b89cba",
@@ -956,9 +1178,27 @@ const COMPONENT_SOURCES = [
     "name": "tagChipsHtml",
     "symbol": "tagChipsHtml",
     "file": "components/drawer/drawer-detail.js",
-    "line": 18,
+    "line": 29,
     "category": "Detail drawer",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Render facet tags with overflow collapsed after twelve items.",
+      "params": [
+        "{Array<{x:string,fk:string}>} items - Label/facet pairs; an empty array produces no markup."
+      ],
+      "returns": "{string} Tag-chip HTML with a +N more button when needed.",
+      "requires": [
+        "chipHtml, TAG_CAP; .tag-chips/.tag-rest styles; chrome.js delegation for .tag-more and .facet-link."
+      ],
+      "events": [
+        "The builder installs no handlers. App delegation expands .tag-more and applies facets."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Labels and facet values are escaped by chipHtml.",
+      "examples": [
+        "tagChipsHtml([{ x: \"Adventure\", fk: \"genre\" }]);"
+      ]
+    }
   },
   {
     "id": "components-drawer-drawer-detail-js-detailHtml-9262702576",
@@ -966,7 +1206,7 @@ const COMPONENT_SOURCES = [
     "name": "detailHtml",
     "symbol": "detailHtml",
     "file": "components/drawer/drawer-detail.js",
-    "line": 29,
+    "line": 40,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -976,7 +1216,7 @@ const COMPONENT_SOURCES = [
     "name": "igdbAttr",
     "symbol": "igdbAttr",
     "file": "components/drawer/drawer-detail.js",
-    "line": 97,
+    "line": 108,
     "category": "Detail drawer",
     "tab": "games"
   },
@@ -1664,9 +1904,28 @@ const COMPONENT_SOURCES = [
     "name": "icon",
     "symbol": "icon",
     "file": "components/foundations/core.js",
-    "line": 9,
+    "line": 21,
     "category": "Foundations",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Render a decorative inline icon from the site SVG sprite.",
+      "params": [
+        "{string} id - Trusted sprite identifier such as i-play.",
+        "{number} [size=16] - Trusted numeric width and height in pixels."
+      ],
+      "returns": "{string} aria-hidden SVG inheriting currentColor.",
+      "requires": [
+        "The matching sprite symbol must exist in the document; .ico styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "id and size are interpolated unchanged. Use application constants, not external input. The containing control needs its own accessible name.",
+      "examples": [
+        "icon(\"i-play\", 20);"
+      ]
+    }
   },
   {
     "id": "components-foundations-core-js-glyph-176731b3d7",
@@ -1674,9 +1933,28 @@ const COMPONENT_SOURCES = [
     "name": "glyph",
     "symbol": "glyph",
     "file": "components/foundations/core.js",
-    "line": 12,
+    "line": 36,
     "category": "Foundations",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Render either a sprite icon or caller-supplied emoji content.",
+      "params": [
+        "{string} v - Values starting with i- are sprite IDs; other values render in .emo.",
+        "{number} [size=16] - Icon size in pixels."
+      ],
+      "returns": "{string} Icon SVG or emoji span.",
+      "requires": [
+        "icon and sprite symbols for i- values; .emo styles otherwise."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Non-icon values are inserted unchanged as HTML. Escape external text before calling; icon identifiers and size must be trusted.",
+      "examples": [
+        "glyph(escapeHtml(userEmoji), 20);"
+      ]
+    }
   },
   {
     "id": "components-foundations-core-js-fmtCell-2581b473e0",
@@ -1684,9 +1962,28 @@ const COMPONENT_SOURCES = [
     "name": "fmtCell",
     "symbol": "fmtCell",
     "file": "components/foundations/core.js",
-    "line": 16,
+    "line": 52,
     "category": "Foundations",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Format a table cell using its declared column type.",
+      "params": [
+        "{*} value - Empty/nullish values show an em dash; arrays are joined with commas.",
+        "{string} type - rating, bool, hours, date, number, money, or plain text for other types."
+      ],
+      "returns": "{string} Formatted cell HTML.",
+      "requires": [
+        "ratingClass, fmtHours, fmtDate and escapeHtml; table value styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Text, date, number and money output is escaped. Rating/hours inputs must satisfy the numeric formatter contracts.",
+      "examples": [
+        "fmtCell(0.85, \"rating\");"
+      ]
+    }
   },
   {
     "id": "components-foundations-core-js-escapeHtml-2c515a26e3",
@@ -1694,9 +1991,27 @@ const COMPONENT_SOURCES = [
     "name": "escapeHtml",
     "symbol": "escapeHtml",
     "file": "components/foundations/core.js",
-    "line": 39,
+    "line": 86,
     "category": "Foundations",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Escape text for HTML text nodes and quoted attribute values.",
+      "params": [
+        "{string} s - String to escape; convert nonstrings explicitly before calling."
+      ],
+      "returns": "{string} Text with ampersand, angle brackets and quotes encoded.",
+      "requires": [
+        "None."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Does not validate URL schemes or make content safe for JavaScript/CSS contexts. Avoid escaping an already escaped string twice.",
+      "examples": [
+        "escapeHtml(String(row.title ?? \"\"));"
+      ]
+    }
   },
   {
     "id": "components-foundations-core-js-copyResultText-3b78e3875a",
@@ -1704,7 +2019,7 @@ const COMPONENT_SOURCES = [
     "name": "copyResultText",
     "symbol": "copyResultText",
     "file": "components/foundations/core.js",
-    "line": 45,
+    "line": 92,
     "category": "Foundations",
     "tab": "home"
   },
@@ -1714,9 +2029,28 @@ const COMPONENT_SOURCES = [
     "name": "acAttach",
     "symbol": "acAttach",
     "file": "components/foundations/core.js",
-    "line": 66,
+    "line": 125,
     "category": "Foundations",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Attach title autocomplete to an existing input.",
+      "params": [
+        "{HTMLInputElement} input - Connected input; call once per input, before the caller installs its Enter handler.",
+        "{function():Array<{t:string,f:string}>} getItems - Synchronous titles with precomputed acFold values."
+      ],
+      "returns": "{undefined} Mutates the input wrapper and installs handlers; no disposer is returned.",
+      "requires": [
+        "acFold from core.js; browser DOM and .ac-* styles."
+      ],
+      "events": [
+        "Input/focus updates suggestions after two folded characters. Arrow keys navigate; Enter consumes a highlighted choice; Escape closes. Picking assigns input.value without emitting an input/change event."
+      ],
+      "cleanup": "Remove the input/wrapper subtree on teardown. Do not reattach to a retained input: listeners and lists would accumulate. A pending blur timeout may run briefly after removal.",
+      "escaping": "Suggestion titles are assigned with textContent and input.value; they are not interpreted as HTML.",
+      "examples": [
+        "acAttach(input, () => titles.map(t => ({ t, f: acFold(t) })));"
+      ]
+    }
   },
   {
     "id": "components-foundations-icons-svg-17250b59a6",
@@ -1933,9 +2267,27 @@ const COMPONENT_SOURCES = [
     "name": "vrBadgeHtml",
     "symbol": "vrBadgeHtml",
     "file": "components/lists/poster-card.js",
-    "line": 7,
+    "line": 18,
     "category": "Game tiles & lists",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Render the decorative VR badge for a game poster.",
+      "params": [
+        "{Object|null} row - Row with a truthy vr flag; absent or non-VR rows produce no badge."
+      ],
+      "returns": "{string} VR badge HTML or an empty string.",
+      "requires": [
+        "icon; i-vr sprite symbol and .vr-badge styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Only fixed application labels and icon identifiers are emitted; row text is not interpolated.",
+      "examples": [
+        "vrBadgeHtml({ vr: true });"
+      ]
+    }
   },
   {
     "id": "components-lists-poster-card-js-posterContentHtml-1427ecb8e2",
@@ -1943,9 +2295,32 @@ const COMPONENT_SOURCES = [
     "name": "posterContentHtml",
     "symbol": "posterContentHtml",
     "file": "components/lists/poster-card.js",
-    "line": 14,
+    "line": 41,
     "category": "Game tiles & lists",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Render a poster cover, VR badge, and caller-supplied card body.",
+      "params": [
+        "{Object} row - Game row; _k selects the default enrichment record and vr controls the badge.",
+        "{string} bodyHtml - Trusted content for .card-body.",
+        "{Object} [options={}] - Cover options.",
+        "{boolean} [options.pending=false] - Show a skeleton when no cover exists.",
+        "{Object} [options.enrichment=ENRICH[row._k]] - Caller-resolved cover record for grouped/fallback data.",
+        "{boolean} [options.eager=false] - Skip lazy loading and asynchronous decoding for picker/randomizer covers."
+      ],
+      "returns": "{string} Card inner HTML; does not include an outer card element.",
+      "requires": [
+        "ENRICH when enrichment is omitted; coverSrc, coverIsPixelArt, escapeHtml, icon, vrBadgeHtml; .card-* styles."
+      ],
+      "events": [
+        "Caller owns card clicks, row registration and preview wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Cover URLs are escaped but must be validated by the cover resolver. bodyHtml is trusted renderer output.",
+      "examples": [
+        "card.innerHTML = posterContentHtml(row, posterSummaryHtml(row), { pending: true });"
+      ]
+    }
   },
   {
     "id": "components-lists-poster-card-js-posterSummaryHtml-fd1737e4bd",
@@ -1953,9 +2328,30 @@ const COMPONENT_SOURCES = [
     "name": "posterSummaryHtml",
     "symbol": "posterSummaryHtml",
     "file": "components/lists/poster-card.js",
-    "line": 23,
+    "line": 64,
     "category": "Game tiles & lists",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Render poster title, platform/year metadata and optional extra content.",
+      "params": [
+        "{Object} row - Uses title or game (fallback Untitled), platform and releaseYear.",
+        "{Object} [options={}] - Additional content.",
+        "{string} [options.note=\"\"] - Trusted note fragment; empty omits the note.",
+        "{string} [options.afterHtml=\"\"] - Trusted fragment appended after metadata/note."
+      ],
+      "returns": "{string} Poster body HTML.",
+      "requires": [
+        "escapeHtml and .card-title/.card-sub/.card-note styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Title, platform and year are escaped. note and afterHtml are trusted HTML.",
+      "examples": [
+        "posterSummaryHtml(row, { note: \"Recommended\" });"
+      ]
+    }
   },
   {
     "id": "components-lists-poster-card-js-posterCardHtml-0e4db32130",
@@ -1963,9 +2359,31 @@ const COMPONENT_SOURCES = [
     "name": "posterCardHtml",
     "symbol": "posterCardHtml",
     "file": "components/lists/poster-card.js",
-    "line": 35,
+    "line": 91,
     "category": "Game tiles & lists",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Compose an HTML button poster for Home and challenge surfaces.",
+      "params": [
+        "{Object} row - Game row passed to the content and summary renderers.",
+        "{Object} [options={}] - Card options.",
+        "{string} [options.cls=\"\"] - Extra card classes; no completion class is inferred.",
+        "{string} [options.note=\"\"] - Trusted summary note.",
+        "{string} [options.attrs=\"\"] - Trusted raw attribute fragment for caller hooks."
+      ],
+      "returns": "{string} A type=\"button\" card.",
+      "requires": [
+        "posterContentHtml and posterSummaryHtml, including their cover dependencies."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "cls and row metadata are escaped; note and attrs are trusted markup. Escape every external attribute value.",
+      "examples": [
+        "posterCardHtml(row, { attrs: `data-game=\"${escapeHtml(String(row._k))}\"` });"
+      ]
+    }
   },
   {
     "id": "components-lists-poster-card-js-posterClassName-7e7911a595",
@@ -1973,9 +2391,27 @@ const COMPONENT_SOURCES = [
     "name": "posterClassName",
     "symbol": "posterClassName",
     "file": "components/lists/poster-card.js",
-    "line": 41,
+    "line": 108,
     "category": "Game tiles & lists",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Choose grid-style card classes with partial collections taking precedence.",
+      "params": [
+        "{Object} row - Game row understood by collectionStatus and rowCompleted."
+      ],
+      "returns": "{string} card, card partial, or card done.",
+      "requires": [
+        "collectionStatus and rowCompleted from the collection/data controllers."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Only fixed class strings are returned.",
+      "examples": [
+        "card.className = posterClassName(row);"
+      ]
+    }
   },
   {
     "id": "components-lists-preview-js-startShotPreview-59eabe46c0",
@@ -2310,9 +2746,28 @@ const COMPONENT_SOURCES = [
     "name": "wireCarousel",
     "symbol": "wireCarousel",
     "file": "components/media/media-carousel.js",
-    "line": 7,
+    "line": 19,
     "category": "Media & audio",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Wire a drawer carousel of trailers, screenshots and artwork.",
+      "params": [
+        "{HTMLElement} el - Root containing .shots with .shot-view, .shot-count and .shot-cap; prev/next controls are optional.",
+        "{Array<Object>|null} items - Ordered entries: {kind:\"video\",id,name} or {kind:\"image\",id,art?}; videos autoplay muted."
+      ],
+      "returns": "{undefined} Installs navigation/click handlers and displays the first item; no carousel or no items returns early.",
+      "requires": [
+        "media/shotIds/shotIdx shared globals; YT_BLOCKED, ytSrc, ytWatch, ytFallback, IMG, escapeHtml, openShotSet; .shots styles."
+      ],
+      "events": [
+        "Previous/next cycle slides. Image clicks open the still-only lightbox. This uses shared carousel state; it is intended for the single active drawer."
+      ],
+      "cleanup": "Remove/replace the carousel subtree to stop embedded playback. No disposer is returned; callers should not mount concurrent independent carousels.",
+      "escaping": "Caption text is escaped and image URLs use DOM properties. Items must contain validated media IDs understood by IMG/ytSrc.",
+      "examples": [
+        "wireCarousel(drawer, [{ kind: \"image\", id: screenshotId }]);"
+      ]
+    }
   },
   {
     "id": "components-media-media-carousel-js-ytFallback-59a976697f",
@@ -2320,7 +2775,7 @@ const COMPONENT_SOURCES = [
     "name": "ytFallback",
     "symbol": "ytFallback",
     "file": "components/media/media-carousel.js",
-    "line": 68,
+    "line": 80,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2330,7 +2785,7 @@ const COMPONENT_SOURCES = [
     "name": "lbShow",
     "symbol": "lbShow",
     "file": "components/media/media-carousel.js",
-    "line": 81,
+    "line": 93,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2340,7 +2795,7 @@ const COMPONENT_SOURCES = [
     "name": "openLightbox",
     "symbol": "openLightbox",
     "file": "components/media/media-carousel.js",
-    "line": 91,
+    "line": 103,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2350,9 +2805,28 @@ const COMPONENT_SOURCES = [
     "name": "openShotSet",
     "symbol": "openShotSet",
     "file": "components/media/media-carousel.js",
-    "line": 94,
+    "line": 118,
     "category": "Media & audio",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Open the shared lightbox with caller-provided still images.",
+      "params": [
+        "{Array<{url?:string,igdb?:string}>} entries - Nonempty still list; each entry supplies a validated URL or IGDB image ID.",
+        "{number} [i=0] - Nonnegative initial index; navigation wraps through the list."
+      ],
+      "returns": "{undefined} Replaces the shared lightbox image set and opens it.",
+      "requires": [
+        "openLightbox/lbShow, IMG, $, syncScrollLock; #lightbox, #lbImg, #lbCount, #lbPrev and #lbNext shell elements."
+      ],
+      "events": [
+        "The app wires lightbox navigation and dismissal; this function only selects and opens the set."
+      ],
+      "cleanup": "Call closeLightbox() to dismiss and release the scroll lock. Keep the shared shell mounted; concurrent sets replace one another.",
+      "escaping": "Image URLs are assigned through img.src, not HTML; callers must still supply validated image URLs/IDs.",
+      "examples": [
+        "openShotSet([{ url: screenshotUrl }], 0);"
+      ]
+    }
   },
   {
     "id": "components-media-media-carousel-js-closeLightbox-b678395122",
@@ -2360,9 +2834,27 @@ const COMPONENT_SOURCES = [
     "name": "closeLightbox",
     "symbol": "closeLightbox",
     "file": "components/media/media-carousel.js",
-    "line": 95,
+    "line": 130,
     "category": "Media & audio",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Dismiss the shared lightbox and synchronize page scroll locking.",
+      "params": [
+        "None."
+      ],
+      "returns": "{undefined} Hides #lightbox.",
+      "requires": [
+        "$, syncScrollLock and the persistent #lightbox shell."
+      ],
+      "events": [
+        "Called by app dismissal controls and keyboard handling."
+      ],
+      "cleanup": "Safe to call when already hidden; the shared shell stays mounted.",
+      "escaping": "No external text or markup is accepted.",
+      "examples": [
+        "closeLightbox();"
+      ]
+    }
   },
   {
     "id": "components-media-media-carousel-js-lightboxOpen-1e6f5ea736",
@@ -2370,7 +2862,7 @@ const COMPONENT_SOURCES = [
     "name": "lightboxOpen",
     "symbol": "lightboxOpen",
     "file": "components/media/media-carousel.js",
-    "line": 96,
+    "line": 131,
     "category": "Media & audio",
     "tab": "games"
   },
@@ -2490,9 +2982,28 @@ const COMPONENT_SOURCES = [
     "name": "showToast",
     "symbol": "showToast",
     "file": "components/navigation/chrome.js",
-    "line": 27,
+    "line": 39,
     "category": "Navigation & account",
-    "tab": "home"
+    "tab": "home",
+    "contract": {
+      "summary": "Show a short status message in the persistent app toast.",
+      "params": [
+        "{string} msg - Plain message text.",
+        "{string} [ico] - Optional trusted sprite identifier."
+      ],
+      "returns": "{undefined} Updates #toast and schedules its dismissal.",
+      "requires": [
+        "$, icon, escapeHtml; persistent #toast element and .toast styles."
+      ],
+      "events": [
+        "No action events; the toast fades after 2.5 seconds."
+      ],
+      "cleanup": "Keep #toast mounted for the app lifetime. The function manages its display timer and returns no disposer.",
+      "escaping": "msg is escaped. ico must be a trusted application icon identifier.",
+      "examples": [
+        "showToast(\"Saved\", \"i-check\");"
+      ]
+    }
   },
   {
     "id": "components-navigation-chrome-js-applyAdminUI-14750e8f29",
@@ -2500,7 +3011,7 @@ const COMPONENT_SOURCES = [
     "name": "applyAdminUI",
     "symbol": "applyAdminUI",
     "file": "components/navigation/chrome.js",
-    "line": 38,
+    "line": 50,
     "category": "Navigation & account",
     "tab": "home"
   },
@@ -2510,7 +3021,7 @@ const COMPONENT_SOURCES = [
     "name": "openAuthModal",
     "symbol": "openAuthModal",
     "file": "components/navigation/chrome.js",
-    "line": 74,
+    "line": 86,
     "category": "Navigation & account",
     "tab": "home"
   },
@@ -2520,7 +3031,7 @@ const COMPONENT_SOURCES = [
     "name": "openLoginDialog",
     "symbol": "openLoginDialog",
     "file": "components/navigation/chrome.js",
-    "line": 81,
+    "line": 93,
     "category": "Navigation & account",
     "tab": "home"
   },
@@ -2530,7 +3041,7 @@ const COMPONENT_SOURCES = [
     "name": "openAccountMenu",
     "symbol": "openAccountMenu",
     "file": "components/navigation/chrome.js",
-    "line": 113,
+    "line": 125,
     "category": "Navigation & account",
     "tab": "home"
   },
@@ -2540,7 +3051,7 @@ const COMPONENT_SOURCES = [
     "name": "openPasswordDialog",
     "symbol": "openPasswordDialog",
     "file": "components/navigation/chrome.js",
-    "line": 130,
+    "line": 142,
     "category": "Navigation & account",
     "tab": "home"
   },
@@ -2646,9 +3157,31 @@ const COMPONENT_SOURCES = [
     "name": "panelHtml",
     "symbol": "panelHtml",
     "file": "components/panels/panel.js",
-    "line": 5,
+    "line": 20,
     "category": "Detail drawer",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Render the shared shell for source and feature panels.",
+      "params": [
+        "{Object|null} config - Null hides the panel.",
+        "{string} [config.headingHtml=\"\"] - Trusted heading fragment; empty omits the heading.",
+        "{string} [config.bodyHtml=\"\"] - Trusted body fragment.",
+        "{string} [config.className=\"\"] - Additional feature classes.",
+        "{Object<string,*>} [config.data={}] - data-* suffixes and values; keys must match /^[a-z][a-z0-9-]*$/."
+      ],
+      "returns": "{string} Panel HTML, or an empty string for null; invalid data keys throw TypeError.",
+      "requires": [
+        "escapeHtml; .hltb and .hltb-head styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "headingHtml and bodyHtml are trusted renderer output; escape external data before composing them. Classes and data values are escaped.",
+      "examples": [
+        "panelHtml({ className: \"my-panel\", data: { \"game-key\": key }, headingHtml: \"Details\", bodyHtml: escapeHtml(title) });"
+      ]
+    }
   },
   {
     "id": "components-panels-panel-js-sourcePanelHtml-e11320b47d",
@@ -2656,9 +3189,28 @@ const COMPONENT_SOURCES = [
     "name": "sourcePanelHtml",
     "symbol": "sourcePanelHtml",
     "file": "components/panels/panel.js",
-    "line": 14,
+    "line": 41,
     "category": "Detail drawer",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Adapt source data into the shared panel shell.",
+      "params": [
+        "{string} source - Own key of SOURCE_PANEL_DATA; unknown keys throw TypeError.",
+        "{*} data - Input expected by that source adapter, usually a game key; hltb accepts a record."
+      ],
+      "returns": "{string} Panel HTML; adapters return null to hide unavailable content.",
+      "requires": [
+        "SOURCE_PANEL_DATA from panels/sources.js and panelHtml; each adapter documents its source globals in its implementation."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Adapters must escape external text and URLs before returning trusted heading/body fragments.",
+      "examples": [
+        "sourcePanelHtml(\"hltb\", { main: 18, mainPlus: 25, hundred: 40 });"
+      ]
+    }
   },
   {
     "id": "components-panels-panel-js-panelRowHtml-e1385ffa60",
@@ -2666,9 +3218,31 @@ const COMPONENT_SOURCES = [
     "name": "panelRowHtml",
     "symbol": "panelRowHtml",
     "file": "components/panels/panel.js",
-    "line": 20,
+    "line": 62,
     "category": "Detail drawer",
-    "tab": "games"
+    "tab": "games",
+    "contract": {
+      "summary": "Render a label/value row inside a shared panel.",
+      "params": [
+        "{Object} options - Required row configuration.",
+        "{string} options.labelHtml - Trusted label fragment.",
+        "{string} options.valueHtml - Trusted value fragment inside a b element.",
+        "{string} [options.className=\"\"] - Extra row classes.",
+        "{string|null} [options.valueClass=null] - Value classes; null omits the class attribute."
+      ],
+      "returns": "{string} A .hltb-row element.",
+      "requires": [
+        "escapeHtml and .hltb-row styles."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Label and value fragments are inserted as HTML. Class names are escaped.",
+      "examples": [
+        "panelRowHtml({ labelHtml: \"Status\", valueHtml: escapeHtml(status), valueClass: \"good\" });"
+      ]
+    }
   },
   {
     "id": "components-panels-sources-js-_PCGW_TONE-ff36ff1e5a",

@@ -48,6 +48,56 @@ snapshot generator. The Docker build refreshes the snapshot and shell templates
 automatically. Curated examples and app-context previews are optional enhancements;
 new components are listed with their source even before an example exists.
 
+## Contracts beside implementations
+
+Shared JavaScript APIs document their contract in a JSDoc-style block immediately
+before the declaration. The source comment is authoritative: update it in the same
+change as the API. The gallery reads these comments through the existing folder
+scanner and shows them on both source entries and matching isolated examples.
+No registration entry or separate copy of the contract is required.
+
+The initial contracts cover 28 shared APIs: controls, pagination, panel builders,
+posters, dialog lifecycle, icons/text formatting, autocomplete, tags, toasts, and
+carousel/lightbox entry points. Feature internals and unannotated files remain
+fully discoverable; their gallery entries explicitly say when a contract is absent.
+
+```js
+/**
+ * @component Render a text action button.
+ * @param {string} label - Plain visible text.
+ * @param {Object} [options={}] - Optional attributes.
+ * @param {boolean} [options.disabled=false] - Native disabled state.
+ * @returns {string} Button HTML.
+ * @requires escapeHtml and the shared .btn styles.
+ * @events The caller attaches click handlers and owns business state.
+ * @cleanup No listeners or resources are allocated by the builder.
+ * @escaping Labels are escaped; raw HTML is not accepted.
+ * @example
+ * host.innerHTML = buttonHtml("Save", { disabled: busy });
+ */
+```
+
+Use `@component` to opt a declaration into contract documentation. Every contract
+must include a summary and all seven tags above. Repeat `@param` for each argument
+and option, spelling out optional values and defaults. Use `@param None.` for an
+argument-free function. `@requires`, `@events`, and `@example` can also repeat;
+`@returns`, `@cleanup`, and `@escaping` appear once. Continuation lines are supported,
+and examples preserve line breaks/indentation. Types are documentation text, not a
+runtime type system. List direct required globals, DOM context and styles; reference
+other components' contracts for their transitive requirements. State limitations
+honestly, including singleton state or the absence of a disposer.
+
+`python3 tools/components/catalog.py` regenerates the static snapshot and rejects
+incomplete/unknown contract fields. `--check` additionally catches stale snapshots.
+The live gallery still lists a component with an incomplete contract and shows its
+warnings, so a documentation error does not take down discovery. Comments and code
+examples are displayed as text and never executed. Regular comments without
+`@component` do not create contracts.
+
+Run `python3 tools/tests/component_catalog.py` for extraction/validation and
+`node tools/tests/component-library-discovery.cjs` against the local preview server
+for live contract refresh, safe rendering and undocumented-component fallback.
+
 ## Find a component
 
 | Need | Reuse | Owner / styles |

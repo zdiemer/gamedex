@@ -4,6 +4,18 @@
 // Slides are trailers and stills. A trailer autoplays (muted) as soon as it's
 // the visible slide — it's the first thing you see when you open a game.
 let media = [], shotIds = [], shotIdx = 0, lbIdx = 0;
+/**
+ * @component Wire a drawer carousel of trailers, screenshots and artwork.
+ * @param {HTMLElement} el - Root containing .shots with .shot-view, .shot-count and .shot-cap; prev/next controls are optional.
+ * @param {Array<Object>|null} items - Ordered entries: {kind:"video",id,name} or {kind:"image",id,art?}; videos autoplay muted.
+ * @returns {undefined} Installs navigation/click handlers and displays the first item; no carousel or no items returns early.
+ * @requires media/shotIds/shotIdx shared globals; YT_BLOCKED, ytSrc, ytWatch, ytFallback, IMG, escapeHtml, openShotSet; .shots styles.
+ * @events Previous/next cycle slides. Image clicks open the still-only lightbox. This uses shared carousel state; it is intended for the single active drawer.
+ * @cleanup Remove/replace the carousel subtree to stop embedded playback. No disposer is returned; callers should not mount concurrent independent carousels.
+ * @escaping Caption text is escaped and image URLs use DOM properties. Items must contain validated media IDs understood by IMG/ytSrc.
+ * @example
+ * wireCarousel(drawer, [{ kind: "image", id: screenshotId }]);
+ */
 function wireCarousel(el, items) {
   const wrap = el.querySelector(".shots");
   media = items || [];
@@ -91,6 +103,29 @@ function lbShow(delta) {
 function openLightbox(i) { lbIdx = i; $("#lightbox").hidden = false; lbShow(0); syncScrollLock(); }
 // Point the lightbox at a caller-supplied set of stills ({url} or {igdb} each)
 // — how mine.js opens personal screenshots without a second lightbox.
+/**
+ * @component Open the shared lightbox with caller-provided still images.
+ * @param {Array<{url?:string,igdb?:string}>} entries - Nonempty still list; each entry supplies a validated URL or IGDB image ID.
+ * @param {number} [i=0] - Nonnegative initial index; navigation wraps through the list.
+ * @returns {undefined} Replaces the shared lightbox image set and opens it.
+ * @requires openLightbox/lbShow, IMG, $, syncScrollLock; #lightbox, #lbImg, #lbCount, #lbPrev and #lbNext shell elements.
+ * @events The app wires lightbox navigation and dismissal; this function only selects and opens the set.
+ * @cleanup Call closeLightbox() to dismiss and release the scroll lock. Keep the shared shell mounted; concurrent sets replace one another.
+ * @escaping Image URLs are assigned through img.src, not HTML; callers must still supply validated image URLs/IDs.
+ * @example
+ * openShotSet([{ url: screenshotUrl }], 0);
+ */
 function openShotSet(entries, i) { shotIds = entries || []; openLightbox(i || 0); }
+/**
+ * @component Dismiss the shared lightbox and synchronize page scroll locking.
+ * @param None.
+ * @returns {undefined} Hides #lightbox.
+ * @requires $, syncScrollLock and the persistent #lightbox shell.
+ * @events Called by app dismissal controls and keyboard handling.
+ * @cleanup Safe to call when already hidden; the shared shell stays mounted.
+ * @escaping No external text or markup is accepted.
+ * @example
+ * closeLightbox();
+ */
 function closeLightbox() { $("#lightbox").hidden = true; syncScrollLock(); }
 const lightboxOpen = () => !$("#lightbox").hidden;

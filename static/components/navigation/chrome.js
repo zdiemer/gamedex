@@ -24,6 +24,18 @@ function cmdkRender() {
   });
 }
 
+/**
+ * @component Show a short status message in the persistent app toast.
+ * @param {string} msg - Plain message text.
+ * @param {string} [ico] - Optional trusted sprite identifier.
+ * @returns {undefined} Updates #toast and schedules its dismissal.
+ * @requires $, icon, escapeHtml; persistent #toast element and .toast styles.
+ * @events No action events; the toast fades after 2.5 seconds.
+ * @cleanup Keep #toast mounted for the app lifetime. The function manages its display timer and returns no disposer.
+ * @escaping msg is escaped. ico must be a trusted application icon identifier.
+ * @example
+ * showToast("Saved", "i-check");
+ */
 function showToast(msg, ico) {
   const t = $("#toast");
   // An optional site icon in place of text marks like "✓" — status reads as UI,

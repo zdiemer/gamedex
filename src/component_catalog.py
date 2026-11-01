@@ -39,6 +39,69 @@ DECLARATION = re.compile(
 )
 
 
+# Contracts are opt-in JSDoc immediately before a declaration. Values stay plain
+# text, including examples: discovery never imports code or renders documentation
+# as HTML. Unannotated declarations continue to appear in the source inventory.
+DOC_COMMENT = re.compile(r"/\*\*(.*?)\*/", re.S)
+CONTRACT_TAGS = {
+    "param": "params", "returns": "returns", "requires": "requires",
+    "events": "events", "cleanup": "cleanup", "escaping": "escaping",
+    "example": "examples",
+}
+REPEATED_TAGS = {"param", "requires", "events", "example"}
+
+
+def parse_contract(body: str) -> dict | None:
+    lines = [re.sub(r"^\s*\* ?", "", line).rstrip() for line in body.splitlines()]
+    if not any(re.match(r"^\s*@component(?:\s|$)", line) for line in lines):
+        return None
+    sections: dict[str, list[str]] = {}
+    tag, text = "summary", []
+    for line in lines:
+        match = re.match(r"^\s*@([a-zA-Z]+)(?:\s+(.*))?$", line)
+        if match:
+            sections.setdefault(tag, []).append("\n".join(text).strip())
+            tag, first = match.groups()
+            tag = "summary" if tag == "component" else tag
+            text = [first or ""]
+        else:
+            text.append(line)
+    sections.setdefault(tag, []).append("\n".join(text).strip())
+    summary = "\n".join(value for value in sections.pop("summary", []) if value)
+    result = {"summary": summary}
+    warnings = []
+    for tag, values in sections.items():
+        if tag not in CONTRACT_TAGS:
+            warnings.append(f"Unknown contract tag: @{tag}")
+            continue
+        values = [value for value in values if value]
+        if tag in REPEATED_TAGS:
+            result[CONTRACT_TAGS[tag]] = values
+        else:
+            if len(values) > 1:
+                warnings.append(f"Use @{tag} only once")
+            result[CONTRACT_TAGS[tag]] = "\n".join(values)
+    for field in ["summary", "params", "returns", "requires", "events", "cleanup", "escaping", "examples"]:
+        if not result.get(field):
+            warnings.append(f"Missing contract field: {field}")
+    if warnings:
+        result["warnings"] = warnings
+    return result
+
+
+def declaration_contracts(source: str) -> dict[int, dict]:
+    contracts = {}
+    for comment in DOC_COMMENT.finditer(source):
+        start = comment.end()
+        while start < len(source) and source[start].isspace():
+            start += 1
+        if DECLARATION.match(source, start):
+            contract = parse_contract(comment.group(1))
+            if contract is not None:
+                contracts[start] = contract
+    return contracts
+
+
 def entry_id(file: str, name: str = "") -> str:
     raw = file + (":" + name if name else "")
     readable = re.sub(r"[^\w-]+", "-", raw, flags=re.ASCII).strip("-")
@@ -61,6 +124,10 @@ def inventory(static_dir: Path) -> list[dict]:
         category, tab = FOLDERS.get(folder, (folder.replace("-", " ").title(), "home"))
         source = path.read_text(encoding="utf-8")
         matches = list(DECLARATION.finditer(source)) if path.suffix in {".js", ".mjs"} else []
+        # Examples inside JSDoc are documentation, not additional declarations.
+        doc_spans = [(comment.start(), comment.end()) for comment in DOC_COMMENT.finditer(source)]
+        matches = [match for match in matches if not any(start <= match.start() < end for start, end in doc_spans)]
+        contracts = declaration_contracts(source) if matches else {}
         for match in matches:
             name = match.group(1) or match.group(2)
             records.append(dict(
@@ -68,6 +135,7 @@ def inventory(static_dir: Path) -> list[dict]:
                 name=name, symbol=name, file=file,
                 line=source[:match.start()].count("\n") + 1,
                 category=category, tab=tab,
+                **({"contract": contracts[match.start()]} if match.start() in contracts else {}),
             ))
         if not matches:
             records.append(dict(

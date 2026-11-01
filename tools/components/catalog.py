@@ -52,6 +52,10 @@ if __name__ == "__main__":
     if args.stdout:
         print(catalogue_script(args.static_dir), end="")
     else:
+        for entry in inventory(args.static_dir):
+            warnings = entry.get("contract", {}).get("warnings", [])
+            if warnings:
+                raise SystemExit(f"Invalid component contract: {entry['file']}:{entry['line']}: " + "; ".join(warnings))
         check_component_boundaries()
         shell_templates(args.check)
         text = catalogue_script(args.static_dir)

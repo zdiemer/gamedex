@@ -6,13 +6,49 @@
    `glyph(v)` renders an icon id if it looks like one, and otherwise passes the
    value straight through — because a custom challenge's icon is an emoji YOU
    chose, and that's data, not chrome. */
+/**
+ * @component Render a decorative inline icon from the site SVG sprite.
+ * @param {string} id - Trusted sprite identifier such as i-play.
+ * @param {number} [size=16] - Trusted numeric width and height in pixels.
+ * @returns {string} aria-hidden SVG inheriting currentColor.
+ * @requires The matching sprite symbol must exist in the document; .ico styles.
+ * @events None. The caller owns state and event wiring.
+ * @cleanup No resources or listeners are allocated; the caller owns any inserted DOM.
+ * @escaping id and size are interpolated unchanged. Use application constants, not external input. The containing control needs its own accessible name.
+ * @example
+ * icon("i-play", 20);
+ */
 const icon = (id, size = 16) =>
   `<svg class="ico" width="${size}" height="${size}" aria-hidden="true"><use href="#${id}"/></svg>`;
 
+/**
+ * @component Render either a sprite icon or caller-supplied emoji content.
+ * @param {string} v - Values starting with i- are sprite IDs; other values render in .emo.
+ * @param {number} [size=16] - Icon size in pixels.
+ * @returns {string} Icon SVG or emoji span.
+ * @requires icon and sprite symbols for i- values; .emo styles otherwise.
+ * @events None. The caller owns state and event wiring.
+ * @cleanup No resources or listeners are allocated; the caller owns any inserted DOM.
+ * @escaping Non-icon values are inserted unchanged as HTML. Escape external text before calling; icon identifiers and size must be trusted.
+ * @example
+ * glyph(escapeHtml(userEmoji), 20);
+ */
 const glyph = (v, size = 16) =>
   (typeof v === "string" && v.startsWith("i-")) ? icon(v, size) : `<span class="emo">${v || ""}</span>`;
 
 // Returns an HTML string for a cell value given its column type.
+/**
+ * @component Format a table cell using its declared column type.
+ * @param {*} value - Empty/nullish values show an em dash; arrays are joined with commas.
+ * @param {string} type - rating, bool, hours, date, number, money, or plain text for other types.
+ * @returns {string} Formatted cell HTML.
+ * @requires ratingClass, fmtHours, fmtDate and escapeHtml; table value styles.
+ * @events None. The caller owns state and event wiring.
+ * @cleanup No resources or listeners are allocated; the caller owns any inserted DOM.
+ * @escaping Text, date, number and money output is escaped. Rating/hours inputs must satisfy the numeric formatter contracts.
+ * @example
+ * fmtCell(0.85, "rating");
+ */
 function fmtCell(value, type) {
   if (value === undefined || value === null || value === "") return `<span class="muted">—</span>`;
   if (Array.isArray(value)) value = value.join(", ");   // multi-valued cell (e.g. Wishlisted On)
@@ -36,6 +72,17 @@ function fmtCell(value, type) {
   }
 }
 
+/**
+ * @component Escape text for HTML text nodes and quoted attribute values.
+ * @param {string} s - String to escape; convert nonstrings explicitly before calling.
+ * @returns {string} Text with ampersand, angle brackets and quotes encoded.
+ * @requires None.
+ * @events None. The caller owns state and event wiring.
+ * @cleanup No resources or listeners are allocated; the caller owns any inserted DOM.
+ * @escaping Does not validate URL schemes or make content safe for JavaScript/CSS contexts. Avoid escaping an already escaped string twice.
+ * @example
+ * escapeHtml(String(row.title ?? ""));
+ */
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
@@ -63,6 +110,18 @@ async function copyResultText(text) {
 
 // input: the text box (ideally already inside a .ac-wrap); getItems: () => [{t, f}]
 // with t the display title and f its acFold — computed once by the caller, not per keystroke.
+/**
+ * @component Attach title autocomplete to an existing input.
+ * @param {HTMLInputElement} input - Connected input; call once per input, before the caller installs its Enter handler.
+ * @param {function():Array<{t:string,f:string}>} getItems - Synchronous titles with precomputed acFold values.
+ * @returns {undefined} Mutates the input wrapper and installs handlers; no disposer is returned.
+ * @requires acFold from core.js; browser DOM and .ac-* styles.
+ * @events Input/focus updates suggestions after two folded characters. Arrow keys navigate; Enter consumes a highlighted choice; Escape closes. Picking assigns input.value without emitting an input/change event.
+ * @cleanup Remove the input/wrapper subtree on teardown. Do not reattach to a retained input: listeners and lists would accumulate. A pending blur timeout may run briefly after removal.
+ * @escaping Suggestion titles are assigned with textContent and input.value; they are not interpreted as HTML.
+ * @example
+ * acAttach(input, () => titles.map(t => ({ t, f: acFold(t) })));
+ */
 function acAttach(input, getItems) {
   let wrap = input.closest(".ac-wrap");
   if (!wrap) {

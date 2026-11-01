@@ -35,6 +35,13 @@ sections in `static/index.html`. The catalogue recursively covers grouped folder
 its checks reject UI implementations outside them and stale shell templates.
 The server and local preview proxy regenerate the library from this folder on
 every gallery load; no component registry entry is needed for a new file.
+Shared API contracts live in `/** @component ... */` comments immediately before
+JavaScript declarations. Read and maintain them with the implementation: inputs
+and defaults, returns, required globals/DOM, events, cleanup, escaping and an example.
+Use the schema in `docs/components.md`; never maintain a second manual contract
+registry. The scanner publishes contracts to the gallery automatically, and the
+catalogue generator/check rejects incomplete tagged contracts. Unannotated components
+remain discoverable; add a contract when introducing or changing a shared API.
 Theme tokens and shared styles live in `static/style.css`; keep feature styles scoped.
 Preserve accessibility, selectors used by event delegation, and existing behavior.
 Escape data in HTML; keep state and event handlers in the consuming feature.

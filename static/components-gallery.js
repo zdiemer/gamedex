@@ -123,7 +123,7 @@ function sampleEntries() {
     if (entry.file === "index.html") entry.file = "components/" + (templates[entry.id] || "navigation/header.html");
     entry.symbol = symbols[entry.id] || (entry.id.startsWith("panel-") ? "sourcePanelHtml" : null);
     const owner = COMPONENT_SOURCES.find(source => source.name === entry.symbol);
-    if (owner) entry.file = owner.file;
+    if (owner) { entry.file = owner.file; entry.contract = owner.contract; }
     if (entry.id.startsWith("panel-")) entry.configurationFile = "components/panels/sources.js"; });
   return entries;
 }
@@ -239,6 +239,51 @@ function livePreview(entry, token) {
     if (token === renderVersion) note.textContent += " This component is not currently visible; use the preview's controls to open it. Its source is available below.";
   });
 }
+// Documentation is source text, never trusted HTML or executable examples.
+function renderContract(contract) {
+  const host = $("#componentContract");
+  host.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.id = "contractTitle";
+  heading.textContent = "Component contract";
+  host.appendChild(heading);
+  const summary = document.createElement("p");
+  summary.textContent = contract?.summary || "No component contract documented yet. Inspect the source before reuse.";
+  host.appendChild(summary);
+  if (!contract) return;
+  for (const warning of contract.warnings || []) {
+    const note = document.createElement("p");
+    note.className = "contract-warning";
+    note.textContent = warning;
+    host.appendChild(note);
+  }
+  const fields = document.createElement("dl");
+  for (const [key, label] of [["params", "Inputs and defaults"], ["returns", "Returns"],
+    ["requires", "Required globals and context"], ["events", "Events and ownership"],
+    ["cleanup", "Cleanup"], ["escaping", "Escaping and trusted inputs"]]) {
+    const value = contract[key];
+    if (!value?.length) continue;
+    const term = document.createElement("dt"), detail = document.createElement("dd");
+    term.textContent = label;
+    if (Array.isArray(value)) {
+      const list = document.createElement("ul");
+      for (const text of value) {
+        const item = document.createElement("li"); item.textContent = text; list.appendChild(item);
+      }
+      detail.appendChild(list);
+    } else detail.textContent = value;
+    fields.append(term, detail);
+  }
+  host.appendChild(fields);
+  for (const text of contract.examples || []) {
+    const title = document.createElement("h4"); title.textContent = "Usage example";
+    const pre = document.createElement("pre"), code = document.createElement("code");
+    code.textContent = text;
+    pre.appendChild(code);
+    host.append(title, pre);
+  }
+}
+
 async function selectEntry(id, updateHash = true) {
   const entry = catalogue.find(item => item.id === id || item.legacyId === id) || catalogue[0];
   selectedId = entry.id;
@@ -247,12 +292,13 @@ async function selectEntry(id, updateHash = true) {
   else if (updateHash) history.replaceState(null, "", `#${encodeURIComponent(entry.id)}`);
   $("#componentCategory").textContent = entry.category;
   $("#componentTitle").textContent = entry.name;
-  $("#componentDescription").textContent = entry.description || "Production UI renderer. Inspect its implementation below, or open the app context to see it with your library data.";
+  $("#componentDescription").textContent = entry.description || entry.contract?.summary || "Production UI renderer. Inspect its implementation below, or open the app context to see it with your library data.";
   $("#componentFullSource").href = entry.file;
   $("#componentOwner").textContent = `Source: static/${entry.file}${entry.line ? `:${entry.line}` : ""}`;
   $("#componentUsage").textContent = entry.isolated
     ? "This example calls production builders or clones the current app template. Change the owning implementation, then update this example when its contract changes."
     : "Reuse this implementation in its owning module. Read its parameters, state dependencies, and callers before changing it; preserve selectors, event wiring, and accessibility.";
+  renderContract(entry.contract);
   $("#feedback").textContent = "";
   $("#componentPreview").replaceChildren();
   $("#componentActions").innerHTML = buttonHtml("Preview in app", { id: "previewLive", variant: "ghost" }) + ` <a class="btn ghost" href="index.html?tab=${encodeURIComponent(entry.tab || "games")}" target="_blank" rel="noopener">Open app ↗</a>`;
