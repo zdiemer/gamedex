@@ -97,7 +97,10 @@ unplayable.playable = "No";
 const pool = JSON.parse(vm.runInContext("JSON.stringify(thmPool(THM_BY_ID.zeldalikes).map(r => r._k))", context));
 assert.ok(!pool.includes(tunic._k) && !pool.includes(unplayable._k),
   "new theme slates retain completed and unplayable exclusions");
-for (const title of ["Deus Ex", "Dishonored", "System Shock 2", "Thief II: The Metal Age"]) {
+for (const title of ["Deus Ex", "Dishonored", "System Shock 2", "Thief II: The Metal Age",
+  "Deathloop", "Blood West", "Dark Messiah of Might and Magic", "Streets of Rogue",
+  "E.Y.E: Divine Cybermancy", "Vampire: The Masquerade - Bloodlines", "Hitman: Blood Money",
+  "Deus Ex: Human Revolution - The Missing Link", "Prey: Mooncrash", "BioShock 2: Minerva's Den"]) {
   themeCase("immersivesims", title, {}, true, `${title} qualifies despite missing tags`);
 }
 themeCase("immersivesims", "Prey", { igdbId: 19531, year: 2017 }, true, "Arkane's Prey qualifies");
@@ -107,7 +110,15 @@ themeCase("immersivesims", "Prey", {}, false, "an ambiguous title without a year
 themeCase("immersivesims", "Inkonbini", { igdbId: 294592, keywords: ["immersive sim"] }, false,
   "a noisy immersive-sim tag does not override the editorial selection");
 themeCase("immersivesims", "Deus Ex: Unrelated Spin-off", {}, false, "franchise prefixes do not qualify");
-for (const title of ["Katamari Damacy", "Donut County", "Jazzpunk", "Thank Goodness You’re Here!"]) {
+themeCase("immersivesims", "Hitman Go", {}, false, "Hitman's puzzle spin-off is not a systemic sandbox");
+themeCase("immersivesims", "BioShock", { igdbId: 152660 }, false, "feature-phone BioShock is a different game");
+themeCase("immersivesims", "BioShock", { igdbId: 20 }, true, "the original BioShock belongs to the wider family");
+themeCase("immersivesims", "Sheet alias", { igdbId: 338082, name: "Hitman World of Assassination: Signature Edition" }, true,
+  "selected editions qualify through their canonical names");
+for (const title of ["Katamari Damacy", "Donut County", "Jazzpunk", "Thank Goodness You’re Here!",
+  "Hylics", "Chulip", "Samorost 3", "Hypnospace Outlaw", "Sludge Life", "Kids",
+  "Frog Detective 2: The Case of the Invisible Wizard", "The Stanley Parable: Ultra Deluxe",
+  "Tiny Terry’s Turbo Trip", "Moon: Remix RPG Adventure", "OFF"]) {
   themeCase("weirdlittle", title, {}, true, `${title} is a curated playful oddity`);
 }
 themeCase("weirdlittle", "Sheet alias", { igdbId: 24415, name: "Jazzpunk: Director's Cut" }, true,
@@ -115,6 +126,9 @@ themeCase("weirdlittle", "Sheet alias", { igdbId: 24415, name: "Jazzpunk: Direct
 themeCase("weirdlittle", "Unrelated surreal epic", { igdbId: 20, keywords: ["surreal", "comedy"], genres: ["Indie"] }, false,
   "surreal, comedy and indie tags alone do not imply a weird little game");
 themeCase("weirdlittle", "Donut County: Unrelated Sequel", {}, false, "weird-game selections also match exactly");
+themeCase("weirdlittle", "Moon", { igdbId: 188135 }, true, "Moon's anti-RPG rerelease has a shortened canonical title");
+themeCase("weirdlittle", "Moon", { igdbId: 21898, year: 2009 }, false, "the unrelated DS shooter stays out");
+themeCase("weirdlittle", "Moon", {}, false, "an ambiguous Moon is not guessed");
 for (const title of ["Return of the Obra Dinn", "Paradise Killer", "The Forgotten City", "Phoenix Wright: Ace Attorney Trilogy"]) {
   themeCase("detective", title, {}, true, `${title} fills a detective metadata gap`);
 }

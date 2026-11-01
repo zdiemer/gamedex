@@ -75,7 +75,8 @@ const THM_ZELDALIKE_TITLES = new Set([
   "the swords of ditto: mormo's curse", "okami", "okami hd", "ōkami", "ōkami hd",
 ]);
 // These two editorial categories cannot be inferred from "immersive", "surreal" or
-// "indie". Exact selections keep the pools about how the games play.
+// "indie". Exact selections cover the wider family, including systemic relatives
+// for immersive sims and surreal/experimental games as well as comedy for weird games.
 const THM_IMMERSIVE_TITLES = new Set([
   "deus ex", "deus ex: game of the year edition", "deus ex: invisible war",
   "deus ex: human revolution", "deus ex: human revolution - director's cut",
@@ -85,6 +86,19 @@ const THM_IMMERSIVE_TITLES = new Set([
   "thief: the dark project", "thief gold", "thief ii: the metal age", "thief: deadly shadows",
   "arx fatalis", "ultima underworld: the stygian abyss", "ultima underworld ii: labyrinth of worlds",
   "gloomwood", "ctrl alt ego", "shadows of doubt", "cruelty squad", "weird west",
+  "deathloop", "blood west", "dark messiah of might and magic",
+  "deus ex: human revolution - the missing link", "deus ex: the missing link",
+  "prey: mooncrash", "e.y.e: divine cybermancy", "streets of rogue",
+  "vampire: the masquerade - bloodlines", "the original strife: veteran edition",
+  "bioshock", "bioshock remastered", "bioshock 2", "bioshock 2 remastered",
+  "bioshock 2: minerva's den", "bioshock 2: minerva's den remastered",
+  "hitman: blood money", "hitman", "hitman 2", "hitman 3",
+  "hitman world of assassination", "hitman: world of assassination",
+  "hitman world of assassination: signature edition",
+  "hitman: world of assassination - signature edition",
+  "gloomwood: early access", "filcher", "neon struct", "skin deep", "fallen aces",
+  "fortunes run", "monomyth", "peripeteia", "brigand: oaxaca", "consortium",
+  "consortium remastered", "consortium: the tower", "underworld ascendant", "teardown",
 ]);
 const THM_WEIRD_TITLES = new Set([
   "katamari damacy", "katamari damacy reroll", "we love katamari",
@@ -94,6 +108,31 @@ const THM_WEIRD_TITLES = new Set([
   "pikuniku", "octodad: dadliest catch", "untitled goose game", "what the golf?",
   "thank goodness you're here!", "later alligator", "little inferno", "trombone champ",
   "the procession to calvary", "tiny and big: grandpa's leftovers",
+  // Surreal worlds, peculiar everyday rituals and handmade experiments.
+  "hylics", "hylics 2", "off", "space funeral", "moon: remix rpg adventure",
+  "chulip", "chibi-robo!", "chibi-robo!: park patrol", "doshin the giant",
+  "cubivore: survival of the fittest", "incredible crisis", "seaman", "mister mosquito",
+  "stretch panic", "muscle march", "noby noby boy", "locoroco", "locoroco 2",
+  "locoroco remastered", "locoroco 2 remastered", "locoroco midnight carnival",
+  "samorost", "samorost 1", "samorost 2", "samorost 3", "botanicula", "creaks", "happy game",
+  "pilgrims", "machinarium",
+  "kids", "everything", "mountain", "the beginner's guide",
+  "the stanley parable", "the stanley parable: ultra deluxe", "accounting", "accounting+",
+  "dr. langeskov, the tiger, and the terribly cursed emerald: a whirlwind heist",
+  "hypnospace outlaw", "broken reality", "sludge life", "sludge life 2",
+  "sludge life: the big mud sessions", "off-peak", "the norwood suite",
+  "tales from off-peak city vol. 1", "betrayal at club low", "psychopomp",
+  "psychopomp gold", "post void", "no thing", "no-thing",
+  "puss!", "orbo's odyssey", "mouthole", "blippo+", "about an elf",
+  "eastern mind: the lost souls of tong nou", "cookie's bustle",
+  "tiny terry's turbo trip", "dropsy", "paradigm", "journey of a roach",
+  "west of loathing", "shadows over loathing", "the many pieces of mr. coo",
+  "frog detective 1: the haunted island", "the haunted island, a frog detective game",
+  "frog detective 2: the case of the invisible wizard", "frog detective 3: corruption at cowboy county",
+  "frog detective: the entire mystery", "goat simulator", "goat simulator 3",
+  "i am bread", "i am fish", "surgeon simulator 2013", "surgeon simulator: experience reality",
+  "potatoman seeks the troof", "turnip boy commits tax evasion", "turnip boy robs a bank",
+  "what the bat?", "what the car?", "duck simulator 2", "frog fractions 2",
 ]);
 const THM_DETECTIVE_TITLES = new Set([
   "return of the obra dinn", "the case of the golden idol", "the rise of the golden idol",
@@ -124,12 +163,18 @@ const thmWholesome = (r) => {
 const thmZeldalike = (r) => thmAny(thmKw(r), "zelda-like", "zelda like", "zeldalike") ||
   thmKnownTitle(r, THM_ZELDALIKE_TITLES);
 const thmImmersive = (r) => {
-  if (thmKnownTitle(r, THM_IMMERSIVE_TITLES)) return true;
   const e = thmEn(r);
+  // The feature-phone BioShock is a separate 2D adaptation, not the systemic FPS.
+  if (+e.igdbId === 152660 || (/^(brew|j2me)$/i.test(String(r.platform || "")) &&
+    thmKnownTitle(r, new Set(["bioshock"])))) return false;
+  if (thmKnownTitle(r, THM_IMMERSIVE_TITLES)) return true;
   // Arkane's Prey, not the unrelated 2006 shooter. Unknown editions fail closed.
   return +e.igdbId === 19531 || (!e.igdbId && thmYear(r) === 2017 &&
     String(r.title || "").trim().toLowerCase() === "prey");
 };
+const thmWeird = (r) => thmKnownTitle(r, THM_WEIRD_TITLES) ||
+  // The anti-RPG's rerelease is named just Moon in IGDB; Moon (2009) is a DS shooter.
+  +thmEn(r).igdbId === 188135;
 const thmDetective = (r) => {
   if (thmKnownTitle(r, THM_DETECTIVE_TITLES)) return true;
   const k = thmKw(r), genres = thmIgdb(r, "genres");
@@ -1048,11 +1093,12 @@ const THEMES = [
     blurb: "one problem, a dozen ways through",
     icon: "i-bracket",
     n: 5,
-    note: "A curated selection of systemic adventures: Deus Ex, Dishonored, System Shock, " +
-          "the original Thief trilogy, Ultima Underworld, Arx Fatalis, Prey (2017), " +
-          "Gloomwood, Ctrl Alt Ego, Shadows of Doubt, Cruelty Squad and Weird West. " +
-          "Matches exact selected titles and editions, not whole franchises or broad " +
-          "immersive/simulation tags. Prey needs its 2017 identity; the 2006 game is excluded.",
+    note: "Immersive sims and close systemic relatives: classics such as Deus Ex, Thief, " +
+          "System Shock and Prey (2017), newer games such as Deathloop and Blood West, " +
+          "and flexible sandboxes such as Streets of Rogue and selected Hitman games. " +
+          "Also includes BioShock, Dark Messiah and Vampire: The Masquerade – Bloodlines. " +
+          "An editorial selection of exact titles and editions; broad immersive/simulation " +
+          "tags alone do not qualify. The unrelated Prey (2006) is excluded.",
     match: thmImmersive,
     skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:.01em;" +
           "--ev-deco:#67e8f9;--ev-fg:#ecfeff;--ev-fg-2:#a6c6cc;--ev-edge:rgba(103,232,249,.32);" +
@@ -1075,13 +1121,13 @@ const THEMES = [
     blurb: "a strange idea, taken delightfully far",
     icon: "i-dice",
     n: 5,
-    note: "An editorial selection of playful oddities, including selected Katamari games, " +
-          "Donut County, Jazzpunk, Wattam, Chuchel, Plug & Play, Frog Fractions, Pikuniku, " +
-          "Octodad, Untitled Goose Game, What the Golf?, Thank Goodness You're Here!, " +
-          "Later Alligator, Little Inferno, Trombone Champ, The Procession to Calvary " +
-          "and Tiny and Big. Exact selected titles and editions only; surreal, indie or " +
-          "comedy tags alone do not qualify. Little describes the spirit, not a playtime limit.",
-    match: (r) => thmKnownTitle(r, THM_WEIRD_TITLES),
+    note: "An editorial selection of playful oddities, surreal worlds and experimental " +
+          "games: Katamari, Chulip, Hylics, Samorost, Hypnospace Outlaw, Sludge Life, " +
+          "The Stanley Parable, Frog Detective and many more. Spans absurd comedy, " +
+          "strange simulations and unsettling handmade adventures. Exact selected titles " +
+          "and editions only; surreal, indie or comedy tags alone do not qualify. " +
+          "Little describes the spirit, not a playtime limit.",
+    match: thmWeird,
     skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:-.02em;" +
           "--ev-deco:#f0abfc;--ev-fg:#fdf4ff;--ev-fg-2:#cbb4d1;--ev-edge:rgba(240,171,252,.32);" +
           "--ev-edge-hi:rgba(240,171,252,.78);--ev-glow:rgba(240,171,252,.3);--ev-t1:#fdf4ff;" +
