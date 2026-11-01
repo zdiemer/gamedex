@@ -146,7 +146,55 @@ themeCase("detective", "Generic mystery", { igdbId: 26, keywords: ["mystery"], g
   "mystery alone does not qualify");
 themeCase("detective", "Fallback detective", { keywords: ["detective"], genres: ["Point-and-click"] }, false,
   "detective metadata also requires IGDB provenance");
-for (const [theme, title] of [["immersivesims", "Arx Fatalis"], ["weirdlittle", "Wattam"], ["detective", "Her Story"]]) {
+const fiveThemeExamples = {
+  knowledge: ["Outer Wilds", "Tunic", "The Witness", "Animal Well", "Chants of Sennaar", "Taiji"],
+  timetrouble: ["Deathloop", "Minit", "Braid", "Superhot", "Ghost Trick: Phantom Detective", "Radiant Historia"],
+  lostinspace: ["Alien: Isolation", "Dead Space", "Prey", "The Swapper", "Super Metroid", "Subnautica"],
+  machines: ["Factorio", "Satisfactory", "Opus Magnum", "Infinifactory", "SpaceChem", "The Signal State"],
+  rhythmflow: ["Rez", "Thumper", "Hi-Fi Rush", "Sayonara Wild Hearts", "Ape Out", "Tetris Effect"],
+};
+for (const [theme, titles] of Object.entries(fiveThemeExamples)) {
+  for (const title of titles) themeCase(theme, title, {}, true, `${theme}: ${title} qualifies without metadata`);
+  themeCase(theme, "Sheet alias", { igdbId: 40, name: titles[0] }, true, `${theme}: canonical names resolve aliases`);
+  themeCase(theme, titles[0] + ": Unrelated Spin-off", {}, false, `${theme}: prefixes do not qualify`);
+}
+themeCase("knowledge", "New rule-discovery game", { igdbId: 41, keywords: ["Metroidbrainia"] }, true,
+  "explicit knowledge progression generalizes beyond the curated list");
+themeCase("knowledge", "Generic puzzle adventure", { igdbId: 42, genres: ["Puzzle"], keywords: ["exploration"] }, false,
+  "puzzles and exploration alone do not establish knowledge progression");
+themeCase("timetrouble", "New loop adventure", { igdbId: 43, keywords: ["Time Loop"] }, true,
+  "explicit time loops qualify");
+themeCase("timetrouble", "Forza Horizon", { igdbId: 44, genres: ["Racing"], keywords: ["time rewind", "time manipulation"] }, false,
+  "a racing rewind does not make time the central premise");
+themeCase("timetrouble", "Generic time-travel story", { igdbId: 45, keywords: ["time travel"] }, false,
+  "a time-travel story tag alone is too broad");
+themeCase("lostinspace", "Metroid Prime Pinball", {}, false, "space-themed pinball is not isolated exploration");
+themeCase("lostinspace", "Generic space shooter", { igdbId: 46, themes: ["Science fiction"], keywords: ["space exploration"] }, false,
+  "a space setting alone does not establish the mood");
+themeCase("machines", "New factory puzzle", { igdbId: 47, keywords: ["factory automation"] }, true,
+  "explicit factory automation qualifies");
+themeCase("machines", "Farming adventure", { igdbId: 48, keywords: ["automation", "crafting", "factory"] }, false,
+  "broad crafting, automation and factory tags do not establish machine building");
+themeCase("rhythmflow", "New rhythm game", { igdbId: 49, genres: ["Music"], keywords: ["Rhythm Game"] }, true,
+  "IGDB music plus explicit rhythm gameplay qualifies");
+const sheetRhythm = themeCase("rhythmflow", "New sheet rhythm game", {}, false, "an unknown title needs evidence");
+sheetRhythm.genre = "Rhythm";
+assert.equal(match("rhythmflow", sheetRhythm._k), true, "the sheet's specific Rhythm genre needs no enrichment");
+themeCase("rhythmflow", "Danganronpa: Trigger Happy Havoc", { igdbId: 50, genres: ["Visual Novel"], keywords: ["music and rhythm"] }, false,
+  "incidental rhythm minigames do not qualify");
+themeCase("rhythmflow", "Boom Blox", { igdbId: 51, genres: ["Music", "Puzzle"], keywords: ["music and rhythm"] }, false,
+  "the broad music-and-rhythm label does not establish rhythm gameplay");
+themeCase("rhythmflow", "Athena: Awakening from the Ordinary Life", { igdbId: 52, genres: ["Music", "Adventure"], keywords: ["rhythm game"] }, false,
+  "an audited incidental music minigame stays out despite misleading metadata");
+const tempo = themeCase("rhythmflow", "Tempo", {}, false, "musical platforming alone does not qualify");
+tempo.genre = "Rhythm";
+assert.equal(match("rhythmflow", tempo._k), false, "audited exclusions also correct sheet miscategorizations");
+for (const [theme, keywords] of [["knowledge", ["metroidbrainia"]], ["timetrouble", ["time loop"]],
+  ["machines", ["factory automation"]], ["rhythmflow", ["rhythm game"]]]) {
+  themeCase(theme, "Untrusted fallback", { genres: ["Music"], keywords }, false, `${theme}: metadata requires IGDB provenance`);
+}
+for (const [theme, title] of [["immersivesims", "Arx Fatalis"], ["weirdlittle", "Wattam"], ["detective", "Her Story"],
+  ...Object.entries(fiveThemeExamples).map(([theme, titles]) => [theme, titles[0]])]) {
   const finished = themeCase(theme, title, {}, true, `${title} belongs to its theme`);
   finished.completed = true;
   const unavailable = themeCase(theme, title, {}, true, `${title} also matches before eligibility filtering`);
@@ -155,6 +203,7 @@ for (const [theme, title] of [["immersivesims", "Arx Fatalis"], ["weirdlittle", 
   assert.ok(!eligible.includes(finished._k) && !eligible.includes(unavailable._k),
     `${theme} excludes completed games and unknown playability from rolls`);
 }
-assert.equal(vm.runInContext("THEMES.length", context), 30, "theme catalog contains 30 themes");
+assert.equal(vm.runInContext("THEMES.length", context), 35, "theme catalog contains 35 themes");
+assert.equal(vm.runInContext("new Set(THEMES.map(t => t.id)).size", context), 35, "theme IDs stay unique");
 
-console.log("Discovery themes: comfort, repeat-session, cult-classic, wholesome, Zelda-like, immersive, weird and detective boundaries passed");
+console.log("Discovery themes: all 35 themes registered; matching, provenance and eligibility boundaries passed");

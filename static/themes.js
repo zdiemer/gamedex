@@ -151,6 +151,97 @@ const THM_DETECTIVE_TITLES = new Set([
   "ace attorney investigations collection", "the great ace attorney chronicles",
   "the great ace attorney: adventures", "the great ace attorney 2: resolve",
 ]);
+// These selections describe a game's central activity, not a passing story element.
+// Keep editions explicit so unrelated sequels, compilations and spin-offs stay out.
+const THM_KNOWLEDGE_TITLES = new Set([
+  "outer wilds", "outer wilds: echoes of the eye", "outer wilds: archaeologist edition",
+  "tunic", "the witness", "animal well", "chants of sennaar", "heaven's vault",
+  "fez", "taiji", "antichamber", "manifold garden", "baba is you", "void stranger",
+  "environmental station alpha", "la-mulana", "la-mulana 2", "la-mulana 1 & 2: hidden treasures edition",
+  "toki tori 2", "toki tori 2+", "a monster's expedition", "stephen's sausage roll",
+  "can of wormholes", "leap year", "understand", "lingo", "sensorium",
+  "return of the obra dinn", "the case of the golden idol", "the rise of the golden idol",
+  "the roottrees are dead", "the forgotten city",
+  "myst", "myst: masterpiece edition", "realmyst", "realmyst: masterpiece edition",
+  "myst iii: exile", "myst iv: revelation", "myst v: end of ages",
+  "riven", "riven: the sequel to myst", "obduction", "quern: undying thoughts",
+]);
+const THM_TIME_TITLES = new Set([
+  "deathloop", "minit", "braid", "braid: anniversary edition", "ghost trick: phantom detective",
+  "superhot", "superhot vr", "superhot: mind control delete", "timeshift", "timelie",
+  "quantum break", "quantum conundrum", "singularity", "iron danger", "induction",
+  "the entropy centre", "eternal threads", "arise: a simple story", "last day of june",
+  "life is strange", "life is strange remastered", "life is strange: double exposure",
+  "blinx: the time sweeper", "blinx 2: masters of time and space", "blades of time",
+  "prince of persia: the sands of time", "prince of persia: warrior within",
+  "prince of persia: the two thrones", "prince of persia: the forgotten sands",
+  "timespinner", "cogen: sword of rewind",
+  "lysfanga: the time shift warrior", "aeternoblade", "aeternoblade ii",
+  "aeternoblade ii: director's rewind", "chronos twins", "chronos twins dx", "chronovolt",
+  "outer wilds", "outer wilds: echoes of the eye", "outer wilds: archaeologist edition",
+  "returnal", "the forgotten city", "twelve minutes", "gnosia", "the sexy brutale",
+  "the legend of zelda: majora's mask", "the legend of zelda: majora's mask 3d",
+  "radiant historia", "radiant historia: perfect chronology", "chrono trigger",
+  "chrono cross", "chrono cross: the radical dreamers edition", "time hollow",
+  "day of the tentacle", "day of the tentacle remastered", "the silent age",
+  "9 hours, 9 persons, 9 doors", "nine hours, nine persons, nine doors",
+  "zero escape: virtue's last reward", "zero escape: zero time dilemma",
+  "zero escape: the nonary games", "a guidebook of babel", "echoshift",
+]);
+const THM_SPACE_TITLES = new Set([
+  "alien: isolation", "alien: isolation - the collection", "dead space", "dead space 2",
+  "dead space 3", "dead space: extraction", "prey", "prey: mooncrash", "the swapper",
+  "outer wilds", "outer wilds: echoes of the eye", "outer wilds: archaeologist edition",
+  "no man's sky", "astroneer", "subnautica", "subnautica: below zero",
+  "system shock", "system shock: enhanced edition", "system shock 2",
+  "system shock 2: 25th anniversary remaster", "returnal", "scars above",
+  "the turing test", "observation", "tacoma", "deliver us the moon", "deliver us mars",
+  "adr1ft", "event[0]", "void bastards", "duskers", "ftl: faster than light",
+  "oxygen not included", "breathedge", "the planet crafter", "journey to the savage planet",
+  "revenge of the savage planet", "lifeless planet", "lifeless planet: premier edition",
+  "planet alpha", "planet of the eyes", "planet of lana", "planet of lana ii: children of the leaf",
+  "the solus project", "the signal from tölva", "the signal from tolva",
+  "exo one", "in other waters", "starbound", "mouthwashing",
+  "metroid", "metroid: zero mission", "metroid ii: return of samus", "metroid: samus returns",
+  "super metroid", "metroid fusion", "metroid dread", "metroid: other m",
+  "metroid prime", "metroid prime remastered", "metroid prime 2: echoes",
+  "metroid prime 3: corruption", "metroid prime 4: beyond", "metroid prime: trilogy",
+  "metroid prime hunters",
+]);
+const THM_MACHINE_TITLES = new Set([
+  "factorio", "factorio: space age", "satisfactory", "opus magnum", "infinifactory",
+  "spacechem", "tis-100", "shenzhen i/o", "exapunks", "molek-syntez", "last call bbs",
+  "human resource machine", "7 billion humans", "seven billion humans",
+  "dyson sphere program", "shapez", "shapez 2", "mindustry", "builderment",
+  "autonauts", "autonauts vs piratebots", "automachef", "big pharma", "good company",
+  "production line", "little big workshop", "the signal state", "linkito", "retro gadgets",
+  "nova lands", "oddsparks: an automation adventure", "station to station", "while true: learn()",
+  "besiege", "poly bridge", "poly bridge 2", "poly bridge 3", "bridge constructor portal",
+  "contraption maker", "the incredible machine", "the incredible machine 2",
+  "the incredible machine 3", "the incredible machine: even more contraptions",
+  "return of the incredible machine: contraptions", "the even more incredible machine",
+  "crazy machines", "crazy machines 2", "crazy machines 3", "fantastic contraption",
+  "scrap mechanic", "screw drivers", "carnage heart", "carnage heart exa",
+  "replicube", "manufactoria", "manufactoria 2022", "neon noodles", "word factori",
+  "alan's automaton workshop", "nandgame", "turing complete",
+]);
+const THM_RHYTHM_TITLES = new Set([
+  "rez", "rez hd", "rez infinite", "thumper", "hi-fi rush", "sayonara wild hearts",
+  "ape out", "child of eden", "beat saber", "pistol whip", "metal: hellsinger",
+  "bpm: bullets per minute", "crypt of the necrodancer",
+  "cadence of hyrule: crypt of the necrodancer featuring the legend of zelda",
+  "everhood", "everhood 2", "just shapes & beats", "sound shapes", "rhythm doctor",
+  "a dance of fire and ice", "rhythm heaven", "rhythm heaven fever", "rhythm heaven megamix",
+  "rhythm tengoku", "rhythm paradise", "beat the beat: rhythm paradise",
+  "parappa the rapper", "parappa the rapper 2", "um jammer lammy", "gitaroo man",
+  "gitaroo man lives!", "elite beat agents", "osu! tatakae! ouendan", "moero! nekketsu rhythm damashii osu! tatakae! ouendan 2",
+  "patapon", "patapon 2", "patapon 3", "patapon 1+2 replay", "patapon remastered",
+  "patapon 2 remastered", "lumines", "lumines remastered", "lumines ii",
+  "lumines live!", "lumines supernova", "lumines: electronic symphony",
+  "tetris effect", "tetris effect: connected", "trombone champ", "melatonin",
+]);
+// Audited metadata mistakes: a musical platformer and an adventure with a music minigame.
+const THM_RHYTHM_EXCLUSIONS = new Set(["tempo", "athena: awakening from the ordinary life"]);
 const thmKnownTitle = (r, titles) => [r.title, thmEn(r).name].some((title) =>
   titles.has(String(title || "").trim().toLowerCase().replace(/[’‘]/g, "'")));
 const thmWholesome = (r) => {
@@ -175,6 +266,15 @@ const thmImmersive = (r) => {
 const thmWeird = (r) => thmKnownTitle(r, THM_WEIRD_TITLES) ||
   // The anti-RPG's rerelease is named just Moon in IGDB; Moon (2009) is a DS shooter.
   +thmEn(r).igdbId === 188135;
+const thmKnowledge = (r) => thmKnownTitle(r, THM_KNOWLEDGE_TITLES) ||
+  thmAny(thmKw(r), "metroidbrainia", "knowledge-based progression", "knowledge based progression");
+const thmTime = (r) => thmKnownTitle(r, THM_TIME_TITLES) ||
+  thmAny(thmKw(r), "time loop", "time-loop", "time loops");
+const thmMachines = (r) => thmKnownTitle(r, THM_MACHINE_TITLES) ||
+  thmAny(thmKw(r), "factory automation", "automation puzzle", "programming puzzle", "engineering puzzle");
+const thmRhythm = (r) => !thmKnownTitle(r, THM_RHYTHM_EXCLUSIONS) && (thmKnownTitle(r, THM_RHYTHM_TITLES) ||
+  String(r.genre || "").trim().toLowerCase() === "rhythm" ||
+  (thmIgdb(r, "genres").includes("music") && thmAny(thmKw(r), "rhythm game", "rhythm")));
 const thmDetective = (r) => {
   if (thmKnownTitle(r, THM_DETECTIVE_TITLES)) return true;
   const k = thmKw(r), genres = thmIgdb(r, "genres");
@@ -1169,6 +1269,140 @@ const THEMES = [
       { i: "i-book", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
       { i: "i-watch", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
       { i: "i-pin", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "knowledge",
+    name: "Knowledge Is Progress",
+    plural: "knowledge-driven games",
+    blurb: "the breakthrough is understanding",
+    icon: "i-book",
+    n: 5,
+    note: "Games about learning hidden rules, reading a world or language, and putting clues " +
+          "together: Outer Wilds, Tunic, The Witness, Animal Well, Chants of Sennaar and more. " +
+          "Includes observation-led adventures and deduction puzzles alongside pure knowledge " +
+          "gates. Matches selected titles or explicit knowledge-progression tags; a generic " +
+          "puzzle or exploration tag is not enough.",
+    match: thmKnowledge,
+    skin: "--ev-disp:Georgia,serif;--ev-size:42px;--ev-dw:700;--ev-ls:.01em;" +
+          "--ev-deco:#fcd34d;--ev-fg:#fff9e6;--ev-fg-2:#c9c4a4;--ev-edge:rgba(252,211,77,.34);" +
+          "--ev-edge-hi:rgba(252,211,77,.8);--ev-glow:rgba(252,211,77,.32);--ev-t1:#fff9e6;" +
+          "--ev-t2:#5eead4;--ev-t3:#fcd34d;--ev-on-cta:#18210a;--ev-k:#fcd34d;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(252,211,77,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(94,234,212,.2),transparent 60%)," +
+          "linear-gradient(150deg,#080f0c,#10251c 70%,#1c210d)",
+    deco: [
+      { i: "i-book", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-search", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-sparkle", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-door", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "timetrouble",
+    name: "Time Trouble",
+    plural: "time-bending games",
+    blurb: "rewind, repeat, change what happens next",
+    icon: "i-clock",
+    n: 5,
+    note: "Time loops, rewinds, and timelines that drive the game: Deathloop, Minit, Braid, " +
+          "Superhot, Ghost Trick, Radiant Historia and more. Matches selected time-driven " +
+          "adventures or an explicit IGDB time-loop tag. Generic time-travel and time-manipulation " +
+          "tags alone do not qualify, nor does an ordinary racing rewind or puzzle undo.",
+    match: thmTime,
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:.01em;" +
+          "--ev-deco:#67e8f9;--ev-fg:#ecfeff;--ev-fg-2:#a6c6cc;--ev-edge:rgba(103,232,249,.32);" +
+          "--ev-edge-hi:rgba(103,232,249,.78);--ev-glow:rgba(103,232,249,.3);--ev-t1:#ecfeff;" +
+          "--ev-t2:#f9a8d4;--ev-t3:#67e8f9;--ev-on-cta:#08212a;--ev-k:#f9a8d4;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(103,232,249,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(249,168,212,.2),transparent 60%)," +
+          "linear-gradient(150deg,#080f16,#10252b 70%,#29102a)",
+    deco: [
+      { i: "i-clock", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-refresh", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-skip-back", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-timeline", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "lostinspace",
+    name: "Lost in Space",
+    plural: "space-isolation games",
+    blurb: "far from home, beyond the familiar",
+    icon: "i-moon",
+    n: 5,
+    note: "A curated selection of unfamiliar planets, isolated crews and abandoned stations: " +
+          "Alien: Isolation, Dead Space, Prey, The Swapper, Metroid, Subnautica and more. " +
+          "Includes lonely exploration as well as survival and horror. Matches exact selected " +
+          "titles and editions; a science-fiction setting, spaceship or space-combat tag alone " +
+          "does not qualify.",
+    match: (r) => thmKnownTitle(r, THM_SPACE_TITLES),
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:.02em;" +
+          "--ev-deco:#a5b4fc;--ev-fg:#eef2ff;--ev-fg-2:#b0b9d3;--ev-edge:rgba(165,180,252,.32);" +
+          "--ev-edge-hi:rgba(165,180,252,.78);--ev-glow:rgba(165,180,252,.3);--ev-t1:#eef2ff;" +
+          "--ev-t2:#7dd3fc;--ev-t3:#a5b4fc;--ev-on-cta:#10132a;--ev-k:#7dd3fc;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(165,180,252,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(125,211,252,.14),transparent 60%)," +
+          "linear-gradient(150deg,#040712,#10152c 70%,#18112c)",
+    deco: [
+      { i: "i-moon", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-globe", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-star", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-sparkle", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "machines",
+    name: "Beautiful Machines",
+    plural: "machine-building games",
+    blurb: "build it, tune it, watch it work",
+    icon: "i-bracket",
+    n: 5,
+    note: "Factories, contraptions, circuits and programs you build and refine: Factorio, " +
+          "Satisfactory, Opus Magnum, Infinifactory, SpaceChem, Besiege and more. Matches " +
+          "selected titles or explicit factory-automation, automation-puzzle, programming-puzzle " +
+          "or engineering-puzzle tags. Generic crafting, factory settings and automation tags " +
+          "alone do not qualify.",
+    match: thmMachines,
+    skin: "--ev-disp:var(--display);--ev-size:44px;--ev-dw:800;--ev-ls:.01em;" +
+          "--ev-deco:#fdba74;--ev-fg:#fff4e8;--ev-fg-2:#d3bba2;--ev-edge:rgba(253,186,116,.34);" +
+          "--ev-edge-hi:rgba(253,186,116,.8);--ev-glow:rgba(253,186,116,.32);--ev-t1:#fff4e8;" +
+          "--ev-t2:#a3e635;--ev-t3:#fdba74;--ev-on-cta:#241606;--ev-k:#a3e635;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(253,186,116,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(163,230,53,.18),transparent 60%)," +
+          "linear-gradient(150deg,#100d07,#271d10 70%,#14200b)",
+    deco: [
+      { i: "i-bracket", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-layers", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-bolt", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-refresh", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "rhythmflow",
+    name: "Rhythm & Flow",
+    plural: "rhythm and flow games",
+    blurb: "find the beat, let movement become music",
+    icon: "i-music",
+    n: 5,
+    note: "Rhythm games and musical movement: Rez, Thumper, Hi-Fi Rush, Sayonara Wild Hearts " +
+          "and more. Uses the sheet's Rhythm genre, IGDB Music games with explicit rhythm tags, " +
+          "and selected music-driven games such as Ape Out and Tetris Effect. A good soundtrack, " +
+          "a music tag or an incidental rhythm minigame alone does not qualify; known " +
+          "miscategorizations are excluded.",
+    match: thmRhythm,
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:-.02em;" +
+          "--ev-deco:#f0abfc;--ev-fg:#fdf4ff;--ev-fg-2:#cbb4d1;--ev-edge:rgba(240,171,252,.32);" +
+          "--ev-edge-hi:rgba(240,171,252,.78);--ev-glow:rgba(240,171,252,.3);--ev-t1:#fdf4ff;" +
+          "--ev-t2:#fdba74;--ev-t3:#f0abfc;--ev-on-cta:#27102d;--ev-k:#fdba74;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(240,171,252,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(253,186,116,.18),transparent 60%)," +
+          "linear-gradient(150deg,#140b18,#29162d 70%,#28140a)",
+    deco: [
+      { i: "i-music", x: 86, y: 66, s: 46, r: 15, lift: 12 },
+      { i: "i-volume", x: 70, y: 22, s: 27, r: -12, lift: 11, d: 90 },
+      { i: "i-disc", x: 24, y: 20, s: 23, r: 22, lift: 13, d: 40 },
+      { i: "i-bolt", x: 47, y: 84, s: 19, r: -18, lift: 8, d: 200, o: .55 },
     ],
   },
   {
