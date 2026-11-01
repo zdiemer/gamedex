@@ -74,6 +74,44 @@ const THM_ZELDALIKE_TITLES = new Set([
   "oceanhorn 2: knights of the lost realm", "the swords of ditto",
   "the swords of ditto: mormo's curse", "okami", "okami hd", "ōkami", "ōkami hd",
 ]);
+// These two editorial categories cannot be inferred from "immersive", "surreal" or
+// "indie". Exact selections keep the pools about how the games play.
+const THM_IMMERSIVE_TITLES = new Set([
+  "deus ex", "deus ex: game of the year edition", "deus ex: invisible war",
+  "deus ex: human revolution", "deus ex: human revolution - director's cut",
+  "deus ex: mankind divided", "dishonored", "dishonored: definitive edition",
+  "dishonored 2", "dishonored: death of the outsider", "system shock",
+  "system shock: enhanced edition", "system shock 2", "system shock 2: 25th anniversary remaster",
+  "thief: the dark project", "thief gold", "thief ii: the metal age", "thief: deadly shadows",
+  "arx fatalis", "ultima underworld: the stygian abyss", "ultima underworld ii: labyrinth of worlds",
+  "gloomwood", "ctrl alt ego", "shadows of doubt", "cruelty squad", "weird west",
+]);
+const THM_WEIRD_TITLES = new Set([
+  "katamari damacy", "katamari damacy reroll", "we love katamari",
+  "we love katamari reroll + royal reverie", "beautiful katamari", "katamari forever",
+  "me & my katamari", "touch my katamari", "donut county", "jazzpunk", "jazzpunk: director's cut",
+  "wattam", "chuchel", "plug & play", "frog fractions", "frog fractions: game of the decade edition",
+  "pikuniku", "octodad: dadliest catch", "untitled goose game", "what the golf?",
+  "thank goodness you're here!", "later alligator", "little inferno", "trombone champ",
+  "the procession to calvary", "tiny and big: grandpa's leftovers",
+]);
+const THM_DETECTIVE_TITLES = new Set([
+  "return of the obra dinn", "the case of the golden idol", "the rise of the golden idol",
+  "paradise killer", "the forgotten city", "her story", "the roottrees are dead",
+  "disco elysium", "disco elysium: the final cut", "shadows of doubt", "l.a. noire",
+  "tangle tower", "detective grimoire: secret of the swamp", "hypnospace outlaw",
+  "the painscreek killings", "the operator", "duck detective: the secret salami",
+  "duck detective: the ghost of glamping", "the darkside detective",
+  "frog detective 1: the haunted island", "the haunted island, a frog detective game",
+  "frog detective 2: the case of the invisible wizard", "frog detective 3: corruption at cowboy county",
+  "frog detective: the entire mystery", "phoenix wright: ace attorney",
+  "phoenix wright: ace attorney - justice for all", "phoenix wright: ace attorney - trials and tribulations",
+  "phoenix wright: ace attorney - dual destinies", "phoenix wright: ace attorney - spirit of justice",
+  "phoenix wright: ace attorney trilogy", "apollo justice: ace attorney", "apollo justice: ace attorney trilogy",
+  "ace attorney investigations: miles edgeworth", "ace attorney investigations 2: prosecutor's gambit",
+  "ace attorney investigations collection", "the great ace attorney chronicles",
+  "the great ace attorney: adventures", "the great ace attorney 2: resolve",
+]);
 const thmKnownTitle = (r, titles) => [r.title, thmEn(r).name].some((title) =>
   titles.has(String(title || "").trim().toLowerCase().replace(/[’‘]/g, "'")));
 const thmWholesome = (r) => {
@@ -85,6 +123,23 @@ const thmWholesome = (r) => {
 };
 const thmZeldalike = (r) => thmAny(thmKw(r), "zelda-like", "zelda like", "zeldalike") ||
   thmKnownTitle(r, THM_ZELDALIKE_TITLES);
+const thmImmersive = (r) => {
+  if (thmKnownTitle(r, THM_IMMERSIVE_TITLES)) return true;
+  const e = thmEn(r);
+  // Arkane's Prey, not the unrelated 2006 shooter. Unknown editions fail closed.
+  return +e.igdbId === 19531 || (!e.igdbId && thmYear(r) === 2017 &&
+    String(r.title || "").trim().toLowerCase() === "prey");
+};
+const thmDetective = (r) => {
+  if (thmKnownTitle(r, THM_DETECTIVE_TITLES)) return true;
+  const k = thmKw(r), genres = thmIgdb(r, "genres");
+  // A detective character or a mystery subplot does not establish investigation gameplay.
+  if (thmAny(genres, "shooter", "fighting", "hack and slash/beat 'em up", "platform", "music")) return false;
+  if (thmAny(k, "detective investigation", "deductive reasoning")) return true;
+  return thmAny(k, "detective", "private detective") &&
+    (genres.includes("point-and-click") ||
+      (thmAny(k, "investigation", "investigations") && thmAny(genres, "puzzle", "visual novel")));
+};
 
 /* “Young” is deliberately conservative: the youngest general-audience tier from each
    ratings board, and no inference when a rating is absent. Playing together is equally
@@ -984,6 +1039,90 @@ const THEMES = [
       { i: "i-globe", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
       { i: "i-sparkle", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
       { i: "i-coin", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "immersivesims",
+    name: "Immersive Sims",
+    plural: "immersive sims",
+    blurb: "one problem, a dozen ways through",
+    icon: "i-bracket",
+    n: 5,
+    note: "A curated selection of systemic adventures: Deus Ex, Dishonored, System Shock, " +
+          "the original Thief trilogy, Ultima Underworld, Arx Fatalis, Prey (2017), " +
+          "Gloomwood, Ctrl Alt Ego, Shadows of Doubt, Cruelty Squad and Weird West. " +
+          "Matches exact selected titles and editions, not whole franchises or broad " +
+          "immersive/simulation tags. Prey needs its 2017 identity; the 2006 game is excluded.",
+    match: thmImmersive,
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:.01em;" +
+          "--ev-deco:#67e8f9;--ev-fg:#ecfeff;--ev-fg-2:#a6c6cc;--ev-edge:rgba(103,232,249,.32);" +
+          "--ev-edge-hi:rgba(103,232,249,.78);--ev-glow:rgba(103,232,249,.3);--ev-t1:#ecfeff;" +
+          "--ev-t2:#a5b4fc;--ev-t3:#67e8f9;--ev-on-cta:#08212a;--ev-k:#a5b4fc;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(103,232,249,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(165,180,252,.2),transparent 60%)," +
+          "linear-gradient(150deg,#080f16,#10252b 70%,#14172b)",
+    deco: [
+      { i: "i-bracket", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-door", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-bolt", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-layers", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "weirdlittle",
+    name: "Weird Little Games",
+    plural: "weird little games",
+    blurb: "a strange idea, taken delightfully far",
+    icon: "i-dice",
+    n: 5,
+    note: "An editorial selection of playful oddities, including selected Katamari games, " +
+          "Donut County, Jazzpunk, Wattam, Chuchel, Plug & Play, Frog Fractions, Pikuniku, " +
+          "Octodad, Untitled Goose Game, What the Golf?, Thank Goodness You're Here!, " +
+          "Later Alligator, Little Inferno, Trombone Champ, The Procession to Calvary " +
+          "and Tiny and Big. Exact selected titles and editions only; surreal, indie or " +
+          "comedy tags alone do not qualify. Little describes the spirit, not a playtime limit.",
+    match: (r) => thmKnownTitle(r, THM_WEIRD_TITLES),
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:-.02em;" +
+          "--ev-deco:#f0abfc;--ev-fg:#fdf4ff;--ev-fg-2:#cbb4d1;--ev-edge:rgba(240,171,252,.32);" +
+          "--ev-edge-hi:rgba(240,171,252,.78);--ev-glow:rgba(240,171,252,.3);--ev-t1:#fdf4ff;" +
+          "--ev-t2:#bef264;--ev-t3:#f0abfc;--ev-on-cta:#27102d;--ev-k:#f0abfc;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(240,171,252,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(190,242,100,.18),transparent 60%)," +
+          "linear-gradient(150deg,#140b18,#29162d 70%,#182414)",
+    deco: [
+      { i: "i-dice", x: 86, y: 66, s: 46, r: 15, lift: 12 },
+      { i: "i-sparkle", x: 70, y: 22, s: 27, r: -12, lift: 11, d: 90 },
+      { i: "i-globe", x: 24, y: 20, s: 23, r: 22, lift: 13, d: 40 },
+      { i: "i-star", x: 47, y: 84, s: 19, r: -18, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "detective",
+    name: "Detective Games",
+    plural: "detective games",
+    blurb: "follow the clues, question the obvious",
+    icon: "i-search",
+    n: 5,
+    note: "IGDB detective/private-detective keywords, backed by either point-and-click " +
+          "gameplay or both investigation keywords and puzzle/visual-novel gameplay. Explicit detective " +
+          "investigation or deductive reasoning also qualifies. These tag matches exclude " +
+          "shooters, fighting, hack-and-slash, platform and music games. A curated list fills " +
+          "gaps for Obra Dinn, Golden Idol, Ace Attorney, Frog Detective, Paradise Killer, " +
+          "The Forgotten City, Her Story, Disco Elysium and other investigation-led games. " +
+          "Mystery settings and detective characters alone are not enough.",
+    match: thmDetective,
+    skin: "--ev-disp:Georgia,serif;--ev-size:46px;--ev-dw:700;--ev-ls:.01em;" +
+          "--ev-deco:#fdba74;--ev-fg:#fff7ed;--ev-fg-2:#cbbba6;--ev-edge:rgba(253,186,116,.32);" +
+          "--ev-edge-hi:rgba(253,186,116,.78);--ev-glow:rgba(253,186,116,.3);--ev-t1:#fff7ed;" +
+          "--ev-t2:#fde68a;--ev-t3:#fdba74;--ev-on-cta:#281a0c;--ev-k:#fdba74;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(253,186,116,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(253,230,138,.14),transparent 60%)," +
+          "linear-gradient(150deg,#100e0b,#282018 70%,#171b20)",
+    deco: [
+      { i: "i-search", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-book", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-watch", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-pin", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
     ],
   },
   {

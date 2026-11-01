@@ -97,6 +97,50 @@ unplayable.playable = "No";
 const pool = JSON.parse(vm.runInContext("JSON.stringify(thmPool(THM_BY_ID.zeldalikes).map(r => r._k))", context));
 assert.ok(!pool.includes(tunic._k) && !pool.includes(unplayable._k),
   "new theme slates retain completed and unplayable exclusions");
-assert.equal(vm.runInContext("THEMES.length", context), 27, "theme catalog contains 27 themes");
+for (const title of ["Deus Ex", "Dishonored", "System Shock 2", "Thief II: The Metal Age"]) {
+  themeCase("immersivesims", title, {}, true, `${title} qualifies despite missing tags`);
+}
+themeCase("immersivesims", "Prey", { igdbId: 19531, year: 2017 }, true, "Arkane's Prey qualifies");
+themeCase("immersivesims", "Prey", { igdbId: 546, year: 2006 }, false, "Prey 2006 is a different game");
+themeCase("immersivesims", "Prey", { year: 2017 }, true, "a known year disambiguates Prey without an IGDB ID");
+themeCase("immersivesims", "Prey", {}, false, "an ambiguous title without a year is not guessed");
+themeCase("immersivesims", "Inkonbini", { igdbId: 294592, keywords: ["immersive sim"] }, false,
+  "a noisy immersive-sim tag does not override the editorial selection");
+themeCase("immersivesims", "Deus Ex: Unrelated Spin-off", {}, false, "franchise prefixes do not qualify");
+for (const title of ["Katamari Damacy", "Donut County", "Jazzpunk", "Thank Goodness You’re Here!"]) {
+  themeCase("weirdlittle", title, {}, true, `${title} is a curated playful oddity`);
+}
+themeCase("weirdlittle", "Sheet alias", { igdbId: 24415, name: "Jazzpunk: Director's Cut" }, true,
+  "curated editions resolve through canonical names");
+themeCase("weirdlittle", "Unrelated surreal epic", { igdbId: 20, keywords: ["surreal", "comedy"], genres: ["Indie"] }, false,
+  "surreal, comedy and indie tags alone do not imply a weird little game");
+themeCase("weirdlittle", "Donut County: Unrelated Sequel", {}, false, "weird-game selections also match exactly");
+for (const title of ["Return of the Obra Dinn", "Paradise Killer", "The Forgotten City", "Phoenix Wright: Ace Attorney Trilogy"]) {
+  themeCase("detective", title, {}, true, `${title} fills a detective metadata gap`);
+}
+themeCase("detective", "New private-eye adventure", { igdbId: 21, keywords: ["Private Detective"], genres: ["Point-and-click"] }, true,
+  "detective tags plus point-and-click gameplay qualify");
+themeCase("detective", "New investigative puzzle", { igdbId: 22, keywords: ["detective", "investigation"], genres: ["Puzzle"] }, true,
+  "detective, investigation and puzzle evidence qualify together");
+themeCase("detective", "New deduction game", { igdbId: 23, keywords: ["deductive reasoning"] }, true,
+  "an explicit deduction mechanic qualifies");
+themeCase("detective", "Batman action game", { igdbId: 24, keywords: ["detective", "investigation"], genres: ["Puzzle", "Hack and slash/Beat 'em up"] }, false,
+  "action gameplay is not admitted by detective character tags");
+themeCase("detective", "Dancing mystery spin-off", { igdbId: 25, keywords: ["detective", "investigation"], genres: ["Music"] }, false,
+  "a mystery setting does not make a music game investigative");
+themeCase("detective", "Generic mystery", { igdbId: 26, keywords: ["mystery"], genres: ["Puzzle"] }, false,
+  "mystery alone does not qualify");
+themeCase("detective", "Fallback detective", { keywords: ["detective"], genres: ["Point-and-click"] }, false,
+  "detective metadata also requires IGDB provenance");
+for (const [theme, title] of [["immersivesims", "Arx Fatalis"], ["weirdlittle", "Wattam"], ["detective", "Her Story"]]) {
+  const finished = themeCase(theme, title, {}, true, `${title} belongs to its theme`);
+  finished.completed = true;
+  const unavailable = themeCase(theme, title, {}, true, `${title} also matches before eligibility filtering`);
+  unavailable.playable = "Unknown";
+  const eligible = JSON.parse(vm.runInContext(`JSON.stringify(thmPool(THM_BY_ID.${theme}).map(r => r._k))`, context));
+  assert.ok(!eligible.includes(finished._k) && !eligible.includes(unavailable._k),
+    `${theme} excludes completed games and unknown playability from rolls`);
+}
+assert.equal(vm.runInContext("THEMES.length", context), 30, "theme catalog contains 30 themes");
 
-console.log("Discovery themes: comfort, repeat-session, cult-classic, wholesome and Zelda-like boundaries passed");
+console.log("Discovery themes: comfort, repeat-session, cult-classic, wholesome, Zelda-like, immersive, weird and detective boundaries passed");
