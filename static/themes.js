@@ -61,6 +61,31 @@ const thmKw = (r) => thmIgdb(r, "keywords");
 const thmPersp = (r) => thmIgdb(r, "perspectives");
 const thmAny = (list, ...want) => want.some((w) => list.includes(w));
 
+/* Explicit mood/genre tags are sparse even on the games that define these requests.
+   Exact titles fill known gaps; never match a loose noun or a whole franchise (which
+   would admit spin-offs). Check the IGDB name too for sheet aliases and punctuation. */
+const THM_WHOLESOME_TITLES = new Set([
+  "a short hike", "lil gator game", "toem", "toem 2", "alba: a wildlife adventure",
+  "little kitty, big city", "chicory: a colorful tale", "sable",
+]);
+const THM_ZELDALIKE_TITLES = new Set([
+  "tunic", "death's door", "hob", "ittle dew", "ittle dew 2", "ittle dew 2+",
+  "blossom tales 2: the minotaur prince", "oceanhorn: monster of uncharted seas",
+  "oceanhorn 2: knights of the lost realm", "the swords of ditto",
+  "the swords of ditto: mormo's curse", "okami", "okami hd", "ōkami", "ōkami hd",
+]);
+const thmKnownTitle = (r, titles) => [r.title, thmEn(r).name].some((title) =>
+  titles.has(String(title || "").trim().toLowerCase().replace(/[’‘]/g, "'")));
+const thmWholesome = (r) => {
+  const k = thmKw(r);
+  // Cozy horror is still horror; a cozy tag alone must not override that evidence.
+  if ([...thmIgdb(r, "themes"), ...k].some((tag) => /\bhorror\b/.test(tag))) return false;
+  return thmAny(k, "wholesome", "cozy", "cosy", "cozy adventure") ||
+    thmKnownTitle(r, THM_WHOLESOME_TITLES);
+};
+const thmZeldalike = (r) => thmAny(thmKw(r), "zelda-like", "zelda like", "zeldalike") ||
+  thmKnownTitle(r, THM_ZELDALIKE_TITLES);
+
 /* “Young” is deliberately conservative: the youngest general-audience tier from each
    ratings board, and no inference when a rating is absent. Playing together is equally
    literal. Co-Optimus must report two people on one machine, or IGDB must explicitly say
@@ -799,7 +824,7 @@ const THEMES = [
     blurb: "the keyboard is the controller",
     icon: "i-command",
     n: 3,
-    /* THE ONE PLACE THIS FILE MATCHES ON A TITLE, and it is worth saying why rather than
+    /* A BROAD TITLE MATCH, and it is worth saying why rather than
        hiding it. The Spooktober rule exists because a noun in a title is usually a coincidence
        — "space" catches Samorost, "dead" catches Dead Cells. The word "typing" is not like
        that. It was run against all 14,916 rows and caught eleven games: Typing Farmer, Keys of
@@ -905,6 +930,60 @@ const THEMES = [
       { i: "i-star", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
       { i: "i-dice", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
       { i: "i-heart", x: 58, y: 12, s: 15, r: 8, lift: 15, d: 250, o: .5 },
+    ],
+  },
+  {
+    id: "wholesome",
+    name: "Wholesome Games",
+    plural: "wholesome games",
+    blurb: "small adventures, kind hearts, your own pace",
+    icon: "i-leaf",
+    n: 5,
+    note: "IGDB's wholesome, cozy, cosy or cozy adventure keywords, plus an exact-title " +
+          "list for gaps in those tags: A Short Hike, Lil Gator Game, TOEM, TOEM 2, " +
+          "Alba: A Wildlife Adventure, Little Kitty, Big City, Chicory: A Colorful Tale " +
+          "and Sable. IGDB horror themes and keywords are excluded; cute, casual or " +
+          "family-friendly tags alone do not qualify.",
+    match: thmWholesome,
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:.01em;" +
+          "--ev-deco:#86efac;--ev-fg:#f0fdf4;--ev-fg-2:#b0cdb9;--ev-edge:rgba(134,239,172,.32);" +
+          "--ev-edge-hi:rgba(134,239,172,.78);--ev-glow:rgba(134,239,172,.3);--ev-t1:#f0fdf4;" +
+          "--ev-t2:#fde68a;--ev-t3:#86efac;--ev-on-cta:#102517;--ev-k:#fde68a;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(134,239,172,.24),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(253,230,138,.18),transparent 60%)," +
+          "linear-gradient(150deg,#09120c,#14281c 70%,#182115)",
+    deco: [
+      { i: "i-leaf", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-sun", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-heart", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-tree", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "zeldalikes",
+    name: "Zelda-likes",
+    plural: "Zelda-likes",
+    blurb: "curious paths, clever puzzles, one more dungeon",
+    icon: "i-door",
+    n: 5,
+    note: "IGDB's Zelda-like keywords, plus exact-title gaps: TUNIC, Death's Door, Hob, " +
+          "Ittle Dew, Ittle Dew 2/2+, Blossom Tales 2, Oceanhorn: Monster of Uncharted Seas, " +
+          "Oceanhorn 2, The Swords of Ditto (including Mormo's Curse) and Okami/Okami HD. " +
+          "Generic adventure, dungeon-crawler and Zelda-reference tags do not qualify; " +
+          "franchise membership alone does not include Zelda games or their spin-offs.",
+    match: thmZeldalike,
+    skin: "--ev-disp:Georgia,serif;--ev-size:48px;--ev-dw:700;--ev-ls:.02em;" +
+          "--ev-deco:#fcd34d;--ev-fg:#fff9e6;--ev-fg-2:#c9c4a4;--ev-edge:rgba(252,211,77,.34);" +
+          "--ev-edge-hi:rgba(252,211,77,.8);--ev-glow:rgba(252,211,77,.32);--ev-t1:#fff9e6;" +
+          "--ev-t2:#6ee7b7;--ev-t3:#fcd34d;--ev-on-cta:#18210a;--ev-k:#fcd34d;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(252,211,77,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(110,231,183,.2),transparent 60%)," +
+          "linear-gradient(150deg,#080f0c,#10251c 70%,#1c210d)",
+    deco: [
+      { i: "i-door", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-globe", x: 70, y: 22, s: 27, r: -7, lift: 11, d: 90 },
+      { i: "i-sparkle", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-coin", x: 47, y: 84, s: 19, r: -8, lift: 8, d: 200, o: .55 },
     ],
   },
   {

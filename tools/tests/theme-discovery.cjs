@@ -54,6 +54,49 @@ assert.equal(match("cultclassics", "cult"), true, "older, loved, lightly covered
 assert.equal(match("cultclassics", "too-famous"), false, "large audiences stay out of the cult pool");
 assert.equal(match("cultclassics", "too-reviewed"), false, "broad critic coverage stays out");
 assert.equal(match("cultclassics", "too-new"), false, "games under ten years old are not classics yet");
-assert.equal(vm.runInContext("THEMES.length", context), 25, "theme catalog contains 25 themes");
 
-console.log("Discovery themes: comfort, repeat-session, and cult-classic boundaries passed");
+function themeCase(theme, title, metadata, expected, message) {
+  const key = `new-theme-${rows.length}`;
+  rows.push({ _k: key, title, completed: false, playable: "Yes" });
+  enrichment[key] = metadata;
+  assert.equal(match(theme, key), expected, message);
+  return rows[rows.length - 1];
+}
+for (const title of ["A Short Hike", "Lil Gator Game", "TOEM"]) {
+  themeCase("wholesome", title, {}, true, `${title} qualifies even without enrichment`);
+}
+themeCase("wholesome", "Unknown gentle game", { igdbId: 8, keywords: ["Wholesome"] }, true,
+  "explicit IGDB mood tags qualify case-insensitively");
+themeCase("wholesome", "Unknown cosy game", { igdbId: 9, keywords: ["cosy"] }, true,
+  "British cozy spelling qualifies");
+themeCase("wholesome", "Cute combat", { igdbId: 10, keywords: ["cute", "casual", "family friendly"] }, false,
+  "broad cute/family tags do not imply wholesome");
+themeCase("wholesome", "Cozy horror", { igdbId: 11, keywords: ["cozy"], themes: ["Horror"] }, false,
+  "horror themes veto cozy tags");
+themeCase("wholesome", "Cozy horror keywords", { igdbId: 12, keywords: ["wholesome", "psychological horror"] }, false,
+  "horror keywords also veto wholesome tags");
+themeCase("wholesome", "Unknown fallback", { keywords: ["wholesome"] }, false,
+  "non-IGDB free text is not trusted");
+themeCase("wholesome", "A Short Hike: Unrelated Sequel", {}, false,
+  "curated titles are exact matches, not prefixes");
+const tunic = themeCase("zeldalikes", "TUNIC", {}, true, "TUNIC fills a known tag gap");
+themeCase("zeldalikes", "Death’s Door", {}, true, "curly apostrophes preserve exact title matches");
+themeCase("zeldalikes", "Sheet alias", { igdbId: 13, name: "Ōkami HD" }, true,
+  "canonical metadata names can resolve sheet aliases");
+themeCase("zeldalikes", "Unknown adventure", { igdbId: 14, keywords: ["Zelda-like"] }, true,
+  "explicit Zelda-like tags generalize beyond curated titles");
+themeCase("zeldalikes", "Super Smash Bros. Ultimate", { igdbId: 15, keywords: ["zelda", "the legend of zelda"] }, false,
+  "Zelda references do not imply Zelda-like gameplay");
+themeCase("zeldalikes", "Generic dungeon game", { igdbId: 16, genres: ["Adventure"], keywords: ["dungeon crawler"] }, false,
+  "broad adventures and dungeon crawlers stay out");
+themeCase("zeldalikes", "Unknown fallback", { keywords: ["zelda-like"] }, false,
+  "Zelda-like keywords also require IGDB provenance");
+tunic.completed = true;
+const unplayable = themeCase("zeldalikes", "Hob", {}, true, "Hob fills a known tag gap");
+unplayable.playable = "No";
+const pool = JSON.parse(vm.runInContext("JSON.stringify(thmPool(THM_BY_ID.zeldalikes).map(r => r._k))", context));
+assert.ok(!pool.includes(tunic._k) && !pool.includes(unplayable._k),
+  "new theme slates retain completed and unplayable exclusions");
+assert.equal(vm.runInContext("THEMES.length", context), 27, "theme catalog contains 27 themes");
+
+console.log("Discovery themes: comfort, repeat-session, cult-classic, wholesome and Zelda-like boundaries passed");
