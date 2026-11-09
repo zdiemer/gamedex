@@ -189,6 +189,34 @@ themeCase("rhythmflow", "Athena: Awakening from the Ordinary Life", { igdbId: 52
 const tempo = themeCase("rhythmflow", "Tempo", {}, false, "musical platforming alone does not qualify");
 tempo.genre = "Rhythm";
 assert.equal(match("rhythmflow", tempo._k), false, "audited exclusions also correct sheet miscategorizations");
+/* One-Handed is the only theme that reads the sheet's platform as well as its genre, so each
+   case sets both the way the sheet does: the row starts without either and must not match. */
+function onehandCase(title, platform, genre, metadata, expected, message) {
+  const row = themeCase("onehanded", title, metadata, false, `${title} needs a phone-reachable platform`);
+  row.platform = platform;
+  row.genre = genre;
+  assert.equal(match("onehanded", row._k), expected, message);
+}
+onehandCase("Picross DS", "Nintendo DS", "Puzzle", {}, true,
+  "a selected stylus puzzle on a system Delta emulates qualifies");
+onehandCase("Picross DS", "Nintendo Switch", "Puzzle", {}, false,
+  "the same game on a platform the phone cannot run stays out");
+onehandCase("Pokémon FireRed", "Game Boy Advance", "Turn-Based RPG", {}, true,
+  "the sheet's untimed genres qualify on an emulated handheld");
+onehandCase("Unknown turn-based RPG", "PC", "Turn-Based RPG", {}, false,
+  "an untimed genre on a PC copy is not a one-handed phone game");
+onehandCase("Mario & Luigi: Superstar Saga", "Game Boy Advance", "Turn-Based RPG", {}, false,
+  "audited timed turn-based combat stays out despite an untimed genre");
+onehandCase("Unknown DS shooter", "Nintendo DS", "Scrolling Shooter", { igdbId: 53, genres: ["Shooter"] }, false,
+  "a real-time genre needs a thumb on each side");
+onehandCase("Unknown PS1 adventure", "PlayStation", "Adventure", { igdbId: 54, genres: ["Point-and-click", "Adventure"] }, true,
+  "IGDB point-and-click with no real-time genre beside it qualifies");
+onehandCase("Unknown PS1 music novel", "PlayStation", "Adventure", { igdbId: 55, genres: ["Visual Novel", "Music"] }, false,
+  "a real-time genre beside the untimed one disqualifies");
+onehandCase("Unknown phone runner", "iOS", "Action", { igdbId: 56, keywords: ["endless runner"] }, true,
+  "one-input phone shapes qualify on their own");
+onehandCase("Unknown phone runner fallback", "iOS", "Action", { keywords: ["endless runner"] }, false,
+  "onehanded: metadata requires IGDB provenance");
 for (const [theme, keywords] of [["knowledge", ["metroidbrainia"]], ["timetrouble", ["time loop"]],
   ["machines", ["factory automation"]], ["rhythmflow", ["rhythm game"]]]) {
   themeCase(theme, "Untrusted fallback", { genres: ["Music"], keywords }, false, `${theme}: metadata requires IGDB provenance`);
@@ -203,7 +231,7 @@ for (const [theme, title] of [["immersivesims", "Arx Fatalis"], ["weirdlittle", 
   assert.ok(!eligible.includes(finished._k) && !eligible.includes(unavailable._k),
     `${theme} excludes completed games and unknown playability from rolls`);
 }
-assert.equal(vm.runInContext("THEMES.length", context), 35, "theme catalog contains 35 themes");
-assert.equal(vm.runInContext("new Set(THEMES.map(t => t.id)).size", context), 35, "theme IDs stay unique");
+assert.equal(vm.runInContext("THEMES.length", context), 36, "theme catalog contains 36 themes");
+assert.equal(vm.runInContext("new Set(THEMES.map(t => t.id)).size", context), 36, "theme IDs stay unique");
 
-console.log("Discovery themes: all 35 themes registered; matching, provenance and eligibility boundaries passed");
+console.log("Discovery themes: all 36 themes registered; matching, provenance and eligibility boundaries passed");

@@ -242,8 +242,101 @@ const THM_RHYTHM_TITLES = new Set([
 ]);
 // Audited metadata mistakes: a musical platformer and an adventure with a music minigame.
 const THM_RHYTHM_EXCLUSIONS = new Set(["tempo", "athena: awakening from the ordinary life"]);
+/* One hand on a phone is two claims at once, and the pool has to make both.
+
+   REACH. The sheet's platform is the copy you own, and most of them are not on the phone
+   at all. Delta covers Nintendo's handhelds and home consoles up to the N64, Sega's 8- and
+   16-bit machines and the PlayStation; RomM plays the rest of the ROM library in Safari
+   through EmulatorJS, minus the folders it can only stream from the Webstation container
+   (launch.js keeps that list — GameCube, Wii, PS2, Dreamcast, 3DS and friends are out).
+   Add the games that are already native (iOS) or already a web page (Browser) and that is
+   the list below. A PC, Switch or PS5 row is not a one-handed game, it is a different room.
+
+   INPUT. One thumb can only be in one place at a time, so the test is that nothing ever
+   needs two inputs at once or an input at a particular moment: the sheet's own untimed
+   genres (turn-based and tactics RPGs, visual novels, card and board games, text
+   adventures, point-and-click, hidden object), IGDB's equivalents when no real-time genre
+   sits beside them, and the one-input phone shapes — runners, match-3, idlers. The curated
+   titles are the ones no genre can reach: a stylus game whose real controller is a finger
+   (Picross, Layton, Scribblenauts, Ace Attorney), a touch-native iOS game filed under
+   Puzzle or Adventure, and the handful built for portrait thumb play (Downwell, Poinpy).
+
+   Timed turn-based combat is the one audited hole: Mario & Luigi, Paper Mario, Super Mario
+   RPG and The Legend of Dragoon all turn a menu choice into a button you have to hit on
+   the frame, which is exactly what a thumb reaching across the glass cannot do. */
+const THM_ONEHAND_PLATFORMS = new Set([
+  "ios", "browser",
+  "nes", "famicom disk system", "snes", "nintendo 64", "game boy", "game boy color",
+  "game boy advance", "nintendo ds", "nintendo dsi", "dsiware",
+  "sega genesis", "sega master system", "sega game gear", "sega sg-1000", "sega cd",
+  "sega 32x", "sega saturn", "playstation", "playstation portable", "arcade",
+  "neo-geo", "neo-geo pocket", "neo-geo pocket color", "turbografx-16", "turbografx-cd",
+  "wonderswan", "wonderswan color", "virtual boy",
+  "atari 2600", "atari 7800", "atari lynx",
+]);
+// The sheet's own genre vocabulary, which already splits untimed Puzzle from Puzzle Action.
+const THM_ONEHAND_GENRES = new Set([
+  "turn-based rpg", "strategy rpg", "turn-based tactics", "turn-based strategy", "4x",
+  "visual novel", "card game", "board game", "text adventure", "point-and-click",
+  "hidden object", "trivia", "runner",
+]);
+const THM_ONEHAND_IGDB = new Set([
+  "visual novel", "point-and-click", "card & board game", "turn-based strategy (tbs)",
+]);
+// IGDB hands a game several genres at once, and any of these means a hand on each side.
+const THM_ONEHAND_REALTIME = new Set([
+  "shooter", "platform", "fighting", "racing", "arcade", "music", "sport", "pinball",
+  "hack and slash/beat 'em up", "real time strategy (rts)",
+]);
+const THM_ONEHAND_TITLES = new Set([
+  "monument valley", "monument valley 2", "monument valley 3",
+  "the room", "the room two", "the room three", "the room: old sins",
+  "hitman go", "lara croft go", "deus ex go", "grindstone", "you must build a boat",
+  "picture cross towns", "pixel puzzle collection", "hatsune miku logic paint",
+  "layton brothers: mystery room", "a monster's expedition", "10000000", "possessions.",
+  "naya's quest", "shardlands", "spider: the secret of bryce manor",
+  "lego builder's journey", "dream of pixels", "creaks", "no-one has to die",
+  "device 6", "florence", "pilgrims", "samorost", "assemble with care", "mosaic",
+  "takeshi and hiroshi", "neo cab", "next stop nowhere", "jenny leclue: detectivu",
+  "tangle tower", "guildlings", "the collage atlas", "the get out kids", "moida mansion",
+  "twelve minutes", "pocket boss", "sweetxheart", "dragon's lair", "the act",
+  "discovery tour: medieval baghdad", "beyond a steel sky", "oxenfree ii: lost signals",
+  "frog fractions", "candy box 2", "terra nil", "the tower: assassin's creed",
+  "animal crossing: pocket camp complete", "plants vs. zombies 2",
+  "crystal defenders: vanguard storm", "ridiculous fishing", "what the golf?",
+  "game dev story", "dungeon village", "epic astro story", "grand prix story",
+  "hot springs story", "mega mall story", "oh! edo towns", "pocket league story",
+  "pocket stables", "venture towns", "cafeteria nipponica", "tv studio story",
+  "jetpack joyride", "punch quest", "super mario run", "rayman jungle run",
+  "rayman fiesta run", "downwell", "poinpy", "gibbon: beyond the trees",
+  "picross ds", "picross 3d", "picross 2", "mario's picross", "mario no super picross",
+  "picross np vol. 1", "picross np vol. 2", "picross np vol. 3", "picross np vol. 4",
+  "picross np vol. 5", "picross np vol. 6", "picross np vol. 7", "picross np vol. 8",
+  "polarium", "pac-pix", "magnetica", "soul bubbles", "peggle: dual shot",
+  "scribblenauts", "super scribblenauts", "scribblenauts remix", "it's mr. pants",
+  "nupa: numeric paint puzzle", "picture puzzle", "logic puzzle rainbow town",
+  "professor layton and the curious village", "professor layton and the diabolical box",
+  "professor layton and the unwound future", "professor layton and the last specter",
+  "hotel dusk: room 215", "last window: the secret of cape west",
+  "phoenix wright: ace attorney", "apollo justice: ace attorney",
+  "ghost trick: phantom detective",
+]);
+const THM_ONEHAND_EXCLUSIONS = new Set([
+  "mario & luigi: superstar saga", "mario & luigi: partners in time",
+  "mario & luigi: bowser's inside story", "paper mario",
+  "super mario rpg: legend of the seven stars", "the legend of dragoon",
+]);
 const thmKnownTitle = (r, titles) => [r.title, thmEn(r).name].some((title) =>
   titles.has(String(title || "").trim().toLowerCase().replace(/[’‘]/g, "'")));
+const thmOneHanded = (r) => {
+  if (!THM_ONEHAND_PLATFORMS.has(String(r.platform || "").trim().toLowerCase())) return false;
+  if (thmKnownTitle(r, THM_ONEHAND_EXCLUSIONS)) return false;
+  if (thmKnownTitle(r, THM_ONEHAND_TITLES)) return true;
+  if (THM_ONEHAND_GENRES.has(String(r.genre || "").trim().toLowerCase())) return true;
+  const genres = thmIgdb(r, "genres");
+  if (genres.some((g) => THM_ONEHAND_IGDB.has(g)) && !genres.some((g) => THM_ONEHAND_REALTIME.has(g))) return true;
+  return thmAny(thmKw(r), "endless runner", "match 3", "match three", "idle game", "clicker", "incremental");
+};
 const thmWholesome = (r) => {
   const k = thmKw(r);
   // Cozy horror is still horror; a cozy tag alone must not override that evidence.
@@ -1403,6 +1496,36 @@ const THEMES = [
       { i: "i-volume", x: 70, y: 22, s: 27, r: -12, lift: 11, d: 90 },
       { i: "i-disc", x: 24, y: 20, s: 23, r: 22, lift: 13, d: 40 },
       { i: "i-bolt", x: 47, y: 84, s: 19, r: -18, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "onehanded",
+    name: "One-Handed",
+    plural: "one-handed games",
+    blurb: "the phone in one hand, one thumb on the glass",
+    icon: "i-phone",
+    n: 5,
+    note: "Games this phone can actually run \u2014 native iOS, a Browser game, a system Delta " +
+          "emulates, or a RomM folder EmulatorJS plays in Safari (its streaming-only folders, " +
+          "PC, Switch and the modern consoles are out) \u2014 crossed with input one thumb can " +
+          "reach: the sheet's untimed genres (turn-based and tactics RPGs, visual novels, card " +
+          "and board games, text adventures, point-and-click, hidden object), IGDB's equivalents " +
+          "with no real-time genre beside them, runners, match-3 and idlers, and selected " +
+          "stylus, touch-native and portrait titles. Anything needing two inputs at once or an " +
+          "input on cue stays out, including audited timed-turn-based combat.",
+    match: thmOneHanded,
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:-.01em;" +
+          "--ev-deco:#5eead4;--ev-fg:#ecfffb;--ev-fg-2:#a7c4bf;--ev-edge:rgba(94,234,212,.32);" +
+          "--ev-edge-hi:rgba(94,234,212,.78);--ev-glow:rgba(94,234,212,.3);--ev-t1:#ecfffb;" +
+          "--ev-t2:#c4b5fd;--ev-t3:#5eead4;--ev-on-cta:#042420;--ev-k:#c4b5fd;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(94,234,212,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(196,181,253,.18),transparent 60%)," +
+          "linear-gradient(150deg,#05100e,#0c2420 70%,#161231)",
+    deco: [
+      { i: "i-phone", x: 86, y: 66, s: 46, r: -4, lift: 12 },
+      { i: "i-target", x: 70, y: 22, s: 25, r: 8, lift: 11, d: 90 },
+      { i: "i-cartridge", x: 24, y: 20, s: 23, r: -10, lift: 13, d: 40 },
+      { i: "i-web", x: 47, y: 84, s: 19, r: 6, lift: 8, d: 200, o: .5 },
     ],
   },
   {
