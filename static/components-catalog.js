@@ -1896,7 +1896,7 @@ const COMPONENT_SOURCES = [
     "name": "thmLandingRender",
     "symbol": "thmLandingRender",
     "file": "components/events/themes.js",
-    "line": 271,
+    "line": 270,
     "category": "Events & themes",
     "tab": "events"
   },

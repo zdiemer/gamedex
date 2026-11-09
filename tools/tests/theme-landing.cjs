@@ -19,7 +19,10 @@ const rows = [
   { _k: "open", title: "Unfinished Sneaker", platform: "PC", genre: "Stealth Action", completed: false, playable: "Yes" },
 ];
 const storage = new Map([["gamedex.events", JSON.stringify({ v: 1, ev: { themes: {
-  open: "cyberpunk", runs: { stealth: { n: 2, slate: ["mid", null], pinned: [], rolls: 1, started: "2026-06-01" } },
+  open: "cyberpunk", runs: {
+    stealth: { n: 4, slate: ["mid", "old", "open", null], pinned: [], rolls: 1, started: "2026-06-01" },
+    cyberpunk: { n: 3, slate: ["mid", "undated", "plain"], pinned: [], rolls: 1, started: "2026-06-01" },
+  },
 } } })]]);
 const context = vm.createContext({
   TAB_RESET: {}, activeTab: "other", IS_ADMIN: true, URLSearchParams,
@@ -33,12 +36,13 @@ vm.runInContext(read("events.js"), context);
 vm.runInContext(read("themes.js"), context);
 
 const recent = JSON.parse(vm.runInContext(`JSON.stringify(thmRecentFinished().map((x) =>
-  ({ k: x.row._k, from: x.from, first: x.themes[0].id })))`, context));
-assert.deepEqual(recent.map((x) => x.k), ["new", "dup-a", "mid", "old"],
-  "newest first; unthemed, undated, unfinished and repeat titles are left out");
-assert.equal(recent.find((x) => x.k === "mid").from, "stealth", "a game rolled onto a slate is marked");
-assert.equal(recent.find((x) => x.k === "mid").first, "stealth", "the slate it came off is its first theme");
-assert.equal(recent.find((x) => x.k === "new").from, null, "a game never slated still counts toward its theme");
+  ({ k: x.row._k, themes: x.themes.map((t) => t.id) })))`, context));
+assert.deepEqual(recent.map((x) => x.k), ["plain", "mid", "old", "undated"],
+  "only finished slate games, newest first and undated last; unslated and unfinished games stay out");
+assert.deepEqual(recent.find((x) => x.k === "mid").themes, ["cyberpunk", "stealth"],
+  "a game on several slates lists each of those themes");
+assert.deepEqual(recent.find((x) => x.k === "plain").themes, ["cyberpunk"],
+  "the slate is the theme, even when the game would not match it today");
 assert.equal(vm.runInContext("thmRecentFinished(2).length", context), 2, "the list honours its limit");
 
 const urlFor = (id) => vm.runInContext(`(() => { THM_VIEW.id = ${JSON.stringify(id)};
@@ -60,4 +64,4 @@ assert.equal(vm.runInContext("evName(EV.byId.themes)", context), "Giant Robots",
 vm.runInContext("THM_VIEW.id = null", context);
 assert.equal(vm.runInContext("evName(EV.byId.themes)", context), "Themes", "the landing page is titled Themes");
 
-console.log("Theme landing: recent finishes, slate marking, URL view state, reset and banner entry passed");
+console.log("Theme landing: slate-only recent finishes, URL view state, reset and banner entry passed");

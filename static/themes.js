@@ -2054,35 +2054,30 @@ function thmGo(id) {
   if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0);
 }
 
-/* Recently finished, across every theme. A finished game counts toward each theme that
-   matches it — the same predicate its pool used — whether or not it was ever rolled onto a
-   slate, because finishing a cyberpunk game is finishing a cyberpunk game. The slates are
-   marked anyway: a game you rolled and then played is the page doing its job. Newest
-   completion date first; rows without one have no place in a "recent" list. */
+/* Recently finished, off your slates. Only games you rolled or picked onto a slate count:
+   this is the page's own record of what it got you to play, not the sheet's completion log
+   with theme labels on it. A game on several slates lists each of those themes. Newest
+   completion date first; a finished slate game with no date still belongs, so it goes last
+   rather than missing. A game finished before it was slated would show up too — a pick by
+   hand can do that, and it is still on the slate. */
 const THM_RECENT_MAX = 12;
 function thmRecentFinished(limit = THM_RECENT_MAX) {
   const slated = new Map();
-  for (const [id, run] of Object.entries(thmState().runs)) {
-    if (!THM_BY_ID[id] || !Array.isArray(run.slate)) continue;
-    for (const k of run.slate) if (k && !slated.has(k)) slated.set(k, id);
+  for (const t of THEMES) {
+    const run = thmState().runs[t.id];
+    if (!run || !Array.isArray(run.slate)) continue;
+    for (const k of run.slate) {
+      if (!k) continue;
+      if (!slated.has(k)) slated.set(k, []);
+      slated.get(k).push(t);
+    }
   }
-  const done = evRows()
-    .filter((r) => r.title && r.completed && /^\d{4}-\d{2}-\d{2}$/.test(String(r.dateCompleted || "")))
-    .sort((a, b) => String(b.dateCompleted).localeCompare(String(a.dateCompleted)));
-  const out = [], seen = new Set();
-  for (const row of done) {
-    if (out.length >= limit) break;
-    const title = String(row.title).trim().toLowerCase();
-    if (seen.has(title)) continue;
-    const themes = THEMES.filter((t) => t.match(row));
-    if (!themes.length) continue;
-    seen.add(title);
-    const from = slated.get(evKey(row));
-    // The slate it came off leads the list, so the first link is the one that rolled it.
-    if (from) themes.sort((a, b) => (b.id === from) - (a.id === from));
-    out.push({ row, themes, from: from || null });
-  }
-  return out;
+  const date = (r) => (/^\d{4}-\d{2}-\d{2}$/.test(String(r.dateCompleted || "")) ? r.dateCompleted : "");
+  return [...slated.entries()]
+    .map(([key, themes]) => ({ row: evRow(key), themes }))
+    .filter(({ row }) => row && row.completed)
+    .sort((a, b) => date(b.row).localeCompare(date(a.row)))
+    .slice(0, limit);
 }
 const THM_SYNC_MS = 15000;
 let THM_SYNC_TIMER = null;
@@ -2126,8 +2121,8 @@ const THM_HOME_SKIN = "--ev-disp:var(--display);--ev-size:44px;--ev-dw:800;--ev-
   "radial-gradient(85% 125% at 6% -16%,rgba(94,234,212,.14),transparent 60%)," +
   "linear-gradient(150deg,#07060d,#0d0a18 70%,#0a0a16)";
 const THM_HOME_DECO = [
-  { i: "i-theme", x: 86, y: 66, s: 46, lift: 12 },
-  { i: "i-grid", x: 92, y: 26, s: 25, r: -8, lift: 11, d: 90 },
+  { i: "i-theme", x: 88, y: 82, s: 42, lift: 12 },
+  { i: "i-grid", x: 92, y: 24, s: 25, r: -8, lift: 11, d: 90 },
   { i: "i-dice", x: 72, y: 88, s: 22, r: 10, lift: 13, d: 40 },
   { i: "i-check", x: 47, y: 84, s: 18, r: -6, lift: 8, d: 200, o: .5 },
 ];

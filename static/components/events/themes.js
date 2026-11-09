@@ -250,17 +250,16 @@ function thmRender(host) {
    you have a slate going in come first, because that is the likeliest reason you came. */
 function thmRecentHtml(recent) {
   if (!recent.length) {
-    return emptyState("Nothing finished yet",
-      "When the sheet marks a game completed and it fits a theme, it shows up here.");
+    return emptyState("Nothing finished off a slate yet",
+      "Roll a slate, play one, and mark it completed on the sheet — it shows up here.");
   }
-  return `<div class="ev-mantel thm-mantel">${recent.map(({ row, themes, from }) => {
+  return `<div class="ev-mantel thm-mantel">${recent.map(({ row, themes }) => {
     const shown = themes.slice(0, 3);
     const more = themes.length - shown.length;
     // Not .done: that class fades a finished game against the unfinished ones on a slate,
     // and on a list that is all finished games it would only fade the whole list.
     return `<div class="ev-slot thm-slot">
-      ${evTileHtml(row, { sub: `${row.platform || ""} · ${fmtDate(row.dateCompleted)}` })}
-      ${from ? `<span class="thm-done-tag">${icon("i-check", 12)} From your slate</span>` : ""}
+      ${evTileHtml(row, { sub: [row.platform, fmtDate(row.dateCompleted)].filter(Boolean).join(" · ") })}
       <p class="thm-recent-themes">${shown.map((t) =>
         `<button class="linkbtn" type="button" data-thmgo="${t.id}">${escapeHtml(t.name)}</button>`).join("")}${
         more > 0 ? `<span>+${more} more</span>` : ""}</p>
@@ -272,9 +271,10 @@ function thmLandingRender(host) {
   const ev = EV.byId.themes;
   const runs = thmState().runs;
   const going = THEMES.filter((t) => runs[t.id] && thmActive(thmRun(t)));
-  const finished = going.reduce((n, t) => n + thmDoneCount(thmRun(t)), 0);
   const current = thmTheme();
   const recent = thmRecentFinished();
+  // Distinct games: one game on two slates is one game finished, as the list below shows it.
+  const finished = thmRecentFinished(Infinity).length;
 
   // The registry entry still carries whichever theme was open last; the landing page wears
   // the tab's own skin, so hand the hero a copy rather than repainting the entry.
@@ -299,7 +299,7 @@ function thmLandingRender(host) {
     </section>` : ""}
     <section class="ev-panel wide">
       <h3>Recently finished</h3>
-      <p class="ev-p">The latest games the sheet marks completed, and the themes each one counts toward.</p>
+      <p class="ev-p">The latest games off your slates that the sheet marks completed, and the slate each came from.</p>
       ${thmRecentHtml(recent)}
     </section>
     <section class="ev-panel wide">
