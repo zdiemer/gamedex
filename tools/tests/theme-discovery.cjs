@@ -217,6 +217,44 @@ onehandCase("Unknown phone runner", "iOS", "Action", { igdbId: 56, keywords: ["e
   "one-input phone shapes qualify on their own");
 onehandCase("Unknown phone runner fallback", "iOS", "Action", { keywords: ["endless runner"] }, false,
   "onehanded: metadata requires IGDB provenance");
+/* Stealth, management, giant robots and FMV: each trusts a specific signal and refuses the
+   generic tag that only says a game contains the thing somewhere. */
+function sheetGenreCase(theme, title, genre, metadata, expected, message) {
+  const row = themeCase(theme, title, metadata, false, `${title} needs evidence beyond its title`);
+  row.genre = genre;
+  assert.equal(match(theme, row._k), expected, message);
+}
+themeCase("stealth", "Mark of the Ninja", {}, true, "a selected stealth game qualifies without metadata");
+sheetGenreCase("stealth", "Unknown sneaker", "Stealth Action", {}, true, "the sheet's Stealth Action genre qualifies");
+sheetGenreCase("stealth", "Unknown commando squad", "Real-Time Tactics", { igdbId: 60, themes: ["Stealth"] }, true,
+  "IGDB stealth on a tactics game qualifies");
+sheetGenreCase("stealth", "Metro-like shooter", "First-Person Shooter", { igdbId: 61, themes: ["Stealth", "Action"] }, false,
+  "IGDB's stealth theme alone marks too many shooters");
+sheetGenreCase("buildmanage", "Unknown city", "Simulation", { igdbId: 62, keywords: ["City Builder"] }, true,
+  "a simulation with a city-builder tag qualifies");
+sheetGenreCase("buildmanage", "Unknown empire", "Real-Time Strategy", { igdbId: 63, keywords: ["management"] }, false,
+  "a strategy game's management tag is not a management sim");
+sheetGenreCase("buildmanage", "Harvest Moon: Somewhere", "Simulation", { igdbId: 64, keywords: ["management"], franchises: ["Harvest Moon"] }, false,
+  "farm life-sim series stay out despite a management tag");
+sheetGenreCase("buildmanage", "Unknown shop fallback", "Simulation", { keywords: ["management"] }, false,
+  "buildmanage: metadata requires IGDB provenance");
+themeCase("giantrobots", "Armored Core VI: Fires of Rubicon", {}, true, "an untagged mecha series is selected by exact title");
+themeCase("giantrobots", "Unknown mobile suit game", { igdbId: 65, franchises: ["Gundam"] }, true,
+  "mecha-by-definition franchises qualify");
+themeCase("giantrobots", "Unknown robot fighter", { igdbId: 66, keywords: ["Mecha"] }, true, "IGDB's mecha keyword qualifies");
+themeCase("giantrobots", "Unknown robot platformer", { igdbId: 67, keywords: ["robots", "mech"] }, false,
+  "generic robot tags do not establish piloted mecha");
+themeCase("giantrobots", "Unknown Evangelion sim", { igdbId: 68, franchises: ["Neon Genesis Evangelion"] }, false,
+  "Evangelion's franchise is not mecha by definition");
+sheetGenreCase("fullmotion", "Unknown FMV thriller", "FMV", {}, true, "the sheet's FMV genre qualifies");
+sheetGenreCase("fullmotion", "Unknown filmed mystery", "Adventure", { igdbId: 69, keywords: ["Full Motion Video"] }, true,
+  "FMV tags on an adventure qualify");
+sheetGenreCase("fullmotion", "Unknown RTS with actors", "Real-Time Strategy", { igdbId: 70, keywords: ["full motion video"] }, false,
+  "FMV tags on a game not built from footage do not qualify");
+sheetGenreCase("fullmotion", "Unknown cutscene adventure", "Adventure", { igdbId: 71, keywords: ["live-action cutscene"] }, false,
+  "a live-action cutscene alone does not qualify");
+sheetGenreCase("fullmotion", "Child of Eden", "Rail Shooter", { igdbId: 72, keywords: ["full motion video"] }, false,
+  "audited CG-video misses stay out");
 for (const [theme, keywords] of [["knowledge", ["metroidbrainia"]], ["timetrouble", ["time loop"]],
   ["machines", ["factory automation"]], ["rhythmflow", ["rhythm game"]]]) {
   themeCase(theme, "Untrusted fallback", { genres: ["Music"], keywords }, false, `${theme}: metadata requires IGDB provenance`);
@@ -231,7 +269,7 @@ for (const [theme, title] of [["immersivesims", "Arx Fatalis"], ["weirdlittle", 
   assert.ok(!eligible.includes(finished._k) && !eligible.includes(unavailable._k),
     `${theme} excludes completed games and unknown playability from rolls`);
 }
-assert.equal(vm.runInContext("THEMES.length", context), 36, "theme catalog contains 36 themes");
-assert.equal(vm.runInContext("new Set(THEMES.map(t => t.id)).size", context), 36, "theme IDs stay unique");
+assert.equal(vm.runInContext("THEMES.length", context), 40, "theme catalog contains 40 themes");
+assert.equal(vm.runInContext("new Set(THEMES.map(t => t.id)).size", context), 40, "theme IDs stay unique");
 
-console.log("Discovery themes: all 36 themes registered; matching, provenance and eligibility boundaries passed");
+console.log("Discovery themes: all 40 themes registered; matching, provenance and eligibility boundaries passed");

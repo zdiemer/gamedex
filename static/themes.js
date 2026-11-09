@@ -326,6 +326,57 @@ const THM_ONEHAND_EXCLUSIONS = new Set([
   "mario & luigi: bowser's inside story", "paper mario",
   "super mario rpg: legend of the seven stars", "the legend of dragoon",
 ]);
+/* Four more by what you DO for most of the game, each with the same refusal as the rest:
+   a stealth section, a shop menu, one robot boss or a live-action cutscene is a game that
+   contains the thing, not a game that is the thing.
+
+   Stealth trusts the sheet's own Stealth Action genre; IGDB's stealth theme is far too
+   generous on its own (it tags Metro 2033 and Mafia II), so it only counts on a tactics
+   game, where it means Commandos rather than one optional sneaking level. */
+const THM_STEALTH_TACTICS = new Set(["real-time tactics", "turn-based tactics"]);
+const THM_STEALTH_TITLES = new Set([
+  "mark of the ninja", "mark of the ninja: remastered", "invisible, inc.", "gunpoint",
+  "monaco: what's yours is mine", "heat signature", "republique", "hitman go",
+  "desperados iii", "shadow gambit: the cursed crew", "commandos: behind enemy lines",
+  "commandos 2: men of courage", "tenchu 2: birth of the stealth assassins",
+]);
+/* Management is the sheet's Simulation genre AND a running-the-place signal from IGDB.
+   The farm-and-village life sims carry the same management tag for their shipping bin, so
+   their series are set aside: there the business is the backdrop, not the game. */
+const THM_MANAGE_KEYWORDS = ["management", "city builder", "tycoon", "colony simulator",
+  "base management", "store management", "dungeon management"];
+const THM_MANAGE_LIFE_SIMS = ["harvest moon", "story of seasons", "rune factory", "animal crossing"];
+const THM_MANAGE_EXCLUSIONS = new Set(["stardew valley", "my time at portia", "snowrunner"]);
+/* Giant robots: IGDB's mecha keyword, the franchises that are mecha by definition (every
+   Gundam game pilots a mobile suit; every BattleTech one a 'Mech), and exact titles for
+   the series IGDB leaves untagged. Evangelion is not on the franchise list — half of its
+   games are dating sims about the pilots. */
+const THM_MECHA_FRANCHISES = ["gundam", "sd gundam", "super robot wars", "battletech",
+  "front mission", "macross", "zoids", "zone of the enders"];
+const THM_MECHA_TITLES = new Set([
+  "armored core", "armored core: project phantasma", "armored core: master of arena",
+  "armored core 2", "armored core 2: another age", "armored core 3", "silent line: armored core",
+  "armored core: nexus", "armored core: nine breaker", "armored core: formula front",
+  "armored core: last raven", "armored core 4", "armored core: for answer", "armored core v",
+  "armored core: verdict day", "armored core vi: fires of rubicon",
+  "titanfall", "titanfall 2", "steel battalion", "steel battalion: line of contact",
+  "steel battalion: heavy armor", "gungriffon", "gungriffon ii", "gungriffon blaze",
+  "virtual on: cyber troopers", "cyberbots: full metal madness", "tech romancer",
+  "daemon x machina", "brigador: up-armored edition", "carnage heart", "carnage heart exa",
+  "ring of red", "metal wolf chaos", "hardcore mecha", "assault suits valken 2",
+  "armored hunter gunhound ex", "rigs: mechanized combat league", "murakumo: renegade mech pursuit",
+  "mechassault", "mechassault 2: lone wolf", "mechwarrior 4: vengeance", "mechwarrior 4: mercenaries",
+  "mechcommander", "mechcommander 2", "mech platoon", "mechstermination force",
+]);
+/* FMV: the sheet's FMV genre, or IGDB's full-motion-video tags on the kinds of game that
+   are built out of footage (adventure, rail shooter, puzzle, visual novel). A live-action
+   cutscene tag does not count, and the audited misses are games whose "video" is a CG
+   backdrop or anime. */
+const THM_FMV_GENRES = new Set(["adventure", "rail shooter", "puzzle", "visual novel", "fmv"]);
+const THM_FMV_EXCLUSIONS = new Set([
+  "child of eden", "fantavision", "resident evil: the darkside chronicles", "steins;gate elite",
+  "dispatch",
+]);
 const thmKnownTitle = (r, titles) => [r.title, thmEn(r).name].some((title) =>
   titles.has(String(title || "").trim().toLowerCase().replace(/[’‘]/g, "'")));
 const thmOneHanded = (r) => {
@@ -336,6 +387,25 @@ const thmOneHanded = (r) => {
   const genres = thmIgdb(r, "genres");
   if (genres.some((g) => THM_ONEHAND_IGDB.has(g)) && !genres.some((g) => THM_ONEHAND_REALTIME.has(g))) return true;
   return thmAny(thmKw(r), "endless runner", "match 3", "match three", "idle game", "clicker", "incremental");
+};
+const thmStealth = (r) => {
+  const genre = String(r.genre || "").trim().toLowerCase();
+  return genre === "stealth action" || thmKnownTitle(r, THM_STEALTH_TITLES) ||
+    (THM_STEALTH_TACTICS.has(genre) && thmIgdb(r, "themes").includes("stealth"));
+};
+const thmManage = (r) => {
+  if (String(r.genre || "").trim().toLowerCase() !== "simulation") return false;
+  if (thmKnownTitle(r, THM_MANAGE_EXCLUSIONS) ||
+      thmIgdb(r, "franchises").some((f) => THM_MANAGE_LIFE_SIMS.includes(f))) return false;
+  return thmAny(thmKw(r), ...THM_MANAGE_KEYWORDS) || thmIgdb(r, "themes").includes("business");
+};
+const thmMecha = (r) => thmKnownTitle(r, THM_MECHA_TITLES) || thmKw(r).includes("mecha") ||
+  thmIgdb(r, "franchises").some((f) => THM_MECHA_FRANCHISES.includes(f));
+const thmFmv = (r) => {
+  if (thmKnownTitle(r, THM_FMV_EXCLUSIONS)) return false;
+  const genre = String(r.genre || "").trim().toLowerCase();
+  return genre === "fmv" ||
+    (THM_FMV_GENRES.has(genre) && thmAny(thmKw(r), "full motion video", "fmv", "live action"));
 };
 const thmWholesome = (r) => {
   const k = thmKw(r);
@@ -1505,9 +1575,9 @@ const THEMES = [
     blurb: "the phone in one hand, one thumb on the glass",
     icon: "i-phone",
     n: 5,
-    note: "Games this phone can actually run \u2014 native iOS, a Browser game, a system Delta " +
+    note: "Games this phone can actually run — native iOS, a Browser game, a system Delta " +
           "emulates, or a RomM folder EmulatorJS plays in Safari (its streaming-only folders, " +
-          "PC, Switch and the modern consoles are out) \u2014 crossed with input one thumb can " +
+          "PC, Switch and the modern consoles are out) — crossed with input one thumb can " +
           "reach: the sheet's untimed genres (turn-based and tactics RPGs, visual novels, card " +
           "and board games, text adventures, point-and-click, hidden object), IGDB's equivalents " +
           "with no real-time genre beside them, runners, match-3 and idlers, and selected " +
@@ -1526,6 +1596,112 @@ const THEMES = [
       { i: "i-target", x: 70, y: 22, s: 25, r: 8, lift: 11, d: 90 },
       { i: "i-cartridge", x: 24, y: 20, s: 23, r: -10, lift: 13, d: 40 },
       { i: "i-web", x: 47, y: 84, s: 19, r: 6, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
+    id: "stealth",
+    name: "Unseen",
+    plural: "stealth games",
+    blurb: "nobody saw a thing",
+    icon: "i-eye",
+    n: 5,
+    note: "The sheet's Stealth Action genre — Metal Gear, Splinter Cell, Hitman, Thief, Tenchu " +
+          "— plus tactics games IGDB files under stealth (Commandos, Shadow Tactics) and selected " +
+          "sneaking games filed elsewhere, like Mark of the Ninja, Invisible, Inc. and Gunpoint. " +
+          "IGDB's stealth theme alone does not qualify: it marks any game with a sneaking level.",
+    match: thmStealth,
+    skin: "--ev-disp:var(--display);--ev-size:46px;--ev-dw:800;--ev-ls:.04em;" +
+          "--ev-deco:#cbd5e1;--ev-fg:#f1f5f9;--ev-fg-2:#a0abb9;--ev-edge:rgba(203,213,225,.32);" +
+          "--ev-edge-hi:rgba(203,213,225,.78);--ev-glow:rgba(203,213,225,.3);--ev-t1:#f1f5f9;" +
+          "--ev-t2:#86efac;--ev-t3:#cbd5e1;--ev-on-cta:#0b1220;--ev-k:#86efac;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(203,213,225,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(134,239,172,.18),transparent 60%)," +
+          "linear-gradient(150deg,#03060a,#0b1322 70%,#08140f)",
+    deco: [
+      { i: "i-eye", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-moon", x: 70, y: 22, s: 26, r: -8, lift: 11, d: 90 },
+      { i: "i-lock", x: 24, y: 20, s: 22, r: 10, lift: 13, d: 40 },
+      { i: "i-door", x: 47, y: 84, s: 19, r: -6, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
+    id: "buildmanage",
+    name: "Build & Manage",
+    plural: "management sims",
+    blurb: "run the place, grow the numbers",
+    icon: "i-trend",
+    n: 5,
+    note: "Simulation games about running something — a city, a colony, a shop, a studio, a " +
+          "dungeon: Cities: Skylines, Two Point, Kairosoft, Prison Architect and more. Needs the " +
+          "sheet's Simulation genre plus an IGDB management, city-builder, tycoon or colony tag or " +
+          "business theme. Farm and village life sims (Harvest Moon, Story of Seasons, Rune " +
+          "Factory, Animal Crossing, Stardew) are left out: their shop is backdrop, not the game.",
+    match: thmManage,
+    skin: "--ev-disp:var(--display);--ev-size:44px;--ev-dw:800;--ev-ls:.01em;" +
+          "--ev-deco:#fde047;--ev-fg:#fefce8;--ev-fg-2:#cfc9a2;--ev-edge:rgba(253,224,71,.32);" +
+          "--ev-edge-hi:rgba(253,224,71,.78);--ev-glow:rgba(253,224,71,.3);--ev-t1:#fefce8;" +
+          "--ev-t2:#60a5fa;--ev-t3:#fde047;--ev-on-cta:#221d03;--ev-k:#60a5fa;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(253,224,71,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(96,165,250,.18),transparent 60%)," +
+          "linear-gradient(150deg,#0c0b05,#1f1c0b 70%,#0b1527)",
+    deco: [
+      { i: "i-trend", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-coin", x: 70, y: 22, s: 26, r: -8, lift: 11, d: 90 },
+      { i: "i-home", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-stats", x: 47, y: 84, s: 19, r: -6, lift: 8, d: 200, o: .55 },
+    ],
+  },
+  {
+    id: "giantrobots",
+    name: "Giant Robots",
+    plural: "giant-robot games",
+    blurb: "get in the robot",
+    icon: "i-robot",
+    n: 5,
+    note: "Games where you pilot, build or command mecha: Armored Core, MechWarrior, Front Mission, " +
+          "Gundam, Super Robot Wars, Zone of the Enders, Titanfall and more. Matches IGDB's mecha " +
+          "keyword, the Gundam, Super Robot Wars, BattleTech, Front Mission, Macross, Zoids and " +
+          "Zone of the Enders franchises, and selected series IGDB leaves untagged. A robot enemy " +
+          "or a generic robot tag does not qualify; Evangelion's dating sims are out.",
+    match: thmMecha,
+    skin: "--ev-disp:'Big Shoulders Display',var(--display);--ev-size:54px;--ev-dw:800;--ev-ls:.03em;" +
+          "--ev-deco:#f97316;--ev-fg:#fff3ea;--ev-fg-2:#cdb3a1;--ev-edge:rgba(249,115,22,.32);" +
+          "--ev-edge-hi:rgba(249,115,22,.78);--ev-glow:rgba(249,115,22,.3);--ev-t1:#fff3ea;" +
+          "--ev-t2:#e2e8f0;--ev-t3:#f97316;--ev-on-cta:#2a1203;--ev-k:#e2e8f0;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(249,115,22,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(226,232,240,.18),transparent 60%)," +
+          "linear-gradient(150deg,#0d0906,#24170d 70%,#121722)",
+    deco: [
+      { i: "i-robot", x: 86, y: 66, s: 46, r: -4, lift: 12 },
+      { i: "i-bolt", x: 70, y: 22, s: 26, r: -10, lift: 11, d: 90 },
+      { i: "i-target", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-server", x: 47, y: 84, s: 18, r: -6, lift: 8, d: 200, o: .5 },
+    ],
+  },
+  {
+    id: "fullmotion",
+    name: "Full Motion Video",
+    plural: "FMV games",
+    blurb: "real actors, real footage, real cheese",
+    icon: "i-play",
+    n: 5,
+    note: "Games built out of filmed footage: Night Trap, The 7th Guest, Phantasmagoria, Tex Murphy, " +
+          "Her Story, Late Shift and more. The sheet's FMV genre, or IGDB's full-motion-video tags on " +
+          "an adventure, rail shooter, puzzle or visual novel. A live-action cutscene does not " +
+          "qualify, and games whose \"video\" is CG or anime are audited out.",
+    match: thmFmv,
+    skin: "--ev-disp:Georgia,serif;--ev-size:44px;--ev-dw:700;--ev-ls:.01em;" +
+          "--ev-deco:#f43f5e;--ev-fg:#fff1f3;--ev-fg-2:#d1a9b1;--ev-edge:rgba(244,63,94,.32);" +
+          "--ev-edge-hi:rgba(244,63,94,.78);--ev-glow:rgba(244,63,94,.3);--ev-t1:#fff1f3;" +
+          "--ev-t2:#fcd34d;--ev-t3:#f43f5e;--ev-on-cta:#2a0610;--ev-k:#fcd34d;" +
+          "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(244,63,94,.22),transparent 56%)," +
+          "radial-gradient(85% 125% at 6% -16%,rgba(252,211,77,.18),transparent 60%)," +
+          "linear-gradient(150deg,#0e0507,#22090f 70%,#1d1608)",
+    deco: [
+      { i: "i-play", x: 86, y: 66, s: 46, lift: 12 },
+      { i: "i-disc", x: 70, y: 22, s: 26, r: -8, lift: 11, d: 90 },
+      { i: "i-crt", x: 24, y: 20, s: 23, r: 8, lift: 13, d: 40 },
+      { i: "i-star", x: 47, y: 84, s: 18, r: -6, lift: 8, d: 200, o: .5 },
     ],
   },
   {
