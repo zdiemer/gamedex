@@ -1907,7 +1907,7 @@ const COMPONENT_SOURCES = [
     "name": "thmBannerHtml",
     "symbol": "thmBannerHtml",
     "file": "components/events/themes.js",
-    "line": 334,
+    "line": 337,
     "category": "Events & themes",
     "tab": "events"
   },

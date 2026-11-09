@@ -1921,6 +1921,15 @@ const thmActive = (run) => thmFilled(run) > 0;
 
 const thmPinned = (run, key) => !!key && run.pinned.includes(key);
 
+/* Under way, which is not the same as rolled. A roll costs one tap and people roll themes to
+   see what is in them, so "has a slate" ends up true of nearly every theme. A slate is under
+   way once you have started (the sheet's Date Started) or finished one of its games, and
+   until all of them are finished. Like completion, it is read off the sheet, never stored. */
+const thmUnderWay = (run) => !thmComplete(run) && run.slate.some((k) => {
+  const r = k ? evRow(k) : null;
+  return !!(r && (r.completed || r.dateStarted));
+});
+
 /* A roll fills every slot that is not pinned and not already done. Pinned and done are the
    two kinds of "I have decided about this one", and a dice button that could throw either
    away would be a dice button nobody presses twice. */

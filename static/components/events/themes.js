@@ -279,7 +279,7 @@ function thmRecentHtml(recent) {
 function thmLandingRender(host) {
   const ev = EV.byId.themes;
   const runs = thmState().runs;
-  const going = THEMES.filter((t) => runs[t.id] && thmActive(thmRun(t)));
+  const going = THEMES.filter((t) => runs[t.id] && thmUnderWay(thmRun(t)));
   const current = thmTheme();
   const recent = thmRecentFinished();
   // Distinct games: one game on two slates is one game finished, as the list below shows it.
@@ -293,10 +293,12 @@ function thmLandingRender(host) {
     title: () => "Themes",
     eyebrow: () => "Themes · no season, no deadline",
     pitch: () => `${THEMES.length} themes, each a pool from the sheet you can roll into a slate. ${
-      going.length ? `${evPlural(going.length, "slate", "slates")} going, ${finished} finished off them.`
+      going.length ? `${evPlural(going.length, "slate", "slates")} under way${
+        finished ? `, ${finished} finished off them` : ""}.`
+        : finished ? `${evPlural(finished, "game", "games")} finished off your slates so far.`
         : "Pick one and roll."}`,
   }, {
-    acts: going.some((t) => t.id === current.id)
+    acts: runs[current.id] && thmActive(thmRun(current))
       ? buttonHtml(`Back to ${current.name}`, { id: "thmResume" }) : "",
   });
 
@@ -304,6 +306,7 @@ function thmLandingRender(host) {
   host.innerHTML = hero + `<div class="ev-wrap thm-landing">
     ${going.length ? `<section class="ev-panel wide">
       <h3>In progress · ${evPlural(going.length, "slate", "slates")}</h3>
+      <p class="ev-p">Slates with a game you have started or finished on the sheet.</p>
       <div class="thm-library">${going.map((t) => thmChoiceHtml(t)).join("")}</div>
     </section>` : ""}
     <section class="ev-panel wide">

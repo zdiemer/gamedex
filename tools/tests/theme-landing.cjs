@@ -45,6 +45,19 @@ assert.deepEqual(recent.find((x) => x.k === "plain").themes, ["cyberpunk"],
   "the slate is the theme, even when the game would not match it today");
 assert.equal(vm.runInContext("thmRecentFinished(2).length", context), 2, "the list honours its limit");
 
+/* Under way means started or finished on the sheet, not merely rolled: rolling is how you
+   look inside a theme, so a slate alone says nothing about what you are playing. */
+// A new array, as a data reload delivers: the key index is cached per rows array.
+context.DATA.sheets.games.rows = rows.concat(
+  { _k: "rolled-a", title: "Rolled A", platform: "PC", genre: "Racing", completed: false, playable: "Yes" },
+  { _k: "begun", title: "Begun", platform: "PC", genre: "Racing", completed: false, playable: "Yes", dateStarted: "2026-11-01" },
+);
+const underWay = (slate) => vm.runInContext(`thmUnderWay({ n: ${slate.length}, slate: ${JSON.stringify(slate)}, pinned: [] })`, context);
+assert.equal(underWay(["rolled-a", null]), false, "a rolled slate nobody has started is not under way");
+assert.equal(underWay(["rolled-a", "begun"]), true, "a started game puts the slate under way");
+assert.equal(underWay(["rolled-a", "old"]), true, "a finished game puts the slate under way");
+assert.equal(underWay(["old", "mid"]), false, "a fully finished slate is done, not under way");
+
 const urlFor = (id) => vm.runInContext(`(() => { THM_VIEW.id = ${JSON.stringify(id)};
   const p = new URLSearchParams(); EV.byId.themes.urlState.write(p); return p.toString(); })()`, context);
 assert.equal(urlFor(null), "", "the landing page needs no parameter");
@@ -64,4 +77,4 @@ assert.equal(vm.runInContext("evName(EV.byId.themes)", context), "Giant Robots",
 vm.runInContext("THM_VIEW.id = null", context);
 assert.equal(vm.runInContext("evName(EV.byId.themes)", context), "Themes", "the landing page is titled Themes");
 
-console.log("Theme landing: slate-only recent finishes, URL view state, reset and banner entry passed");
+console.log("Theme landing: slate-only recent finishes, under-way slates, URL view state, reset and banner entry passed");
