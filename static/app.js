@@ -288,6 +288,9 @@ function syncURL(push) {
   } else if (activeTab === "challenges") {
     if (chState.open) p.set("ch", chState.open);
     if (chState.showAll) p.set("chall", chState.showAll);
+  } else if (typeof EV !== "undefined" && EV.byId[activeTab]?.urlState) {
+    // An event page with a view of its own (Themes: which theme, or none for the landing).
+    EV.byId[activeTab].urlState.write(p);
   } else if (activeTab === "stats") {
     if (statsState.section && statsState.section !== "overview") p.set("s", statsState.section);
     if (statsState.year) p.set("sy", String(statsState.year));
@@ -353,6 +356,7 @@ function applyStateFromURL() {
       chEditor.open = false; chEditor.def = null;
     }
     if (tab === "shelf") { SHELF.filter = p.get("shf") || ""; SHELF.plat = p.get("shp") || ""; }
+    if (typeof EV !== "undefined" && EV.byId[tab]?.urlState) EV.byId[tab].urlState.read(p);
     if (tab === "stats") {
       const s = p.get("s");
       statsState.section = STATS_SECTIONS.some((x) => x.id === s) ? s : "overview";

@@ -6728,6 +6728,19 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .thm-choice-copy i { min-height: 3.9em; }
 }
 
+/* The landing page lays the browser's cards out in the page instead of a scrolling dialog:
+   same card, same column width, no inner scroll. */
+.thm-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.thm-landing .ev-panel h3 + .thm-library { margin-top: 12px; }
+.thm-recent-themes { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 0; font-size: 11.5px; color: var(--dim); }
+/* The app's link colour, not the page's --ev-k: the landing skin's lavender is a dark-hero
+   accent and washes out on the light theme's panels. */
+.thm-recent-themes .linkbtn { padding: 0; font-size: 11.5px; color: var(--accent-2); }
+.thm-crumb { margin: 0 0 10px; }
+@media (max-width: 600px) {
+  .thm-library { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+}
+
 .thm-slot.pinned .ev-tile { border-color: var(--ev-k, var(--accent)); }
 /* Finished reads as settled rather than as highlighted: the accent ring marks what you
    PINNED (a live decision), and a green check marks what's already behind you. */

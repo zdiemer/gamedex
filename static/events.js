@@ -172,7 +172,8 @@ function evTopBanner(d = evNow()) {
 
 function evWireBanner(scope) {
   (scope || document).querySelectorAll(".ev-banner[data-ev]").forEach((el) => {
-    const go = () => goTab(el.dataset.ev);
+    // An event can say where its banner lands (Themes: the open slate, not its landing page).
+    const go = () => goTab(el.dataset.ev, EV.byId[el.dataset.ev]?.bannerOpen);
     el.onclick = go;
     // role=button with no key handler is a button only for people holding a mouse.
     el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };

@@ -1830,12 +1830,43 @@ const COMPONENT_SOURCES = [
     "tab": "events"
   },
   {
+    "id": "components-events-themes-js-thmChoiceHtml-6f3fbabbfa",
+    "legacyId": "themes-thmChoiceHtml",
+    "name": "thmChoiceHtml",
+    "symbol": "thmChoiceHtml",
+    "file": "components/events/themes.js",
+    "line": 55,
+    "category": "Events & themes",
+    "tab": "events",
+    "contract": {
+      "summary": "Render one theme as a card in its own poster palette.",
+      "params": [
+        "{Object} t - A THEMES entry; its name, blurb, icon and skin are read.",
+        "{Object} [options={}] - Presentation options.",
+        "{boolean} [options.current=false] - Ring the card and label it Current.",
+        "{boolean} [options.searchable=false] - Add the data-thmhay haystack the browser search filters on."
+      ],
+      "returns": "{string} A button.thm-choice carrying data-thmgo with the theme id.",
+      "requires": [
+        "escapeHtml, icon, thmChoiceMeta and the .thm-choice styles in style.css."
+      ],
+      "events": [
+        "Callers wire [data-thmgo] clicks; the landing page and the browser both navigate with thmGo."
+      ],
+      "cleanup": "No listeners or resources are allocated by the builder.",
+      "escaping": "Name and blurb are escaped; the skin and icon id are trusted theme constants.",
+      "examples": [
+        "grid.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { current: t.id === open })).join(\"\");"
+      ]
+    }
+  },
+  {
     "id": "components-events-themes-js-thmBrowserHtml-62c14931b3",
     "legacyId": "themes-thmBrowserHtml",
     "name": "thmBrowserHtml",
     "symbol": "thmBrowserHtml",
     "file": "components/events/themes.js",
-    "line": 44,
+    "line": 68,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1845,7 +1876,27 @@ const COMPONENT_SOURCES = [
     "name": "thmRender",
     "symbol": "thmRender",
     "file": "components/events/themes.js",
-    "line": 79,
+    "line": 96,
+    "category": "Events & themes",
+    "tab": "events"
+  },
+  {
+    "id": "components-events-themes-js-thmRecentHtml-0ab23b508e",
+    "legacyId": "themes-thmRecentHtml",
+    "name": "thmRecentHtml",
+    "symbol": "thmRecentHtml",
+    "file": "components/events/themes.js",
+    "line": 251,
+    "category": "Events & themes",
+    "tab": "events"
+  },
+  {
+    "id": "components-events-themes-js-thmLandingRender-ef12fdcf10",
+    "legacyId": "themes-thmLandingRender",
+    "name": "thmLandingRender",
+    "symbol": "thmLandingRender",
+    "file": "components/events/themes.js",
+    "line": 271,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1855,7 +1906,7 @@ const COMPONENT_SOURCES = [
     "name": "thmBannerHtml",
     "symbol": "thmBannerHtml",
     "file": "components/events/themes.js",
-    "line": 234,
+    "line": 325,
     "category": "Events & themes",
     "tab": "events"
   },

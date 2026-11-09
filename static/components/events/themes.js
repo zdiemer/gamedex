@@ -38,6 +38,30 @@ function thmSlotHtml(t, run, slot) {
   </div>`;
 }
 
+/**
+ * @component Render one theme as a card in its own poster palette.
+ * @param {Object} t - A THEMES entry; its name, blurb, icon and skin are read.
+ * @param {Object} [options={}] - Presentation options.
+ * @param {boolean} [options.current=false] - Ring the card and label it Current.
+ * @param {boolean} [options.searchable=false] - Add the data-thmhay haystack the browser search filters on.
+ * @returns {string} A button.thm-choice carrying data-thmgo with the theme id.
+ * @requires escapeHtml, icon, thmChoiceMeta and the .thm-choice styles in style.css.
+ * @events Callers wire [data-thmgo] clicks; the landing page and the browser both navigate with thmGo.
+ * @cleanup No listeners or resources are allocated by the builder.
+ * @escaping Name and blurb are escaped; the skin and icon id are trusted theme constants.
+ * @example
+ * grid.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { current: t.id === open })).join("");
+ */
+function thmChoiceHtml(t, { current = false, searchable = false } = {}) {
+  const hay = searchable ? ` data-thmhay="${escapeHtml((t.name + " " + t.blurb).toLowerCase())}"` : "";
+  return `<button class="thm-choice${current ? " on" : ""}" type="button" data-thmgo="${t.id}"${hay}
+      style="${t.skin}">
+    <span class="thm-choice-art">${icon(t.icon, 25)}${current ? "<em>Current</em>" : ""}</span>
+    <span class="thm-choice-copy"><b>${escapeHtml(t.name)}</b>
+      <i>${escapeHtml(t.blurb)}</i><small>${thmChoiceMeta(t)}</small></span>
+  </button>`;
+}
+
 /* Themes are a catalog, not a dial. The page keeps one compact current-theme
    control in the flow and opens the full, searchable catalog only when asked. Each card
    wears its own poster palette, so browsing is recognition rather than reading a pill rail. */
@@ -50,14 +74,7 @@ function thmBrowserHtml(t) {
     <span class="thm-switch-action">${icon("i-grid", 15)} Browse ${THEMES.length}</span>
   </button>`;
   if (!THM_BROWSER.open) return switcher;
-  const cards = THEMES.map((x) => `<button class="thm-choice${x.id === t.id ? " on" : ""}"
-      type="button" data-thmgo="${x.id}"
-      data-thmhay="${escapeHtml((x.name + " " + x.blurb).toLowerCase())}" style="${x.skin}">
-    <span class="thm-choice-art">${icon(x.icon, 25)}${x.id === t.id
-      ? '<em>Current</em>' : ""}</span>
-    <span class="thm-choice-copy"><b>${escapeHtml(x.name)}</b>
-      <i>${escapeHtml(x.blurb)}</i><small>${thmChoiceMeta(x)}</small></span>
-  </button>`).join("");
+  const cards = THEMES.map((x) => thmChoiceHtml(x, { current: x.id === t.id, searchable: true })).join("");
   return switcher + `<div class="thm-browser-scrim" id="thmBrowserScrim">
     <section class="thm-browser" role="dialog" aria-modal="true" aria-labelledby="thmBrowserTitle">
       <header class="thm-browser-head">
@@ -118,6 +135,7 @@ function thmRender(host) {
     // the shelf is a question about one game, which the tile is the place to answer.
     note: `${pool.length.toLocaleString()}/${breadth.length.toLocaleString()} to complete`,
   }) + `<div class="ev-wrap">
+    <nav class="thm-crumb" aria-label="Themes">${buttonHtml("All themes", { id: "thmHome", variant: "ghost" })}</nav>
     ${thmBrowserHtml(t)}
     <section class="ev-panel wide">
       <!-- One sentence of counting, in the order you'd ask it: how big is the slate, how
@@ -185,11 +203,11 @@ function thmRender(host) {
   host.querySelectorAll("[data-thmgo]").forEach((el) => {
     el.onclick = () => {
       THM_BROWSER.dialog.close();
-      thmOpen(el.dataset.thmgo);
-      evPickerClose();
-      repaint();
+      thmGo(el.dataset.thmgo);
     };
   });
+  const home = document.getElementById("thmHome");
+  if (home) home.onclick = () => thmGo(null);
   const roll = document.getElementById("thmRoll");
   if (roll) roll.onclick = () => { thmRoll(t); repaint(); };
   const unpin = document.getElementById("thmUnpin");
@@ -223,6 +241,79 @@ function thmRender(host) {
   if (typeof maybeEnrich === "function") {
     maybeEnrich(run.slate.filter(Boolean).map(evRow).filter(Boolean).concat(pool.slice(0, 40)));
   }
+  thmScheduleSync();
+}
+
+/* ---- the landing page --------------------------------------------------------
+   Built from the pieces the slate page already uses rather than new ones: the event hero
+   in the tab's neutral skin, the theme browser's cards, the slate's finished tiles. Themes
+   you have a slate going in come first, because that is the likeliest reason you came. */
+function thmRecentHtml(recent) {
+  if (!recent.length) {
+    return emptyState("Nothing finished yet",
+      "When the sheet marks a game completed and it fits a theme, it shows up here.");
+  }
+  return `<div class="ev-mantel thm-mantel">${recent.map(({ row, themes, from }) => {
+    const shown = themes.slice(0, 3);
+    const more = themes.length - shown.length;
+    // Not .done: that class fades a finished game against the unfinished ones on a slate,
+    // and on a list that is all finished games it would only fade the whole list.
+    return `<div class="ev-slot thm-slot">
+      ${evTileHtml(row, { sub: `${row.platform || ""} · ${fmtDate(row.dateCompleted)}` })}
+      ${from ? `<span class="thm-done-tag">${icon("i-check", 12)} From your slate</span>` : ""}
+      <p class="thm-recent-themes">${shown.map((t) =>
+        `<button class="linkbtn" type="button" data-thmgo="${t.id}">${escapeHtml(t.name)}</button>`).join("")}${
+        more > 0 ? `<span>+${more} more</span>` : ""}</p>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function thmLandingRender(host) {
+  const ev = EV.byId.themes;
+  const runs = thmState().runs;
+  const going = THEMES.filter((t) => runs[t.id] && thmActive(thmRun(t)));
+  const finished = going.reduce((n, t) => n + thmDoneCount(thmRun(t)), 0);
+  const current = thmTheme();
+  const recent = thmRecentFinished();
+
+  // The registry entry still carries whichever theme was open last; the landing page wears
+  // the tab's own skin, so hand the hero a copy rather than repainting the entry.
+  host.setAttribute("style", THM_HOME_SKIN);
+  const hero = evHeroHtml({
+    ...ev, skin: THM_HOME_SKIN, deco: THM_HOME_DECO, meter: null,
+    title: () => "Themes",
+    eyebrow: () => "Themes · no season, no deadline",
+    pitch: () => `${THEMES.length} themes, each a pool from the sheet you can roll into a slate. ${
+      going.length ? `${evPlural(going.length, "slate", "slates")} going, ${finished} finished off them.`
+        : "Pick one and roll."}`,
+  }, {
+    acts: going.some((t) => t.id === current.id)
+      ? buttonHtml(`Back to ${current.name}`, { id: "thmResume" }) : "",
+  });
+
+  const rest = THEMES.filter((t) => !going.includes(t));
+  host.innerHTML = hero + `<div class="ev-wrap thm-landing">
+    ${going.length ? `<section class="ev-panel wide">
+      <h3>In progress · ${evPlural(going.length, "slate", "slates")}</h3>
+      <div class="thm-library">${going.map((t) => thmChoiceHtml(t)).join("")}</div>
+    </section>` : ""}
+    <section class="ev-panel wide">
+      <h3>Recently finished</h3>
+      <p class="ev-p">The latest games the sheet marks completed, and the themes each one counts toward.</p>
+      ${thmRecentHtml(recent)}
+    </section>
+    <section class="ev-panel wide">
+      <h3>${going.length ? "More themes" : "Every theme"} · ${rest.length}</h3>
+      <div class="thm-library">${rest.map((t) => thmChoiceHtml(t)).join("")}</div>
+    </section>
+  </div>`;
+
+  host.querySelectorAll("[data-thmgo]").forEach((el) => {
+    el.onclick = (e) => { e.stopPropagation(); thmGo(el.dataset.thmgo); };
+  });
+  const resume = document.getElementById("thmResume");
+  if (resume) resume.onclick = () => thmGo(current.id);
+  if (typeof maybeEnrich === "function") maybeEnrich(recent.map((x) => x.row));
   thmScheduleSync();
 }
 

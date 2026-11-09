@@ -2037,6 +2037,53 @@ function thmOpen(id) {
 }
 
 const THM_BROWSER = { open: false, q: "", dialog: null };
+
+/* Which page of the tab is showing: null is the landing page (every theme, plus what you
+   finished lately), an id is that theme's slate. It is a view, not a preference — `open`
+   remembers the theme you last played, this says whether you are looking at it — so it
+   lives in the URL (?th=) where Back can undo it, and a deliberate visit to the tab
+   starts on the landing page. The Home banner skips straight to the slate it advertises. */
+const THM_VIEW = { id: null };
+
+function thmGo(id) {
+  THM_VIEW.id = THM_BY_ID[id] ? id : null;
+  if (THM_VIEW.id) thmOpen(THM_VIEW.id);
+  evPickerClose();
+  evRenderPage("themes");
+  nav();
+  if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0);
+}
+
+/* Recently finished, across every theme. A finished game counts toward each theme that
+   matches it — the same predicate its pool used — whether or not it was ever rolled onto a
+   slate, because finishing a cyberpunk game is finishing a cyberpunk game. The slates are
+   marked anyway: a game you rolled and then played is the page doing its job. Newest
+   completion date first; rows without one have no place in a "recent" list. */
+const THM_RECENT_MAX = 12;
+function thmRecentFinished(limit = THM_RECENT_MAX) {
+  const slated = new Map();
+  for (const [id, run] of Object.entries(thmState().runs)) {
+    if (!THM_BY_ID[id] || !Array.isArray(run.slate)) continue;
+    for (const k of run.slate) if (k && !slated.has(k)) slated.set(k, id);
+  }
+  const done = evRows()
+    .filter((r) => r.title && r.completed && /^\d{4}-\d{2}-\d{2}$/.test(String(r.dateCompleted || "")))
+    .sort((a, b) => String(b.dateCompleted).localeCompare(String(a.dateCompleted)));
+  const out = [], seen = new Set();
+  for (const row of done) {
+    if (out.length >= limit) break;
+    const title = String(row.title).trim().toLowerCase();
+    if (seen.has(title)) continue;
+    const themes = THEMES.filter((t) => t.match(row));
+    if (!themes.length) continue;
+    seen.add(title);
+    const from = slated.get(evKey(row));
+    // The slate it came off leads the list, so the first link is the one that rolled it.
+    if (from) themes.sort((a, b) => (b.id === from) - (a.id === from));
+    out.push({ row, themes, from: from || null });
+  }
+  return out;
+}
 const THM_SYNC_MS = 15000;
 let THM_SYNC_TIMER = null;
 
@@ -2069,6 +2116,22 @@ function thmChoiceMeta(t) {
   return `${run.slate.filter((k) => thmIsDone(run, k)).length} of ${run.n} done`;
 }
 
+/* The registry entry's own look, kept apart from it because thmRender overwrites the
+   entry's skin with whichever theme is open. The landing page belongs to no theme. */
+const THM_HOME_SKIN = "--ev-disp:var(--display);--ev-size:44px;--ev-dw:800;--ev-ls:.01em;" +
+  "--ev-deco:#a78bfa;--ev-fg:#f1ecff;--ev-fg-2:#aba3c9;--ev-edge:rgba(167,139,250,.3);" +
+  "--ev-edge-hi:rgba(167,139,250,.72);--ev-glow:rgba(167,139,250,.32);--ev-t1:#f7f4ff;" +
+  "--ev-t2:#c4b5fd;--ev-t3:#a78bfa;--ev-on-cta:#120a26;--ev-k:#c4b5fd;" +
+  "--ev-art:radial-gradient(110% 150% at 84% 120%,rgba(167,139,250,.24),transparent 56%)," +
+  "radial-gradient(85% 125% at 6% -16%,rgba(94,234,212,.14),transparent 60%)," +
+  "linear-gradient(150deg,#07060d,#0d0a18 70%,#0a0a16)";
+const THM_HOME_DECO = [
+  { i: "i-theme", x: 86, y: 66, s: 46, lift: 12 },
+  { i: "i-grid", x: 92, y: 26, s: 25, r: -8, lift: 11, d: 90 },
+  { i: "i-dice", x: 72, y: 88, s: 22, r: 10, lift: 13, d: 40 },
+  { i: "i-check", x: 47, y: 84, s: 18, r: -6, lift: 8, d: 200, o: .5 },
+];
+
 evRegister({
   id: "themes",
   name: "Themes",
@@ -2081,15 +2144,22 @@ evRegister({
   core: null,
   cta: "Open the board",
   blurb: "a slate of games on a theme, rolled and pinned",
-  // Neutral, and only ever seen on the preview board before a theme has been opened —
-  // every real render swaps in the active theme's own (thmRender, thmBannerHtml).
-  skin: "--ev-disp:var(--display);--ev-size:44px;--ev-dw:800;--ev-ls:.01em;" +
-        "--ev-deco:#a78bfa;--ev-fg:#f1ecff;--ev-fg-2:#aba3c9;--ev-edge:rgba(167,139,250,.3);" +
-        "--ev-edge-hi:rgba(167,139,250,.72);--ev-glow:rgba(167,139,250,.32);--ev-t1:#f7f4ff;" +
-        "--ev-t2:#c4b5fd;--ev-t3:#a78bfa;--ev-on-cta:#120a26;--ev-k:#c4b5fd;" +
-        "--ev-art:linear-gradient(150deg,#07060d,#0d0a18 70%,#0a0a16)",
-  deco: [{ i: "i-theme", x: 86, y: 66, s: 44, lift: 12 }],
+  // Neutral: the preview board shows it before a theme has been opened, and the landing page
+  // wears it for good. A theme's page swaps in that theme's own (thmRender, thmBannerHtml).
+  skin: THM_HOME_SKIN,
+  deco: THM_HOME_DECO,
   bannerHtml: thmBannerHtml,
+  bannerOpen: () => { THM_VIEW.id = thmTheme().id; },
+  urlState: {
+    read: (p) => {
+      const id = p.get("th");
+      THM_VIEW.id = THM_BY_ID[id] ? id : null;
+      // Following a link to a theme makes it the open one, without a save: `open` is
+      // local to this browser and the next real change will write it.
+      if (THM_VIEW.id) thmState().open = THM_VIEW.id;
+    },
+    write: (p) => { if (THM_VIEW.id) p.set("th", THM_VIEW.id); },
+  },
   blank: () => ({ runs: {}, open: THEMES[0].id }),
   /* A slate and its pins are one decision, so sync them as one run. Every mutation stamps
      `updated`; the newer device wins the whole run, which also lets an unpin propagate.
@@ -2123,7 +2193,7 @@ evRegister({
   },
   // The tab says "Themes"; the poster says which one. Same trick as Class of 'XX, whose
   // name is a different year every January.
-  title: () => thmTheme().name,
+  title: () => (THM_VIEW.id ? thmTheme().name : "Themes"),
   eyebrow: () => "Theme · no season, no deadline",
   pitch: () => {
     const t = thmTheme();
@@ -2150,8 +2220,9 @@ evRegister({
      slate has nothing to report, and the whole reason an always-on event can share the year
      with nine seasons is that it stays quiet when it has nothing to say (Endangered's rule). */
   live: () => thmActive(thmRun(thmTheme())),
-  render: thmRender,
+  render: (host) => (THM_VIEW.id ? thmRender(host) : thmLandingRender(host)),
   reset: () => {
+    THM_VIEW.id = null;
     EVP.slot = null; EVP.q = ""; EVP.all = false;
     THM_BROWSER.dialog?.close();
     THM_BROWSER.open = false; THM_BROWSER.q = "";

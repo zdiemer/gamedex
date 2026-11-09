@@ -119,6 +119,7 @@ for live contract refresh, safe rendering and undocumented-component fallback.
 | Toast | `showToast(message, iconId)` | `static/components/navigation/chrome.js`; `.toast` |
 | Autocomplete | `acAttach(input, getItems)` | `static/components/foundations/core.js`; `.ac-*` |
 | Media carousel / lightbox | `wireCarousel`, `openShotSet` | `static/components/media/media-carousel.js` |
+| Theme card in its own palette | `thmChoiceHtml(theme, { current, searchable })` | `static/components/events/themes.js`; `.thm-choice`, `.thm-library` (landing page) and `.thm-browser-grid` (browser dialog) |
 
 ## Component file boundaries
 
