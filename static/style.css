@@ -6737,8 +6737,28 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    accent and washes out on the light theme's panels. */
 .thm-recent-themes .linkbtn { padding: 0; font-size: 11.5px; color: var(--accent-2); }
 .thm-crumb { margin: 0 0 10px; }
+/* The full catalog as short rows: forty poster cards were several screens of scrolling for
+   a list you mostly scan by name. The icon strip keeps each theme's own palette. */
+.thm-library.compact { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.thm-choice.compact {
+  min-height: 0; grid-template-rows: none; grid-template-columns: 42px minmax(0, 1fr); border-radius: 10px;
+}
+.thm-choice.compact:hover { transform: translateY(-1px); }
+.thm-choice.compact .thm-choice-art {
+  justify-content: center; padding: 0; border-bottom: 0; border-right: 1px solid var(--ev-edge);
+}
+.thm-choice.compact .thm-choice-copy { gap: 3px; padding: 8px 10px; align-content: center; }
+.thm-choice.compact .thm-choice-copy b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 @media (max-width: 600px) {
   .thm-library { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .thm-library.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .thm-choice.compact { grid-template-columns: 36px minmax(0, 1fr); }
+  .thm-choice.compact .thm-choice-copy { padding: 7px 8px; }
+  /* Half a phone is too narrow for "Family Game Night" on one line; two lines beat an ellipsis. */
+  .thm-choice.compact .thm-choice-copy b {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    white-space: normal; font-size: 12.5px; line-height: 1.2;
+  }
 }
 
 .thm-slot.pinned .ev-tile { border-color: var(--ev-k, var(--accent)); }

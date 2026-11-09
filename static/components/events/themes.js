@@ -44,6 +44,7 @@ function thmSlotHtml(t, run, slot) {
  * @param {Object} [options={}] - Presentation options.
  * @param {boolean} [options.current=false] - Ring the card and label it Current.
  * @param {boolean} [options.searchable=false] - Add the data-thmhay haystack the browser search filters on.
+ * @param {boolean} [options.compact=false] - One short row: icon strip, name and meta; the blurb moves to the tooltip.
  * @returns {string} A button.thm-choice carrying data-thmgo with the theme id.
  * @requires escapeHtml, icon, thmChoiceMeta and the .thm-choice styles in style.css.
  * @events Callers wire [data-thmgo] clicks; the landing page and the browser both navigate with thmGo.
@@ -51,9 +52,17 @@ function thmSlotHtml(t, run, slot) {
  * @escaping Name and blurb are escaped; the skin and icon id are trusted theme constants.
  * @example
  * grid.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { current: t.id === open })).join("");
+ * list.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { compact: true })).join("");
  */
-function thmChoiceHtml(t, { current = false, searchable = false } = {}) {
+function thmChoiceHtml(t, { current = false, searchable = false, compact = false } = {}) {
   const hay = searchable ? ` data-thmhay="${escapeHtml((t.name + " " + t.blurb).toLowerCase())}"` : "";
+  if (compact) {
+    return `<button class="thm-choice compact${current ? " on" : ""}" type="button" data-thmgo="${t.id}"${hay}
+        style="${t.skin}" title="${escapeHtml(t.blurb)}">
+      <span class="thm-choice-art">${icon(t.icon, 18)}</span>
+      <span class="thm-choice-copy"><b>${escapeHtml(t.name)}</b><small>${thmChoiceMeta(t)}</small></span>
+    </button>`;
+  }
   return `<button class="thm-choice${current ? " on" : ""}" type="button" data-thmgo="${t.id}"${hay}
       style="${t.skin}">
     <span class="thm-choice-art">${icon(t.icon, 25)}${current ? "<em>Current</em>" : ""}</span>
@@ -304,7 +313,7 @@ function thmLandingRender(host) {
     </section>
     <section class="ev-panel wide">
       <h3>${going.length ? "More themes" : "Every theme"} · ${rest.length}</h3>
-      <div class="thm-library">${rest.map((t) => thmChoiceHtml(t)).join("")}</div>
+      <div class="thm-library compact">${rest.map((t) => thmChoiceHtml(t, { compact: true })).join("")}</div>
     </section>
   </div>`;
 

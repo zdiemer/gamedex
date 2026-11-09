@@ -1835,7 +1835,7 @@ const COMPONENT_SOURCES = [
     "name": "thmChoiceHtml",
     "symbol": "thmChoiceHtml",
     "file": "components/events/themes.js",
-    "line": 55,
+    "line": 57,
     "category": "Events & themes",
     "tab": "events",
     "contract": {
@@ -1844,7 +1844,8 @@ const COMPONENT_SOURCES = [
         "{Object} t - A THEMES entry; its name, blurb, icon and skin are read.",
         "{Object} [options={}] - Presentation options.",
         "{boolean} [options.current=false] - Ring the card and label it Current.",
-        "{boolean} [options.searchable=false] - Add the data-thmhay haystack the browser search filters on."
+        "{boolean} [options.searchable=false] - Add the data-thmhay haystack the browser search filters on.",
+        "{boolean} [options.compact=false] - One short row: icon strip, name and meta; the blurb moves to the tooltip."
       ],
       "returns": "{string} A button.thm-choice carrying data-thmgo with the theme id.",
       "requires": [
@@ -1856,7 +1857,7 @@ const COMPONENT_SOURCES = [
       "cleanup": "No listeners or resources are allocated by the builder.",
       "escaping": "Name and blurb are escaped; the skin and icon id are trusted theme constants.",
       "examples": [
-        "grid.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { current: t.id === open })).join(\"\");"
+        "grid.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { current: t.id === open })).join(\"\");\nlist.innerHTML = THEMES.map((t) => thmChoiceHtml(t, { compact: true })).join(\"\");"
       ]
     }
   },
@@ -1866,7 +1867,7 @@ const COMPONENT_SOURCES = [
     "name": "thmBrowserHtml",
     "symbol": "thmBrowserHtml",
     "file": "components/events/themes.js",
-    "line": 68,
+    "line": 77,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1876,7 +1877,7 @@ const COMPONENT_SOURCES = [
     "name": "thmRender",
     "symbol": "thmRender",
     "file": "components/events/themes.js",
-    "line": 96,
+    "line": 105,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1886,7 +1887,7 @@ const COMPONENT_SOURCES = [
     "name": "thmRecentHtml",
     "symbol": "thmRecentHtml",
     "file": "components/events/themes.js",
-    "line": 251,
+    "line": 260,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1896,7 +1897,7 @@ const COMPONENT_SOURCES = [
     "name": "thmLandingRender",
     "symbol": "thmLandingRender",
     "file": "components/events/themes.js",
-    "line": 270,
+    "line": 279,
     "category": "Events & themes",
     "tab": "events"
   },
@@ -1906,7 +1907,7 @@ const COMPONENT_SOURCES = [
     "name": "thmBannerHtml",
     "symbol": "thmBannerHtml",
     "file": "components/events/themes.js",
-    "line": 325,
+    "line": 334,
     "category": "Events & themes",
     "tab": "events"
   },
