@@ -3,7 +3,8 @@
 Auth is Twitch OAuth (client-credentials → bearer token, ~60d, auto-refreshed).
 We fetch everything for a title in a SINGLE nested-field request (IGDB v4 lets
 you expand related objects inline), so matching one spreadsheet row costs ~1
-request instead of the dozen the original GamesMaster client made. Matching
+request instead of the dozen the original GamesMaster client made. A row whose
+title carries a diacritic can cost several — see _substring_probes. Matching
 reuses that project's battle-tested MatchValidator + platform-alias map.
 
 Rate limited to IGDB's 4 req/s. Callers (the lazy enricher) serialize through
@@ -142,6 +143,74 @@ _STORE_SOURCE = {
 }
 
 
+# A title's diacritics are the single biggest reason an IGDB match misses, and not
+# because our comparison is picky — MatchValidator already folds them. The search
+# ENDPOINT is what breaks: it does not index a name containing a diacritic, so
+# `search "Einhander"` finds nothing although `Einhänder` is in the database, and no
+# amount of rewriting the query fixes a row that is missing from the index. These
+# helpers give the matcher the spellings worth guessing plus the one query shape
+# that reaches an unindexed row at all.
+
+def _escape(value: str) -> str:
+    """Make `value` safe to interpolate into an Apicalypse string literal."""
+    return value.replace("\\", "").replace('"', "")
+
+
+def _fold(title: str) -> str:
+    """Drop combining marks: "Pokémon" -> "Pokemon", "Götzendiener" -> "Gotzendiener"."""
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", title) if not unicodedata.combining(ch)
+    )
+
+
+# Macrons, with the two romanisations IGDB actually uses for a long vowel. It writes
+# "Chou Aniki" and "Oosouji" in the same breath, so neither spelling can be preferred;
+# both get tried. ū is always "uu", which is why only the o row is parameterised.
+_LONG_VOWELS = {"ā": "aa", "ē": "ee", "ī": "ii", "ū": "uu",
+                "Ā": "Aa", "Ē": "Ee", "Ī": "Ii", "Ū": "Uu"}
+
+
+def _romanize(title: str, long_o: str) -> str:
+    """Spell Japanese long vowels out, with ō as "o" + `long_o` ("u" or "o")."""
+    for mark, spelled in _LONG_VOWELS.items():
+        title = title.replace(mark, spelled)
+    return title.replace("ō", "o" + long_o).replace("Ō", "O" + long_o)
+
+
+# A probe is a substring, so it has to survive every spelling IGDB might have used.
+# Punctuation does not: it writes "Senran Kagura Bon Appétit!" where the sheet has a
+# colon, and hyphenates long vowels at whim ("Shuto-kou", "Shoujo-tachi"). So the
+# fragments are the title's runs of letters, digits, spaces and apostrophes — the
+# characters sources agree on — which is also what splits it at the diacritics. Four
+# characters is where `where name ~ *"..."*` stops returning a page of noise; three
+# probes is as far as it is worth paying to look.
+_PROBE_RUN = re.compile(r"[0-9A-Za-z ']{4,}")
+_MAX_PROBES = 3
+
+
+def _substring_probes(title: str):
+    """Diacritic-free fragments of `title`, the earliest first.
+
+    A substring query on one of these is the only way to reach a row whose stored
+    name IGDB's search endpoint never indexed. An all-ASCII title yields nothing:
+    its search queries already cover it, and probing it would only cost a request.
+
+    Earliest, not longest: a title's head is what identifies it and its tail is
+    usually boilerplate. "Pokémon Legends: Z-A - Nintendo Switch 2 Edition" has
+    "Nintendo Switch 2 Edition" as its longest clean run, and probing that returns a
+    page of unrelated Switch 2 re-releases — any of which the validator will take,
+    because they agree on everything after the dash. "mon Legends" finds the game.
+    """
+    if title.isascii():
+        return []
+    runs = {}
+    for run in _PROBE_RUN.finditer(title):
+        fragment = run.group().strip()
+        if len(fragment) >= 4:
+            runs.setdefault(fragment, run.start())
+    return sorted(runs, key=lambda fragment: runs[fragment])[:_MAX_PROBES]
+
+
 def platform_from_str(value):
     if not value:
         return None
@@ -220,13 +289,51 @@ class IgdbClient:
         return resp.json()
 
     # -- search + match -----------------------------------------------------
+    def _search_queries(self, title: str):
+        """The `search` strings to try for `title`, best first.
+
+        An ASCII title collapses to one query, so the common row still costs the one
+        request it always did. A title carrying diacritics gets the spellings IGDB
+        might have stored instead: as written, folded to ASCII, and with Japanese long
+        vowels spelled out both ways.
+        """
+        out = []
+        for query in (title, _fold(title), _romanize(title, "u"), _romanize(title, "o")):
+            query = query.strip()
+            if query and query not in out:
+                out.append(query)
+        return out
+
+    def _search_one(self, query: str):
+        return self._post("games", f'search "{_escape(query)}"; {_FIELDS} limit 25;') or []
+
+    def _search_substring(self, fragment: str):
+        return self._post(
+            "games", f'{_FIELDS} where name ~ *"{_escape(fragment.lower())}"*; limit 25;'
+        ) or []
+
+    def candidate_sets(self, title: str):
+        """Yield (candidates, corroborate) for `title`, most promising query first.
+
+        Callers stop at the first list they accept something from, which is why the
+        escalation is free for the 96% of rows that match on the first query.
+
+`corroborate` asks for an exact title or a platform agreement before anything
+        in that list is accepted. It is set on the substring probes, which return a
+        page of games sharing a fragment of the title: among them are titleless stubs
+        that list no platform at all and fuzzy-match on the fragment, which is how
+        "Ring ∞" came back a visual novel called "Rings". A probe is a net, not proof.
+        """
+        for query in self._search_queries(title):
+            yield self._search_one(query), False
+        for fragment in _substring_probes(title):
+            yield self._search_substring(fragment), True
+
     def _search(self, title: str):
-        processed = unicodedata.normalize(
-            "NFKD",
-            title.replace("ū", "uu").replace("ō", "ou").replace("Ō", "Ou").replace("Ū", "Uu"),
-        ).replace('"', '\\"')
-        body = f'search "{processed}"; {_FIELDS} limit 25;'
-        return self._post("games", body)
+        for candidates, _ in self.candidate_sets(title):
+            if candidates:
+                return candidates
+        return []
 
     def search_candidates(self, title: str):
         """The raw candidate list for `title`, before any acceptance rule is applied.
@@ -237,7 +344,7 @@ class IgdbClient:
         Japan-only games whose IGDB platform name doesn't line up with a romhack site's —
         so it takes the candidates and judges them itself.
         """
-        return self._search(title) or []
+        return self._search(title)
 
     def match(self, title, platform=None, release_year=None,
               developer=None, publisher=None, franchise=None):
@@ -251,40 +358,60 @@ class IgdbClient:
             publisher=publisher,
             franchise=franchise,
         )
-        candidates = self.search_candidates(title)
         best = None
         best_info = None
-        for c in candidates:
-            names = [c.get("name")] + [a["name"] for a in c.get("alternative_names", []) if a.get("name")]
-            plat_names = [p["name"] for p in c.get("platforms", []) if p.get("name")]
-            years = [rd["y"] for rd in c.get("release_dates", []) if rd.get("y")]
-            if not years and c.get("first_release_date"):
-                years = [datetime.fromtimestamp(c["first_release_date"], tz=timezone.utc).year]
-            devs, pubs = [], []
-            for ic in c.get("involved_companies", []):
-                nm = (ic.get("company") or {}).get("name")
-                if not nm:
+        for candidates, corroborate in self.candidate_sets(title):
+            for c in candidates:
+                info = self._judge(game, c, corroborate)
+                if info is None:
                     continue
-                if ic.get("developer"):
-                    devs.append(nm)
-                if ic.get("publisher"):
-                    pubs.append(nm)
-            frans = [f["name"] for f in c.get("franchises", []) if f.get("name")]
-            if c.get("franchise", {}).get("name"):
-                frans.append(c["franchise"]["name"])
-
-            info = self._validator.validate(game, names, plat_names, years, pubs, devs, frans)
-            # Accept only a confident match: title+platform agree, or an exact
-            # title match when the candidate lists no platforms.
-            accept = info.likely_match or (info.matched and not any(plat_names))
-            if not accept:
-                continue
-            if best is None or info.match_score > best_info.match_score:
-                best, best_info = c, info
+                if best is None or info.match_score > best_info.match_score:
+                    best, best_info = c, info
+            # A search that accepted something is done — which is why a row that
+            # matches on its first query costs exactly the request it used to. The
+            # probes are weighed against each other instead: they are fragments of
+            # one title, and the broad one fills its page with the wrong half of a
+            # series ("sai Macross" buries "Skull Leader Complete Pack") while the
+            # narrow one lands the exact name. Let the score decide, not the order.
+            if best is not None and not corroborate:
+                break
 
         if best is None:
             return None, 0
         return self._to_enrichment(best, best_info), best_info.match_score
+
+    def _judge(self, game: ExcelGame, c: dict, corroborate: bool = False):
+        """ValidationInfo for `c` if it is a confident match for `game`, else None."""
+        names = [c.get("name")] + [a["name"] for a in c.get("alternative_names", []) if a.get("name")]
+        plat_names = [p["name"] for p in c.get("platforms", []) if p.get("name")]
+        years = [rd["y"] for rd in c.get("release_dates", []) if rd.get("y")]
+        if not years and c.get("first_release_date"):
+            years = [datetime.fromtimestamp(c["first_release_date"], tz=timezone.utc).year]
+        devs, pubs = [], []
+        for ic in c.get("involved_companies", []):
+            nm = (ic.get("company") or {}).get("name")
+            if not nm:
+                continue
+            if ic.get("developer"):
+                devs.append(nm)
+            if ic.get("publisher"):
+                pubs.append(nm)
+        frans = [f["name"] for f in c.get("franchises", []) if f.get("name")]
+        if c.get("franchise", {}).get("name"):
+            frans.append(c["franchise"]["name"])
+
+        info = self._validator.validate(game, names, plat_names, years, pubs, devs, frans)
+        # Accept only a confident match: title+platform agree, or the title alone
+        # when the candidate lists no platform to disagree with. `corroborate`
+        # replaces that second branch for the substring probes, whose pages carry
+        # titleless stubs that list nothing and fuzzy-match on the fragment — it is
+        # how "Ring ∞" came back a visual novel called "Rings". An exact normalised
+        # title still stands on its own there, platform or no platform.
+        if corroborate:
+            accept = info.likely_match or info.exact
+        else:
+            accept = info.likely_match or (info.matched and not any(plat_names))
+        return info if accept else None
 
     # IGDB's game_type enum — what KIND of thing this entry is.
     GAME_TYPES = {

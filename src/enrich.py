@@ -297,6 +297,11 @@ FRANCHISE_VERSION = "1"    # bump to re-fetch franchises onto already-matched re
 # reach the 98.8% of the library where it is still null.
 CRITIC_VERSION = "2"       # bump to re-fetch IGDB's critic + player scores onto matched records
 EXTRAS_VERSION = "2"       # keywords / engines / age rating / perspectives
+# Bump when igdb.py learns to reach titles its queries used to miss — the backfill
+# re-asks IGDB about every game a fallback source had to answer for. v1 is the
+# diacritic repair: IGDB's search endpoint does not index a name carrying one, so
+# 65 titles on the sheet (nearly all macron romanisations) were answered by IGN.
+MATCH_QUERY_VERSION = "1"
 # Full first-release date + IGDB release status onto already-matched records. Bump to re-ask
 # (a status MOVES: a game leaves early access, a storefront delists one), which is the whole
 # point of the health check reading it.
@@ -339,6 +344,7 @@ class Enricher:
         self._backfill = backfill
         self._validator = MatchValidator()
         self._key_meta: dict = {}
+        self._rematch_started = False
         # Set by app.py to platformdb.steam_appid_for_key: the appid of the copy
         # the admin actually OWNS, which beats whatever IGDB's external_games
         # guessed (IGDB links Fallout: New Vegas to an appid I don't have).
@@ -614,6 +620,9 @@ class Enricher:
                 self._db.commit()
         if self._backfill:
             self.request(list(key_meta.keys()), front=False)
+        # Not in start(): a re-match needs each row's TITLE, and the key index is
+        # the only place that survives — a match key is normalised past recovery.
+        self._start_rematch()
         log.info("enrich: indexed %d match keys (backfill=%s, sources=%s)",
                  len(key_meta), self._backfill, self._sources)
 
@@ -1480,6 +1489,68 @@ class Enricher:
             self._db.commit()
         self._kv_set("pcgw_version", PCGW_VERSION)
         log.info("pcgw: cleared %d rows resolved against a partial dump", n)
+
+    def _start_rematch(self):
+        """Launch backfill_matches() once per process, after reindex() has the titles."""
+        if not self._igdb or not self._igdb.configured:
+            return
+        if self._kv_get("match_query_version") == MATCH_QUERY_VERSION:
+            return
+        with self._lock:
+            if self._rematch_started:
+                return                  # reindex() runs on every library refresh
+            self._rematch_started = True
+        threading.Thread(target=self.backfill_matches, name="match-rematch", daemon=True).start()
+
+    def backfill_matches(self):
+        """Re-ask IGDB about the games a fallback source had to answer for.
+
+        A miss is written down once and never revisited, which is right while the
+        matcher is unchanged and wrong the moment it learns to reach titles it used
+        to miss. Bumping MATCH_QUERY_VERSION re-opens those verdicts.
+
+        Only the non-ASCII titles: they are what the current bump is about, and it
+        keeps the pass to a couple of hundred requests instead of re-crawling the
+        several hundred games that are genuinely not in IGDB. A row that still does
+        not match is LEFT ALONE — overwriting a working IGN record with a fresh
+        no_match would lose the cover and genres the fallback is there to supply.
+        """
+        with self._db_lock:
+            rows = self._db.execute(
+                "SELECT match_key FROM enrichment"
+                " WHERE COALESCE(manual,0)=0 AND (status='no_match' OR igdb_id IS NULL)"
+            ).fetchall()
+        todo = []
+        for (key,) in rows:
+            meta = self._key_meta.get(key)
+            title = (meta or {}).get("title")
+            if title and not title.isascii():
+                todo.append((key, meta))
+        if not todo:
+            self._kv_set("match_query_version", MATCH_QUERY_VERSION)
+            log.info("match backfill: nothing left for IGDB to reconsider")
+            return
+
+        log.info("match backfill: re-asking IGDB about %d unmatched titles", len(todo))
+        found = 0
+        for key, meta in todo:
+            if self._stop.is_set():
+                return                  # resumable: the stamp is only written on a full pass
+            try:
+                enrichment, score = self._igdb.match(
+                    meta["title"], platform=meta.get("platform"),
+                    release_year=meta.get("year"), developer=meta.get("developer"),
+                    publisher=meta.get("publisher"), franchise=meta.get("franchise"))
+            except Exception as exc:
+                log.debug("match backfill: %s failed: %s", meta["title"], exc)
+                continue
+            if not enrichment:
+                continue
+            self._save_igdb(key, enrichment, score)
+            found += 1
+            log.info("match backfill: %s -> %s", meta["title"], enrichment.get("name"))
+        self._kv_set("match_query_version", MATCH_QUERY_VERSION)
+        log.info("match backfill: %d of %d now match IGDB", found, len(todo))
 
     def backfill_gametdb(self):
         """Re-match GameTDB when the record shape changes.
