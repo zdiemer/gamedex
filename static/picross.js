@@ -400,7 +400,7 @@ async function pxMaybeSolved() {
   }
   try {
     const r = await fetch("api/picross/solve", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grid }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grid, date: PX.date }),
     });
     const j = await r.json();
     if (!j.solved) return;
@@ -420,7 +420,7 @@ async function pxGuess() {
   msg.className = "px-guess-msg";
   try {
     const r = await fetch("api/picross/guess", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: v }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: v, date: PX.date }),
     });
     const j = await r.json();
     if (j.correct) {

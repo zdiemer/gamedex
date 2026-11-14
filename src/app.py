@@ -1257,13 +1257,25 @@ def api_picross_daily():
 
 class PicrossSolve(BaseModel):
     grid: list[list[int]]
+    date: str | None = None
+
+
+def _picross_round(date: str | None):
+    """The puzzle a request is about. The board on screen carries its own date: a grid
+    loaded before UTC midnight and finished after it is still yesterday's puzzle, and
+    checking it against today's answer rejects a correct solve. A past date is only ever
+    read from the cache, never generated, and a future one falls back to today."""
+    today = _today()
+    if date and re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) and date < today:
+        return PICROSS.cached(date)
+    return PICROSS.daily(today, _picross_candidates)
 
 
 @app.post("/api/picross/solve")
 def api_picross_solve(body: PicrossSolve):
     """Marking your own homework is no fun, so the answer never left the building. Send the
     grid; if it's right, you get the game you just drew."""
-    puz = PICROSS.daily(_today(), _picross_candidates)
+    puz = _picross_round(body.date)
     if not puz:
         return {"ok": False}
     solved = body.grid == puz["grid"]
@@ -1272,13 +1284,14 @@ def api_picross_solve(body: PicrossSolve):
 
 class PicrossGuess(BaseModel):
     title: str
+    date: str | None = None
 
 
 @app.post("/api/picross/guess")
 def api_picross_guess(body: PicrossGuess):
     """Name it before you finish it. Compared on the normalised title, so punctuation and
     case don't decide whether you were right."""
-    puz = PICROSS.daily(_today(), _picross_candidates)
+    puz = _picross_round(body.date)
     if not puz:
         return {"ok": False}
     norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())

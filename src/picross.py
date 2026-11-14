@@ -185,6 +185,13 @@ class Picross:
             log.debug("picross: cover %s unavailable (%s)", image_id, exc)
             return None
 
+    def cached(self, date: str) -> dict | None:
+        """A day's puzzle if it was ever built, without building one."""
+        try:
+            return json.loads((self._dir / f"{date}.json").read_text())
+        except Exception:
+            return None
+
     def daily(self, date: str, candidates: list[dict]) -> dict | None:
         """The puzzle for `date`. `candidates` is [{key,title,platform,year,cover}, ...].
 
