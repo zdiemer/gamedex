@@ -7,7 +7,7 @@
      but yesterday's is far better than an error screen on the train.
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
-const VERSION = "v1.87.31";
+const VERSION = "v1.87.32";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 // Keep in sync with the <script> tags in index.html — a file loaded there but

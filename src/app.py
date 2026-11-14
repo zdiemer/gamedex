@@ -1242,8 +1242,15 @@ def _picross_candidates() -> list[dict]:
 
 
 def _today() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    """The daily games' date. Midnight in DAILY_TZ, not UTC: a UTC rollover lands in the
+    late afternoon on the west coast, mid-session for whoever is playing."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(os.environ.get("DAILY_TZ") or "UTC")
+    except Exception:
+        tz = ZoneInfo("UTC")
+    return datetime.now(tz).strftime("%Y-%m-%d")
 
 
 @app.get("/api/picross/daily")

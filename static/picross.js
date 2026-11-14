@@ -483,6 +483,7 @@ async function loadPicross() {
     PX.date = j.date; PX.w = j.w; PX.h = j.h; PX.rows = j.rows; PX.cols = j.cols;
     if (!pxLoad()) PX.cells = new Array(PX.w * PX.h).fill(0);
     renderPicross();
+    pxMaybeSolved();               // a finished board whose check never landed confirms now
   } catch (_) {
     PX.date = "—"; PX.w = 0; renderPicross();
   }

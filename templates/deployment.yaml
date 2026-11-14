@@ -46,6 +46,8 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            - name: DAILY_TZ
+              value: {{ .Values.dailyTimezone | default "UTC" | quote }}
             - name: DROPBOX_XLSX_URL
               valueFrom:
                 secretKeyRef:
