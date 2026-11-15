@@ -1089,12 +1089,32 @@ const COMPONENT_SOURCES = [
     "tab": "home"
   },
   {
+    "id": "components-discovery-plan-js-planResultsHtml-1561a26ed1",
+    "legacyId": "plan-planResultsHtml",
+    "name": "planResultsHtml",
+    "symbol": "planResultsHtml",
+    "file": "components/discovery/plan.js",
+    "line": 225,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-renderPlanResults-d6aa188443",
+    "legacyId": "plan-renderPlanResults",
+    "name": "renderPlanResults",
+    "symbol": "renderPlanResults",
+    "file": "components/discovery/plan.js",
+    "line": 241,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
     "id": "components-discovery-plan-js-planCandidateHtml-658ebf0362",
     "legacyId": "plan-planCandidateHtml",
     "name": "planCandidateHtml",
     "symbol": "planCandidateHtml",
     "file": "components/discovery/plan.js",
-    "line": 235,
+    "line": 252,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1104,7 +1124,7 @@ const COMPONENT_SOURCES = [
     "name": "planCoverageHtml",
     "symbol": "planCoverageHtml",
     "file": "components/discovery/plan.js",
-    "line": 262,
+    "line": 279,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1114,7 +1134,7 @@ const COMPONENT_SOURCES = [
     "name": "planHeroHtml",
     "symbol": "planHeroHtml",
     "file": "components/discovery/plan.js",
-    "line": 287,
+    "line": 304,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1124,7 +1144,7 @@ const COMPONENT_SOURCES = [
     "name": "planSkeletonHtml",
     "symbol": "planSkeletonHtml",
     "file": "components/discovery/plan.js",
-    "line": 313,
+    "line": 330,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1134,7 +1154,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPlan",
     "symbol": "renderPlan",
     "file": "components/discovery/plan.js",
-    "line": 327,
+    "line": 344,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1144,7 +1164,37 @@ const COMPONENT_SOURCES = [
     "name": "wirePlan",
     "symbol": "wirePlan",
     "file": "components/discovery/plan.js",
-    "line": 337,
+    "line": 354,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-PLAN_QUERY_DEBOUNCE-c88b15ddb8",
+    "legacyId": "plan-PLAN_QUERY_DEBOUNCE",
+    "name": "PLAN_QUERY_DEBOUNCE",
+    "symbol": "PLAN_QUERY_DEBOUNCE",
+    "file": "components/discovery/plan.js",
+    "line": 399,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-wirePlanResults-4fb2392a92",
+    "legacyId": "plan-wirePlanResults",
+    "name": "wirePlanResults",
+    "symbol": "wirePlanResults",
+    "file": "components/discovery/plan.js",
+    "line": 403,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planWarm-5295ae55e1",
+    "legacyId": "plan-planWarm",
+    "name": "planWarm",
+    "symbol": "planWarm",
+    "file": "components/discovery/plan.js",
+    "line": 425,
     "category": "Home & discovery",
     "tab": "home"
   },

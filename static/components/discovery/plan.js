@@ -196,11 +196,6 @@ const PLAN_PAGE = 12;
 
 function planChooserHtml(trackId) {
   const t = planTrack(trackId);
-  const rows = planCandidates(trackId);
-  const pages = Math.max(1, Math.ceil(rows.length / PLAN_PAGE));
-  const page = Math.min(planState.page, pages);
-  const shown = rows.slice((page - 1) * PLAN_PAGE, page * PLAN_PAGE);
-
   const chip = (list, cur, attr) => list.map((o) => `<button type="button"
       class="plan-chip${o.id === cur ? " on" : ""}" data-${attr}="${escapeHtml(o.id)}"${
       o.hint ? ` title="${escapeHtml(o.hint)}"` : ""}>${escapeHtml(o.label)}</button>`).join("");
@@ -219,14 +214,36 @@ function planChooserHtml(trackId) {
         ${chip(PLAN_SORTS, planState.sort, "plan-sort")}
       </div>
     </div>
-    <p class="plan-count">${rows.length.toLocaleString()} candidate${rows.length === 1 ? "" : "s"}${
+    <div class="plan-results">${planResultsHtml(trackId)}</div>
+  </div>`;
+}
+
+/* The part of the chooser a keystroke changes: the count, one page of candidates and the
+   pager. Its own builder so the search box can repaint just this — the box itself, the
+   chips and the three queues above stay exactly where they are. Repainting the whole tab
+   per keystroke rebuilt every cover in every queue and had to fight to keep the caret. */
+function planResultsHtml(trackId) {
+  const rows = planCandidates(trackId);
+  const pages = Math.max(1, Math.ceil(rows.length / PLAN_PAGE));
+  const page = Math.min(planState.page, pages);
+  const shown = rows.slice((page - 1) * PLAN_PAGE, page * PLAN_PAGE);
+  return `<p class="plan-count">${rows.length.toLocaleString()} candidate${rows.length === 1 ? "" : "s"}${
       planIsHeavy() ? ` <span class="muted">· ranked against every challenge bucket</span>` : ""}</p>
     ${shown.length
       ? `<div class="plan-cands">${shown.map((r) => planCandidateHtml(r, trackId)).join("")}</div>`
       : `<div class="plan-lane-empty"><span class="plan-lane-ico">${icon("i-search", 22)}</span>
           <p>Nothing in this track matches.</p></div>`}
-    <div class="plan-pager" data-pages="${pages}" data-page="${page}"></div>
-  </div>`;
+    <div class="plan-pager" data-pages="${pages}" data-page="${page}"></div>`;
+}
+
+/* Repaint the open chooser's results in place. A no-op when no chooser is open, or when the
+   one on screen belongs to a different lane than the state says (a render is on its way). */
+function renderPlanResults() {
+  const el = planState.track
+    && document.querySelector(`#plan .plan-lane[data-track="${planState.track}"] .plan-results`);
+  if (!el) return;
+  el.innerHTML = planResultsHtml(planState.track);
+  wirePlanResults(el);
 }
 
 /* One candidate. A poster card so it is recognisable from the listings, the signal chips
@@ -357,44 +374,55 @@ function wirePlan(host) {
   for (const el of host.querySelectorAll("[data-plan-toggle]")) {
     el.onclick = () => planOpen(el.dataset.planToggle);
   }
-  for (const el of host.querySelectorAll("[data-plan-add]")) {
-    el.onclick = (e) => { e.stopPropagation(); planAdd(el.dataset.planAdd, el.dataset.planTrack); };
-  }
   for (const el of host.querySelectorAll("[data-plan-filter]")) {
     el.onclick = () => planSetFilter(el.dataset.planFilter);
   }
   for (const el of host.querySelectorAll("[data-plan-sort]")) {
     el.onclick = () => planSetSort(el.dataset.planSort);
   }
-  /* The search box keeps focus across its own re-render: planSetQuery repaints the whole
-     tab, so typing would otherwise lose the caret after every keystroke. Debounced for
-     the same reason the palette is — the candidate list is thousands of rows and the
-     heavy sorts walk every challenge. */
+  /* The search box is never replaced while you type: planSetQuery repaints the results
+     region only (renderPlanResults), so the input keeps its focus and caret on its own.
+     A short debounce still batches a fast typist's keystrokes into one repaint. */
   const q = host.querySelector("#planQ");
   if (q) {
     let timer = null;
     q.oninput = () => {
       clearTimeout(timer);
-      const at = q.selectionStart;
-      timer = setTimeout(() => {
-        planSetQuery(q.value);
-        const next = document.querySelector("#plan #planQ");
-        if (next) { next.focus(); try { next.setSelectionRange(at, at); } catch (_) {} }
-      }, 220);
+      timer = setTimeout(() => planSetQuery(q.value), PLAN_QUERY_DEBOUNCE);
     };
   }
+  const results = host.querySelector(".plan-results");
+  if (results) wirePlanResults(results);
+  // Covers and playtimes for the queued games arrive per-game; postEnrich re-renders.
+  planWarm(host.querySelectorAll(".plan-row[data-pk]"));
+}
+const PLAN_QUERY_DEBOUNCE = 120;
+
+// Handlers inside the results region, wired on every repaint of it. Delegated by data
+// attribute like the rest, so a repaint can't leave a stale closure behind.
+function wirePlanResults(el) {
+  for (const b of el.querySelectorAll("[data-plan-open]")) {
+    const row = rngRowByKey(b.dataset.planOpen);
+    if (row) b.onclick = () => openDrawer(row, "games");
+  }
+  for (const b of el.querySelectorAll("[data-plan-add]")) {
+    b.onclick = (e) => { e.stopPropagation(); planAdd(b.dataset.planAdd, b.dataset.planTrack); };
+  }
   // Pagination through the shared control; the chooser owns the page number.
-  const pager = host.querySelector(".plan-pager");
+  const pager = el.querySelector(".plan-pager");
   if (pager) {
     createPager({
       host: pager,
       page: +pager.dataset.page || 1,
       pages: +pager.dataset.pages || 1,
-      onChange: (page) => { planState.page = page; renderPlan(); },
+      onChange: (page) => { planState.page = page; renderPlanResults(); },
     });
   }
-  // Covers and playtimes for what is on screen arrive per-game; postEnrich re-renders.
-  const rows = [...host.querySelectorAll("[data-pk]")]
-    .map((el) => rngRowByKey(el.dataset.pk)).filter(Boolean);
+  planWarm(el.querySelectorAll(".plan-cand[data-pk]"));
+}
+
+// Ask for the per-game record (cover, time to beat) of what is on screen.
+function planWarm(nodes) {
+  const rows = [...nodes].map((n) => rngRowByKey(n.dataset.pk)).filter(Boolean);
   if (rows.length && typeof maybeEnrich === "function") maybeEnrich(rows);
 }

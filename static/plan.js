@@ -301,16 +301,37 @@ let _planCand = null, _planCandSig = null, _planCandFor = null;
 // The fallback order for a sort id nothing recognises: by name, which is the only order
 // that needs no data at all.
 const planCmpTitle = (a, b) => String(a.title || "").localeCompare(String(b.title || ""));
+/* A lane's pool before the search box, filter and sort touch it: eligible, allowed, in
+   this lane, not already planned. Its own memo because it is the expensive part —
+   deciding a lane runs rngTier over every unfinished game in the sheet, which is most of
+   what a keystroke cost when the whole list was rebuilt per query. Nothing typed changes
+   it; only the sheet, enrichment, and the plan itself do. Each row carries its search
+   text, lowercased once, so a keystroke is a substring test per row and nothing more. */
+let _planBase = new Map(), _planBaseSig = null;
+function planLanePool(trackId) {
+  const planned = planKeys();
+  const sig = [_enrichEpoch, [...planned].sort().join("\u001e")].join("\u001f");
+  if (_planBaseSig !== sig || _planBase.for !== DATA) {
+    _planBase = new Map(); _planBase.for = DATA; _planBaseSig = sig;
+  }
+  let pool = _planBase.get(trackId);
+  if (!pool) {
+    pool = pickEligible()
+      .filter((r) => planAllowed(r) && !planned.has(r._k) && planTrackOf(r) === trackId)
+      .map((r) => ({ r, text: `${r.title || ""}\u0000${r.platform || ""}`.toLowerCase() }));
+    _planBase.set(trackId, pool);
+  }
+  return pool;
+}
+
 function planCandidates(trackId) {
   const sig = [trackId, planState.q, planState.filter, planState.sort,
     _enrichEpoch, planList().length, planKeys().size].join("\u001f");
   if (_planCand && _planCandSig === sig && _planCandFor === DATA) return _planCand;
-  const planned = planKeys();
   const q = planState.q.trim().toLowerCase();
-  let rows = pickEligible().filter((r) =>
-    planAllowed(r) && !planned.has(r._k) && planTrackOf(r) === trackId
-    && (!q || String(r.title || "").toLowerCase().includes(q)
-        || String(r.platform || "").toLowerCase().includes(q)));
+  let rows = planLanePool(trackId)
+    .filter((e) => !q || e.text.includes(q))
+    .map((e) => e.r);
   rows = rows.filter((r) => {
     switch (planState.filter) {
       case "upnext": return PLAN_STATUS_PLANNED.has(String(r.playingStatus || ""));
@@ -388,21 +409,30 @@ const planStateToURL = (p) => {
   if (planState.filter !== "all") p.set("pf", planState.filter);
 };
 
-// Open or close a lane's chooser. Opening one closes the others: three candidate lists at
-// once is three thousand-row lists at once, and the choice being made is about one lane.
+/* Open or close a lane's chooser. Opening one closes the others: three candidate lists at
+   once is three thousand-row lists at once, and the choice being made is about one lane.
+
+   Every open starts clean — search, filter, sort and page all reset. They are one set of
+   controls on one chooser, and a chooser belongs to its lane: "zelda" typed into Modern
+   indie, or "Clears a bucket" picked there, is a question about that lane, and carrying it
+   into Retro answered a question nobody asked of Retro. Closing resets too, so coming back
+   to the same lane later starts from the whole list rather than from where you left off. */
 function planOpen(trackId) {
   planState.track = planState.track === trackId ? null : trackId;
-  planState.page = 1;
+  planState.q = ""; planState.filter = "all"; planState.sort = "fit"; planState.page = 1;
   renderPlan();
   nav();
 }
 
+/* Typing repaints the results and nothing else (renderPlanResults), and REPLACES the URL
+   rather than pushing one: a history entry per keystroke made Back a key that deleted the
+   last letter. The query still rides in the link, so a shared or reloaded URL keeps it. */
 function planSetQuery(q) {
   if (planState.q === q) return;
   planState.q = q;
   planState.page = 1;
-  renderPlan();
-  nav();
+  renderPlanResults();
+  syncURL(false);
 }
 
 function planSetSort(id) {
@@ -441,9 +471,9 @@ const planLoading = () =>
    repaint the tab on a loop — so, like pick.js's pickShowsKey, it only repaints when the
    batch actually touched something on screen.
 
-   And never while you are typing in the chooser's search box: a repaint replaces that
-   input, and an input replaced mid-word is a word you have to type again. The next
-   keystroke repaints anyway (planSetQuery), so nothing is lost by waiting. */
+   And never a FULL repaint while you are typing in the chooser's search box: that would
+   replace the input mid-word. The results region is repainted instead, which is where a
+   batch for a candidate on screen lands anyway; the queues catch up on the next render. */
 const planShowsKey = (k) => {
   if (activeTab !== "plan" || !k) return false;
   return !!document.querySelector(`#plan [data-pk="${CSS.escape(k)}"]`);
@@ -452,7 +482,7 @@ const planShowsKey = (k) => {
 function planEnrichLanded() {
   if (activeTab !== "plan") return;
   const el = document.activeElement;
-  if (el && el.id === "planQ") return;
+  if (el && el.id === "planQ") { renderPlanResults(); return; }
   renderPlan();
 }
 
