@@ -210,6 +210,11 @@ async function postEnrich(keys) {
          own result mid-spin. pickShowsKey (pick.js) is the test. */
       else if (activeTab === "pick" && typeof pickEnrichLanded === "function"
                && Object.keys(j.items || {}).some(pickShowsKey)) pickEnrichLanded(true);
+      // Plan: same bargain as Pick. Its rows carry a cover and a time to beat, both of
+      // which arrive here, and both of which are worth a repaint — but only for a batch
+      // that touched a game the page is actually showing (planShowsKey).
+      else if (activeTab === "plan" && typeof planEnrichLanded === "function"
+               && Object.keys(j.items || {}).some(planShowsKey)) planEnrichLanded();
     }
     if (ENRICH_BATCH_DONE) { const done = ENRICH_BATCH_DONE; ENRICH_BATCH_DONE = null; done(); }
     if (j.pending && j.pending.length) {                    // still resolving — poll

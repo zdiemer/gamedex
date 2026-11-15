@@ -162,6 +162,10 @@ const PREFS_KEYS = {
   // (rng.js). Which playthroughs are under way is the same answer on every device, and
   // it outlives the browser you happened to pin it in.
   pins: "gamedex.pins",
+  // The Plan tab's three queues — [{track, key}] in play order (plan.js). The order is
+  // the only thing that page records; completion and status are read off the sheet. A
+  // queue is a decision, not a view, so it follows you between devices.
+  plan: "gamedex.plan",
 };
 
 const prefsLocal = (key) => {
@@ -219,6 +223,10 @@ async function loadPrefs() {
   // bar reads the mirror synchronously — so without this it paints an empty bar and keeps
   // it until you touch something.
   if (activeTab === "pick" && typeof renderPicker === "function") renderPicker();
+  // Same for Plan: a direct link paints the queues from the local mirror before the
+  // server's list arrives, so an empty mirror shows three empty lanes until you touch
+  // something.
+  if (activeTab === "plan" && typeof renderPlan === "function") renderPlan();
   // Dismissed recommendations are account preferences too. A direct link can
   // render from the local mirror before the server's newer list arrives.
   if (activeTab === "swipe" && typeof renderSwipe === "function") renderSwipe();

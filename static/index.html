@@ -266,6 +266,7 @@
           <button data-tab="groups"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-layers"/></svg><span>Collections</span></button>
           <button data-tab="stats"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-stats"/></svg><span>Stats</span></button>
           <button data-tab="pick"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-dice"/></svg><span>Pick</span></button>
+          <button data-tab="plan"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-list"/></svg><span>Plan</span></button>
           <button data-tab="recs"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-sparkle"/></svg><span>Recommendations</span></button>
           <button data-tab="swipe" id="tabSwipe" hidden><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-heart"/></svg><span>Swipe</span></button>
           <button data-tab="translations"><svg class="ico" width="18" height="18" aria-hidden="true"><use href="#i-globe"/></svg><span>Translation Watch</span></button>
@@ -339,6 +340,7 @@
       <div class="stats" id="stats" hidden></div>
       <div class="picker" id="picker" hidden></div>
       <div class="challenges" id="challenges" hidden></div>
+      <div class="plan" id="plan" hidden></div>
       <div class="home" id="home" hidden></div>
       <div class="health" id="health" hidden></div>
       <div id="componentLibrary" hidden></div>
@@ -591,6 +593,10 @@
   <script defer src="collections.js"></script>
   <script defer src="components/collections/challenges.js"></script>
   <script defer src="challenges.js"></script>
+  <!-- Plan reads rng.js's three lanes, challenges.js's bucket machinery and themes.js's
+       slates, so it loads after all three. -->
+  <script defer src="components/discovery/plan.js"></script>
+  <script defer src="plan.js"></script>
   <!-- Writes from the web: the drawer's quick-log strip, "Add a game" (IGDB search)
        and the pending-edits list. Defines functions and wires two menu buttons, so
        it has no ordering constraint beyond core.js. -->

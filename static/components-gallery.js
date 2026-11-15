@@ -147,6 +147,7 @@ const LIVE_SURFACES = [
   ["cover-editor", "Cover editor & crop controls", "Admin & editing", "components/shelf/shelf.js", "shelf", "#shelfview"],
   ["home", "Home hero, shelves & progress cards", "Home & discovery", "components/discovery/home.js", "home", "#home"],
   ["picker", "Game picker, rules & randomizer slots", "Home & discovery", "components/discovery/pick.js", "pick", "#picker"],
+  ["plan", "Plan queues, signal chips & the candidate chooser", "Home & discovery", "components/discovery/plan.js", "plan", "#plan"],
   ["groups", "Collection cards & group detail", "Collections & challenges", "components/collections/groups.js", "groups", "#groups"],
   ["challenges", "Challenge cards, progress & builder", "Collections & challenges", "components/collections/challenges.js", "challenges", "#challenges"],
   ["timeline", "Completion timeline & year navigation", "Game tiles & lists", "components/lists/timeline.js", "completed", "#timeline", "timeline"],

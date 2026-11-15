@@ -121,6 +121,10 @@ async function loadAllEnrichment() {
       if (activeTab === "stats") renderStats();
       else if (activeTab === "home") patchHomeCovers();   // in place: a full re-render flickers
       else if (activeTab === "challenges") renderChallenges();
+      // Plan paints a skeleton until the bulk map lands (planLoading), for the same reason
+      // RNG does: the three tracks are decided by IGDB's release year, publishers and
+      // audience. This is what releases it.
+      else if (activeTab === "plan") planEnrichLanded();
       else if (activeTab === "health") renderHealth();
       else if (activeTab === "groups") renderGroups();     // membership shifts, not just covers
       // Swipe must rebuild against the newly arrived ownership ids. Its first render waits

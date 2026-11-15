@@ -993,6 +993,162 @@ const COMPONENT_SOURCES = [
     "tab": "home"
   },
   {
+    "id": "components-discovery-plan-js-planSignalChipsHtml-8f2fdb8f1e",
+    "legacyId": "plan-planSignalChipsHtml",
+    "name": "planSignalChipsHtml",
+    "symbol": "planSignalChipsHtml",
+    "file": "components/discovery/plan.js",
+    "line": 34,
+    "category": "Home & discovery",
+    "tab": "home",
+    "contract": {
+      "summary": "Render the chip row that says why one game is worth queueing over another.",
+      "params": [
+        "{Object} sig - A planSignals() record for one game.",
+        "{Object} sig.row - The sheet row, read for its time to beat.",
+        "{boolean} sig.done - Finished on the sheet; replaces the status chip.",
+        "{boolean} sig.started - A start date with no status; shown only when status is empty.",
+        "{string} sig.status - The sheet's Status cell (\"Playing\"/\"Up Next\"/\"On Hold\"), empty for none.",
+        "{Array<string>} sig.themes - Names of the theme slates this game is already on.",
+        "{Object|null} sig.clears - planClears() record, or null when it was not computed.",
+        "{Object} [options={}] - Presentation options.",
+        "{boolean} [options.compact=false] - Counts instead of words, for the narrow candidate cards."
+      ],
+      "returns": "{string} A .plan-sigs row, or an empty string when nothing is known.",
+      "requires": [
+        "escapeHtml, icon, fmtHours and playtimeOf; .plan-sig styles and the i-target/i-theme/i-play/i-pause/i-check/i-clock sprite symbols."
+      ],
+      "events": [
+        "None. The caller owns state and event wiring."
+      ],
+      "cleanup": "No resources or listeners are allocated; the caller owns any inserted DOM.",
+      "escaping": "Labels, theme names, bucket keys and tooltips are escaped; no markup is accepted.",
+      "examples": [
+        "host.innerHTML = planSignalChipsHtml(planSignals(row), { compact: true });"
+      ]
+    }
+  },
+  {
+    "id": "components-discovery-plan-js-planClearLineHtml-cac4d90b65",
+    "legacyId": "plan-planClearLineHtml",
+    "name": "planClearLineHtml",
+    "symbol": "planClearLineHtml",
+    "file": "components/discovery/plan.js",
+    "line": 75,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planQueueRowHtml-8b728b034c",
+    "legacyId": "plan-planQueueRowHtml",
+    "name": "planQueueRowHtml",
+    "symbol": "planQueueRowHtml",
+    "file": "components/discovery/plan.js",
+    "line": 94,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planLaneMoveHtml-1cf417eef4",
+    "legacyId": "plan-planLaneMoveHtml",
+    "name": "planLaneMoveHtml",
+    "symbol": "planLaneMoveHtml",
+    "file": "components/discovery/plan.js",
+    "line": 133,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planLaneHtml-46b374cc17",
+    "legacyId": "plan-planLaneHtml",
+    "name": "planLaneHtml",
+    "symbol": "planLaneHtml",
+    "file": "components/discovery/plan.js",
+    "line": 149,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-PLAN_PAGE-50f81af727",
+    "legacyId": "plan-PLAN_PAGE",
+    "name": "PLAN_PAGE",
+    "symbol": "PLAN_PAGE",
+    "file": "components/discovery/plan.js",
+    "line": 195,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planChooserHtml-d6822fff71",
+    "legacyId": "plan-planChooserHtml",
+    "name": "planChooserHtml",
+    "symbol": "planChooserHtml",
+    "file": "components/discovery/plan.js",
+    "line": 197,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planCandidateHtml-658ebf0362",
+    "legacyId": "plan-planCandidateHtml",
+    "name": "planCandidateHtml",
+    "symbol": "planCandidateHtml",
+    "file": "components/discovery/plan.js",
+    "line": 235,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planCoverageHtml-1d0d406ca2",
+    "legacyId": "plan-planCoverageHtml",
+    "name": "planCoverageHtml",
+    "symbol": "planCoverageHtml",
+    "file": "components/discovery/plan.js",
+    "line": 262,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planHeroHtml-66b3a71784",
+    "legacyId": "plan-planHeroHtml",
+    "name": "planHeroHtml",
+    "symbol": "planHeroHtml",
+    "file": "components/discovery/plan.js",
+    "line": 287,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planSkeletonHtml-cee307994c",
+    "legacyId": "plan-planSkeletonHtml",
+    "name": "planSkeletonHtml",
+    "symbol": "planSkeletonHtml",
+    "file": "components/discovery/plan.js",
+    "line": 313,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-renderPlan-e060a13caf",
+    "legacyId": "plan-renderPlan",
+    "name": "renderPlan",
+    "symbol": "renderPlan",
+    "file": "components/discovery/plan.js",
+    "line": 327,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-wirePlan-1af97729cf",
+    "legacyId": "plan-wirePlan",
+    "name": "wirePlan",
+    "symbol": "wirePlan",
+    "file": "components/discovery/plan.js",
+    "line": 337,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
     "id": "components-discovery-rng-js-rngSlotHtml-9a735ff3c2",
     "legacyId": "rng-rngSlotHtml",
     "name": "rngSlotHtml",

@@ -7,7 +7,7 @@
      but yesterday's is far better than an error screen on the train.
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
-const VERSION = "v1.87.34";
+const VERSION = "v1.88.0";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 // Keep in sync with the <script> tags in index.html — a file loaded there but
@@ -57,7 +57,8 @@ const SHELL_URLS = [
   "./components/recommendations/wishlist.js", "./wishlist.js", "./components/drawer/extras.js",
   "./extras.js", "./components/shelf/shelf.js", "./shelf.js",
   "./components/collections/collections.js", "./collections.js", "./components/collections/challenges.js",
-  "./challenges.js", "./components/admin/edits.js", "./edits.js",
+  "./challenges.js", "./components/discovery/plan.js", "./plan.js",
+  "./components/admin/edits.js", "./edits.js",
   "./fonts/archivo-800.woff2", "./fonts/plex-sans.woff2", "./fonts/creepster.woff2",
   // One display face per seasonal event. They are only ever requested when a banner uses
   // them, but the shell has to hold them or an event opened offline loses its wordmark —

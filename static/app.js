@@ -15,7 +15,7 @@ let lastGroupedCount = -1;      // so the grouped view repaints once enrichment 
    "events" is the preview board behind it (events.js). The event IDS are not listed here:
    each ev-*.js file pushes its own into this array when it registers, which happens after
    this file parses. Anything that copies this list at parse time gets an incomplete one. */
-const SPECIAL_TABS = ["home", "stats", "pick", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "swipe", "spooktober", "event", "events", "components"];
+const SPECIAL_TABS = ["home", "stats", "pick", "plan", "challenges", "health", "groups", "shelf", "picross", "dexle", "hilo", "daily", "search", "swipe", "spooktober", "event", "events", "components"];
 function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challenges" | "search" …
   const special = SPECIAL_TABS.includes(mode);
   $("#componentLibrary").hidden = mode !== "components";
@@ -24,6 +24,7 @@ function setSpecialMode(mode) {   // null | "home" | "stats" | "pick" | "challen
   $("#searchpage").hidden = mode !== "search";
   $("#stats").hidden = mode !== "stats";
   $("#picker").hidden = mode !== "pick";
+  $("#plan").hidden = mode !== "plan";
   $("#challenges").hidden = mode !== "challenges";
   $("#home").hidden = mode !== "home";
   $("#health").hidden = mode !== "health";
@@ -89,6 +90,7 @@ function _renderAll() {
   if (activeTab === "home") { setSpecialMode("home"); renderHome(); return; }
   if (activeTab === "stats") { setSpecialMode("stats"); renderStats(); return; }
   if (activeTab === "pick") { setSpecialMode("pick"); renderPicker(); return; }
+  if (activeTab === "plan") { setSpecialMode("plan"); renderPlan(); return; }
   if (activeTab === "challenges") { setSpecialMode("challenges"); renderChallenges(); return; }
   if (activeTab === "health") { setSpecialMode("health"); renderHealth(); return; }
   if (activeTab === "groups") { setSpecialMode("groups"); renderGroups(); return; }
@@ -285,6 +287,8 @@ function syncURL(push) {
   } else if (activeTab === "shelf") {
     if (SHELF.filter) p.set("shf", SHELF.filter);
     if (SHELF.plat) p.set("shp", SHELF.plat);
+  } else if (activeTab === "plan") {
+    planStateToURL(p);
   } else if (activeTab === "challenges") {
     if (chState.open) p.set("ch", chState.open);
     if (chState.showAll) p.set("chall", chState.showAll);
@@ -324,7 +328,7 @@ function applyStateFromURL() {
   let tab = p.get("tab") === "series" ? "groups" : p.get("tab");   // old links still work
   // "picross" is in here but NOT in the nav — it's reached from Home, the palette, or a
   // direct link, and a link has to actually work.
-  tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "challenges",
+  tab = ["home", "games", "completed", "onOrder", "groups", "stats", "pick", "plan", "challenges",
          "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "swipe", "wishlist", "search",
          "translations", "spooktober", "events", "components"]
     .concat(typeof EVENT_TABS !== "undefined" ? EVENT_TABS : []).includes(tab) ? tab : "home";
@@ -348,6 +352,7 @@ function applyStateFromURL() {
       pickState.mode = p.get("pm") === "rng" ? "rng" : "one";
       rngState.toGo = p.get("go") === "1";
     }
+    if (tab === "plan") planStateFromURL(p);
     if (tab === "challenges") {
       chState.open = p.get("ch") || null;
       chState.showAll = p.get("chall") || null;

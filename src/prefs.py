@@ -46,9 +46,12 @@ log = logging.getLogger("gamedex.prefs")
 #   key is an allowlist entry here and eleven of them to hold eleven small objects is a
 #   schema the server does not want to know about. The client owns the shape and merges
 #   per event on load (events.js).
+# plan: the Plan tab's three queues — [{track, key}] in play order, at most 300 entries.
+#   The order is the only thing that page stores; completion and status are read off the
+#   sheet. A queue is minutes of deciding, and it has to be the same on every device.
 KEYS = {"views", "challenges", "picross", "dexle", "dexleProgress", "hilo",
         "hiloProgress", "dismissed", "swiped", "swipeSettings", "pickers", "pins",
-        "spooktober", "events"}
+        "spooktober", "events", "plan"}
 MAX_BYTES = 256 * 1024      # a pref is a small list of definitions, not a payload
 
 
