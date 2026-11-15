@@ -172,9 +172,19 @@ class MatchValidator:
                 self.__ARTICLES_REGEX, "", t_2.split(separator, maxsplit=1)[-1]
             )
 
-            return self.titles_equal_normalized(
-                t1_left, t2_left
-            ) or self.titles_equal_normalized(t1_right, t2_right)
+            if self.titles_equal_normalized(t1_left, t2_left):
+                return True
+            if not self.titles_equal_normalized(t1_right, t2_right):
+                return False
+            # A shared subtitle usually means one game under two names — "Eiyuu
+            # Densetsu: Ao no Kiseki" is "The Legend of Heroes: Ao no Kiseki". Not
+            # when the shared half only describes a release: "Pokemon Legends: Z-A
+            # - Nintendo Switch 2 Edition" and "A-Train: All Aboard! Tourism -
+            # Nintendo Switch 2 Edition" share nothing a player would call the
+            # game. Then the rest of the title has to agree as well.
+            if self.is_edition_descriptor(t1_right):
+                return self.titles_equal_fuzzy(t1_left, t2_left)
+            return True
 
         return (
             self.titles_equal_normalized(t_1, t_2)
@@ -199,6 +209,37 @@ class MatchValidator:
                 re.sub(self.__POSSESSIVE_REGEX, "", t_2),
             )
         )
+
+    # Words that close a phrase naming a RELEASE of a game rather than the game:
+    # "Definitive Edition", "Director's Cut", "Arcade Hits Pack". "Version" is
+    # deliberately absent — "Veedramon Version" and "Red Version" are the games.
+    __EDITION_WORDS = frozenset((
+        "edition", "editions", "remaster", "remastered", "remake", "collection",
+        "bundle", "pack", "deluxe", "cut", "hd", "goty",
+    ))
+
+    def is_edition_descriptor(self, phrase: str) -> bool:
+        """Whether `phrase` names a release ("Definitive Edition"), not a game."""
+        words = re.findall(r"[a-z0-9]+", str(phrase).casefold())
+        return bool(words) and words[-1] in self.__EDITION_WORDS
+
+    def shares_only_an_edition(self, t_1: str, t_2: str) -> bool:
+        """Whether two titles agree on an edition descriptor and nothing else.
+
+        This is exactly what titles_equal_fuzzy used to accept and now refuses, so a
+        cache written before the change can find the matches it should never have
+        made: "Hades II - Nintendo Switch 2 Edition" stored with Zelda's score.
+        """
+        if self.titles_equal_fuzzy(t_1, t_2):
+            return False
+        for separator in (":", " - "):
+            if separator not in t_1 or separator not in t_2:
+                continue
+            r_1 = re.sub(self.__ARTICLES_REGEX, "", t_1.split(separator, maxsplit=1)[-1])
+            r_2 = re.sub(self.__ARTICLES_REGEX, "", t_2.split(separator, maxsplit=1)[-1])
+            if self.titles_equal_normalized(r_1, r_2) and self.is_edition_descriptor(r_1):
+                return True
+        return False
 
     def pokemon_special_case(self, t_1: str, t_2: str) -> bool:
         """Special case handling for Pokemon games.

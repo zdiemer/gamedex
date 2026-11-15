@@ -17,7 +17,7 @@ import sqlite3
 import threading
 import time
 import urllib.parse
-from collections import deque
+from collections import Counter, deque
 from datetime import datetime, timezone
 
 from match_validator import MatchValidator
@@ -302,6 +302,10 @@ EXTRAS_VERSION = "2"       # keywords / engines / age rating / perspectives
 # diacritic repair: IGDB's search endpoint does not index a name carrying one, so
 # 65 titles on the sheet (nearly all macron romanisations) were answered by IGN.
 MATCH_QUERY_VERSION = "1"
+# Bump when MatchValidator stops accepting a title pair it used to: the purge drops
+# cached secondary matches the current rule would refuse. v1 is the shared-edition
+# rule — Metacritic had "Hades II - Nintendo Switch 2 Edition" scored as Zelda.
+TITLE_RULE_VERSION = "1"
 # Full first-release date + IGDB release status onto already-matched records. Bump to re-ask
 # (a status MOVES: a game leaves early access, a storefront delists one), which is the whole
 # point of the health check reading it.
@@ -618,6 +622,9 @@ class Enricher:
                     "DELETE FROM enrichment WHERE status='no_match'"
                     " AND (manual IS NULL OR manual = 0)")
                 self._db.commit()
+        # Before request(), which skips any key that already has a row: a purged
+        # match has to be gone by then to be asked again.
+        self.purge_refused_matches()
         if self._backfill:
             self.request(list(key_meta.keys()), front=False)
         # Not in start(): a re-match needs each row's TITLE, and the key index is
@@ -1489,6 +1496,49 @@ class Enricher:
             self._db.commit()
         self._kv_set("pcgw_version", PCGW_VERSION)
         log.info("pcgw: cleared %d rows resolved against a partial dump", n)
+
+    def purge_refused_matches(self):
+        """Drop cached secondary matches that the current title rule would refuse.
+
+        A match is written once and never re-judged, so tightening MatchValidator
+        protects only the games matched after it. This finds the rest by the one
+        pairing the tightening removed — two titles sharing nothing but an edition
+        ("Raiden V: Director's Cut" filed under Ghost of Tsushima) — and deletes
+        them so the next request() asks the source again. IGDB's own table is left
+        out: it matched on alternative names the cache does not keep, so the stored
+        name alone cannot convict it ("Galaxy Fräulein Yuna" is rightly "Ginga
+        Ojousama Densetsu Yuna"). Hand-pinned rows are never touched.
+        """
+        if not self._key_meta or self._kv_get("title_rule_version") == TITLE_RULE_VERSION:
+            return
+        purged = Counter()
+        with self._db_lock:
+            for src in self._secondary:
+                try:
+                    rows = self._db.execute(
+                        f"SELECT match_key, data FROM {src}"
+                        " WHERE status='matched' AND data IS NOT NULL AND COALESCE(manual,0)=0"
+                    ).fetchall()
+                except sqlite3.Error:
+                    continue            # a source whose table has another shape
+                doomed = []
+                for key, raw in rows:
+                    title = (self._key_meta.get(key) or {}).get("title")
+                    try:
+                        rec = json.loads(raw)
+                    except ValueError:
+                        continue
+                    name = (rec.get("name") or rec.get("title")) if isinstance(rec, dict) else None
+                    if title and isinstance(name, str) and \
+                            self._validator.shares_only_an_edition(title, name):
+                        doomed.append((key,))
+                if doomed:
+                    self._db.executemany(f"DELETE FROM {src} WHERE match_key=?", doomed)
+                    purged[src] = len(doomed)
+            self._db.commit()
+        self._kv_set("title_rule_version", TITLE_RULE_VERSION)
+        log.info("title rule: purged %d cached matches it now refuses %s",
+                 sum(purged.values()), dict(purged))
 
     def _start_rematch(self):
         """Launch backfill_matches() once per process, after reindex() has the titles."""
