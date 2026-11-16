@@ -289,7 +289,7 @@ function planCoverageHtml() {
   const names = cov.unplaced.slice(0, 12);
   return `<div class="plan-cover is-warn">
     <span class="plan-cover-ok">${icon("i-alert", 12)} ${cov.unplaced.length.toLocaleString()} of ${
-      cov.total.toLocaleString()} games have no known release year, so the 2006 line can't place them</span>
+      cov.total.toLocaleString()} games are on hardware with no generation and have no known release year, so the modern/retro line can't place them</span>
     <span class="plan-cover-sum">${parts.join("")}</span>
     <ul class="plan-unplaced">${names.map((r) => `<li><button type="button" class="plan-unplaced-go"
         data-plan-open="${escapeHtml(String(r._k))}">${escapeHtml(String(r.title))}${

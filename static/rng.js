@@ -5,9 +5,9 @@
    answers the other question people actually ask a random picker: give me a
    SHAPE for the next stretch. Three slots, rolled together:
 
-     * one modern AAA game    (2006 or later, big-budget)
-     * one modern indie game  (2006 or later, small)
-     * one retro game         (before 2006)
+     * one modern AAA game    (PS4 / Switch / Xbox One generation onward, big-budget)
+     * one modern indie game  (PS4 / Switch / Xbox One generation onward, small)
+     * one retro game         (PS3 / 360 / Wii U / 3DS / Vita and everything before)
 
    It shares the tab but not its controls. The criteria builder, the "start from"
    preset, the time budget and the saved pickers all belong to the single pick and
@@ -28,22 +28,50 @@
 
 const RNG_SLOTS = [
   { id: "aaa",   label: "Modern AAA",   icon: "i-trophy",  tint: "var(--accent)",
-    hint: "Big-budget, 2006 or later" },
+    hint: "Big-budget, PS4 / Switch / Xbox One era onward" },
   { id: "indie", label: "Modern indie", icon: "i-star",    tint: "var(--accent-2)",
-    hint: "Small team, 2006 or later" },
+    hint: "Small team, PS4 / Switch / Xbox One era onward" },
   { id: "retro", label: "Retro",        icon: "i-clock",   tint: "var(--warn)",
-    hint: "Released before 2006" },
+    hint: "PS3 / 360 / Wii U / 3DS / Vita and older" },
 ];
 const rngSlot = (id) => RNG_SLOTS.find((s) => s.id === id);
 // toGo: the "playable on the go" knob (see rngToGoOk). Off by default, and it rides in
 // the URL like the mode does, so a link carries the roll you were actually looking at.
 const rngState = { picks: { aaa: null, indie: null, retro: null }, toGo: false };
 
-/* The modern/retro line. Not eraTags' "Retro (pre-2000)": that bucket is about the
-   century, and this one is about the hardware — 2006 is the 360/PS3/Wii line, so
-   the PS2 and GameCube shelves count as retro here. The two deliberately disagree,
-   which is why this is its own constant and not a reuse of that facet. */
-const RNG_RETRO_BEFORE = 2006;
+/* ---- the modern/retro line ------------------------------------------------
+   Drawn by HARDWARE GENERATION, not by year. Modern is the PS4 / Switch / Xbox One
+   generation and everything after it; the PS3, 360, Wii and Wii U, and their handhelds
+   (DS, 3DS, PSP, Vita), are retro along with everything older. A 2014 3DS game is a
+   retro game, and a year line can't say that: it would need to know which shelf the
+   cartridge sits on, which is what the platform column already says.
+
+   Three kinds of platform, and only one of them needs a year:
+
+     MODERN   the list below. Modern, unless the row is a RE-RELEASE of a game that
+              predates the generation — a 1992 Game Boy game on Nintendo Switch Online is
+              still a 1992 game, by the same "when the game came out, not your copy" rule
+              rngYear explains.
+     OPEN     hardware with no generation: PC, phones, the browser, arcade boards, the
+              new homebrew handhelds. A 2010 PC game and a 2020 PC game sit on the same
+              shelf, so these fall back to the year, with the line where the PS4 and
+              Xbox One arrived (late 2013, so a 2014 release is the first modern year).
+     anything else — every other console and handheld on the sheet, 140-odd of them,
+              is retro hardware. Listing the retro ones would be the long list; listing
+              the modern ones is eight names. That includes Evercade, which is new
+              hardware that only plays re-releases of old games. */
+const RNG_MODERN_PLATFORMS = new Set([
+  "PlayStation 4", "PlayStation 5", "Xbox One", "Xbox Series X|S",
+  "Nintendo Switch", "Nintendo Switch 2",
+  // Same generation, by date and by hardware: a streaming console and a standalone headset.
+  "Google Stadia", "Oculus Quest",
+]);
+const RNG_OPEN_PLATFORMS = new Set([
+  "PC", "Mac OS", "Linux", "Browser", "Arcade", "Dedicated Console",
+  "iOS", "Android", "iPod", "tvOS", "watchOS", "Amazon Fire TV", "Ouya", "Windows Phone",
+  "Playdate", "Arduboy", "Thumby", "Thumby Color",
+]);
+const RNG_MODERN_FROM = 2014;
 
 /* When the GAME came out, which is not always when your copy did. The sheet dates the
    copy — The Mysterious Murasame Castle sits on the sheet as a 2014 Nintendo 3DS row,
@@ -158,13 +186,27 @@ function rngTier(r) {
   return pubs.some(rngIsMajor) ? "aaa" : "indie";
 }
 
-/* Which of the three a game belongs to, era first: before 2006 is retro whoever published
-   it, and the tier only decides the modern half. null when nothing knows the year — that
-   game has no slot (see rngPools), and the pin menus put it under "other" rather than
-   guessing which lane it fills. */
-const rngSlotOf = (r) => {
+/* Modern or retro, by the line above. null only when the platform has no generation AND
+   nothing knows the year — a console row needs no year to know which shelf it is on. */
+function rngIsRetro(r) {
+  const plat = String(r.platform || "");
   const y = rngYear(r);
-  return !y ? null : (y < RNG_RETRO_BEFORE ? "retro" : rngTier(r));
+  // A re-release, not just an early date: the game predates the generation AND your copy
+  // came out later than the game did. Killzone: Shadow Fall and NBA 2K14 are PS4 launch
+  // games dated 2013, copy and game alike, and are modern; Final Fantasy X/X-2 HD on PS4
+  // is a 2013 game in a 2015 copy, and is not.
+  if (RNG_MODERN_PLATFORMS.has(plat)) return !!y && y < RNG_MODERN_FROM && y < rngSheetYear(r);
+  if (RNG_OPEN_PLATFORMS.has(plat) || !plat) return y ? y < RNG_MODERN_FROM : null;
+  return true;
+}
+
+/* Which of the three a game belongs to, era first: retro is retro whoever published it,
+   and the tier only decides the modern half. null when the era can't be decided (an
+   undated game on generationless hardware) — that game has no slot (see rngPools), and
+   the pin menus put it under "other" rather than guessing which lane it fills. */
+const rngSlotOf = (r) => {
+  const retro = rngIsRetro(r);
+  return retro == null ? null : (retro ? "retro" : rngTier(r));
 };
 
 /* ---- the house rules ----------------------------------------------------
@@ -437,7 +479,7 @@ function rngPools() {
     // classifies into — so it comes out of ALL three pools rather than just its own, or
     // a free slot could roll the game already sitting two columns over.
     if (pinned.has(r._k)) continue;
-    // No release year, no slot: a game that can't say which side of 2006 it's on
+    // No era, no slot: a game that can't say which side of the generation line it's on
     // would have to be guessed into one, and a guess is not a rule.
     const id = rngSlotOf(r);
     if (id) out[id].push(r);
@@ -485,7 +527,7 @@ function rngRoll(slotId) {
 const rngHasPicks = () => RNG_SLOTS.some((s) => rngState.picks[s.id]);
 
 /* A pick only survives while it's still in its slot. A sheet reload can finish a game,
-   sell it, or move its year across the 2006 line — showing it anyway would be the
+   sell it, or move it across the generation line — showing it anyway would be the
    picker telling you it picked something the slot doesn't contain.
 
    Pins go first and are then left alone: a pinned game is held by your say-so rather than

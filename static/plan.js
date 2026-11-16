@@ -29,7 +29,7 @@
 
 /* ---- the three lanes ----------------------------------------------------
    RNG_SLOTS, not a second list. Modern AAA / Modern indie / Retro is a judgement about
-   this collection (the 2006 hardware line, the publisher lists, the indie evidence)
+   this collection (the hardware-generation line, the publisher lists, the indie evidence)
    and it took rng.js 200 lines to get right; a plan that classified games its own way
    would put a game in "Retro" here and "Modern indie" one tab over.
 
@@ -41,10 +41,11 @@ const planTrack = (id) => planTracks().find((t) => t.id === id) || null;
 const planTrackIds = () => planTracks().map((t) => t.id);
 
 /* Which lane a game falls in, over the WHOLE sheet rather than over a pool. rngSlotOf
-   returns null for a game with no known release year, which is the one way the three
-   lanes can fail to be exhaustive — so that null is carried through rather than guessed
-   away, and planCoverage puts the count on the page. Across the current sheet it is
-   zero: every row has a year from the sheet or from IGDB. If that ever changes, the page
+   returns null for an undated game on hardware with no generation (a PC game nobody has
+   a year for), which is the one way the three lanes can fail to be exhaustive — so that
+   null is carried through rather than guessed away, and planCoverage puts the count on
+   the page. Across the current sheet it is zero: every such row has a year from the
+   sheet or from IGDB. If that ever changes, the page
    says so and the games are listed, because a lane you can assign by hand is a better
    answer than a lane assigned by a coin toss. */
 const planTrackOf = (r) => rngSlotOf(r);
@@ -369,8 +370,8 @@ function planCandidates(trackId) {
 
 /* ---- are the three lanes exhaustive? ------------------------------------
    The claim the page makes out loud, with the arithmetic beside it. Every row on the
-   games sheet is counted into exactly one lane, or into `unplaced` when its year is
-   unknown and the era line cannot be drawn (planTrackOf). unplaced is listed, not
+   games sheet is counted into exactly one lane, or into `unplaced` when the era line
+   cannot be drawn for it (planTrackOf). unplaced is listed, not
    swallowed: a lane is assignable by hand, so a game that cannot be classified is still
    a game you can queue.
 
