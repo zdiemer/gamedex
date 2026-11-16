@@ -29,7 +29,7 @@
 
 /* ---- the three lanes ----------------------------------------------------
    RNG_SLOTS, not a second list. Modern AAA / Modern indie / Retro is a judgement about
-   this collection (the 2006 hardware line, the publisher lists, the audience threshold)
+   this collection (the 2006 hardware line, the publisher lists, the indie evidence)
    and it took rng.js 200 lines to get right; a plan that classified games its own way
    would put a game in "Retro" here and "Modern indie" one tab over.
 
@@ -375,7 +375,7 @@ function planCandidates(trackId) {
    a game you can queue.
 
    Keyed on the sheet and the enrichment epoch, like every other count in this app: the
-   era reads IGDB's first release year and the tier reads its publishers and audience, so
+   era reads IGDB's first release year and the tier reads its publishers and genres, so
    this genuinely moves as batches land. */
 let _planCov = null, _planCovFor = null, _planCovEpoch = null;
 function planCoverage() {
@@ -452,7 +452,7 @@ function planSetFilter(id) {
 }
 
 /* Mid-load, for rng.js's reason restated: which lane a game falls in reads IGDB's first
-   release year, its publishers and its audience, and what it would clear reads the
+   release year, its publishers and its genres, and what it would clear reads the
    unified genres and franchises — all of it in the bulk enrichment map. Before that map
    lands every lane is empty, and three empty lanes saying "nothing here" while the app is
    still reading is not an empty plan, it is a lie. So the page shimmers instead, and

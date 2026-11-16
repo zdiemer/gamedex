@@ -129,86 +129,33 @@ const rngStemHit = (list, name) =>
 const rngIsMajor = (name) => rngStemHit(RNG_MAJORS, name);
 const rngIsIndieLabel = (name) => rngStemHit(RNG_INDIE_LABELS, name);
 
-/* How many people IGDB has seen play it. AAA is a budget, and no field records a budget,
-   but reach is downstream of one: the flagships are the games thousands of people rated.
-   Elden Ring 2206, Mario Odyssey 1836, Ghost of Tsushima 1074, Helldivers II 297. Against
-   Roguebook at 12 and Murasame Castle at 10.
-
-   40 is where the boundary reads right — Forspoken, Hyrule Warriors: Definitive Edition,
-   Twisted Metal and Tearaway Unfolded sit just inside it, MudRunner and Tropico 3 just
-   outside. Not criticCount, which looked like the same signal and isn't: IGDB's critic
-   aggregate is sparse and arbitrary (LocoCycle has 10, Zelda: Tears of the Kingdom has 6),
-   so gating on it let games nobody has played in on the strength of ten reviews. */
-const RNG_AAA_MIN_AUDIENCE = 40;
-const rngAudience = (r) => (ENRICH[r._k] || {}).userRatingCount || 0;
-
-/* ...but an audience is something a game ACCUMULATES, and 40 is a steady-state number.
-   Measured across the major-publisher games on the sheet, the share clearing 40 is 0% in
-   a game's first three months, 11% at six months to a year, ~24% at one to two years, and
-   only levels off (37-50%) from about three years out. So the flat bar was answering "is
-   this big" for old games and "is this old" for new ones: Marvel's Wolverine, Gears of
-   War: E-Day, Call of Duty: Modern Warfare 4 and the Switch 2 Ocarina of Time remake were
-   all filed as indie for being weeks old.
-
-   So the bar scales with age. For the first six months there is no bar at all, because
-   there is no evidence — most of those games have zero ratings, and zero is what a game
-   nobody has rated yet looks like, big or small. From there it ramps linearly to the full
-   40 at three years, which tracks the 75th percentile of that same cohort closely. A
-   major publisher is still required, so the grace period goes back to the pre-correction
-   rule only for exactly the games the correction had nothing to go on for.
-
-   This can only ever LOWER the bar, so nothing that was AAA can become indie. Moved 79
-   games when it landed, nearly every one a retail release; the borderline cases are near
-   the end of the ramp, and they are games the flat rule would have promoted within months
-   anyway. */
-const RNG_AUDIENCE_GRACE_YEARS = 0.5;
-const RNG_AUDIENCE_RAMP_YEARS = 3;
-const RNG_YEAR_MS = 365.25 * 864e5;
-
-/* When the game came out, as a timestamp, by the same "earlier wins" rule as rngYear: the
-   matched IGDB entry's release date and the sheet's own, whichever is older. Only a year to
-   go on reads as mid-year. null when nothing knows, and then the full bar applies — an
-   undated game is not a new one. */
-function rngReleasedAt(r) {
-  const dates = [(ENRICH[r._k] || {}).igdbReleaseDate, r.releaseDate]
-    .filter((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d))
-    .map((d) => Date.parse(d.slice(0, 10)))
-    .filter((t) => !Number.isNaN(t));
-  if (dates.length) return Math.min(...dates);
-  const y = rngYear(r);
-  return y ? Date.UTC(y, 6, 1) : null;
-}
-
-function rngAudienceBar(r) {
-  const at = rngReleasedAt(r);
-  if (at == null) return RNG_AAA_MIN_AUDIENCE;
-  const age = (Date.now() - at) / RNG_YEAR_MS;
-  const t = (age - RNG_AUDIENCE_GRACE_YEARS) / (RNG_AUDIENCE_RAMP_YEARS - RNG_AUDIENCE_GRACE_YEARS);
-  return RNG_AAA_MIN_AUDIENCE * Math.min(1, Math.max(0, t));
-}
-
 /* AAA or indie, in the order the evidence actually settles it.
 
-   A major publisher is NECESSARY but not SUFFICIENT, which is the whole correction here:
-   these companies publish flagships and they also publish two-hour eShop re-releases, and
-   the old rule called both AAA. So the majors list picks out who could fund a big game,
-   and the audience threshold asks whether this particular one was — scaled to how long
-   the game has had to find that audience (rngAudienceBar).
+   Indie evidence first, and it outranks everything: a big publisher DISTRIBUTING a small
+   game doesn't make the game big. Stardew Valley ships with 505 Games on the box,
+   Terraria, Subnautica, Fez, Spelunky, Prison Architect and Mark of the Ninja came out
+   through 505, Microsoft Studios or Paradox, and every one of them is indie. The two
+   signals are an indie label (RNG_INDIE_LABELS) and IGDB's own Indie genre; sampled at
+   random, nearly everything they claim is right.
 
-   Indie evidence outranks the major, because a big publisher DISTRIBUTING a small game
-   doesn't make the game big. Stardew Valley ships with 505 Games on the box and was
-   landing in AAA on that alone; Terraria, Subnautica, Fez, Spelunky, Prison Architect and
-   Mark of the Ninja all did the same through 505, Microsoft Studios or Paradox. The two
-   overrides between them move 35 games and every one belongs on the indie side.
+   Then a major publisher, and that is enough on its own. It used to need an audience too
+   — 40 IGDB ratings, later scaled by age — on the theory that majors also put out two-hour
+   eShop re-releases that shouldn't count. In practice the bar mostly measured IGDB, not
+   budgets: ratings pile onto a game's original entry, so a remaster, a collection, a port
+   or a VR spin-off has a fraction of them. StarCraft: Remastered had 37, The Ico & Shadow
+   of the Colossus Collection 18, Assassin's Creed Nexus VR 8, and all three were filed as
+   indie. Of a random 70 of the 2,096 games the bar was holding back, fewer than five were
+   arguably small, and none was independent: Sonic Generations, Dynasty Warriors 8, Tales
+   of Symphonia, Wild Hearts, Kirby's Return to Dream Land Deluxe. "Indie" is a claim about
+   who made a game, and a Nintendo game made by Nintendo isn't one however few people rated
+   it.
 
-   Everything else is indie by default, so the old "indie signals" (self-published, an
-   itch.io release, an indie keyword) are gone: they all resolved to the fallback anyway,
-   and only the two that can beat a major still change an answer. */
+   Everything else is indie by default — the publishers nobody listed either way. */
 function rngTier(r) {
   const pubs = unifiedPubVals(r).map(normCompany).filter(Boolean);
   if (pubs.some(rngIsIndieLabel)) return "indie";
   if (unifiedGenreVals(r).includes("Indie")) return "indie";
-  return (pubs.some(rngIsMajor) && rngAudience(r) >= rngAudienceBar(r)) ? "aaa" : "indie";
+  return pubs.some(rngIsMajor) ? "aaa" : "indie";
 }
 
 /* Which of the three a game belongs to, era first: before 2006 is retro whoever published
@@ -598,7 +545,7 @@ function rngRollOne(slotId, roll) {
 }
 
 /* Has the data these slots are DECIDED by actually arrived? Which slot a game lands in
-   reads its publishers, its genres and IGDB's rating count, and its era reads IGDB's
+   reads its publishers and its genres, and its era reads IGDB's
    first release year — all of it in the bulk enrichment map. Before that map lands the
    answer to every slot is zero, and a slot that says "Nothing in your library fits this
    slot" while it is still reading is not empty, it is lying. So the tab shimmers instead,
