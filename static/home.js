@@ -108,6 +108,62 @@ function scheduleHomeChallenges() {
   _homeChallengeObserver.observe(slot);
 }
 
+/* Home's recommendation shelves are for games you HAVEN'T played. A backlog row that isn't
+   ticked off can still be a game you finished somewhere else: the Switch port of something
+   you beat on the PS2, the remaster of it, the remake. Those are exactly the games every
+   predictor loves — acclaimed, and liked by you — so they crowded out everything new.
+
+   Two tests. The version family (relations.js::alreadyPlayed) is the real one: IGDB's
+   port/remaster/remake/edition graph, any number of hops. The title is the fallback for
+   pairs IGDB never linked: strip edition words ("Remastered", "HD", "Definitive Edition",
+   "Royal"…) and compare. A title that only matches EXACTLY must also be within a few years —
+   Doom (2016) is not Doom (1993), and an unlinked same-name port ships close to its original. */
+// Only a TRAILING edition suffix, peeled repeatedly — never a word mid-title, or
+// "Final Fantasy" would lose its "Final" and Super Mario 3D Land would become Super Mario Land.
+const H_EDITION = new RegExp("[\\s:\\-\u2013\u2014]+(?:" + [
+  "remaster(?:ed)?", "remake", "hd(?: remaster(?:ed)?)?", "redux", "reload(?:ed)?", "royal", "golden",
+  "dx", "deluxe", "3d", "anniversary", "intergrade", "final cut", "director'?s cut",
+  "\\d+(?:th|st|nd|rd)? anniversary(?: edition| remaster(?:ed)?)?",
+  "(?:the )?(?:definitive|complete|ultimate|deluxe|special|enhanced|anniversary|legendary|gold|" +
+    "premium|collector'?s|game of the year|goty|royal|extended|director'?s|digital|hd|remastered|" +
+    "standard|maximum|platinum|essential|reloaded|switch|ps4|ps5|nintendo switch)(?: edition| cut| version)",
+  "game of the year", "goty",
+].join("|") + ")$");
+function hTitleRoot(title) {
+  const t = String(title || "").toLowerCase()
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+    .replace(/[™®©]/g, "").replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, " ").trim();
+  let r = t, prev;
+  do { prev = r; r = r.replace(H_EDITION, "").trim(); } while (r !== prev && r);
+  const root = relNorm(r || t);
+  return { root, stripped: root !== relNorm(t) };
+}
+const hYear = (r) => { const m = String(r.releaseYear || r.release || r.releaseDate || (ENRICH[r._k] || {}).year || "").match(/\d{4}/); return m ? +m[0] : null; };
+let _hPlayed = null;
+function hPlayedTitles() {
+  if (_hPlayed && _hPlayed.data === DATA && _hPlayed.epoch === _enrichEpoch) return _hPlayed.m;
+  const m = new Map();   // root -> [{year, stripped}]
+  const add = (r, title) => {
+    const t = hTitleRoot(title);
+    if (!t.root) return;
+    (m.get(t.root) || m.set(t.root, []).get(t.root)).push({ stripped: t.stripped, year: hYear(r) });
+  };
+  for (const r of hRows()) if (r.completed) add(r, r.title);
+  for (const r of hCompleted()) add(r, r.game || r.title);
+  _hPlayed = { m, data: DATA, epoch: _enrichEpoch };
+  return m;
+}
+function homePlayedElsewhere(row) {
+  if (row.completed) return true;
+  if (typeof alreadyPlayed === "function" && alreadyPlayed(row)) return true;
+  if (typeof relNorm !== "function") return false;
+  const t = hTitleRoot(row.title);
+  const hits = t.root && hPlayedTitles().get(t.root);
+  if (!hits) return false;
+  const y = hYear(row);
+  return hits.some((h) => t.stripped || h.stripped || !y || !h.year || Math.abs(y - h.year) <= 3);
+}
+
 /* Recommendations come from the server (IGDB's similar-games, crossed with your backlog);
    predictions are computed here from your own ratings. Both rotate daily from their full
    pool rather than always showing the same top 18.
@@ -122,7 +178,7 @@ function recShelfRows() {
   }
   return dailyStable((RECS || []).map((rec) => {
     const row = byKey.get(rec.key);
-    return row ? { row, rec } : null;
+    return row && !homePlayedElsewhere(row) ? { row, rec } : null;
   }).filter(Boolean), 18, "recs", (x) => x.rec.key);
 }
 

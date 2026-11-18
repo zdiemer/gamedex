@@ -239,7 +239,8 @@ function renderHome() {
   // The lead section: a grid of big poster cards right under the hero. Rotate six out of the
   // top ~60 predicted so it's a fresh set daily but always from the strongest picks.
   const loved = dailyStable(hRows()
-    .filter((r) => !r.completed && !r.playingStatus && (typeof isCandidate !== "function" || isCandidate(r)))
+    .filter((r) => !r.completed && !r.playingStatus && (typeof isCandidate !== "function" || isCandidate(r))
+      && !homePlayedElsewhere(r))
     .map((r) => ({ r, p: typeof predictedCached === "function" ? predictedCached(r) : null }))
     .filter((x) => x.p && x.p.confidence >= 0.75)
     .sort((a, b) => b.p.score - a.p.score)
