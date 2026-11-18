@@ -1,10 +1,15 @@
 """HowLongToBeat client.
 
-HLTB guards search behind a per-session anti-bot handshake: GET
-/api/search/site/init returns {token, hpKey, hpVal}; the search POST to
-/api/search/site must echo them as `x-auth-token` / `x-hp-key` / `x-hp-val`
-headers AND embed a honeypot body field `{[hpKey]: hpVal}`. The token is
-reused across searches and refreshed on a 403. The route rotates every so
+HLTB guards search behind a per-session handshake: GET /api/search/site/init
+returns {token}, and the search POST to /api/search/site echoes it as
+`x-auth-token`. The token is reused across searches and refreshed on a 403.
+Until 2026-11 init also returned {hpKey, hpVal}, which had to be echoed as
+`x-hp-key` / `x-hp-val` headers and a `{[hpKey]: hpVal}` body field. They are
+still sent when present, so either shape of the handshake works.
+
+A 429 (HLTB's "too many searches, wait a minute") pauses every lookup for
+Retry-After or a minute. Without the pause, a failed init left no session,
+so the next queued game re-ran init at 1/s and stayed throttled. The route rotates every so
 often (/api/search, /api/seek, /api/bleed, now /api/search/site) — when
 every lookup starts 404ing, pull the site's _next chunks and grep for
 `api/`; the shape has outlived every rename.
@@ -41,8 +46,9 @@ class HltbClient:
     def __init__(self):
         self._validator = MatchValidator()
         self._limiter = RateLimiter(1)
-        self._session = None            # {token, hpKey, hpVal}
+        self._session = None            # {token[, hpKey, hpVal]}
         self._lock = threading.Lock()
+        self._cooldown_until = 0.0
 
     @property
     def configured(self):
@@ -51,14 +57,38 @@ class HltbClient:
     def _base_headers(self):
         return {"User-Agent": _UA, "referer": _BASE + "/", "Origin": _BASE}
 
+    def _throttle(self, resp):
+        """Turn a 429 into a shared pause; raise so this lookup is retried later."""
+        if resp.status_code != 429:
+            return
+        try:
+            delay = max(1.0, min(float(resp.headers.get("Retry-After", 60)), 600.0))
+        except ValueError:
+            delay = 60.0
+        self._cooldown_until = max(self._cooldown_until, time.monotonic() + delay)
+        log.warning("HLTB: rate limited, pausing lookups for %.0fs", delay)
+        resp.raise_for_status()
+
+    def _wait_cooldown(self):
+        remaining = self._cooldown_until - time.monotonic()
+        if remaining > 0:
+            time.sleep(remaining)
+
     def _init_session(self):
         with self._lock:
+            self._wait_cooldown()
             self._limiter.wait()
             r = requests.get(f"{_BASE}/api/search/site/init?t={int(time.time() * 1000)}",
                              headers=self._base_headers(), timeout=30)
+            self._throttle(r)
             r.raise_for_status()
             j = r.json()
-            self._session = {"token": j["token"], "hpKey": j["hpKey"], "hpVal": j["hpVal"]}
+            token = j.get("token")
+            if not token:
+                raise RuntimeError(f"HLTB init returned no token (keys: {sorted(j)})")
+            self._session = {"token": token}
+            if j.get("hpKey"):
+                self._session.update(hpKey=j["hpKey"], hpVal=j.get("hpVal", ""))
             log.info("HLTB: search session initialized")
 
     def _search(self, title: str):
@@ -74,17 +104,21 @@ class HltbClient:
             "searchOptions": {
                 "games": {"userId": 0, "platform": "", "sortCategory": "popular",
                           "rangeCategory": "main", "rangeTime": {"min": None, "max": None},
-                          "gameplay": {"perspective": "", "flow": "", "genre": "", "difficulty": ""},
-                          "rangeYear": {"min": "", "max": ""}, "modifier": ""},
+                          "gameplay": {"perspective": "", "flow": "", "genre": ""},
+                          "year": "", "modifier": ""},
                 "users": {"sortCategory": "postcount"}, "lists": {"sortCategory": "follows"},
                 "filter": "", "sort": 0, "randomizer": 0},
             "useCache": True,
         }
-        body[s["hpKey"]] = s["hpVal"]     # honeypot field
         headers = {**self._base_headers(), "Content-Type": "application/json",
-                   "x-auth-token": s["token"], "x-hp-key": s["hpKey"], "x-hp-val": s["hpVal"]}
+                   "x-auth-token": s["token"]}
+        if "hpKey" in s:                  # legacy honeypot handshake
+            body[s["hpKey"]] = s["hpVal"]
+            headers.update({"x-hp-key": s["hpKey"], "x-hp-val": s["hpVal"]})
+        self._wait_cooldown()
         self._limiter.wait()
         resp = requests.post(f"{_BASE}/api/search/site", data=json.dumps(body), headers=headers, timeout=30)
+        self._throttle(resp)
         if resp.status_code == 403 and retry:   # token expired — refresh once
             self._init_session()
             return self._do_search(title, retry=False)
