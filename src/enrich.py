@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 
 from match_validator import MatchValidator
 from matchkey import SHEET_TITLE, match_key_for
+from scraper_health import ScraperHealth
 from wikidata import slug_from_igdb_url
 
 log = logging.getLogger("gamedex.enrich")
@@ -397,6 +398,8 @@ class Enricher:
         )
         self._db.execute("CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT)")
         self._db.commit()
+        # Workers report every lookup to it; app.py gives it a notifier and starts it.
+        self.health = ScraperHealth(self)
 
     # -- collection value over time -----------------------------------------
     # Re-scrape prices every N days (the snapshot itself is daily and free).
@@ -1024,6 +1027,63 @@ class Enricher:
         return bool(self._key_meta)
 
     # -- workers ------------------------------------------------------------
+    def fetch(self, src, meta, appid=None, slug=None):
+        """Ask one source about one game, the way its worker does, without saving.
+
+        The worker and the scraper health probe (scraper_health.py) share this, so a
+        probe exercises the same request a real lookup would.
+        """
+        if src == "igdb":
+            enrichment, _score = self._igdb.match(
+                meta["title"], meta["platform"], meta["year"],
+                meta.get("developer"), meta.get("publisher"), meta.get("franchise"))
+            return enrichment
+        client = self._secondary[src]
+        if src in _NEEDS_APPID:
+            return client.match_meta({**meta, "steamAppId": appid})
+        if src in _NEEDS_SLUG:
+            return client.match_meta({**meta, "igdbSlug": slug})
+        # ArcadeDB keys on the MAME romset and Thumby/VNDB on
+        # platform/genre — a bare (title, platform, year) isn't enough.
+        if hasattr(client, "match_meta"):
+            return client.match_meta(meta)
+        return client.match(meta["title"], meta["platform"], meta["year"])
+
+    def probe_keys(self, src, limit=3):
+        """Keys this source matched before, still on the sheet: canaries for a probe.
+
+        Manual overrides are skipped (a probe would not reproduce them), and the
+        appid/slug a keyed source needs is resolved here.
+        """
+        table = self._table(src)
+        with self._db_lock:
+            rows = self._db.execute(
+                f"SELECT match_key FROM {table} WHERE status='matched' AND COALESCE(manual,0)=0 "
+                "ORDER BY RANDOM() LIMIT ?", (limit * 8,)).fetchall()
+        out = []
+        for (key,) in rows:
+            meta = self._key_meta.get(key)
+            if not meta:
+                continue
+            extra = {}
+            if src == "igdb":
+                # A fallback source (IGN, Steam…) answered for some keys; IGDB itself
+                # never matched those, so they cannot show whether IGDB still works.
+                if not self.slug_for(key):
+                    continue
+            elif src in _NEEDS_APPID:
+                extra["appid"] = self.appid_for(key)
+                if not extra["appid"]:
+                    continue
+            elif src in _NEEDS_SLUG:
+                extra["slug"] = self.slug_for(key)
+                if not extra["slug"]:
+                    continue
+            out.append((key, meta, extra))
+            if len(out) >= limit:
+                break
+        return out
+
     def _loop(self, src):
         while not self._stop.is_set():
             with self._cv:
@@ -1074,8 +1134,7 @@ class Enricher:
                         # IGDB resolved and there's no Steam id — nothing to ask.
                         self._save_secondary(src, key, None)
                         continue
-                    client = self._secondary[src]
-                    self._save_secondary(src, key, client.match_meta({**meta, "steamAppId": appid}))
+                    self._save_secondary(src, key, self.fetch(src, meta, appid=appid))
                 elif src in _NEEDS_SLUG:
                     slug = self.slug_for(key)
                     if slug is None:
@@ -1089,17 +1148,13 @@ class Enricher:
                         # slug), so there is no key to look this up by. Nothing to ask.
                         self._save_secondary(src, key, None)
                         continue
-                    client = self._secondary[src]
-                    self._save_secondary(src, key, client.match_meta({**meta, "igdbSlug": slug}))
+                    self._save_secondary(src, key, self.fetch(src, meta, slug=slug))
                 else:
-                    client = self._secondary[src]
-                    # ArcadeDB keys on the MAME romset and Thumby/VNDB on
-                    # platform/genre — a bare (title, platform, year) isn't enough.
-                    rec = (client.match_meta(meta) if hasattr(client, "match_meta")
-                           else client.match(meta["title"], meta["platform"], meta["year"]))
-                    self._save_secondary(src, key, rec)
+                    self._save_secondary(src, key, self.fetch(src, meta))
+                self.health.record_success(src)
             except Exception as exc:
                 log.warning("%s enrich failed for %r: %s", src, meta["title"], exc)
+                self.health.record_error(src, exc)
                 time.sleep(1.0)
             finally:
                 if not requeued:

@@ -30,3 +30,9 @@ jobs:
           -e PYTHONPATH=/app/src
           -v "$PWD/tools/tests:/tests:ro"
           gamedex-ci /tests/cache_memory.py
+      - name: Scraper health check tests
+        run: >-
+          docker run --rm --entrypoint python
+          -e PYTHONPATH=/app/src
+          -v "$PWD/tools/tests:/tests:ro"
+          gamedex-ci /tests/scraper_health_checks.py

@@ -213,6 +213,30 @@ spec:
               value: {{ (.Values.manualCache | default dict).enabled | default true | quote }}
             - name: MANUAL_CACHE_MAX_MB
               value: {{ (.Values.manualCache | default dict).maxMb | default 1024 | quote }}
+            # Scraper health checks (src/scraper_health.py), published to ntfy.
+            {{- $sh := .Values.scraperHealth | default dict }}
+            - name: SCRAPER_HEALTH_ENABLED
+              value: {{ $sh.enabled | default false | quote }}
+            - name: SCRAPER_PROBE_INTERVAL
+              value: {{ $sh.probeIntervalSeconds | default 21600 | quote }}
+            {{- with $sh.ntfy }}
+            {{- if .enabled }}
+            - name: NTFY_URL
+              value: {{ .url | quote }}
+            - name: NTFY_USERNAME
+              value: {{ .username | quote }}
+            - name: NTFY_CLICK
+              value: {{ .click | default "" | quote }}
+            - name: NTFY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: NTFY_PASSWORD
+                  # Starts without it: alerts are skipped (and logged) until the
+                  # secret exists. Run tools/provision-ntfy-secret.py once.
+                  optional: true
+            {{- end }}
+            {{- end }}
           # Ready only once the first Dropbox load succeeds (health returns 503
           # until then), so traffic never hits an empty dataset.
           readinessProbe:

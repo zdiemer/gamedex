@@ -6,6 +6,7 @@ lazy IGDB enrichment.
     POST /api/enrichment           -> {items, pending, stats} for a batch of matchKeys
     GET  /api/enrichment/detail    -> full IGDB detail for one matchKey
     GET  /api/enrichment/stats     -> enrichment progress
+    GET  /api/enrichment/health    -> per-scraper health (scraper_health.py)
     GET  /api/catalogue?g=<gen>    -> every IGDB game worth ranking (see catalogue.py)
     GET  /                         -> static/index.html (+ /app.js, /style.css)
 
@@ -70,6 +71,7 @@ from gametdb import GameTdb
 from pcgamingwiki import PcGamingWiki
 from wikidata import Wikidata
 from hltb import HltbClient
+from ntfy import Ntfy
 from manuals import ManualClient
 from game_meta import GameMetaService
 from igdb import IgdbClient
@@ -101,6 +103,11 @@ ENRICH_DB = os.environ.get("ENRICH_DB", "/data/enrichment.sqlite")
 ENRICH_BACKFILL = os.environ.get("ENRICH_BACKFILL", "false").lower() in ("1", "true", "yes")
 CATALOGUE_DB = os.environ.get("CATALOGUE_DB", "/data/catalogue.sqlite")
 _on = lambda name, default="true": os.environ.get(name, default).lower() in ("1", "true", "yes")
+
+# Probe every enrichment scraper and publish failures to ntfy (scraper_health.py).
+# Runs without NTFY_URL too: the status still shows at /api/enrichment/health.
+SCRAPER_HEALTH_ENABLED = _on("SCRAPER_HEALTH_ENABLED")
+SCRAPER_PROBE_INTERVAL = int(os.environ.get("SCRAPER_PROBE_INTERVAL", "21600"))
 
 # Translation Watch — see translations.py. Off by default: it is a new outbound crawl
 # against two volunteer-run community sites, which should be a decision rather than a
@@ -292,6 +299,13 @@ async def lifespan(_: FastAPI):
     if enricher:
         enricher.start()
         logging.getLogger("gamedex").info("IGDB enrichment enabled (backfill=%s)", ENRICH_BACKFILL)
+        if SCRAPER_HEALTH_ENABLED:
+            enricher.health.notifier = Ntfy()
+            enricher.health.interval = SCRAPER_PROBE_INTERVAL
+            enricher.health.start()
+            logging.getLogger("gamedex").info(
+                "scraper health checks enabled (every %ds, ntfy=%s)",
+                SCRAPER_PROBE_INTERVAL, enricher.health.notifier.configured)
     if catalogue:
         catalogue.start()
         logging.getLogger("gamedex").info(
@@ -1782,6 +1796,14 @@ def enrichment_stats():
     if not enricher:
         return {"enabled": False}
     return {"enabled": True, **enricher.stats()}
+
+
+@app.get("/api/enrichment/health")
+def enrichment_health():
+    """Per-scraper status from the health checker (scraper_health.py)."""
+    if not enricher:
+        return {"enabled": False}
+    return {"enabled": SCRAPER_HEALTH_ENABLED, "sources": enricher.health.snapshot()}
 
 
 class Override(BaseModel):

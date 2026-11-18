@@ -2,7 +2,7 @@ image:
   # Built + pushed to the in-cluster registry by build.sh, so every node
   # pulls it anonymously (the cluster is multi-node, so side-loading doesn't fit).
   repository: registry.zachd.duckdns.org/zdiemer/gamedex
-  tag: "v1.88.7"
+  tag: "v1.88.8"
   pullPolicy: IfNotPresent
 
 service:
@@ -138,6 +138,21 @@ imageCache:
 manualCache:
   enabled: true
   maxMb: 1024             # Archive.org PDFs are larger, so give them their own, roomier cap
+
+# Probe each enrichment scraper (HLTB, Metacritic, VGChartz, ...) every few hours
+# by re-running lookups for games it matched before, and publish failures and
+# recoveries to the `gamedex` ntfy topic. Live status: /api/enrichment/health.
+scraperHealth:
+  enabled: true
+  probeIntervalSeconds: 21600
+  ntfy:
+    enabled: true
+    url: "http://ntfy.infra.svc.cluster.local/gamedex"
+    username: alerts      # ntfy's write-only publisher account
+    click: "https://games.zachd.duckdns.org/api/enrichment/health"
+    # Copied from infra/ntfy-seed by tools/provision-ntfy-secret.py (not in the
+    # vault item: one credential, one vault entry).
+    existingSecret: gamedex-ntfy
 
 # PVC holding the SQLite IGDB cache, the shelf box cuts, and the asset caches above.
 #
