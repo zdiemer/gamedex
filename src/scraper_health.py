@@ -111,6 +111,7 @@ class ScraperHealth:
                     "status": "failing" if st.get("failing") else ("ok" if st.get("lastOk") else "unknown"),
                     "since": st.get("since"), "reason": st.get("reason"),
                     "lastProbe": _iso(st.get("lastProbe")), "lastOk": st.get("lastOk"),
+                    "misses": st.get("misses", 0), "lastMiss": st.get("lastMiss"),
                     "errorStreak": self._streak.get(src, 0),
                 }
             return out
@@ -176,6 +177,9 @@ class ScraperHealth:
                 st["nextProbe"] = now + self.interval
             else:
                 st["misses"] += 1
+                st["lastMiss"] = detail
+                log.warning("scraper health: %s probe missed (%d in a row): %s",
+                            src, st["misses"], detail)
                 if st["misses"] >= 2 and not st["failing"]:
                     self._mark_failing(st, now, detail)
                 elif st["failing"]:

@@ -71,6 +71,8 @@ class HealthTest(unittest.TestCase):
         self.client.mode = "raise"
         self.h.tick()
         self.assertEqual(self.ntfy.sent, [])
+        self.assertEqual(self.h.snapshot()["hltb"]["misses"], 1)
+        self.assertIn("KeyError", self.h.snapshot()["hltb"]["lastMiss"])
         self.advance(60)
         self.h.tick()                             # recheck not due yet
         self.assertEqual(self.ntfy.sent, [])
