@@ -1054,7 +1054,7 @@ const COMPONENT_SOURCES = [
     "name": "planLaneMoveHtml",
     "symbol": "planLaneMoveHtml",
     "file": "components/discovery/plan.js",
-    "line": 128,
+    "line": 133,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1064,7 +1064,7 @@ const COMPONENT_SOURCES = [
     "name": "planArtHtml",
     "symbol": "planArtHtml",
     "file": "components/discovery/plan.js",
-    "line": 144,
+    "line": 149,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1074,7 +1074,7 @@ const COMPONENT_SOURCES = [
     "name": "planSubText",
     "symbol": "planSubText",
     "file": "components/discovery/plan.js",
-    "line": 151,
+    "line": 156,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1084,7 +1084,7 @@ const COMPONENT_SOURCES = [
     "name": "planNowPlayingHtml",
     "symbol": "planNowPlayingHtml",
     "file": "components/discovery/plan.js",
-    "line": 154,
+    "line": 159,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1094,7 +1094,7 @@ const COMPONENT_SOURCES = [
     "name": "planPinMenuHtml",
     "symbol": "planPinMenuHtml",
     "file": "components/discovery/plan.js",
-    "line": 180,
+    "line": 185,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1104,7 +1104,7 @@ const COMPONENT_SOURCES = [
     "name": "planRollHtml",
     "symbol": "planRollHtml",
     "file": "components/discovery/plan.js",
-    "line": 203,
+    "line": 208,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1114,7 +1114,7 @@ const COMPONENT_SOURCES = [
     "name": "PLAN_REEL_N",
     "symbol": "PLAN_REEL_N",
     "file": "components/discovery/plan.js",
-    "line": 228,
+    "line": 233,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1124,7 +1124,7 @@ const COMPONENT_SOURCES = [
     "name": "_planRollN",
     "symbol": "_planRollN",
     "file": "components/discovery/plan.js",
-    "line": 229,
+    "line": 234,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1134,7 +1134,7 @@ const COMPONENT_SOURCES = [
     "name": "playPlanRoll",
     "symbol": "playPlanRoll",
     "file": "components/discovery/plan.js",
-    "line": 231,
+    "line": 236,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1144,7 +1144,7 @@ const COMPONENT_SOURCES = [
     "name": "planLaneHtml",
     "symbol": "planLaneHtml",
     "file": "components/discovery/plan.js",
-    "line": 279,
+    "line": 284,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1154,7 +1154,7 @@ const COMPONENT_SOURCES = [
     "name": "PLAN_PAGE",
     "symbol": "PLAN_PAGE",
     "file": "components/discovery/plan.js",
-    "line": 331,
+    "line": 336,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1164,7 +1164,7 @@ const COMPONENT_SOURCES = [
     "name": "planChooserHtml",
     "symbol": "planChooserHtml",
     "file": "components/discovery/plan.js",
-    "line": 333,
+    "line": 338,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1174,7 +1174,7 @@ const COMPONENT_SOURCES = [
     "name": "planResultsHtml",
     "symbol": "planResultsHtml",
     "file": "components/discovery/plan.js",
-    "line": 361,
+    "line": 366,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1184,7 +1184,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPlanResults",
     "symbol": "renderPlanResults",
     "file": "components/discovery/plan.js",
-    "line": 377,
+    "line": 382,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1194,7 +1194,7 @@ const COMPONENT_SOURCES = [
     "name": "planCandidateHtml",
     "symbol": "planCandidateHtml",
     "file": "components/discovery/plan.js",
-    "line": 388,
+    "line": 393,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1204,7 +1204,7 @@ const COMPONENT_SOURCES = [
     "name": "planCoverageHtml",
     "symbol": "planCoverageHtml",
     "file": "components/discovery/plan.js",
-    "line": 415,
+    "line": 420,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1214,7 +1214,7 @@ const COMPONENT_SOURCES = [
     "name": "planHeroHtml",
     "symbol": "planHeroHtml",
     "file": "components/discovery/plan.js",
-    "line": 440,
+    "line": 445,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1224,7 +1224,7 @@ const COMPONENT_SOURCES = [
     "name": "planSkeletonHtml",
     "symbol": "planSkeletonHtml",
     "file": "components/discovery/plan.js",
-    "line": 463,
+    "line": 469,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1234,7 +1234,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPlan",
     "symbol": "renderPlan",
     "file": "components/discovery/plan.js",
-    "line": 477,
+    "line": 483,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1244,7 +1244,7 @@ const COMPONENT_SOURCES = [
     "name": "wirePlan",
     "symbol": "wirePlan",
     "file": "components/discovery/plan.js",
-    "line": 487,
+    "line": 493,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1254,7 +1254,7 @@ const COMPONENT_SOURCES = [
     "name": "PLAN_QUERY_DEBOUNCE",
     "symbol": "PLAN_QUERY_DEBOUNCE",
     "file": "components/discovery/plan.js",
-    "line": 544,
+    "line": 550,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1264,7 +1264,7 @@ const COMPONENT_SOURCES = [
     "name": "wirePlanResults",
     "symbol": "wirePlanResults",
     "file": "components/discovery/plan.js",
-    "line": 548,
+    "line": 554,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1274,7 +1274,7 @@ const COMPONENT_SOURCES = [
     "name": "planWarm",
     "symbol": "planWarm",
     "file": "components/discovery/plan.js",
-    "line": 570,
+    "line": 576,
     "category": "Home & discovery",
     "tab": "home"
   },

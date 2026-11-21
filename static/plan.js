@@ -99,8 +99,17 @@ function planEntries() {
   return out;
 }
 
-// One lane's queue, in play order.
-const planQueue = (trackId) => planEntries().filter((e) => e.track === trackId);
+/* One lane's queue, in play order — less any game pinned as now playing. A pinned game
+   is shown once, in the box at the head of its track; it keeps its place in the stored
+   list, so unpinning it puts it back where it was. */
+function planQueue(trackId) {
+  const pinned = planPinnedKeys();
+  return planEntries().filter((e) => e.track === trackId && !pinned.has(e.key));
+}
+
+// A queued game the sheet already marks Playing: started, if not pinned. It stays in its
+// place in the line, marked as under way, and "next up" looks past it.
+const planInPlay = (e) => rngIsPlaying(e.row);
 
 /* Beaten, by either sheet's reckoning. chBeaten makes the join across the Games and
    Finished Games sheets, which is the honest test; without challenges.js loaded the
@@ -108,9 +117,10 @@ const planQueue = (trackId) => planEntries().filter((e) => e.track === trackId);
 const planDone = (row) => (typeof chBeaten === "function" ? chBeaten(row) : !!(row && row.completed));
 const planStarted = (row) => !!(row && (row.dateStarted || row.playingStatus));
 
-// The next thing to play in a lane: its head, since finished games have already left it.
-// What the lane's eyebrow points at, and the reason the order is worth keeping at all.
-const planNext = (trackId) => planQueue(trackId)[0] || null;
+// The next thing to START in a lane: the first entry you aren't already playing (finished
+// games have left it already). What the lane's eyebrow points at, and the reason the
+// order is worth keeping at all.
+const planNext = (trackId) => planQueue(trackId).find((e) => !planInPlay(e)) || null;
 
 /* ---- editing the queue --------------------------------------------------
    Every one of these writes the pref and re-renders. None of them calls nav(): a plan is
@@ -169,7 +179,9 @@ function planMove(key, delta) {
    the Playing-only rule, dropping a pin the sheet no longer backs) are rng.js's, and
    this is just where they are shown and edited now. */
 const planPinned = () => rngPinnedRows();
-const planPinnedKeys = () => new Set(Object.values(rngPinKeys()).filter(Boolean));
+// Read through rngPinnedRows rather than the raw pins, so a pin the sheet no longer backs
+// (finished, or no longer Playing) stops hiding its game from the queue.
+const planPinnedKeys = () => new Set(Object.values(planPinned()).filter(Boolean).map((r) => r._k));
 
 function planPin(trackId, key) {
   if (!planTrack(trackId)) return;

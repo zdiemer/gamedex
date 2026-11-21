@@ -2149,6 +2149,12 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   background: linear-gradient(100deg,
     color-mix(in srgb, var(--slot, var(--accent)) 10%, var(--surface)), var(--surface) 60%);
 }
+/* Queued and already under way (the sheet says Playing): the now-playing box's tint, so
+   one colour means "you're playing this" wherever it appears in the lane. */
+.plan-row.is-playing {
+  border-color: color-mix(in srgb, var(--slot, var(--accent)) 50%, transparent);
+  background: color-mix(in srgb, var(--slot, var(--accent)) 9%, var(--surface));
+}
 .plan-num {
   flex: none; width: 22px; text-align: right; padding-top: 10px;
   font: 800 13px var(--display); color: var(--dim); font-variant-numeric: tabular-nums;

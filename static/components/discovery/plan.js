@@ -96,7 +96,11 @@ function planQueueRowHtml(entry, i, lane) {
   const sig = planSignals(row);
   const art = planArtHtml(row);
   const next = lane.next === key;
-  return `<li class="plan-row${next ? " is-next" : ""}" data-pk="${escapeHtml(String(key))}">
+  // Already under way: the row says so in the now-playing box's own colours and badge,
+  // which makes the sheet's "Playing" chip a repeat.
+  const playing = planInPlay(entry);
+  if (playing) { sig.status = ""; sig.started = false; }
+  return `<li class="plan-row${next ? " is-next" : ""}${playing ? " is-playing" : ""}" data-pk="${escapeHtml(String(key))}">
     <span class="plan-num" aria-hidden="true">${i + 1}</span>
     <button type="button" class="plan-open" data-plan-open="${escapeHtml(String(key))}"
       title="${escapeHtml(`Open ${row.title}`)}">
@@ -109,6 +113,7 @@ function planQueueRowHtml(entry, i, lane) {
       </span>
     </button>
     <span class="plan-ctl">
+      ${playing ? `<span class="plan-nextbadge is-playing" title="The sheet marks this Playing">${icon("i-play", 11)} Now playing</span>` : ""}
       ${next ? `<span class="plan-nextbadge">${icon("i-pennant", 11)} Next up</span>` : ""}
       <button type="button" class="plan-ibtn" data-plan-up="${escapeHtml(String(key))}"
         aria-label="Move up"${i === 0 ? " disabled" : ""} title="Move up">${icon("i-skip-back", 13)}</button>
@@ -438,7 +443,8 @@ function planCoverageHtml() {
 }
 
 function planHeroHtml() {
-  const entries = planEntries();
+  // The lanes' own queues, so a game pinned as now playing isn't also counted as queued.
+  const entries = planTrackIds().flatMap(planQueue);
   const left = entries.length;
   const hrs = entries.map((e) => playtimeOf(e.row)).filter((h) => h != null);
   const total = hrs.reduce((a, b) => a + b, 0);
