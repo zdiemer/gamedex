@@ -95,8 +95,8 @@ function planQueueRowHtml(entry, i, lane) {
   const { row, key } = entry;
   const sig = planSignals(row);
   const art = planArtHtml(row);
-  const next = !sig.done && lane.next === key;
-  return `<li class="plan-row${sig.done ? " is-done" : ""}${next ? " is-next" : ""}" data-pk="${escapeHtml(String(key))}">
+  const next = lane.next === key;
+  return `<li class="plan-row${next ? " is-next" : ""}" data-pk="${escapeHtml(String(key))}">
     <span class="plan-num" aria-hidden="true">${i + 1}</span>
     <button type="button" class="plan-open" data-plan-open="${escapeHtml(String(key))}"
       title="${escapeHtml(`Open ${row.title}`)}">
@@ -274,15 +274,14 @@ function playPlanRoll(trackId, picked, pool) {
 
 /* ---- a lane -------------------------------------------------------------
    An eyebrow and a --slot tint per track (RNG_SLOTS), then the game you're playing now,
-   any rolled proposal, and the queue. The eyebrow counts what is left to play rather than
-   what is in the lane — a queue of eight with seven finished is a queue of one. */
+   any rolled proposal, and the queue. Finished games leave the queue on their own
+   (planEntries), so the eyebrow's count is simply what is left to play. */
 function planLaneHtml(trackId) {
   const t = planTrack(trackId);
   const entries = planQueue(trackId);
   const nextEntry = planNext(trackId);
   const lane = { entries, next: nextEntry ? nextEntry.key : null };
-  const left = entries.filter((e) => !planDone(e.row)).length;
-  const done = entries.length - left;
+  const left = entries.length;
   const open = planState.track === trackId;
   const now = planPinned()[trackId];
   const rolled = planRolled(trackId);
@@ -300,10 +299,8 @@ function planLaneHtml(trackId) {
     <div class="plan-lane-head">
       <span class="plan-eye">${icon(t.icon, 12)} ${escapeHtml(t.label)}</span>
       <span class="plan-lane-n" title="Games still to play in this track">${
-        left.toLocaleString()} to play${done ? ` · ${done.toLocaleString()} done` : ""}</span>
+        left.toLocaleString()} to play</span>
       <span class="plan-lane-acts">
-        ${done ? `<button type="button" class="plan-ghost" data-plan-clear="${escapeHtml(trackId)}"
-          title="Drop the finished games out of this track">${icon("i-broom", 12)} Clear finished</button>` : ""}
         <button type="button" class="plan-ghost plan-rollbtn" data-plan-roll="${escapeHtml(trackId)}"${rollN ? "" : " disabled"}
           title="${escapeHtml(rollN
             ? `Roll one of ${rollN.toLocaleString()} games for this track's queue`
@@ -442,10 +439,8 @@ function planCoverageHtml() {
 
 function planHeroHtml() {
   const entries = planEntries();
-  const left = entries.filter((e) => !planDone(e.row)).length;
-  const done = entries.length - left;
-  const hrs = entries.filter((e) => !planDone(e.row))
-    .map((e) => playtimeOf(e.row)).filter((h) => h != null);
+  const left = entries.length;
+  const hrs = entries.map((e) => playtimeOf(e.row)).filter((h) => h != null);
   const total = hrs.reduce((a, b) => a + b, 0);
   return `<div class="plan-hero">
     <h1>Plan</h1>
@@ -456,7 +451,6 @@ function planHeroHtml() {
       says — and completion is read off the sheet, so nothing here is ticked twice.</p>
     <div class="plan-hero-stats">
       <span><b>${left.toLocaleString()}</b> queued</span>
-      ${done ? `<span><b>${done.toLocaleString()}</b> finished</span>` : ""}
       ${hrs.length ? `<span><b>${escapeHtml(fmtHours(total))}</b> of play queued${
         hrs.length < left ? ` <span class="muted">(${hrs.length} of ${left} timed)</span>` : ""}</span>` : ""}
     </div>
@@ -506,9 +500,6 @@ function wirePlan(host) {
   }
   for (const el of host.querySelectorAll("[data-plan-lane]")) {
     el.onchange = () => { if (el.value) planSetTrack(el.dataset.planLane, el.value); };
-  }
-  for (const el of host.querySelectorAll("[data-plan-clear]")) {
-    el.onclick = () => planClearDone(el.dataset.planClear);
   }
   for (const el of host.querySelectorAll("[data-plan-pin]")) {
     el.onchange = () => { if (el.value) planPin(el.dataset.planPin, el.value); };

@@ -79,9 +79,9 @@ const planHas = (key) => !!key && planKeys().has(key);
    rather than kept, and written back once if anything actually went — this runs on every
    render, so an unconditional save would be a PUT per repaint.
 
-   A FINISHED game is not stale and is not dropped. Finishing something you planned is the
-   point; the row stays, wearing the sheet's own answer, until you clear it (planClearDone).
-   Same reading of the Completed column as thmIsDone and chBeaten: this page records no
+   A FINISHED game counts as stale too, and goes the same way: a queue is what is left to
+   play, so beating a game takes it off without a second press. Finished is the sheet's
+   answer (planDone, the same reading as thmIsDone and chBeaten); this page records no
    completion of its own. */
 function planEntries() {
   const list = planList();
@@ -91,7 +91,7 @@ function planEntries() {
   for (const p of list) {
     if (!p || !p.key || !ids.has(p.track) || seen.has(p.key)) { if (p) stale.push(p); continue; }
     const row = rngRowByKey(p.key);
-    if (!row) { stale.push(p); continue; }
+    if (!row || planDone(row)) { stale.push(p); continue; }
     seen.add(p.key);
     out.push({ track: p.track, key: p.key, row });
   }
@@ -108,9 +108,9 @@ const planQueue = (trackId) => planEntries().filter((e) => e.track === trackId);
 const planDone = (row) => (typeof chBeaten === "function" ? chBeaten(row) : !!(row && row.completed));
 const planStarted = (row) => !!(row && (row.dateStarted || row.playingStatus));
 
-// The next thing to play in a lane: the first entry that isn't finished. What the lane's
-// eyebrow points at, and the reason the order is worth keeping at all.
-const planNext = (trackId) => planQueue(trackId).find((e) => !planDone(e.row)) || null;
+// The next thing to play in a lane: its head, since finished games have already left it.
+// What the lane's eyebrow points at, and the reason the order is worth keeping at all.
+const planNext = (trackId) => planQueue(trackId)[0] || null;
 
 /* ---- editing the queue --------------------------------------------------
    Every one of these writes the pref and re-renders. None of them calls nav(): a plan is
@@ -160,17 +160,6 @@ function planMove(key, delta) {
   // Rebuild the flat list by handing each slot of this lane its new occupant in order.
   const feed = lane[Symbol.iterator]();
   planSaveList(list.map((p) => (p.track === me.track ? feed.next().value : p)));
-  renderPlan();
-}
-
-// Clear the finished games out of a lane (or out of the whole plan with no lane given).
-// A press, because the alternative is a queue that silently forgets what you achieved.
-function planClearDone(trackId) {
-  const gone = new Set(planEntries()
-    .filter((e) => planDone(e.row) && (!trackId || e.track === trackId))
-    .map((e) => e.key));
-  if (!gone.size) return;
-  planSaveList(planList().filter((p) => p && !gone.has(p.key)));
   renderPlan();
 }
 

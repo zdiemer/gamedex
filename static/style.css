@@ -2149,10 +2149,6 @@ html.modal-open body { position: fixed; left: 0; right: 0; width: 100%; }
   background: linear-gradient(100deg,
     color-mix(in srgb, var(--slot, var(--accent)) 10%, var(--surface)), var(--surface) 60%);
 }
-/* Finished, and kept: the reward for planning is seeing the list fill in behind you.
-   Dimmed rather than removed, and "Clear finished" is a press you make when you want to. */
-.plan-row.is-done { opacity: .62; }
-.plan-row.is-done .plan-title { text-decoration: line-through; text-decoration-thickness: 1px; }
 .plan-num {
   flex: none; width: 22px; text-align: right; padding-top: 10px;
   font: 800 13px var(--display); color: var(--dim); font-variant-numeric: tabular-nums;
