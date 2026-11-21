@@ -1,30 +1,21 @@
 "use strict";
 
-/* ---- RNG: three games, one roll ----------------------------------------
-   The regular picker answers "what do I play tonight" with one game. This mode
-   answers the other question people actually ask a random picker: give me a
-   SHAPE for the next stretch. Three slots, rolled together:
+/* ---- the three tracks: classifier, pins and the roll pool ----------------
+   This was the Pick tab's RNG mode, which rolled three games at once. That mode is gone;
+   the Plan tab took over its job, one track at a time (plan.js). What is left here is the
+   machinery both of them stood on, and Plan still does:
 
-     * one modern AAA game    (PS4 / Switch / Xbox One generation onward, big-budget)
-     * one modern indie game  (PS4 / Switch / Xbox One generation onward, small)
-     * one retro game         (PS3 / 360 / Wii U / 3DS / Vita and everything before)
+     * the three tracks and which one a game belongs to:
+         - modern AAA    (PS4 / Switch / Xbox One generation onward, big-budget)
+         - modern indie  (PS4 / Switch / Xbox One generation onward, small)
+         - retro         (PS3 / 360 / Wii U / 3DS / Vita and everything before)
+     * the house rules a ROLL applies on top of the backlog (see rngAllowed)
+     * the "now playing" pins: one game per track that you are already playing
+     * each track's roll pool and the weighted draw from it
 
-   It shares the tab but not its controls. The criteria builder, the "start from"
-   preset, the time budget and the saved pickers all belong to the single pick and
-   are not rendered here; this mode rolls the whole backlog, split three ways, under
-   four house rules the general picker deliberately doesn't have (see rngAllowed),
-   plus the "playable on the go" knob when you turn it on (see rngToGoOk).
-   Which means what the three slot counts say is exactly what it rolls from.
-
-   A slot can also be PINNED to a game you're already playing, in which case it doesn't
-   roll at all and the roll button says so (see the pins section below). Three slots is
-   a shape for the next stretch, and most of the time one or two of those lanes are
-   already filled by a playthrough in progress.
-
-   Loaded straight after pick.js, whose globals it shares (pickState, pickPool,
-   pickRollTile, pickAnimOn, DATA, ENRICH, openDrawer, …). challenges.js loads
-   later in index.html, so the one thing borrowed from it — CH_TEXT_GENRES — is
-   read behind a typeof guard, the way pick.js reads isCandidate. */
+   No UI lives here. Loaded straight after pick.js, whose pickEligible it reads.
+   challenges.js loads later in index.html, so the one thing borrowed from it —
+   CH_TEXT_GENRES — is read behind a typeof guard, the way pick.js reads isCandidate. */
 
 const RNG_SLOTS = [
   { id: "aaa",   label: "Modern AAA",   icon: "i-trophy",  tint: "var(--accent)",
@@ -34,10 +25,6 @@ const RNG_SLOTS = [
   { id: "retro", label: "Retro",        icon: "i-clock",   tint: "var(--warn)",
     hint: "PS3 / 360 / Wii U / 3DS / Vita and older" },
 ];
-const rngSlot = (id) => RNG_SLOTS.find((s) => s.id === id);
-// toGo: the "playable on the go" knob (see rngToGoOk). Off by default, and it rides in
-// the URL like the mode does, so a link carries the roll you were actually looking at.
-const rngState = { picks: { aaa: null, indie: null, retro: null }, toGo: false };
 
 /* ---- the modern/retro line ------------------------------------------------
    Drawn by HARDWARE GENERATION, not by year. Modern is the PS4 / Switch / Xbox One
@@ -210,9 +197,11 @@ const rngSlotOf = (r) => {
 };
 
 /* ---- the house rules ----------------------------------------------------
-   pickPool() has already answered "is it in the backlog" and "is it playable"
-   (pickEligible drops completed games and anything Playable isn't Yes for). These
-   are the extra ones this mode asks for. */
+   pickEligible() has already answered "is it in the backlog" and "is it playable"
+   (it drops completed games and anything Playable isn't Yes for). These are the extra
+   ones a roll asks for, because a roll can't explain itself: handed Dragon Age 2 at
+   random you would have to work out why. Plan's hand-picked chooser keeps only two of
+   them (planAllowed) for exactly that reason. */
 
 // Priority 1 on the sheet is "Will Not Play". A blank priority is rank 0 and stays
 // in: it means nobody has ranked the game, not that it was ranked bottom.
@@ -306,48 +295,6 @@ function rngSeriesOk(r) {
   return true;
 }
 
-/* ---- playable on the go -------------------------------------------------
-   A knob, not a rule: off by default, and when it's on all three slots narrow to games
-   you could actually start on a train. Three questions, because "portable" means three
-   different things depending on what the game runs on.
-
-   1. A PC game has to be Deck-playable, and we take Valve's own word for it: the deck
-      rating (steamx.py, via Valve's compatibility endpoint) has to say Verified or
-      Playable. Unsupported is out, and so is no rating at all — which is also how
-      non-Steam PC games are excluded, since no Steam appid means no rating, and that
-      was the simplification asked for. It leaves ~2,400 of the 3,880 PC games in.
-
-   2. Every other platform is a question about the HARDWARE, and the honest list is the
-      short one: what you can't take with you. Handhelds are portable by definition, and
-      a Deck emulates everything up to the PS2/GameCube/Wii/Wii U era, so the exclusions
-      are the home consoles too recent to emulate plus a handful of set-top oddities.
-      An unlisted platform stays, which is the right default for a library with 145 of
-      them and a long tail of one-game machines.
-
-   3. Two genres are out however they run: VR needs a headset, and point-and-click wants
-      a mouse and a table. Both are sheet/IGDB facts, so neither needs inference. */
-const RNG_PC_PLATFORMS = new Set(["pc", "mac os", "linux"]);
-const RNG_DECK_OK = new Set(["Verified", "Playable"]);
-const RNG_NOT_PORTABLE = new Set([
-  // Home consoles with no practical Deck emulation.
-  "PlayStation 3", "PlayStation 4", "PlayStation 5", "PlayStation Network",
-  "Xbox", "Xbox 360", "Xbox One", "Xbox Series X|S",
-  // Needs a headset and a room (the VR rule below catches most of these anyway).
-  "Oculus Quest",
-  // Not a machine you carry, whatever else it is.
-  "DVD Player", "Pioneer LaserActive", "Nuon", "Action Max", "Dedicated Console",
-  "Amazon Fire TV", "Sega Pico", "Zeebo", "Mainframe",
-]);
-
-function rngToGoOk(r) {
-  if (r.vr) return false;
-  if (unifiedGenreVals(r).includes("Point-and-Click")) return false;
-  const plat = String(r.platform || "");
-  if (RNG_PC_PLATFORMS.has(plat.toLowerCase()))
-    return RNG_DECK_OK.has((ENRICH[r._k] || {}).deck);
-  return !RNG_NOT_PORTABLE.has(plat);
-}
-
 /* DLC is the same rule wearing a different hat: an expansion needs the game it
    expands, which is a prerequisite by definition. It's a sheet column, so this one
    needs no inference.
@@ -358,26 +305,25 @@ function rngToGoOk(r) {
    half the library to answer a question Playable had already answered. Owning a
    physical copy still counts for something, but as odds (rngWeightOf), not as a gate. */
 const rngAllowed = (r) =>
-  !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r)
-  && (!rngState.toGo || rngToGoOk(r));
+  !r.dlc && rngPriorityOk(r) && rngLanguageOk(r) && rngSeriesOk(r);
 
-/* ---- pinned slots: the playthrough you already started -------------------
-   Three slots is a shape for the next stretch — a modern one, an indie one and a retro
-   one on the go at once — and a shape you're halfway into already. So a slot can be
-   pinned to a game, and a pinned slot doesn't roll: "Roll all three" becomes "Roll the
-   other two", the pinned game stays exactly where it is, and its pool drops out of the
-   count the roll quotes, because none of it is reachable.
+/* ---- now playing: the playthrough you already started --------------------
+   Each track can be pinned to the game you're playing in it right now. Plan shows that
+   game at the head of the track, above the queue — it is what the queue comes AFTER.
 
    Only a game the sheet marks Playing can be pinned. That column is where "what am I
-   actually playing" already lives, and this mode has no business inventing a second
-   answer to it — Up Next and On Hold are the other two things it says, and a slot held
-   by a game you've shelved is a slot that never rolls again.
+   actually playing" already lives, and this has no business inventing a second answer
+   to it — Up Next and On Hold are the other two things it says, and a track held by a
+   game you've shelved would say "now playing" about something you aren't.
+
 
    The pins live in prefs (extras.js, server-backed with a localStorage mirror) rather
    than in the tab's URL: a pin is a fact about the next few weeks, not about the link
    you shared, and it has to be the same on the phone and on the desktop. Stored as
    [{slot, key}] — the row's match key, never the row, because every sheet reload builds
-   new row objects and a held one would go stale the first time the data refreshed. */
+   new row objects and a held one would go stale the first time the data refreshed.
+   `slot` is the track id; the pref predates Plan and keeps its old field name so the
+   pins already saved carry straight over. */
 const rngIsPlaying = (r) => r.playingStatus === "Playing" && !r.completed;
 
 // Pinnable games: the sheet's own Playing list, in title order so the menus are stable
@@ -390,9 +336,9 @@ const rngPlayingRows = () =>
 
 const rngPinList = () => (typeof prefsLocal === "function" ? prefsLocal("pins") : []);
 
-/* slot -> match key. A pin naming a slot that doesn't exist is dropped rather than kept:
-   the three slots are a fixed set, and a stale entry from an older shape must not hold a
-   column that can no longer be reached. */
+/* track -> match key. A pin naming a track that doesn't exist is dropped rather than
+   kept: the three tracks are a fixed set, and a stale entry from an older shape must not
+   hold a lane that can no longer be reached. */
 function rngPinKeys() {
   const out = { aaa: null, indie: null, retro: null };
   for (const p of rngPinList()) if (p && p.key && p.slot in out) out[p.slot] = p.key;
@@ -402,8 +348,6 @@ const rngPinSig = () => {
   const k = rngPinKeys();
   return RNG_SLOTS.map((s) => k[s.id] || "-").join(",");
 };
-const rngIsPinned = (slotId) => !!rngPinKeys()[slotId];
-const rngFreeSlots = () => RNG_SLOTS.filter((s) => !rngIsPinned(s.id));
 
 // Match key -> row, over the games sheet. Rebuilt when the sheet is, which is the only
 // thing that can change the answer (a pin is resolved on every render).
@@ -417,84 +361,74 @@ function rngRowByKey(k) {
   return _rngByKey.get(k) || null;
 }
 
-/* Write a pin (or clear one with key = null). A game can only hold one slot, so pinning
-   it somewhere new MOVES it rather than leaving the old lane stuck on a game that is
-   also showing two columns over. */
+/* Write a pin (or clear one with key = null). A game can only hold one track, so pinning
+   it somewhere new MOVES it rather than leaving the old track showing a game that is also
+   showing two lanes over. The caller re-renders. */
 function rngPin(slotId, key) {
   const rest = rngPinList().filter((p) => p && p.slot !== slotId && p.key !== key);
   prefsSave("pins", key ? [...rest, { slot: slotId, key }] : rest);
-  renderPicker();
 }
 
 /* Resolve every pin against the sheet, and drop the ones that no longer hold up: the game
    was removed, or finished, or the Playing flag came off it. A pin is a claim about what
-   you're playing, so when the sheet stops saying that, the slot goes back to rolling —
-   the alternative is a lane silently held forever by a game you finished in March.
+   you're playing, so when the sheet stops saying that, the track stops saying it too —
+   the alternative is a lane forever headed by a game you finished in March.
 
-   Returns nothing; it writes rngState.picks for the pinned slots, which is what puts the
-   pinned game on screen through the same card, patch and drawer paths as a rolled one. */
-function rngSyncPins() {
+   Returns track -> row (null where nothing is pinned). One write for however many went
+   stale, and only when something actually did — this runs on every render, and an
+   unconditional save would be a PUT per repaint. */
+function rngPinnedRows() {
   const keys = rngPinKeys();
+  const out = { aaa: null, indie: null, retro: null };
   const stale = [];
   for (const s of RNG_SLOTS) {
     const k = keys[s.id];
     if (!k) continue;
     const row = rngRowByKey(k);
-    if (row && rngIsPlaying(row)) rngState.picks[s.id] = row;
+    if (row && rngIsPlaying(row)) out[s.id] = row;
     else stale.push(k);
   }
-  // One write for however many went stale, and only when something actually did — this
-  // runs on every render, and an unconditional save would be a PUT per repaint.
   if (stale.length) prefsSave("pins", rngPinList().filter((p) => p && !stale.includes(p.key)));
+  return out;
 }
 
 /* ---- the three pools ----------------------------------------------------
    Straight off pickEligible() (the backlog, playable, unfinished) rather than
-   pickPool(): RNG mode shows no criteria builder, no preset and no saved pickers, so
-   there is nothing on screen that could be narrowing this. A filter left behind on the
-   other mode silently shrinking a roll you can't see the criteria for is worse than
-   not offering the filter at all — the slots' own rules are the whole story here.
+   pickPool(): a roll here has no criteria builder on screen, and a filter left behind on
+   the Pick tab silently shrinking a roll you can't see the criteria for is worse than
+   not offering the filter at all — the house rules are the whole story.
 
    Keyed on _enrichEpoch, the counter every other memo in this app uses (filters.js owns
-   it; catalogue, recs, relations, similar and challenges all key off it). Nearly every
-   rule here reads enrichment — the tier reads publishers, the language and series rules
-   read genres and franchises, the on-the-go knob reads the Deck rating — so the pools
-   really do change as batches land.
-
-   This was keyed on ENRICH_COMPLETE, which is a boolean that is already true when the
-   bulk map is still filling in, so the cache never invalidated: the counts on screen
-   were computed against whatever enrichment happened to have arrived by the first paint,
-   and were out by about a thousand games. */
-let _rngPools = null, _rngPoolsFor = null, _rngPoolsEpoch = null, _rngPoolsToGo = null,
-    _rngPoolsPins = null;
+   it). Nearly every rule here reads enrichment — the tier reads publishers, the language
+   and series rules read genres and franchises — so the pools really do change as
+   batches land. */
+let _rngPools = null, _rngPoolsFor = null, _rngPoolsEpoch = null, _rngPoolsPins = null;
 function rngPools() {
   const pins = rngPinSig();
   if (_rngPools && _rngPoolsFor === DATA && _rngPoolsEpoch === _enrichEpoch
-      && _rngPoolsToGo === rngState.toGo && _rngPoolsPins === pins) return _rngPools;
+      && _rngPoolsPins === pins) return _rngPools;
   const pinned = new Set(Object.values(rngPinKeys()).filter(Boolean));
   const out = { aaa: [], indie: [], retro: [] };
   for (const r of pickEligible()) {
     if (!rngAllowed(r)) continue;
-    // A pinned game is spoken for, and it can be pinned to a slot other than the one it
-    // classifies into — so it comes out of ALL three pools rather than just its own, or
-    // a free slot could roll the game already sitting two columns over.
+    // A pinned game is spoken for, and it can be pinned to a track other than the one it
+    // classifies into — so it comes out of ALL three pools rather than just its own.
     if (pinned.has(r._k)) continue;
-    // No era, no slot: a game that can't say which side of the generation line it's on
+    // No era, no track: a game that can't say which side of the generation line it's on
     // would have to be guessed into one, and a guess is not a rule.
     const id = rngSlotOf(r);
     if (id) out[id].push(r);
   }
-  _rngPoolsFor = DATA; _rngPoolsEpoch = _enrichEpoch; _rngPoolsToGo = rngState.toGo;
-  _rngPoolsPins = pins;
+  _rngPoolsFor = DATA; _rngPoolsEpoch = _enrichEpoch; _rngPoolsPins = pins;
   return (_rngPools = out);
 }
 
-/* ---- the roll -----------------------------------------------------------
-   Owned physical copies get three times the tickets in the two modern slots; everything
+/* ---- the draw -----------------------------------------------------------
+   Owned physical copies get three times the tickets in the two modern tracks; everything
    else (a digital copy, or a game that's playable without being owned) gets one. Not
    "physical, or digital only if there are no physical" — with a shelf this size that
    rule means a digital game is never picked at all, and "prefer" doesn't mean never.
-   The retro slot rolls flat: a retro shelf is physical almost by definition, so
+   The retro track rolls flat: a retro shelf is physical almost by definition, so
    weighting it would only add noise. */
 const RNG_PHYS_WEIGHT = 3;
 const rngOwnedPhysical = (r) => !!r.owned && /physical/i.test(String(r.format || ""));
@@ -511,191 +445,4 @@ function rngWeightedPick(pool, weight) {
     if (x < 0) return r;
   }
   return pool[pool.length - 1];          // float drift only; the loop normally returns
-}
-
-// Re-rolling a slot and getting the same game back reads as a broken button, so the
-// game on screen sits out its own re-roll whenever there's anything else to land on.
-function rngRoll(slotId) {
-  // A pinned slot is not a slot that rolls. Guarded here rather than only at the two call
-  // sites so nothing added later can roll one out from under you by accident.
-  if (rngIsPinned(slotId)) return rngState.picks[slotId];
-  const pool = rngPools()[slotId] || [];
-  const prev = rngState.picks[slotId];
-  const from = (prev && pool.length > 1) ? pool.filter((r) => r !== prev) : pool;
-  return (rngState.picks[slotId] = from.length ? rngWeightedPick(from, rngWeightOf(slotId)) : null);
-}
-const rngHasPicks = () => RNG_SLOTS.some((s) => rngState.picks[s.id]);
-
-/* A pick only survives while it's still in its slot. A sheet reload can finish a game,
-   sell it, or move it across the generation line — showing it anyway would be the
-   picker telling you it picked something the slot doesn't contain.
-
-   Pins go first and are then left alone: a pinned game is held by your say-so rather than
-   by the pool, it isn't IN the pool (rngPools drops it), and the rules the pool applies —
-   priority, series order, the on-the-go knob — are about choosing a game, not about one
-   you're already playing. */
-function rngPrune() {
-  rngSyncPins();
-  const pools = rngPools();
-  for (const s of RNG_SLOTS) {
-    if (rngIsPinned(s.id)) continue;
-    const p = rngState.picks[s.id];
-    if (p && !pools[s.id].includes(p)) rngState.picks[s.id] = null;
-  }
-}
-
-/* Turning the knob is a change to the pool, not to the picks: whatever still qualifies
-   stays on screen (rngPrune drops the rest), so switching it on tells you which of the
-   three you could have taken with you rather than silently re-rolling all of them. */
-function rngSetToGo(on) {
-  if (rngState.toGo === on) return;
-  rngState.toGo = on;
-  renderPicker();
-}
-
-/* What the roll button does, said out loud. It stops being "all three" the moment a slot
-   is pinned, and a button that still promised three while rolling one would be the tab
-   describing a different roll than the one it performs. */
-function rngRollLabel() {
-  const free = rngFreeSlots();
-  if (!free.length) return "All three slots are pinned";
-  const again = free.some((s) => rngState.picks[s.id]);
-  if (free.length === 1) return again ? "Roll the free slot again" : "Roll the free slot";
-  if (free.length === 2) return again ? "Roll the other two again" : "Roll the other two";
-  return again ? "Roll all three again" : "Roll all three";
-}
-
-function rngRollAll(roll) {
-  if (rngLoading()) return;
-  const pools = rngPools();
-  const free = rngFreeSlots();
-  if (!free.length) return;                  // everything is pinned; nothing to roll
-  for (const s of free) rngRoll(s.id);
-  if (roll && free.some((s) => rngState.picks[s.id]) && pickAnimOn() && !pickReduced())
-    playRngRoll(pools);
-  else renderPicker();
-}
-
-function rngRollOne(slotId, roll) {
-  if (rngLoading() || rngIsPinned(slotId)) return;
-  const pool = rngPools()[slotId] || [];
-  rngRoll(slotId);
-  const host = document.querySelector(`#pickResult .rng-slot[data-slot="${slotId}"]`);
-  if (roll && rngState.picks[slotId] && host && pickAnimOn() && !pickReduced())
-    playRngSlotRoll(host, rngSlot(slotId), rngState.picks[slotId], pool);
-  else renderPicker();
-}
-
-/* Has the data these slots are DECIDED by actually arrived? Which slot a game lands in
-   reads its publishers and its genres, and its era reads IGDB's
-   first release year — all of it in the bulk enrichment map. Before that map lands the
-   answer to every slot is zero, and a slot that says "Nothing in your library fits this
-   slot" while it is still reading is not empty, it is lying. So the tab shimmers instead,
-   and loadAllEnrichment re-renders it on arrival (panels.js).
-
-   ENRICH_READY, not ENRICH_COMPLETE: complete means the SERVER has finished backfilling
-   every source, which can be false for hours; ready means the map is here, which is when
-   these answers stop moving. It is also set in a finally block, so a failed fetch releases
-   the skeleton rather than shimmering forever. */
-const rngLoading = () =>
-  typeof ENRICH_ENABLED !== "undefined" && ENRICH_ENABLED && !ENRICH_READY;
-
-/* What a roll can actually reach: the free slots' pools. A pinned slot's pool is real
-   enough, but nothing in it can be rolled while the pin holds, so counting it would quote
-   a number the button can't deliver. */
-function rngPoolCount() {
-  const pools = rngPools();
-  return rngFreeSlots().reduce((n, s) => n + pools[s.id].length, 0);
-}
-
-function wireRngResult() {
-  const host = $("#pickResult");
-  if (!host || rngLoading()) return;
-  host.querySelectorAll("[data-rngcard]").forEach((el) => {
-    const row = rngState.picks[el.dataset.rngcard];
-    if (!row) return;
-    wirePreviewFor(el, row);                      // same hover trailer as the listings
-    el.onclick = () => openDrawer(row, "games");
-  });
-  host.querySelectorAll("[data-reroll]").forEach((el) => {
-    el.onclick = (e) => { e.stopPropagation(); rngRollOne(el.dataset.reroll, true); nav(); };
-  });
-  host.querySelectorAll("[data-open]").forEach((el) => {
-    const row = rngState.picks[el.dataset.open];
-    if (row) el.onclick = (e) => { e.stopPropagation(); openDrawer(row, "games"); };
-  });
-  /* Pinning. All three go through rngPin, which writes the pref and re-renders — no nav()
-     with them, because a pin isn't in the URL (it's a pref, see the pins section) and
-     pushing a history entry for one would make Back a button that unpins nothing. */
-  host.querySelectorAll("[data-pinnow]").forEach((el) => {
-    const row = rngState.picks[el.dataset.pinnow];
-    if (row) el.onclick = (e) => { e.stopPropagation(); rngPin(el.dataset.pinnow, row._k); };
-  });
-  host.querySelectorAll("[data-unpin]").forEach((el) => {
-    el.onclick = (e) => { e.stopPropagation(); rngPin(el.dataset.unpin, null); };
-  });
-  host.querySelectorAll("[data-pin]").forEach((el) => {
-    el.onclick = (e) => e.stopPropagation();          // the card underneath opens a drawer
-    el.onchange = (e) => { e.stopPropagation(); if (el.value) rngPin(el.dataset.pin, el.value); };
-  });
-  // Same reason pick.js asks: the card composes launchHtml-adjacent fields the bulk
-  // enrichment map drops, and postEnrich re-renders when the per-game record lands.
-  const picks = RNG_SLOTS.map((s) => rngState.picks[s.id]).filter(Boolean);
-  if (picks.length && typeof maybeEnrich === "function") maybeEnrich(picks);
-}
-
-/* ---- the reveal ---------------------------------------------------------
-   Three vertical reels of covers spinning at once and locking left to right, a beat
-   apart, each with a flash on its frame as it stops. The single-game roll is a die
-   over one horizontal reel; this is a slot machine, because three-at-once is the
-   whole point of the mode and one die can't say it. Reduced motion and the roll
-   toggle skip it exactly as they do there.
-
-   A roll token guards against a second click (or a criteria change) landing an old
-   roll on top of new state, and the per-slot re-roll spins one column in place while
-   the other two cards sit still. */
-/* Fourteen tiles, landing on the eleventh. It was 26 and the reels were unwatchable:
-   three of them meant 78 covers requested at once, which on a cold cache is enough
-   network and decode work to visibly stutter the spin, and 21 tiles of travel in 1.7s
-   is roughly two and a half times the single roll's speed — fast enough that the reel
-   read as a blur with a cut rather than as something slowing down. Fourteen each puts
-   the tile count back level with the one-game roll and halves the distance. */
-const RNG_REEL_N = 14, RNG_REEL_LAND = 10;
-const RNG_REEL_BASE = 1500, RNG_REEL_STAGGER = 400, RNG_REEL_TAIL = 340;
-let _rngRollN = 0;
-
-// Spin one column that has already been painted into `mask`. Resolves nothing and
-// returns nothing: the caller owns what happens when the reels have all stopped.
-function rngSpin(mask, dur) {
-  const reel = mask.querySelector(".rng-reel");
-  const win = reel.children[RNG_REEL_LAND];
-  if (!win) return;
-  // offsetTop folds in the gaps, so the winner centres without a hard-coded tile height.
-  const target = win.offsetTop - mask.clientHeight / 2 + win.offsetHeight / 2;
-  reel.animate([
-    { transform: "translateY(0)", filter: "blur(0)" },
-    { transform: `translateY(${-target * 0.36}px)`, filter: "blur(6px)", offset: .42 },
-    { transform: `translateY(${-target}px)`, filter: "blur(0)" },
-  ], { duration: dur, easing: "cubic-bezier(.16,.8,.18,1)", fill: "forwards" });
-}
-
-/* A column stops: light its frame and put the winner's NAME under it. `.named` is what
-   makes that readable — the resting style is a small letterspaced caps label, which is
-   right for "Rolling…" and turns a game title into an unreadable stripe. */
-function rngLockSlot(el, picked) {
-  el.classList.add("locked");
-  const hi = el.querySelector(".rng-reel-hi");
-  if (hi) hi.classList.add("lit");
-  const w = el.querySelector(".rng-word");
-  if (w) { w.textContent = picked.title; w.classList.add("named"); }
-}
-
-// The picker rebuilds wholesale when a roll lands, so the cards are fresh nodes —
-// reach for them after the render, not for the detached ones the reels were in.
-function rngLandCards(ids) {
-  renderPicker();
-  ids.forEach((id) => {
-    const el = document.querySelector(`#pickResult .rng-slot[data-slot="${id}"]`);
-    if (el) el.classList.add("rng-landed");
-  });
 }

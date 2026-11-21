@@ -908,7 +908,7 @@ const COMPONENT_SOURCES = [
     "name": "pickWireRollTiles",
     "symbol": "pickWireRollTiles",
     "file": "components/discovery/pick.js",
-    "line": 38,
+    "line": 39,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -918,7 +918,7 @@ const COMPONENT_SOURCES = [
     "name": "playPickRoll",
     "symbol": "playPickRoll",
     "file": "components/discovery/pick.js",
-    "line": 60,
+    "line": 61,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -928,7 +928,7 @@ const COMPONENT_SOURCES = [
     "name": "pickCard",
     "symbol": "pickCard",
     "file": "components/discovery/pick.js",
-    "line": 115,
+    "line": 116,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -938,7 +938,7 @@ const COMPONENT_SOURCES = [
     "name": "pickValueRowsHtml",
     "symbol": "pickValueRowsHtml",
     "file": "components/discovery/pick.js",
-    "line": 160,
+    "line": 161,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -948,7 +948,7 @@ const COMPONENT_SOURCES = [
     "name": "pickPopHtml",
     "symbol": "pickPopHtml",
     "file": "components/discovery/pick.js",
-    "line": 176,
+    "line": 177,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -958,7 +958,7 @@ const COMPONENT_SOURCES = [
     "name": "pickCondHtml",
     "symbol": "pickCondHtml",
     "file": "components/discovery/pick.js",
-    "line": 219,
+    "line": 220,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -968,7 +968,7 @@ const COMPONENT_SOURCES = [
     "name": "pickGroupHtml",
     "symbol": "pickGroupHtml",
     "file": "components/discovery/pick.js",
-    "line": 242,
+    "line": 243,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -978,7 +978,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPicker",
     "symbol": "renderPicker",
     "file": "components/discovery/pick.js",
-    "line": 275,
+    "line": 276,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -988,7 +988,7 @@ const COMPONENT_SOURCES = [
     "name": "pickPopRepaint",
     "symbol": "pickPopRepaint",
     "file": "components/discovery/pick.js",
-    "line": 487,
+    "line": 421,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1054,7 +1054,87 @@ const COMPONENT_SOURCES = [
     "name": "planLaneMoveHtml",
     "symbol": "planLaneMoveHtml",
     "file": "components/discovery/plan.js",
-    "line": 133,
+    "line": 128,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planArtHtml-788d79bfa4",
+    "legacyId": "plan-planArtHtml",
+    "name": "planArtHtml",
+    "symbol": "planArtHtml",
+    "file": "components/discovery/plan.js",
+    "line": 144,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planSubText-41b4f311eb",
+    "legacyId": "plan-planSubText",
+    "name": "planSubText",
+    "symbol": "planSubText",
+    "file": "components/discovery/plan.js",
+    "line": 151,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planNowPlayingHtml-f7a01b3d9f",
+    "legacyId": "plan-planNowPlayingHtml",
+    "name": "planNowPlayingHtml",
+    "symbol": "planNowPlayingHtml",
+    "file": "components/discovery/plan.js",
+    "line": 154,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planPinMenuHtml-3898206b2d",
+    "legacyId": "plan-planPinMenuHtml",
+    "name": "planPinMenuHtml",
+    "symbol": "planPinMenuHtml",
+    "file": "components/discovery/plan.js",
+    "line": 180,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-planRollHtml-93959039c1",
+    "legacyId": "plan-planRollHtml",
+    "name": "planRollHtml",
+    "symbol": "planRollHtml",
+    "file": "components/discovery/plan.js",
+    "line": 203,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-PLAN_REEL_N-1ae4104989",
+    "legacyId": "plan-PLAN_REEL_N",
+    "name": "PLAN_REEL_N",
+    "symbol": "PLAN_REEL_N",
+    "file": "components/discovery/plan.js",
+    "line": 228,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-_planRollN-6ef9f2517b",
+    "legacyId": "plan-_planRollN",
+    "name": "_planRollN",
+    "symbol": "_planRollN",
+    "file": "components/discovery/plan.js",
+    "line": 229,
+    "category": "Home & discovery",
+    "tab": "home"
+  },
+  {
+    "id": "components-discovery-plan-js-playPlanRoll-43c6775e01",
+    "legacyId": "plan-playPlanRoll",
+    "name": "playPlanRoll",
+    "symbol": "playPlanRoll",
+    "file": "components/discovery/plan.js",
+    "line": 231,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1064,7 +1144,7 @@ const COMPONENT_SOURCES = [
     "name": "planLaneHtml",
     "symbol": "planLaneHtml",
     "file": "components/discovery/plan.js",
-    "line": 149,
+    "line": 279,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1074,7 +1154,7 @@ const COMPONENT_SOURCES = [
     "name": "PLAN_PAGE",
     "symbol": "PLAN_PAGE",
     "file": "components/discovery/plan.js",
-    "line": 195,
+    "line": 334,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1084,7 +1164,7 @@ const COMPONENT_SOURCES = [
     "name": "planChooserHtml",
     "symbol": "planChooserHtml",
     "file": "components/discovery/plan.js",
-    "line": 197,
+    "line": 336,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1094,7 +1174,7 @@ const COMPONENT_SOURCES = [
     "name": "planResultsHtml",
     "symbol": "planResultsHtml",
     "file": "components/discovery/plan.js",
-    "line": 225,
+    "line": 364,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1104,7 +1184,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPlanResults",
     "symbol": "renderPlanResults",
     "file": "components/discovery/plan.js",
-    "line": 241,
+    "line": 380,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1114,7 +1194,7 @@ const COMPONENT_SOURCES = [
     "name": "planCandidateHtml",
     "symbol": "planCandidateHtml",
     "file": "components/discovery/plan.js",
-    "line": 252,
+    "line": 391,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1124,7 +1204,7 @@ const COMPONENT_SOURCES = [
     "name": "planCoverageHtml",
     "symbol": "planCoverageHtml",
     "file": "components/discovery/plan.js",
-    "line": 279,
+    "line": 418,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1134,7 +1214,7 @@ const COMPONENT_SOURCES = [
     "name": "planHeroHtml",
     "symbol": "planHeroHtml",
     "file": "components/discovery/plan.js",
-    "line": 304,
+    "line": 443,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1144,7 +1224,7 @@ const COMPONENT_SOURCES = [
     "name": "planSkeletonHtml",
     "symbol": "planSkeletonHtml",
     "file": "components/discovery/plan.js",
-    "line": 330,
+    "line": 469,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1154,7 +1234,7 @@ const COMPONENT_SOURCES = [
     "name": "renderPlan",
     "symbol": "renderPlan",
     "file": "components/discovery/plan.js",
-    "line": 344,
+    "line": 483,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1164,7 +1244,7 @@ const COMPONENT_SOURCES = [
     "name": "wirePlan",
     "symbol": "wirePlan",
     "file": "components/discovery/plan.js",
-    "line": 354,
+    "line": 493,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1174,7 +1254,7 @@ const COMPONENT_SOURCES = [
     "name": "PLAN_QUERY_DEBOUNCE",
     "symbol": "PLAN_QUERY_DEBOUNCE",
     "file": "components/discovery/plan.js",
-    "line": 399,
+    "line": 553,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1184,7 +1264,7 @@ const COMPONENT_SOURCES = [
     "name": "wirePlanResults",
     "symbol": "wirePlanResults",
     "file": "components/discovery/plan.js",
-    "line": 403,
+    "line": 557,
     "category": "Home & discovery",
     "tab": "home"
   },
@@ -1194,127 +1274,7 @@ const COMPONENT_SOURCES = [
     "name": "planWarm",
     "symbol": "planWarm",
     "file": "components/discovery/plan.js",
-    "line": 425,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngSlotHtml-9a735ff3c2",
-    "legacyId": "rng-rngSlotHtml",
-    "name": "rngSlotHtml",
-    "symbol": "rngSlotHtml",
-    "file": "components/discovery/rng.js",
-    "line": 13,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngPlayingChip-437ac698d6",
-    "legacyId": "rng-rngPlayingChip",
-    "name": "rngPlayingChip",
-    "symbol": "rngPlayingChip",
-    "file": "components/discovery/rng.js",
-    "line": 63,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngPinMenuHtml-e88892967f",
-    "legacyId": "rng-rngPinMenuHtml",
-    "name": "rngPinMenuHtml",
-    "symbol": "rngPinMenuHtml",
-    "file": "components/discovery/rng.js",
-    "line": 74,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngCopyChip-47530a5445",
-    "legacyId": "rng-rngCopyChip",
-    "name": "rngCopyChip",
-    "symbol": "rngCopyChip",
-    "file": "components/discovery/rng.js",
-    "line": 94,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngTimeChip-52c71c3c32",
-    "legacyId": "rng-rngTimeChip",
-    "name": "rngTimeChip",
-    "symbol": "rngTimeChip",
-    "file": "components/discovery/rng.js",
-    "line": 108,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngChipsHtml-8aad5c2fb7",
-    "legacyId": "rng-rngChipsHtml",
-    "name": "rngChipsHtml",
-    "symbol": "rngChipsHtml",
-    "file": "components/discovery/rng.js",
-    "line": 115,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngSkeletonHtml-933e4fbc74",
-    "legacyId": "rng-rngSkeletonHtml",
-    "name": "rngSkeletonHtml",
-    "symbol": "rngSkeletonHtml",
-    "file": "components/discovery/rng.js",
-    "line": 121,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngResultHtml-c4e2f13ef7",
-    "legacyId": "rng-rngResultHtml",
-    "name": "rngResultHtml",
-    "symbol": "rngResultHtml",
-    "file": "components/discovery/rng.js",
-    "line": 135,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngPatch-143581f823",
-    "legacyId": "rng-rngPatch",
-    "name": "rngPatch",
-    "symbol": "rngPatch",
-    "file": "components/discovery/rng.js",
-    "line": 157,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-rngReelHtml-6d1d5fcc4c",
-    "legacyId": "rng-rngReelHtml",
-    "name": "rngReelHtml",
-    "symbol": "rngReelHtml",
-    "file": "components/discovery/rng.js",
-    "line": 194,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-playRngRoll-c4cdd2785f",
-    "legacyId": "rng-playRngRoll",
-    "name": "playRngRoll",
-    "symbol": "playRngRoll",
-    "file": "components/discovery/rng.js",
-    "line": 204,
-    "category": "Home & discovery",
-    "tab": "home"
-  },
-  {
-    "id": "components-discovery-rng-js-playRngSlotRoll-6a5f8643ed",
-    "legacyId": "rng-playRngSlotRoll",
-    "name": "playRngSlotRoll",
-    "symbol": "playRngSlotRoll",
-    "file": "components/discovery/rng.js",
-    "line": 247,
+    "line": 579,
     "category": "Home & discovery",
     "tab": "home"
   },

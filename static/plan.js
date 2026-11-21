@@ -1,15 +1,16 @@
 "use strict";
 
 /* ---- Plan: the queue, in three lanes -----------------------------------
-   Pick answers "what do I play tonight" and RNG answers "what shape should the next
-   stretch have". Neither answers the one left over: what am I playing AFTER this. That
-   is a list, it is kept by hand, and until now it was kept in my head.
+   Pick answers "what do I play tonight". It doesn't answer the question after it: what
+   am I playing AFTER this. That is a list, it is kept by hand, and until now it was kept
+   in my head.
 
-   So Plan is three ordered queues — the same three lanes the RNG mode rolls, because a
-   plan that disagreed with the roller about what "retro" means would be two vocabularies
-   for one shelf (see PLAN_TRACKS). You put games in them in the order you mean to play
-   them, and the page's whole job is to show you, while you choose, the things that make
-   one candidate worth more than another:
+   So Plan is three ordered queues — Modern AAA, Modern indie and Retro, classified by
+   rng.js (see planTracks). Each one is headed by the game you're playing in it right now
+   (the "now playing" pin), and each can roll a game at random as a proposal for the
+   queue when you'd rather let chance choose. You put games in them in the order you mean
+   to play them, and the page's whole job is to show you, while you choose, the things
+   that make one candidate worth more than another:
 
      * how many CHALLENGE BUCKETS beating it would clear (challenges.js, chWouldClear),
        and the scarcest one by name — "nothing else in your library clears this" is the
@@ -23,7 +24,7 @@
    button on this page — and the status chips are the sheet's own Status cell. The ONLY
    thing Plan stores is the order, which is the one thing nothing else records.
 
-   Loaded after rng.js (for the lane definitions and the row index) and after
+   Loaded after rng.js (for the lane definitions, pins, roll pools and row index) and after
    challenges.js and themes.js, whose signals it reads behind typeof guards the way
    rng.js reads CH_TEXT_GENRES. UI lives in components/discovery/plan.js. */
 
@@ -173,6 +174,75 @@ function planClearDone(trackId) {
   renderPlan();
 }
 
+/* ---- now playing ----------------------------------------------------------
+   The game you're already playing in a track, pinned at the head of it. The queue is
+   what comes AFTER it, so the two belong on one card. The pins themselves (storage,
+   the Playing-only rule, dropping a pin the sheet no longer backs) are rng.js's, and
+   this is just where they are shown and edited now. */
+const planPinned = () => rngPinnedRows();
+const planPinnedKeys = () => new Set(Object.values(rngPinKeys()).filter(Boolean));
+
+function planPin(trackId, key) {
+  if (!planTrack(trackId)) return;
+  rngPin(trackId, key || null);
+  // A game that just became "now playing" can't also be the roll waiting to be queued.
+  for (const id of planTrackIds()) if (key && planRolls[id] === key) planRolls[id] = null;
+  renderPlan();
+}
+
+/* ---- rolling: let chance fill the next spot -------------------------------
+   One game per track, drawn from rng.js's pool for that track (the backlog under the
+   house rules, owned physical copies weighted up in the modern tracks), minus what is
+   already in the plan or pinned. The draw is a PROPOSAL, not an edit: it sits at the
+   head of the track until you queue it, roll again, or dismiss it — a roll that wrote
+   straight into the queue would make every bad roll a removal you have to do by hand.
+
+   Held as match keys in memory, not in prefs or the URL: a proposal is a moment, and a
+   link that re-opened on somebody else's dice would be describing a roll nobody made. */
+const planRolls = { aaa: null, indie: null, retro: null };
+
+function planRollPool(trackId) {
+  const planned = planKeys();
+  return (rngPools()[trackId] || []).filter((r) => !planned.has(r._k));
+}
+
+// The proposal on screen for a track, or null. Pruned on read: a rolled game that has
+// since been queued elsewhere, pinned, finished or ruled out is no longer a proposal.
+function planRolled(trackId) {
+  const k = planRolls[trackId];
+  if (!k) return null;
+  const row = rngRowByKey(k);
+  if (!row || !planRollPool(trackId).includes(row)) { planRolls[trackId] = null; return null; }
+  return row;
+}
+
+/* Roll a track. The proposal already on screen sits out its own re-roll whenever
+   there's anything else to land on — getting the same game back reads as a broken
+   button. Returns the pool it drew from, which the reel needs for its filler covers. */
+function planRoll(trackId) {
+  if (!planTrack(trackId) || planLoading()) return null;
+  const pool = planRollPool(trackId);
+  const prev = planRolled(trackId);
+  const from = (prev && pool.length > 1) ? pool.filter((r) => r !== prev) : pool;
+  const row = from.length ? rngWeightedPick(from, rngWeightOf(trackId)) : null;
+  planRolls[trackId] = row ? row._k : null;
+  if (row && typeof pickAnimOn === "function" && pickAnimOn() && !pickReduced()) playPlanRoll(trackId, row, pool);
+  else renderPlan();
+  return pool;
+}
+
+function planRollQueue(trackId) {
+  const row = planRolled(trackId);
+  if (!row) return;
+  planRolls[trackId] = null;
+  planAdd(row._k, trackId);              // renders
+}
+
+function planRollDismiss(trackId) {
+  planRolls[trackId] = null;
+  renderPlan();
+}
+
 /* ---- the signals you choose on -------------------------------------------
    The whole reason this page exists rather than being a notes app. Three questions about
    a candidate, all of them answered by data that already lives somewhere in this app and
@@ -248,8 +318,8 @@ function planSignals(row, { clears = true } = {}) {
 
 /* ---- choosing: the candidate pool ---------------------------------------
    pickEligible() is the backlog, playable and unfinished — the same floor the picker and
-   the roller stand on. Two of RNG's four house rules are kept and two are dropped, and
-   the difference is the difference between rolling and choosing:
+   the roll stand on. Two of the roll's four house rules (rngAllowed) are kept here and
+   two are dropped, and the difference is the difference between rolling and choosing:
 
      KEPT  — "Will Not Play" priority, and DLC. Neither is a game you queue: the first you
              have already ruled out by hand, and the second needs the game it expands.
@@ -310,7 +380,8 @@ const planCmpTitle = (a, b) => String(a.title || "").localeCompare(String(b.titl
    text, lowercased once, so a keystroke is a substring test per row and nothing more. */
 let _planBase = new Map(), _planBaseSig = null;
 function planLanePool(trackId) {
-  const planned = planKeys();
+  // A pinned game is already being played; it heads its track rather than queueing in one.
+  const planned = new Set([...planKeys(), ...planPinnedKeys()]);
   const sig = [_enrichEpoch, [...planned].sort().join("\u001e")].join("\u001f");
   if (_planBaseSig !== sig || _planBase.for !== DATA) {
     _planBase = new Map(); _planBase.for = DATA; _planBaseSig = sig;
@@ -327,7 +398,7 @@ function planLanePool(trackId) {
 
 function planCandidates(trackId) {
   const sig = [trackId, planState.q, planState.filter, planState.sort,
-    _enrichEpoch, planList().length, planKeys().size].join("\u001f");
+    _enrichEpoch, planList().length, planKeys().size, rngPinSig()].join("\u001f");
   if (_planCand && _planCandSig === sig && _planCandFor === DATA) return _planCand;
   const q = planState.q.trim().toLowerCase();
   let rows = planLanePool(trackId)

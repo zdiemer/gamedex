@@ -148,9 +148,7 @@ async function loadAllEnrichment() {
       // when the map arrives (and as a backfill refines it); renderSearch debounces the rebuild.
       else if (activeTab === "search") renderSearch();
       /* Pick was excluded from every branch here, so the picker never heard that the map
-         had landed. It matters now: RNG's slots are decided by publishers, genres and
-         IGDB's rating count, none of which exist before this, so the tab paints a
-         skeleton until it arrives (rngLoading) and this is what releases it. */
+         had landed. It hands the pick card its enrichment-backed fields when it does. */
       else if (activeTab === "pick") pickEnrichLanded(false);
       else {
         /* If a filter or a sort on screen reads this map, the row list itself may be wrong —

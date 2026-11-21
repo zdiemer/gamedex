@@ -106,19 +106,18 @@ const assert = require('node:assert/strict');
   assert.equal(await page.evaluate(()=>GLOBAL_SEARCH.q),'a');
   const posters=await page.evaluate(()=>{
    const row=DATA.sheets.games.rows.find(row=>coverSrc(igdbRecOf(row),'cover_big'));
-   const slot=RNG_SLOTS[0], previous=rngState.picks[slot.id]; rngState.picks[slot.id]=row;
    const host=document.createElement('div');
-   host.innerHTML=pickCard(row)+rngSlotHtml(slot,[row]);
-   rngState.picks[slot.id]=previous;
+   host.innerHTML=pickCard(row)+planCandidateHtml(row,RNG_SLOTS[0].id);
+   const card=el=>el.className.replace(/\s*plan-cand-card\b/,'');
    return {covers:[...host.querySelectorAll('.card-cover')].map(el=>el.getAttribute('src')),
     expected:coverSrc(igdbRecOf(row),'cover_big'),
-    classes:[...host.querySelectorAll('.card')].map(el=>el.className),expectedClass:posterClassName(row),
-    picker:!!host.querySelector('#pickGameCard'),randomizer:!!host.querySelector('[data-rngcard]'),
-    lazy:host.querySelectorAll('.card-cover[loading="lazy"]').length};
+    classes:[...host.querySelectorAll('.card')].map(card),expectedClass:posterClassName(row),
+    picker:!!host.querySelector('#pickGameCard'),candidate:!!host.querySelector('.plan-cand-card'),
+    lazy:host.querySelectorAll('#pickGameCard .card-cover[loading="lazy"]').length};
   });
   assert.deepEqual(posters.covers,[posters.expected,posters.expected]);
   assert.deepEqual(posters.classes,[posters.expectedClass,posters.expectedClass]);
-  assert.ok(posters.picker && posters.randomizer);assert.equal(posters.lazy,0);
+  assert.ok(posters.picker && posters.candidate);assert.equal(posters.lazy,0);
   // Check all eight feature panel roots, data hooks and escaped body text.
   const panels=await page.evaluate(()=>{
    KHC.test={name:'Album',url:'https://example.com',tracks:[{name:'Track'}]};

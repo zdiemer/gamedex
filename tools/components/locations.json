@@ -200,10 +200,6 @@
       "components/statistics/reviews.js",
       "reviews.js"
     ],
-    "rng.js": [
-      "components/discovery/rng.js",
-      "rng.js"
-    ],
     "search.js": [
       "components/lists/search.js",
       "search.js"

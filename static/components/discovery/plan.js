@@ -94,11 +94,7 @@ function planClearLineHtml(sig) {
 function planQueueRowHtml(entry, i, lane) {
   const { row, key } = entry;
   const sig = planSignals(row);
-  const rec = igdbRecOf(row);
-  const cs = coverSrc(rec, "cover_big");
-  const art = cs
-    ? `<img class="plan-art${coverIsPixelArt(rec, cs) ? " pixel" : ""}" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
-    : `<span class="plan-art ph">${icon("i-library", 16)}</span>`;
+  const art = planArtHtml(row);
   const next = !sig.done && lane.next === key;
   return `<li class="plan-row${sig.done ? " is-done" : ""}${next ? " is-next" : ""}" data-pk="${escapeHtml(String(key))}">
     <span class="plan-num" aria-hidden="true">${i + 1}</span>
@@ -107,8 +103,7 @@ function planQueueRowHtml(entry, i, lane) {
       ${art}
       <span class="plan-meta">
         <b class="plan-title">${escapeHtml(String(row.title))}</b>
-        <span class="plan-sub">${escapeHtml([row.platform, rngYear(row) || null, row.genre]
-          .filter((x) => x != null && x !== "").join(" · "))}</span>
+        <span class="plan-sub">${escapeHtml(planSubText(row))}</span>
         ${planSignalChipsHtml(sig)}
         ${planClearLineHtml(sig)}
       </span>
@@ -128,7 +123,7 @@ function planQueueRowHtml(entry, i, lane) {
 
 /* Move a game to another lane. Offered on every queued game because the classifier is
    inference (rngSlotOf) and inference is wrong sometimes — a native select, so the phone
-   gets its own picker for free, the same choice rng.js's pin menu makes. Hidden when
+   gets its own picker for free, the same choice the pin menu makes. Hidden when
    there is only one other lane's worth of nothing to choose. */
 function planLaneMoveHtml(entry) {
   const others = planTracks().filter((t) => t.id !== entry.track);
@@ -141,11 +136,146 @@ function planLaneMoveHtml(entry) {
   </span>`;
 }
 
+/* ---- now playing --------------------------------------------------------
+   The head of a track: the game you're playing in it right now, pinned (rng.js keeps the
+   pins). Not numbered, because it isn't in the queue — it is what the queue comes after.
+   The same art and meta as a queued row so the two read as one list, and a tinted box so
+   "this one is under way" doesn't need a second colour to say it. */
+function planArtHtml(row) {
+  const rec = igdbRecOf(row);
+  const cs = coverSrc(rec, "cover_big");
+  return cs
+    ? `<img class="plan-art${coverIsPixelArt(rec, cs) ? " pixel" : ""}" loading="lazy" decoding="async" src="${escapeHtml(cs)}" alt="">`
+    : `<span class="plan-art ph">${icon("i-library", 16)}</span>`;
+}
+const planSubText = (row) => [row.platform, rngYear(row) || null, row.genre]
+  .filter((x) => x != null && x !== "").join(" · ");
+
+function planNowPlayingHtml(trackId, row) {
+  const key = String(row._k);
+  const hrs = playtimeOf(row);
+  return `<div class="plan-now" data-pk="${escapeHtml(key)}">
+    <span class="plan-now-tag">${icon("i-play", 11)} Now playing</span>
+    <button type="button" class="plan-open" data-plan-open="${escapeHtml(key)}"
+      title="${escapeHtml(`Open ${row.title}`)}">
+      ${planArtHtml(row)}
+      <span class="plan-meta">
+        <b class="plan-title">${escapeHtml(String(row.title))}</b>
+        <span class="plan-sub">${escapeHtml(planSubText(row))}</span>
+        ${hrs != null ? `<div class="plan-sigs"><span class="plan-sig time" title="How long to beat">${
+          icon("i-clock", 11)} ${escapeHtml(fmtHours(hrs))}</span></div>` : ""}
+      </span>
+    </button>
+    <span class="plan-ctl">
+      <button type="button" class="plan-ghost" data-plan-unpin="${escapeHtml(trackId)}"
+        title="Stop showing this as the game you're playing in this track">${icon("i-pin", 12)} Unpin</button>
+    </span>
+  </div>`;
+}
+
+/* The way to pin one: every game the sheet marks Playing that isn't already heading a
+   track. Two groups, because which track a game fits is inferred (rngSlotOf) and
+   inference gets things wrong — the ones that fit come first, the rest are still listed.
+   A native select, so the phone gets its own picker for free. */
+function planPinMenuHtml(trackId) {
+  const pinned = planPinnedKeys();
+  const rows = rngPlayingRows().filter((r) => !pinned.has(r._k));
+  if (!rows.length) return "";
+  const opt = (r) => `<option value="${escapeHtml(String(r._k))}">${escapeHtml(String(r.title))}${
+    r.platform ? ` · ${escapeHtml(String(r.platform))}` : ""}</option>`;
+  const fits = rows.filter((r) => rngSlotOf(r) === trackId);
+  const rest = rows.filter((r) => rngSlotOf(r) !== trackId);
+  return `<div class="plan-pinsel">
+    ${icon("i-pin", 12)}
+    <select data-plan-pin="${escapeHtml(trackId)}" aria-label="Pin the game you're playing in this track">
+      <option value="">Pin what you're playing in this track…</option>
+      ${fits.length ? `<optgroup label="Fits this track">${fits.map(opt).join("")}</optgroup>` : ""}
+      ${rest.length ? `<optgroup label="Other games you're playing">${rest.map(opt).join("")}</optgroup>` : ""}
+    </select>
+  </div>`;
+}
+
+/* ---- a rolled proposal --------------------------------------------------
+   What the track's Roll button drew. It sits above the queue, unnumbered, until you
+   queue it (it goes to the end of the line), roll again, or dismiss it. The same signal
+   chips as a candidate in the chooser, because "is this roll worth a spot" is the same
+   question the chooser asks. */
+function planRollHtml(trackId, row) {
+  const key = String(row._k);
+  return `<div class="plan-rollbox" data-pk="${escapeHtml(key)}">
+    <span class="plan-now-tag roll">${icon("i-dice", 11)} Rolled</span>
+    <button type="button" class="plan-open" data-plan-open="${escapeHtml(key)}"
+      title="${escapeHtml(`Open ${row.title}`)}">
+      ${planArtHtml(row)}
+      <span class="plan-meta">
+        <b class="plan-title">${escapeHtml(String(row.title))}</b>
+        <span class="plan-sub">${escapeHtml(planSubText(row))}</span>
+        ${planSignalChipsHtml(planSignals(row))}
+      </span>
+    </button>
+    <span class="plan-ctl">
+      <button type="button" class="plan-queue" data-plan-roll-queue="${escapeHtml(trackId)}">${icon("i-plus", 12)} Queue it</button>
+      <button type="button" class="plan-ghost" data-plan-roll="${escapeHtml(trackId)}">${icon("i-refresh", 12)} Re-roll</button>
+      <button type="button" class="plan-ibtn" data-plan-roll-x="${escapeHtml(trackId)}"
+        aria-label="Dismiss this roll" title="Dismiss this roll">${icon("i-close", 13)}</button>
+    </span>
+  </div>`;
+}
+
+/* The reveal: the single pick's horizontal reel of covers (pickRollTile and its shimmer
+   rules), without the die, easing to a stop on the winner in place of the proposal. A
+   token guards against a second roll landing an old one on top of new state. */
+const PLAN_REEL_N = 30, PLAN_REEL_LAND = 25, PLAN_REEL_MS = 1500;
+let _planRollN = 0;
+
+function playPlanRoll(trackId, picked, pool) {
+  const lane = document.querySelector(`#plan .plan-lane[data-track="${trackId}"]`);
+  if (!lane || activeTab !== "plan") { renderPlan(); return; }
+  const my = ++_planRollN;
+  const others = pool.filter((r) => r !== picked);
+  const draw = () => (others.length ? others[Math.floor(Math.random() * others.length)] : picked);
+  const seq = Array.from({ length: PLAN_REEL_N }, (_, i) => (i === PLAN_REEL_LAND ? picked : draw()));
+  const html = `<div class="plan-rollbox spinning">
+    <div class="roll-reel-mask">
+      <div class="roll-reel">${seq.map((r, i) => pickRollTile(r, i === PLAN_REEL_LAND)).join("")}</div>
+      <div class="roll-reel-hi"></div>
+    </div>
+    <div class="plan-roll-word">Rolling…</div>
+  </div>`;
+  const old = lane.querySelector(".plan-rollbox");
+  if (old) old.outerHTML = html;
+  else {
+    const after = lane.querySelector(".plan-now, .plan-pinsel") || lane.querySelector(".plan-lane-head");
+    after.insertAdjacentHTML("afterend", html);
+  }
+  const box = lane.querySelector(".plan-rollbox.spinning");
+  pickWireRollTiles(box);
+  const reel = box.querySelector(".roll-reel");
+  const win = reel.children[PLAN_REEL_LAND];
+  // offsetLeft folds in the gaps, so this centres the winner without hard-coding a width.
+  const target = win.offsetLeft - reel.parentElement.clientWidth / 2 + win.offsetWidth / 2;
+  reel.animate([
+    { transform: "translateX(0)", filter: "blur(0)" },
+    { transform: `translateX(${-target * 0.34}px)`, filter: "blur(7px)", offset: .4 },
+    { transform: `translateX(${-target}px)`, filter: "blur(0)" },
+  ], { duration: PLAN_REEL_MS, easing: "cubic-bezier(.16,.8,.18,1)", fill: "forwards" });
+  setTimeout(() => {
+    if (_planRollN !== my) return;
+    box.querySelector(".roll-reel-hi")?.classList.add("lit");
+    const w = box.querySelector(".plan-roll-word");
+    if (w) { w.textContent = picked.title; w.classList.add("named"); }
+  }, PLAN_REEL_MS * 0.85);
+  setTimeout(() => {
+    if (_planRollN !== my || activeTab !== "plan") return;
+    renderPlan();
+    document.querySelector(`#plan .plan-lane[data-track="${trackId}"] .plan-rollbox`)?.classList.add("rolled-in");
+  }, PLAN_REEL_MS + 260);
+}
+
 /* ---- a lane -------------------------------------------------------------
-   The same box, eyebrow and --slot tint as an RNG column, because it is the same lane:
-   two tabs describing one shelf should look like they agree. The eyebrow counts what is
-   left to play rather than what is in the lane — a queue of eight with seven finished is
-   a queue of one. */
+   An eyebrow and a --slot tint per track (RNG_SLOTS), then the game you're playing now,
+   any rolled proposal, and the queue. The eyebrow counts what is left to play rather than
+   what is in the lane — a queue of eight with seven finished is a queue of one. */
 function planLaneHtml(trackId) {
   const t = planTrack(trackId);
   const entries = planQueue(trackId);
@@ -154,6 +284,9 @@ function planLaneHtml(trackId) {
   const left = entries.filter((e) => !planDone(e.row)).length;
   const done = entries.length - left;
   const open = planState.track === trackId;
+  const now = planPinned()[trackId];
+  const rolled = planRolled(trackId);
+  const rollN = planRollPool(trackId).length;
 
   const body = entries.length
     ? `<ol class="plan-list">${entries.map((e, i) => planQueueRowHtml(e, i, lane)).join("")}</ol>`
@@ -171,11 +304,17 @@ function planLaneHtml(trackId) {
       <span class="plan-lane-acts">
         ${done ? `<button type="button" class="plan-ghost" data-plan-clear="${escapeHtml(trackId)}"
           title="Drop the finished games out of this track">${icon("i-broom", 12)} Clear finished</button>` : ""}
+        <button type="button" class="plan-ghost plan-rollbtn" data-plan-roll="${escapeHtml(trackId)}"${rollN ? "" : " disabled"}
+          title="${escapeHtml(rollN
+            ? `Roll one of ${rollN.toLocaleString()} games for this track's queue`
+            : "Nothing left in this track to roll")}">${icon("i-dice", 12)} ${rolled ? "Roll again" : "Roll one"}</button>
         <button type="button" class="plan-add${open ? " is-open" : ""}" data-plan-toggle="${escapeHtml(trackId)}"
           aria-expanded="${open ? "true" : "false"}">${icon(open ? "i-close" : "i-plus", 12)} ${
           open ? "Done choosing" : "Add games"}</button>
       </span>
     </div>
+    ${now ? planNowPlayingHtml(trackId, now) : planPinMenuHtml(trackId)}
+    ${rolled ? planRollHtml(trackId, rolled) : ""}
     ${body}
     ${open ? planChooserHtml(trackId) : ""}
   </section>`;
@@ -310,11 +449,11 @@ function planHeroHtml() {
   const total = hrs.reduce((a, b) => a + b, 0);
   return `<div class="plan-hero">
     <h1>Plan</h1>
-    <p>Three queues, one per track, in the order you mean to play them. Pick answers
-      tonight and the roller answers at random; this is the list after that. Every
-      candidate shows what beating it would clear, which theme slates it's already on and
-      what the sheet's Status column already says — and completion is read off the sheet,
-      so nothing here is ticked twice.</p>
+    <p>Three queues, one per track, in the order you mean to play them. Each track starts
+      with what you're playing in it now; the queue is what comes after. Add games by hand,
+      or roll one and keep it if you like it. Every candidate shows what beating it would
+      clear, which theme slates it's already on and what the sheet's Status column already
+      says — and completion is read off the sheet, so nothing here is ticked twice.</p>
     <div class="plan-hero-stats">
       <span><b>${left.toLocaleString()}</b> queued</span>
       ${done ? `<span><b>${done.toLocaleString()}</b> finished</span>` : ""}
@@ -371,6 +510,21 @@ function wirePlan(host) {
   for (const el of host.querySelectorAll("[data-plan-clear]")) {
     el.onclick = () => planClearDone(el.dataset.planClear);
   }
+  for (const el of host.querySelectorAll("[data-plan-pin]")) {
+    el.onchange = () => { if (el.value) planPin(el.dataset.planPin, el.value); };
+  }
+  for (const el of host.querySelectorAll("[data-plan-unpin]")) {
+    el.onclick = () => planPin(el.dataset.planUnpin, null);
+  }
+  for (const el of host.querySelectorAll("[data-plan-roll]")) {
+    el.onclick = () => planRoll(el.dataset.planRoll);
+  }
+  for (const el of host.querySelectorAll("[data-plan-roll-queue]")) {
+    el.onclick = () => planRollQueue(el.dataset.planRollQueue);
+  }
+  for (const el of host.querySelectorAll("[data-plan-roll-x]")) {
+    el.onclick = () => planRollDismiss(el.dataset.planRollX);
+  }
   for (const el of host.querySelectorAll("[data-plan-toggle]")) {
     el.onclick = () => planOpen(el.dataset.planToggle);
   }
@@ -394,7 +548,7 @@ function wirePlan(host) {
   const results = host.querySelector(".plan-results");
   if (results) wirePlanResults(results);
   // Covers and playtimes for the queued games arrive per-game; postEnrich re-renders.
-  planWarm(host.querySelectorAll(".plan-row[data-pk]"));
+  planWarm(host.querySelectorAll(".plan-row[data-pk], .plan-now[data-pk], .plan-rollbox[data-pk]"));
 }
 const PLAN_QUERY_DEBOUNCE = 120;
 

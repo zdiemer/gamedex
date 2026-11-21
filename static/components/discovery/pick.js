@@ -33,8 +33,9 @@ function pickDieHtml() {
    from the grid — appears instantly; pixels you were just looking at shouldn't
    reintroduce themselves on a re-roll.
 
-   Its own function because RNG mode's three reels are the same tiles wanting the same
-   behaviour (rng.js), and a second copy would be a second answer to when a cover fades. */
+   Its own function because Plan's per-track roll spins the same tiles and wants the same
+   behaviour (components/discovery/plan.js), and a second copy would be a second answer to
+   when a cover fades. */
 function pickWireRollTiles(host) {
   host.querySelectorAll(".roll-tile img").forEach((img) => {
     const tile = img.parentElement;
@@ -287,76 +288,13 @@ function renderPicker() {
   }
   const pool = pickPool();
 
-  /* RNG mode rolls three at once, so the counts and the button copy come from the slots
-     rather than from the pool (see `shown` below) — except while the enrichment map is
-     still arriving, when the slots have no answer yet and asking for one would only get
-     three zeroes. rngLoading holds the whole thing back: no pooling, no pruning, and the
-     controls say nothing they'd have to take back. */
-  const rng = pickModeRng();
-  const loading = rng && rngLoading();
-  if (rng && !loading) rngPrune();
-  // The free slots' pools, not all three: a pinned slot is holding a game you're playing
-  // and doesn't roll, so neither the count nor the button speaks for it (see rng.js).
-  const rngN = (rng && !loading) ? rngPoolCount() : 0;
-  const rollable = loading ? 0 : (rng ? rngN : pool.length);
-  const hasResult = loading ? false
-    : rng ? rngHasPicks() : (pickState.picked && pool.includes(pickState.picked));
-  const rollLabel = rng ? rngRollLabel() : "Pick for me";
-
-  const modes = `<div class="pick-modes" role="group" aria-label="How many games to pick">
-    ${[["one", "One game", "i-dice"], ["rng", "RNG", "i-layers"]].map(([m, lbl, ic]) =>
-      `<button type="button" class="pick-mode${pickState.mode === m ? " on" : ""}" data-mode="${m}"
-         aria-pressed="${pickState.mode === m}">${icon(ic, 14)} ${lbl}</button>`).join("")}
-    ${rng ? `<span class="pick-modenote">One modern AAA, one modern indie, one retro. Pin what you're playing and the roll fills the rest.</span>` : ""}
-  </div>`;
-
-  /* The count every control quotes. In RNG mode it's the slots' totals, not the pool: the
-     slots apply their own rules on top (owned, no DLC, priority, language, series order)
-     and a pinned slot rolls nothing at all, so "12,736 games" over a roll that can only
-     reach 5,438 of them is a number that reads as a promise and isn't one. */
-  const shown = rng ? rngN : pool.length;
-  // A shimmer, not "0 games in pool": the pool isn't empty, it isn't counted yet.
-  const games = loading ? "" : `${shown.toLocaleString()} game${shown === 1 ? "" : "s"}`;
-  // New games since the last paint, or the same ones redrawn? (see pickResultKey)
+  const rollable = pool.length;
+  const hasResult = pickState.picked && pool.includes(pickState.picked);
+  const games = `${pool.length.toLocaleString()} game${pool.length === 1 ? "" : "s"}`;
+  // New game since the last paint, or the same one redrawn? (see pickResultKey)
   const rk = pickResultKey();
   const fresh = rk !== _pickDrawnFor ? " fresh" : "";
   _pickDrawnFor = rk;
-
-  /* RNG mode renders none of the pool chrome: no preset, no time budget, no builder,
-     no saved pickers, and none of the phone sheet that houses them (see rngPools —
-     it rolls the backlog whole). Two separate templates rather than one riddled with
-     conditionals, because what they have in common is three controls and a result.
-
-     It returns before the single pick's own setup below, which is the point: none of
-     the preset optgroups, the saved-picker list or the criteria count is work RNG mode
-     has any use for. */
-  if (rng) {
-    host.innerHTML = `
-      ${modes}
-      <div class="pick-controls rng-controls">
-        <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} ${rollLabel}</button>
-        <span class="pick-count${loading ? " skel" : ""}">${loading ? "" : `${games} in pool`}</span>
-        <label class="pick-anim pick-togo" title="Steam Deck verified or playable, handhelds, and anything a Deck can emulate. No VR, no point-and-click.">
-          <input type="checkbox" id="rngToGo"${rngState.toGo ? " checked" : ""}${loading ? " disabled" : ""}> Playable on the go
-        </label>
-        <label class="pick-anim" title="Play a slot-machine animation when rolling">
-          <input type="checkbox" id="pickAnim"${pickAnimOn() ? " checked" : ""}> Roll animation
-        </label>
-      </div>
-      <div class="pick-result rng${fresh}" id="pickResult">${rngResultHtml()}</div>
-      <div class="pick-bar"><button class="pick-btn" id="pickBtnM" type="button"${rollable ? "" : " disabled"}>
-        ${icon("i-dice", 16)} ${rollLabel}
-      </button></div>`;
-    settleCachedCovers(host);
-    const rollAll = () => { rngRollAll(true); nav(); };
-    $("#pickBtn").onclick = rollAll;
-    $("#pickBtnM").onclick = rollAll;
-    $("#rngToGo").onchange = (e) => { rngSetToGo(e.target.checked); nav(); };
-    wirePickModes(host);
-    wirePickAnim();
-    wireRngResult();
-    return;
-  }
 
   const mins = pickBudgetMinutes();
   const groups = {};
@@ -376,7 +314,6 @@ function renderPicker() {
   const critN = pickCritCount(pickState.filter);
 
   host.innerHTML = `
-    ${modes}
     <div class="pick-mtop">
       <span class="pick-msum">${escapeHtml(sumLabel)} · ${games}</span>
       <button class="pick-crit" id="pickCrit" type="button"
@@ -401,7 +338,7 @@ function renderPicker() {
                 `<option value="${b.m}"${b.m === mins ? " selected" : ""}>${escapeHtml(b.label)}</option>`).join("")}
             </select>
           </label>
-          <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} ${rollLabel}</button>
+          <button id="pickBtn" class="pick-btn"${rollable ? "" : " disabled"}>${icon("i-dice", 16)} Pick for me</button>
           <span class="pick-count">${games} in pool</span>
           ${isDef ? "" : `<button id="pickReset" class="pick-reset" title="Back to the default filter">Reset</button>`}
           <label class="pick-anim" title="Play a dice-roll animation when picking a game">
@@ -418,10 +355,8 @@ function renderPicker() {
       </div>
       <button class="pick-shgo" id="pickShGo" type="button"${rollable ? "" : " disabled"}>
         ${icon("i-dice", 16)} ${!rollable
-          ? (rng ? "Nothing fits these slots" : "Nothing matches these criteria")
-          : rng
-            ? `Roll three from these ${rngN.toLocaleString()} games`
-            : `Roll from ${pool.length === 1 ? "this 1 game" : `these ${pool.length.toLocaleString()} games`}`}
+          ? "Nothing matches these criteria"
+          : `Roll from ${pool.length === 1 ? "this 1 game" : `these ${pool.length.toLocaleString()} games`}`}
       </button>
     </div>
     <div class="pick-shback" id="pickShBack"${pickSheetOpen ? "" : " hidden"}></div>
@@ -437,7 +372,7 @@ function renderPicker() {
   // no longer ships (see _BULK_DROP in enrich.py), because three surfaces showing one game
   // each are not worth 1.9 MB on every page load. Ask for this one game's; postEnrich
   // re-renders the picker when it lands, and the button appears.
-  if (!rng && pickState.picked && typeof maybeEnrich === "function") maybeEnrich([pickState.picked]);
+  if (pickState.picked && typeof maybeEnrich === "function") maybeEnrich([pickState.picked]);
 
   // "Custom filter" is a readout of where you've ended up, not a thing you can
   // choose — selecting it should leave the tree you built alone.
@@ -451,7 +386,6 @@ function renderPicker() {
   $("#pickTime").onchange = (e) => { closePickPop(); pickSetBudget(+e.target.value); renderPicker(); nav(); };
   const roll = () => { pickGame(true); nav(); };
   $("#pickBtn").onclick = roll;
-  wirePickModes(host);
   wirePickAnim();
   const reset = $("#pickReset");
   if (reset) reset.onclick = () => { closePickPop(); applyPreset(PICK_DEFAULT_PRESET); renderPicker(); nav(); };

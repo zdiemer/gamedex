@@ -7,7 +7,7 @@
      but yesterday's is far better than an error screen on the train.
    The cache name carries the build version, so a deploy evicts the old shell
    rather than serving stale JS forever. */
-const VERSION = "v1.88.9";
+const VERSION = "v1.89.0";
 const SHELL = `gamedex-shell-${VERSION}`;
 const DATA = `gamedex-data-${VERSION}`;
 // Keep in sync with the <script> tags in index.html — a file loaded there but
@@ -30,7 +30,7 @@ const SHELL_URLS = [
   "./components/drawer/drawer.js", "./drawer.js", "./components/events/events.js",
   "./events.js", "./components/navigation/app.js", "./app.js",
   "./components/statistics/stats.js", "./stats.js", "./components/discovery/pick.js",
-  "./pick.js", "./components/discovery/rng.js", "./rng.js",
+  "./pick.js", "./rng.js",
   "./components/navigation/chrome.js", "./chrome.js", "./components/media/attract.js",
   "./attract.js", "./components/navigation/gamepad.js", "./gamepad.js",
   "./components/statistics/charts.js", "./charts.js", "./components/statistics/reviews.js",

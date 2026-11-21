@@ -269,14 +269,6 @@ function syncURL(push) {
     // inside it now rather than in an &mins= of its own — it's a criterion like the rest.
     if (pickState.preset) p.set("sel", pickState.preset);
     else if (pickState.filter && pickState.filter.kids.length) p.set("fb", pickEncode(pickState.filter));
-    // One game or three (rng.js). Only the non-default rides in the link, so every
-    // picker URL ever shared still opens on the single-game mode it was written for.
-    if (pickState.mode === "rng") {
-      p.set("pm", "rng");
-      // The "playable on the go" knob narrows all three slots, so a shared RNG link
-      // has to carry it or it describes a different roll than the one on screen.
-      if (rngState.toGo) p.set("go", "1");
-    }
   } else if (activeTab === "groups") {
     if (groupState.kind) p.set("g", groupState.kind);
     if (groupState.open) p.set("gk", groupState.open);
@@ -332,6 +324,9 @@ function applyStateFromURL() {
          "health", "shelf", "picross", "dexle", "hilo", "daily", "recs", "swipe", "wishlist", "search",
          "translations", "spooktober", "events", "components"]
     .concat(typeof EVENT_TABS !== "undefined" ? EVENT_TABS : []).includes(tab) ? tab : "home";
+  // The Pick tab's three-at-once RNG mode moved to Plan, which rolls per track; an old
+  // RNG link lands where that roll lives now rather than on a single-game picker.
+  if (tab === "pick" && p.get("pm") === "rng") tab = "plan";
   // Wishlist and Health are account-owner-only — a public deep-link to either lands on
   // Home rather than a tab the nav deliberately hides.
   // The preview board moves the app's clock and shows every event's state; it is a
@@ -349,8 +344,6 @@ function applyStateFromURL() {
       else applyPreset(p.get("sel") || pickState.preset || PICK_DEFAULT_PRESET);
       // After the tree exists, never before: this writes a criterion into it.
       pickAdoptMinutes(+(p.get("mins") || 0));
-      pickState.mode = p.get("pm") === "rng" ? "rng" : "one";
-      rngState.toGo = p.get("go") === "1";
     }
     if (tab === "plan") planStateFromURL(p);
     if (tab === "challenges") {

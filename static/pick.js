@@ -11,12 +11,7 @@
    shape the sidebar filters have always had — so the builder inherits the grid's
    entire vocabulary for free: sheet columns, IGDB (themes, keywords, perspective),
    and the constructed facets (predicted rating, playtime, sales). See pickFields(). */
-const pickState = { filter: null, preset: "backlog", picked: null, mode: "one" };
-/* Two ways to answer "what do I play". "one" is this file: a single game out of the
-   pool. "rng" is rng.js: three at once, one modern AAA, one modern indie, one retro,
-   over the same pool and the same criteria builder. The mode is which RESULT you get,
-   not a second set of state — everything above the result area is shared. */
-const pickModeRng = () => pickState.mode === "rng";
+const pickState = { filter: null, preset: "backlog", picked: null };
 let _completedFranchises = null;
 const completedFranchises = () => (_completedFranchises ||=
   new Set(((DATA.sheets.completed || {}).rows || []).flatMap((r) => unifiedFranchiseVals(r))));
@@ -506,7 +501,7 @@ function pickSetBudget(m) {
 function pickAdoptMinutes(m) {
   if (m && TIME_BUDGETS.some((b) => b.m === m) && pickBudgetMinutes() !== m) pickSetBudget(m);
 }
-/* Which games the picker is showing right now: one in single mode, up to three in RNG.
+/* Which game the picker is showing right now.
    enrich.js re-renders this tab when an enrichment batch lands, and it needs to know
    whether the batch touched anything on screen — every batch used to repaint the tab,
    including the whole-library background poll, which meant the cards redrew every 2.5
@@ -518,43 +513,24 @@ function pickAdoptMinutes(m) {
    that carries the animation is now only put on when these are actually different games
    from the ones that were on screen a moment ago. */
 let _pickDrawnFor = "";
-const pickResultKey = () => (pickModeRng()
-  ? RNG_SLOTS.map((sl) => (rngState.picks[sl.id] || {})._k || "-").join(",")
-  : ((pickState.picked || {})._k || "-"));
+const pickResultKey = () => ((pickState.picked || {})._k || "-");
 
-/* An enrichment batch landed. What the picker does about it depends on the mode and on
-   whether anything on screen is actually waiting for it.
-
-   `mine` is true when the batch carried a game the picker is showing, false for the
-   whole-library backfill poll.
+/* An enrichment batch landed. `mine` is true when the batch carried the game the picker
+   is showing, false for the whole-library backfill poll.
 
    The rule that matters: do NOT rebuild unless something on screen is waiting. A rebuild
    replaces the .card nodes, and preview.js's autoplay tour holds the card it is playing —
-   rebuild them mid-tour and the tour stops partway through. The 45-second backfill poll
-   was doing that on every tick. */
+   rebuild them mid-tour and the tour stops partway through. The pick card composes
+   launchHtml, which reads this game's `stores` — a field the whole-library map drops on
+   purpose — so only the game's own batch can supply it, and only a re-render puts the
+   button on the card. */
 function pickEnrichLanded(mine) {
-  if (!pickModeRng()) {
-    // The single pick composes launchHtml, which reads this game's `stores` — a field the
-    // whole-library map drops on purpose. Only the game's own batch can supply it, and
-    // only a re-render puts the button on the card.
-    if (mine) renderPicker();
-    return;
-  }
-  // RNG's cards carry no launch button, so nothing here needs the DOM rebuilt — except a
-  // skeleton, which is waiting for exactly this batch in order to become real cards.
-  if ($("#pickResult .rng-slot.loading")) renderPicker();
-  else rngPatch();
+  if (mine) renderPicker();
 }
 
-const pickShowsKey = (k) => (pickModeRng()
-  ? RNG_SLOTS.some((sl) => (rngState.picks[sl.id] || {})._k === k)
-  : !!(pickState.picked && pickState.picked._k === k));
+const pickShowsKey = (k) => !!(pickState.picked && pickState.picked._k === k);
 
 function pickGame(roll) {
-  // The single-game entry point, and the two outside callers (Home's "pick another",
-  // the challenge hand-off) mean a single game — so asking for one IS asking for this
-  // mode, rather than quietly rolling three because that's where the tab was left.
-  pickState.mode = "one";
   const pool = pickPool();
   pickState.picked = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   // The roll is a reveal, not a re-render: play it into the result slot and let it
@@ -875,21 +851,6 @@ function pickEdited() {
    the pool actually moves. */
 let _pkVals = null;
 
-/* The mode switch and the animation toggle are the only two controls both templates
-   render, so they're the only two that get wired in both. Leaving the phone sheet open
-   across a mode change would strand a modal over a tab that no longer has one. */
-function wirePickModes(host) {
-  host.querySelectorAll(".pick-mode").forEach((el) => {
-    el.onclick = () => {
-      if (pickState.mode === el.dataset.mode) return;
-      pickState.mode = el.dataset.mode;
-      closePickPop();
-      pickSheetSet(false);
-      renderPicker();
-      nav();
-    };
-  });
-}
 function wirePickAnim() {
   const anim = $("#pickAnim");
   if (!anim) return;
